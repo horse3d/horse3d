@@ -85,16 +85,19 @@ __attribute__((constructor)) void _init_precedences() {
     i = 1;  // skip H64OP_INVALID
     while (i < TOTAL_OP_COUNT) {
         int precedence = operator_PrecedenceByType(i);
-        int c = operators_by_precedence_counts[i];
+        printf("%d %d\n", precedence, operator_precedences_total_count);
+        assert(precedence >= 0 &&
+               precedence < operator_precedences_total_count);
+        int c = operators_by_precedence_counts[precedence];
         h64optype *new_list = realloc(
-            operators_by_precedence[i],
+            operators_by_precedence[precedence],
             sizeof(**operators_by_precedence) * (c + 1)
         );
         if (!new_list)
             goto allocfail;
-        operators_by_precedence[i] = new_list;
+        operators_by_precedence[precedence] = new_list;
         new_list[c] = i;
-        operators_by_precedence_counts[i]++;
+        operators_by_precedence_counts[precedence]++;
         i++;
     }
 }
