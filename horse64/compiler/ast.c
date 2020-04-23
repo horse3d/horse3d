@@ -32,6 +32,7 @@ void ast_FreeExpression(h64expression *expr) {
             ast_FreeExpression(expr->funcdef.stmt[i]);
             i++;
         }
+        if (expr->funcdef.stmt) free(expr->funcdef.stmt);
         i = 0;
         while (i < expr->funcdef.arguments.arg_count) {
             if (expr->funcdef.arguments.arg_name[i])
@@ -40,9 +41,16 @@ void ast_FreeExpression(h64expression *expr) {
                 ast_FreeExpression(expr->funcdef.arguments.arg_value);
             i++;
         }
+    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
+        free(expr->identifierref.value);
     } else if (expr->type == H64EXPRTYPE_LITERAL &&
             expr->literal.type == H64TK_CONSTANT_STRING) {
         free(expr->literal.str_value);
+    } else if (expr->type == H64EXPRTYPE_BINARYOP) {
+        ast_FreeExpression(expr->op.value1);
+        ast_FreeExpression(expr->op.value2);
+    } else if (expr->type == H64EXPRTYPE_UNARYOP) {
+        ast_FreeExpression(expr->op.value1);
     } else if (expr->type == H64EXPRTYPE_INVALID ||
             (expr->type == H64EXPRTYPE_LITERAL && (
              expr->literal.type == H64TK_CONSTANT_FLOAT ||

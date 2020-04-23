@@ -95,6 +95,9 @@ typedef struct h64expression {
             h64expression *value;
             h64funcargs arguments;
         } inlinecall;
+        struct identifierref {
+            char *value;
+        } identifierref;
     }; 
 } h64expression;
 
