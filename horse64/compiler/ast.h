@@ -1,5 +1,5 @@
-#ifndef HORSE64_AST_H_
-#define HORSE64_AST_H_
+#ifndef HORSE64_COMPILER_AST_H_
+#define HORSE64_COMPILER_AST_H_
 
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
@@ -89,33 +89,9 @@ typedef struct h64expression {
     }; 
 } h64expression;
 
-typedef struct h64ast {
-    h64result resultmsg;
-    h64scope scope;
-    int stmt_count;
-    h64expression **stmt;
-} h64ast;
-
 void ast_FreeExpression(h64expression *expr);
 
-void ast_FreeContents(h64ast *ast);
-
 const char *ast_ExpressionTypeToStr(h64expressiontype type);
-
-int ast_ParseExprInline(
-    const char *fileuri,
-    h64result *resultmsg,
-    h64scope *addtoscope,
-    h64token *tokens,
-    int token_count,
-    int max_tokens_touse,
-    int inlinemode,
-    int *parsefail,
-    int *outofmemory,
-    h64expression **out_expr,
-    int *out_tokenlen,
-    int nestingdepth
-);
 
 char *ast_ExpressionToJSONStr(
     h64expression *e, const char *fileuri
@@ -125,8 +101,5 @@ jsonvalue *ast_ExpressionToJSON(
     h64expression *e, const char *fileuri
 );
 
-h64ast ast_ParseFromTokens(
-    const char *fileuri, h64token *tokens, int token_count
-);
 
-#endif  // HORSE64_AST_H_
+#endif  // HORSE64_COMPILER_AST_H_

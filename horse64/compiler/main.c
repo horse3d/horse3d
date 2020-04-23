@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "compiler/ast.h"
+#include "compiler/astparser.h"
 #include "compiler/codemodule.h"
 #include "compiler/lexer.h"
 #include "compiler/main.h"
