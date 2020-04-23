@@ -734,6 +734,8 @@ char *json_Dump(jsonvalue *jv) {
         if (jv->value_bool)
             return strdup("true");
         return strdup("false");
+    } else if (jv->type == JSON_VALUE_NULL) {
+        return strdup("null");
     }
     return NULL;
 }

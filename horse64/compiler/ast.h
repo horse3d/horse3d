@@ -49,7 +49,7 @@ typedef struct h64scope {
 typedef struct h64funcargs {
     int arg_count;
     char **arg_name;
-    h64expression *arg_value;
+    h64expression **arg_value;
 } h64funcargs;
 
 typedef struct h64expression {
@@ -76,7 +76,7 @@ typedef struct h64expression {
             char assignop[3];
         } assignstmt;
         struct callstmt {
-            h64expression *inlinecall;
+            h64expression *call;
         } callstmt;
         struct literal {
             h64tokentype type;
@@ -113,5 +113,6 @@ jsonvalue *ast_ExpressionToJSON(
     h64expression *e, const char *fileuri
 );
 
+void ast_ClearFunctionArgs(h64funcargs *fargs);
 
 #endif  // HORSE64_COMPILER_AST_H_

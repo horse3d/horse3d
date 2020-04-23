@@ -771,7 +771,8 @@ h64tokenizedfile lexer_ParseFromFile(
         }
 
         // Brackets:
-        if (c == '(' || c == ')' || c == '[' || c == ']' ||
+        if ((c == '(' && could_be_unary_op) || c == ')' ||
+                (c == '[' && could_be_unary_op) || c == ']' ||
                 c == '{' || c == '}') {
             result.token[result.token_count].type = H64TK_BRACKET;
             result.token[result.token_count].char_value = c;
@@ -804,11 +805,18 @@ h64tokenizedfile lexer_ParseFromFile(
                 c == '/' || c == '\\' || c == '<' || c == '>' || c == '*' ||
                 c == '-' ||
                 (c == '=' && (i + 1 >= (int)size ||
-                 buffer[i + 1] != '>'))) {
+                 buffer[i + 1] != '>')) ||
+                ((c == '(' || c == '[') && !could_be_unary_op)) {
             int tokentype = H64TK_BINOPSYMBOL;
             int optype = H64OP_INVALID;
 
             switch (c) {
+            case '(':
+                optype = H64OP_CALL;
+                break;
+            case '[':
+                optype = H64OP_MEMBERBYEXPR;
+                break;
             case '.':
                 optype = H64OP_MEMBERBYIDENTIFIER;
                 break;

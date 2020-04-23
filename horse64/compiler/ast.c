@@ -15,6 +15,22 @@
 #include "compiler/operator.h"
 
 
+void ast_ClearFunctionArgs(h64funcargs *fargs) {
+    int i = 0;
+    while (i < fargs->arg_count) {
+        if (fargs->arg_name[i])
+            free(fargs->arg_name[i]);
+        if (fargs->arg_value[i])
+            ast_FreeExpression(fargs->arg_value[i]);
+        i++;
+    }
+    free(fargs->arg_name);
+    fargs->arg_name = NULL;
+    free(fargs->arg_value);
+    fargs->arg_value = NULL;
+    fargs->arg_count = 0;
+}
+
 void ast_FreeExpression(h64expression *expr) {
     if (!expr)
         return;
@@ -27,20 +43,14 @@ void ast_FreeExpression(h64expression *expr) {
     } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
         if (expr->funcdef.identifier)
             free(expr->funcdef.identifier);
+        ast_ClearFunctionArgs(&expr->funcdef.arguments);
         int i = 0;
         while (i < expr->funcdef.stmt_count) {
             ast_FreeExpression(expr->funcdef.stmt[i]);
             i++;
         }
         if (expr->funcdef.stmt) free(expr->funcdef.stmt);
-        i = 0;
-        while (i < expr->funcdef.arguments.arg_count) {
-            if (expr->funcdef.arguments.arg_name[i])
-                free(expr->funcdef.arguments.arg_name[i]);
-            if (expr->funcdef.arguments.arg_value)
-                ast_FreeExpression(expr->funcdef.arguments.arg_value);
-            i++;
-        }
+        ast_ClearFunctionArgs(&expr->funcdef.arguments);
     } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
         free(expr->identifierref.value);
     } else if (expr->type == H64EXPRTYPE_LITERAL &&
@@ -78,7 +88,7 @@ static char _h64exprname_for_stmt[] = "H64EXPRTYPE_FOR_STMT";
 static char _h64exprname_import_stmt[] = "H64EXPRTYPE_IMPORT_STMT";
 static char _h64exprname_assign_stmt[] = "H64EXPRTYPE_ASSIGN_STMT";
 static char _h64exprname_literal[] = "H64EXPRTYPE_LITERAL";
-static char _h64exprname_identifierref[] = "H64EXPRTYPE_IDENTIFERREF";
+static char _h64exprname_identifierref[] = "H64EXPRTYPE_IDENTIFIERREF";
 static char _h64exprname_unaryop[] = "H64EXPRTYPE_UNARYOP";
 static char _h64exprname_binaryop[] = "H64EXPRTYPE_BINARYOP";
 static char _h64exprname_call[] = "H64EXPRTYPE_CALL";
@@ -139,6 +149,66 @@ char *ast_ExpressionToJSONStr(
     char *s = json_Dump(v);
     json_Free(v);
     return s;
+}
+
+jsonvalue *ast_FuncArgsToJSON(
+        h64funcargs *fargs, const char *fileuri
+        ) {
+    jsonvalue *v = json_List();
+    int fail = 0;
+    int i = 0;
+    while (i < fargs->arg_count) {
+        jsonvalue *arg = json_Dict();
+        if (!arg) {
+            fail = 1;
+            break;
+        }
+        if (fargs->arg_name[i] && strlen(fargs->arg_name[i]) > 0) {
+            if (!json_SetDictStr(arg, "name", fargs->arg_name[i])) {
+                fail = 1;
+                json_Free(arg);
+                break;
+            }
+        } else {
+            if (!json_SetDictNull(arg, "name")) {
+                fail = 1;
+                json_Free(arg);
+                break;
+            }
+        }
+        if (fargs->arg_value[i]) {
+            jsonvalue *innerv = ast_ExpressionToJSON(
+                fargs->arg_value[i], fileuri
+            );
+            if (!innerv) {
+                json_Free(arg);
+                fail = 1;
+                break;
+            } else if (!json_SetDict(arg, "value", innerv)) {
+                fail = 1;
+                json_Free(innerv);
+                json_Free(arg);
+                break;
+            }
+        } else {
+            if (!json_SetDictNull(arg, "value")) {
+                fail = 1;
+                json_Free(arg);
+                break;
+            }
+        }
+        if (!json_AddToList(v, arg)) {
+            fail = 1;
+            json_Free(arg);
+            break;
+        }
+        i++;
+    }
+    if (fail) {
+        json_Free(v);
+        return NULL;
+    }
+    return v;
 }
 
 jsonvalue *ast_ExpressionToJSON(
@@ -215,6 +285,17 @@ jsonvalue *ast_ExpressionToJSON(
             fail = 1;
             json_Free(attributes);
         }
+        jsonvalue *value2 = ast_FuncArgsToJSON(
+            &e->inlinecall.arguments, fileuri
+        );
+        if (!value2) {
+            fail = 1;
+        } else {
+            if (!json_SetDict(v, "arguments", value2)) {
+                json_Free(value2);
+                fail = 1;
+            }
+        }
     } else if (e->type == H64EXPRTYPE_LITERAL) {
         if (e->literal.type == H64TK_CONSTANT_INT) {
             if (!json_SetDictInt(v, "value", e->literal.int_value))
@@ -255,6 +336,9 @@ jsonvalue *ast_ExpressionToJSON(
                 fail = 1;
             }
         }
+        if (!json_SetDictStr(v, "operator",
+                operator_OpTypeToStr(e->op.optype)))
+            fail = 1;
     } else if (e->type == H64EXPRTYPE_UNARYOP) {
         jsonvalue *value1 = ast_ExpressionToJSON(
             e->op.value1, fileuri
@@ -264,6 +348,36 @@ jsonvalue *ast_ExpressionToJSON(
         } else {
             if (!json_SetDict(v, "operand", value1)) {
                 json_Free(value1);
+                fail = 1;
+            }
+        }
+    } else if (e->type == H64EXPRTYPE_CALL ||
+            e->type == H64EXPRTYPE_CALL_STMT) {
+        h64expression *innere = (
+            e->type == H64EXPRTYPE_CALL ? e :
+            e->callstmt.call
+        );
+        if (innere->inlinecall.value != NULL) {
+            jsonvalue *value1 = ast_ExpressionToJSON(
+                innere->inlinecall.value, fileuri
+            );
+            if (!value1) {
+                fail = 1;
+            } else {
+                if (!json_SetDict(v, "callee", value1)) {
+                    json_Free(value1);
+                    fail = 1;
+                }
+            }
+        }
+        jsonvalue *value2 = ast_FuncArgsToJSON(
+            &innere->inlinecall.arguments, fileuri
+        );
+        if (!value2) {
+            fail = 1;
+        } else {
+            if (!json_SetDict(v, "arguments", value2)) {
+                json_Free(value2);
                 fail = 1;
             }
         }

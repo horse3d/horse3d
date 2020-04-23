@@ -34,4 +34,6 @@ h64ast ast_ParseFromTokens(
     const char *fileuri, h64token *tokens, int token_count
 );
 
+int ast_CanBeLValue(h64expression *e);
+
 #endif  // HORSE64_COMPILER_ASTPARSER_H_
