@@ -94,7 +94,7 @@ static char _h64exprname_binaryop[] = "H64EXPRTYPE_BINARYOP";
 static char _h64exprname_call[] = "H64EXPRTYPE_CALL";
 static char _h64exprname_list[] = "H64EXPRTYPE_LIST";
 static char _h64exprname_set[] = "H64EXPRTYPE_SET";
-static char _h64exprname_dict[] = "H64EXPRTYPE_DICT";
+static char _h64exprname_map[] = "H64EXPRTYPE_MAP";
 
 const char *ast_ExpressionTypeToStr(h64expressiontype type) {
     if (type == H64EXPRTYPE_INVALID || type <= 0)
@@ -132,8 +132,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_list;
     case H64EXPRTYPE_SET:
         return _h64exprname_set;
-    case H64EXPRTYPE_DICT:
-        return _h64exprname_dict;
+    case H64EXPRTYPE_MAP:
+        return _h64exprname_map;
     default:
         return NULL;
     }

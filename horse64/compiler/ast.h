@@ -18,12 +18,13 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_ASSIGN_STMT,
     H64EXPRTYPE_LITERAL = 50,
     H64EXPRTYPE_IDENTIFIERREF,
+    H64EXPRTYPE_INLINEFUNC,
     H64EXPRTYPE_UNARYOP,
     H64EXPRTYPE_BINARYOP,
     H64EXPRTYPE_CALL,
     H64EXPRTYPE_LIST,
     H64EXPRTYPE_SET,
-    H64EXPRTYPE_DICT
+    H64EXPRTYPE_MAP
 } h64expressiontype;
 
 #define IS_STMT(x) (x < 50)
@@ -98,6 +99,19 @@ typedef struct h64expression {
         struct identifierref {
             char *value;
         } identifierref;
+        struct constructorlist {
+            int entry_count;
+            h64expression **entry;
+        } constructorlist;
+        struct constructorset {
+            int entry_count;
+            h64expression **entry;
+        } constructorset;
+        struct constructormap {
+            int entry_count;
+            h64expression **key;
+            h64expression **value;
+        } constructormap;
     }; 
 } h64expression;
 
