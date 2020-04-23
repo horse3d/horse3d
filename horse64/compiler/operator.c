@@ -6,6 +6,130 @@
 #include "compiler/operator.h"
 
 
+static char h64opprinted_invalid[] = "H64OP_INVALID";
+static char h64opprinted_math_divide[] = "/";
+static char h64opprinted_math_addition[] = "+";
+static char h64opprinted_math_unarysubstract[] = "-";
+static char h64opprinted_math_substract[] = "-";
+static char h64opprinted_math_multiply[] = "*";
+static char h64opprinted_math_modulo[] = "%";
+static char h64opprinted_math_binor[] = "|";
+static char h64opprinted_math_binand[] = "&";
+static char h64opprinted_math_binxor[] = "^";
+static char h64opprinted_math_binnot[] = "~";
+static char h64opprinted_math_binshiftleft[] = "<<";
+static char h64opprinted_math_binshiftright[] = ">>";
+static char h64opprinted_assignmath_divide[] = "/=";
+static char h64opprinted_assignmath_add[] = "+=";
+static char h64opprinted_assignmath_substract[] = "=-";
+static char h64opprinted_assignmath_multiply[] = "*=";
+static char h64opprinted_assignmath_modulo[] = "%=";
+static char h64opprinted_assignmath_binor[] = "|=";
+static char h64opprinted_assignmath_binand[] = "&=";
+static char h64opprinted_assignmath_binxor[] = "^=";
+static char h64opprinted_assignmath_binnot[] = "~=";
+static char h64opprinted_assignmath_binshiftleft[] = "<<=";
+static char h64opprinted_assignmath_binshiftright[] = ">>=";
+static char h64opprinted_assign[] = "=";
+static char h64opprinted_cmp_equal[] = "==";
+static char h64opprinted_cmp_notequal[] = "!=";
+static char h64opprinted_cmp_largerorequal[] = ">=";
+static char h64opprinted_cmp_smallerorequal[] = "<=";
+static char h64opprinted_cmp_larger[] = ">";
+static char h64opprinted_cmp_smaller[] = "<";
+static char h64opprinted_boolcond_and[] = "and";
+static char h64opprinted_boolcond_or[] = "or";
+static char h64opprinted_boolcond_not[] = "not";
+static char h64opprinted_boolcond_in[] = "in";
+static char h64opprinted_memberbyidentifier[] = "[";
+static char h64opprinted_memberbyexpr[] = ".";
+static char h64opprinted_call[] = "(";
+
+
+const char *operator_OpPrintedAsStr(h64optype type) {
+    switch (type) {
+    case H64OP_INVALID:
+        return h64opprinted_invalid;
+    case H64OP_MATH_DIVIDE:
+        return h64opprinted_math_divide;
+    case H64OP_MATH_ADD:
+        return h64opprinted_math_addition;
+    case H64OP_MATH_SUBSTRACT:
+        return h64opprinted_math_substract;
+    case H64OP_MATH_UNARYSUBSTRACT:
+        return h64opprinted_math_unarysubstract;
+    case H64OP_MATH_MULTIPLY:
+        return h64opprinted_math_multiply;
+    case H64OP_MATH_MODULO:
+        return h64opprinted_math_modulo;
+    case H64OP_MATH_BINOR:
+        return h64opprinted_math_binor;
+    case H64OP_MATH_BINAND:
+        return h64opprinted_math_binand;
+    case H64OP_MATH_BINXOR:
+        return h64opprinted_math_binxor;
+    case H64OP_MATH_BINNOT:
+        return h64opprinted_math_binnot;
+    case H64OP_MATH_BINSHIFTLEFT:
+        return h64opprinted_math_binshiftleft;
+    case H64OP_MATH_BINSHIFTRIGHT:
+        return h64opprinted_math_binshiftright;
+    case H64OP_ASSIGNMATH_DIVIDE:
+        return h64opprinted_assignmath_divide;
+    case H64OP_ASSIGNMATH_ADD:
+        return h64opprinted_assignmath_add;
+    case H64OP_ASSIGNMATH_SUBSTRACT:
+        return h64opprinted_assignmath_substract;
+    case H64OP_ASSIGNMATH_MULTIPLY:
+        return h64opprinted_assignmath_multiply;
+    case H64OP_ASSIGNMATH_MODULO:
+        return h64opprinted_assignmath_modulo;
+    case H64OP_ASSIGNMATH_BINOR:
+        return h64opprinted_assignmath_binor;
+    case H64OP_ASSIGNMATH_BINAND:
+        return h64opprinted_assignmath_binand;
+    case H64OP_ASSIGNMATH_BINXOR:
+        return h64opprinted_assignmath_binxor;
+    case H64OP_ASSIGNMATH_BINNOT:
+        return h64opprinted_assignmath_binnot;
+    case H64OP_ASSIGNMATH_BINSHIFTLEFT:
+        return h64opprinted_assignmath_binshiftleft;
+    case H64OP_ASSIGNMATH_BINSHIFTRIGHT:
+        return h64opprinted_assignmath_binshiftright;
+    case H64OP_ASSIGN:
+        return h64opprinted_assign;
+    case H64OP_CMP_EQUAL:
+        return h64opprinted_cmp_equal;
+    case H64OP_CMP_NOTEQUAL:
+        return h64opprinted_cmp_notequal;
+    case H64OP_CMP_LARGEROREQUAL:
+        return h64opprinted_cmp_largerorequal;
+    case H64OP_CMP_SMALLEROREQUAL:
+        return h64opprinted_cmp_smallerorequal;
+    case H64OP_CMP_LARGER:
+        return h64opprinted_cmp_larger;
+    case H64OP_CMP_SMALLER:
+        return h64opprinted_cmp_smaller;
+    case H64OP_BOOLCOND_AND:
+        return h64opprinted_boolcond_and;
+    case H64OP_BOOLCOND_OR:
+        return h64opprinted_boolcond_or;
+    case H64OP_BOOLCOND_NOT:
+        return h64opprinted_boolcond_not;
+    case H64OP_BOOLCOND_IN:
+        return h64opprinted_boolcond_in;
+    case H64OP_MEMBERBYIDENTIFIER:
+        return h64opprinted_memberbyidentifier;
+    case H64OP_MEMBERBYEXPR:
+        return h64opprinted_memberbyexpr;
+    case H64OP_CALL:
+        return h64opprinted_call;
+    case TOTAL_OP_COUNT:
+        return NULL;
+    }
+    return NULL;
+}
+
 static char h64opname_invalid[] = "H64OP_INVALID";
 static char h64opname_math_divide[] = "H64OP_MATH_DIVIDE";
 static char h64opname_math_addition[] = "H64OP_MATH_ADD";
@@ -13,7 +137,7 @@ static char h64opname_math_unarysubstract[] = "H64OP_MATH_UNARYSUBSTRACT";
 static char h64opname_math_substract[] = "H64OP_MATH_SUBSTRACT";
 static char h64opname_math_multiply[] = "H64OP_MATH_MULTIPLY";
 static char h64opname_math_modulo[] = "H64OP_MATH_MODULO";
-static char h64opname_math_binor[] = "H64OP_MATH_MODULO";
+static char h64opname_math_binor[] = "H64OP_MATH_BINOR";
 static char h64opname_math_binand[] = "H64OP_MATH_BINAND";
 static char h64opname_math_binxor[] = "H64OP_MATH_BINXOR";
 static char h64opname_math_binnot[] = "H64OP_MATH_BINNOT";

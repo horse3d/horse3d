@@ -91,6 +91,8 @@ static int operator_PrecedenceByType(int type) {
     return -1;
 }
 
+const char *operator_OpPrintedAsStr(h64optype type);
+
 const char *operator_OpTypeToStr(h64optype type);
 
 

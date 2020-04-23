@@ -41,12 +41,15 @@ static const char *_describetoken(
         return _reftokname_none;
     int maxlen = 64;
     snprintf(buf, maxlen - 1, "%s", _reftokname(token, token_count, i));
-    if (token[i].type == H64TK_BINOPSYMBOL ||
-            token[i].type == H64TK_BRACKET) {
+    if (token[i].type == H64TK_BRACKET) {
         snprintf(
             buf, maxlen - 1,
-            "'%c'", token[i].char_value
+            "\"%c\"", token[i].char_value
         );
+    } else if (token[i].type == H64TK_BINOPSYMBOL ||
+            token[i].type == H64TK_UNOPSYMBOL) {
+        snprintf(buf, maxlen - 1, "\"%s\"", operator_OpPrintedAsStr(
+            token[i].int_value));
     }
     buf[maxlen - 1] = '\0';
     return buf;
@@ -602,6 +605,7 @@ int ast_ParseExprStmt(
             ast_FreeExpression(expr);
             return 0;
         }
+        char describebuf[64];
         if (i < token_count && i < max_tokens_touse &&
                 tokens[i].type == H64TK_BINOPSYMBOL &&
                 IS_ASSIGN_OP(tokens[i].int_value)) {
@@ -647,6 +651,7 @@ int ast_ParseExprStmt(
                 return 0;
             }
             expr->vardef.value = innerexpr;
+            i += tlen;
         }
         *out_expr = expr;
         if (out_tokenlen) *out_tokenlen = i;
@@ -703,7 +708,7 @@ int ast_ParseExprStmt(
             char buf[256]; char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected %s, "
-                "expected '{' for "
+                "expected \"{\" for "
                 "code block for "
                 "function definition in line %"
                 PRId64 ", column %" PRId64 " instead",
@@ -784,8 +789,8 @@ int ast_ParseExprStmt(
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
-                    "expected '}' to end "
-                    "code block opened with '{' in line %"
+                    "expected \"}\" to end "
+                    "code block opened with \"{\" in line %"
                     PRId64 ", column %" PRId64 " instead",
                     _describetoken(describebuf, tokens, token_count, i),
                     codeblock_line, codeblock_column
