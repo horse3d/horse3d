@@ -395,7 +395,7 @@ h64tokenizedfile lexer_ParseFromFile(
                     char buf[512];
                     snprintf(buf, sizeof(buf) - 1,
                         "unexpected end of file, "
-                        "expected terminating '%c' for string literal "
+                        "expected terminating \"%c\" for string literal "
                         "starting in line %d, column %d",
                         startc, startline, startcolumn);
                     result_AddMessage(
@@ -706,7 +706,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 snprintf(
                     buf, sizeof(buf) - 1,
                     "unexpected lack of separation before character "
-                    "'%s', "
+                    "\"%s\", "
                     "expected whitespace, bracket, comma, "
                     "operator, or other separator "
                     "after number literal "
@@ -1117,7 +1117,7 @@ h64tokenizedfile lexer_ParseFromFile(
         );
         if (c >= 32 && c <= 126 && c != '\'') {
             snprintf(buf, sizeof(buf) - 1,
-                "unexpected character '%c', "
+                "unexpected character \"%c\", "
                 "expected any valid  token instead",
                 (int)c
             );
