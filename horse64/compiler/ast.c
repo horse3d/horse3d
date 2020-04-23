@@ -40,12 +40,20 @@ void ast_FreeExpression(h64expression *expr) {
                 ast_FreeExpression(expr->funcdef.arguments.arg_value);
             i++;
         }
-    } else if (expr->type == H64EXPRTYPE_INVALID) {
+    } else if (expr->type == H64EXPRTYPE_LITERAL &&
+            expr->literal.type == H64TK_CONSTANT_STRING) {
+        free(expr->literal.str_value);
+    } else if (expr->type == H64EXPRTYPE_INVALID ||
+            (expr->type == H64EXPRTYPE_LITERAL && (
+             expr->literal.type == H64TK_CONSTANT_FLOAT ||
+             expr->literal.type == H64TK_CONSTANT_INT ||
+             expr->literal.type == H64TK_CONSTANT_BOOL ||
+             expr->literal.type == H64TK_CONSTANT_NONE))) {
         // Nothing to do.
     } else {
         fprintf(stderr, "horsecc: warning: internal issue, "
             "unhandled expression in ast_FreeExpression(): "
-            "type=%d\n", expr->type);
+            "type=%d, LIKELY MEMORY LEAK.\n", expr->type);
     }
 
     free(expr);
@@ -198,6 +206,58 @@ jsonvalue *ast_ExpressionToJSON(
         if (!json_SetDict(v, "attributes", attributes)) {
             fail = 1;
             json_Free(attributes);
+        }
+    } else if (e->type == H64EXPRTYPE_LITERAL) {
+        if (e->literal.type == H64TK_CONSTANT_INT) {
+            if (!json_SetDictInt(v, "value", e->literal.int_value))
+                fail = 1;
+        } else if (e->literal.type == H64TK_CONSTANT_FLOAT) {
+            if (!json_SetDictFloat(v, "value", e->literal.float_value))
+                fail = 1;
+        } else if (e->literal.type == H64TK_CONSTANT_BOOL) {
+            if (!json_SetDictBool(v, "value", (int)e->literal.int_value))
+                fail = 1;
+        } else if (e->literal.type == H64TK_CONSTANT_NONE) {
+            if (!json_SetDictNull(v, "value"))
+                fail = 1;
+        } else if (e->literal.type == H64TK_CONSTANT_STRING) {
+            if (!json_SetDictStr(v, "value", e->literal.str_value))
+                fail = 1;
+        }
+    } else if (e->type == H64EXPRTYPE_BINARYOP) {
+        jsonvalue *value1 = ast_ExpressionToJSON(
+            e->op.value1, fileuri
+        );
+        if (!value1) {
+            fail = 1;
+        } else {
+            if (!json_SetDict(v, "operand1", value1)) {
+                json_Free(value1);
+                fail = 1;
+            }
+        }
+        jsonvalue *value2 = ast_ExpressionToJSON(
+            e->op.value2, fileuri
+        );
+        if (!value2) {
+            fail = 1;
+        } else {
+            if (!json_SetDict(v, "operand2", value2)) {
+                json_Free(value2);
+                fail = 1;
+            }
+        }
+    } else if (e->type == H64EXPRTYPE_UNARYOP) {
+        jsonvalue *value1 = ast_ExpressionToJSON(
+            e->op.value1, fileuri
+        );
+        if (!value1) {
+            fail = 1;
+        } else {
+            if (!json_SetDict(v, "operand", value1)) {
+                json_Free(value1);
+                fail = 1;
+            }
         }
     }
     if (fileuri) {

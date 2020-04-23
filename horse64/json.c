@@ -496,6 +496,25 @@ int json_SetDict(
     return 1;
 }
 
+int json_SetDictNull(
+        jsonvalue *dict, const char *key
+        ) {
+    if (!dict || dict->type != JSON_VALUE_OBJECT)
+        return 0;
+
+    jsonvalue *valueobj = malloc(sizeof(*valueobj));
+    if (!valueobj)
+        return 0;
+    memset(valueobj, 0, sizeof(*valueobj));
+    valueobj->type = JSON_VALUE_NULL;
+
+    if (!json_SetDict(dict, key, valueobj)) {
+        json_Free(valueobj);
+        return 0;
+    }
+    return 1;
+}
+
 int json_SetDictBool(
         jsonvalue *dict, const char *key, int value
         ) {

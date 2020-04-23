@@ -53,6 +53,7 @@ typedef enum h64optype {
     x == H64OP_BOOLCOND_NOT || \
     x == H64OP_MATH_BINNOT)
 #define IS_ASSIGN_OP(x) (x >= H64OP_ASSIGNMATH_DIVIDE && x <= H64OP_ASSIGN)
+#define IS_UNWANTED_ASSIGN_OP(x) (x >= H64OP_ASSIGNMATH_MODULO && x <= H64OP_ASSIGNMATH_BINSHIFTRIGHT)
 
 extern int operator_precedences_total_count;
 extern int *operators_by_precedence_counts;

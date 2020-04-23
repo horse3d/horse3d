@@ -78,7 +78,16 @@ typedef struct h64expression {
         struct callstmt {
             h64expression *inlinecall;
         } callstmt;
+        struct literal {
+            h64tokentype type;
+            union {
+                int64_t int_value;
+                double float_value;
+                char *str_value;
+            };
+        } literal;
         struct op {
+            int optokenoffset, totaltokenlen;  // needed by parser
             h64optype optype;
             h64expression *value1, *value2;
         } op;

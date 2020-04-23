@@ -41,8 +41,8 @@ static char h64opprinted_boolcond_and[] = "and";
 static char h64opprinted_boolcond_or[] = "or";
 static char h64opprinted_boolcond_not[] = "not";
 static char h64opprinted_boolcond_in[] = "in";
-static char h64opprinted_memberbyidentifier[] = "[";
-static char h64opprinted_memberbyexpr[] = ".";
+static char h64opprinted_memberbyidentifier[] = ".";
+static char h64opprinted_memberbyexpr[] = "[";
 static char h64opprinted_call[] = "(";
 
 

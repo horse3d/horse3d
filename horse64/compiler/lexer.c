@@ -756,17 +756,17 @@ h64tokenizedfile lexer_ParseFromFile(
             column += strlen("false");
             continue;
         } else if (c == 'n' &&
-                i + strlen("null") - 1 < (unsigned int)size &&
-                buffer[i + 1] == 'u' &&
-                buffer[i + 2] == 'l' &&
-                buffer[i + 3] == 'l' && (
-                i + strlen("null") >= (unsigned int)size ||
+                i + strlen("none") - 1 < (unsigned int)size &&
+                buffer[i + 1] == 'o' &&
+                buffer[i + 2] == 'n' &&
+                buffer[i + 3] == 'e' && (
+                i + strlen("none") >= (unsigned int)size ||
                 (!is_identifier_char(buffer[i + 4]) &&
                  !is_digit(buffer[i + 4])))) {
-            result.token[result.token_count].type = H64TK_CONSTANT_NULL;
+            result.token[result.token_count].type = H64TK_CONSTANT_NONE;
             result.token_count++;
-            i += strlen("null");
-            column += strlen("null");
+            i += strlen("none");
+            column += strlen("none");
             continue;
         }
 
@@ -944,6 +944,29 @@ h64tokenizedfile lexer_ParseFromFile(
             result.token[result.token_count].type = tokentype;
             result.token[result.token_count].int_value = optype;
             result.token_count++;
+            if (IS_ASSIGN_OP(optype) && IS_UNWANTED_ASSIGN_OP(optype)) {
+                char buf[512];
+                snprintf(
+                    buf, sizeof(buf) - 1,
+                    "unexpected unavailable assignment math operator "
+                    "\"%s\", "
+                    "this syntax shortcut is only allowed for "
+                    "\"+=\", \"-=\", \"*=\", and \"/=\"",
+                    operator_OpPrintedAsStr(optype));
+                if (!result_AddMessage(
+                        &result.resultmsg,
+                        H64MSG_ERROR, buf, fileuri, line,\
+                        column + 1 - strlen(operator_OpPrintedAsStr(optype))
+                        )) {
+                    result_ErrorNoLoc(
+                        &result.resultmsg,
+                        "failed to add result message, out of memory?",
+                        fileuri
+                    );
+                    free(buffer);
+                    return result;
+                }
+            }
             i++;
             column++;
             continue;
@@ -1194,7 +1217,7 @@ static char _h64tkname_keyword[] = "H64TK_KEYWORD";
 static char _h64tkname_constant_int[] = "H64TK_CONSTANT_INT";
 static char _h64tkname_constant_float[] = "H64TK_CONSTANT_FLOAT";
 static char _h64tkname_constant_bool[] = "H64TK_CONSTANT_BOOL";
-static char _h64tkname_constant_null[] = "H64TK_CONSTANT_NULL";
+static char _h64tkname_constant_none[] = "H64TK_CONSTANT_NULL";
 static char _h64tkname_constant_string[] = "H64TK_CONSTANT_STRING";
 static char _h64tkname_binopsymbol[] = "H64TK_BINOPSYMBOL";
 static char _h64tkname_unopsymbol[] = "H64TK_UNOPSYMBOL";
@@ -1216,8 +1239,8 @@ const char *lexer_TokenTypeToStr(h64tokentype type) {
         return _h64tkname_constant_float;
     } else if (type == H64TK_CONSTANT_BOOL) {
         return _h64tkname_constant_bool;
-    } else if (type == H64TK_CONSTANT_NULL) {
-        return _h64tkname_constant_null;
+    } else if (type == H64TK_CONSTANT_NONE) {
+        return _h64tkname_constant_none;
     } else if (type == H64TK_CONSTANT_STRING) {
         return _h64tkname_constant_string;
     } else if (type == H64TK_BINOPSYMBOL) {
@@ -1276,7 +1299,7 @@ jsonvalue *lexer_TokenToJSON(h64token *t, const char *fileuri) {
             fail = 1;
     } else if (t->type == H64TK_BINOPSYMBOL ||
             t->type == H64TK_UNOPSYMBOL) {
-        const char *opname = operator_OpTypeToStr(t->type);
+        const char *opname = operator_OpTypeToStr(t->int_value);
         if (!opname)
             fail = 1;
         else if (!json_SetDictStr(v, "value", opname))
