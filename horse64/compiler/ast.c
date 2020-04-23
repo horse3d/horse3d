@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "compiler/ast.h"
+#include "compiler/globallimits.h"
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
 
@@ -51,7 +52,7 @@ static const char *_describetoken(
     return buf;
 }
 
-void ast_ParseRecoverInnerStatementBlock(
+void ast_ParseRecover_FindNextStatement(
         h64token *tokens, int token_count, int max_tokens_touse, int *k
         ) {
     int brackets_depth = 0;
@@ -85,59 +86,40 @@ void ast_ParseRecoverInnerStatementBlock(
     *k = i;
 }
 
-#define INLINEMODE_NONGREEDY 0
-#define INLINEMODE_GREEDY 1
-
-typedef struct h64inlinepart {
-    h64expression *part;
-    h64token *operator_after;
-} h64inlinepart;
-
-typedef struct h64opsortinfo {
-    h64token *op;
-    int precedence;
-    int inlinepartindex, tokenindex;
-} h64opsortinfo;
-
-typedef struct h64returnedopinfo {
-    h64expression *opexpression;
-    int tokenindexstart, tokenindexend;
-} h64returnedopinfo;
-
-static void insert_op_precedence(
-        h64token *op, int oppartindex, int tokenindex,
-        h64opsortinfo *precedencelist,
-        int *precedencelist_count
+void ast_ParseRecover_FindEndOfBlock(
+        h64token *tokens, int token_count, int max_tokens_touse, int *k
         ) {
-    // FIXME: use binary search here for long expressions
-    int insert_precedence = operator_PrecedenceByType(
-        op->int_value
-    );
-    int count = *precedencelist_count;
-    int i = 0;
-    while (i < count) {
-        int precedence = precedencelist[i].precedence;
-        if (insert_precedence > precedence) {
-            memmove(
-                &precedencelist[i],
-                &precedencelist[i + 1],
-                sizeof(*precedencelist) * (count - i)
-            );
-            precedencelist[i].op = op;
-            precedencelist[i].tokenindex = tokenindex;
-            precedencelist[i].inlinepartindex = oppartindex;
-            precedencelist[i].precedence = insert_precedence;
-            *precedencelist_count = count + 1;
-            return;
+    int brackets_depth = 0;
+    int i = *k;
+    while (i < token_count && i < max_tokens_touse) {
+        if (tokens[i].type == H64TK_BRACKET) {
+            char c = tokens[i].char_value;
+            if (c == '{' || c == '[' || c == '(') {
+                brackets_depth++;
+            } else {
+                brackets_depth--;
+                if (brackets_depth < -1) brackets_depth = -1;
+                if (brackets_depth == -1 && c == '}') {  // -1 = leave scope
+                    *k = i;
+                    return;
+                }
+            }
+        } else if (tokens[i].type == H64TK_IDENTIFIER) {
+            char *s = tokens[i].str_value;
+            if (strcmp(s, "function") == 0 ||
+                    strcmp(s, "class") == 0 ||
+                    strcmp(s, "import") == 0) {
+                *k = i;
+                return;
+            }
         }
         i++;
     }
-    precedencelist[count].op = op;
-    precedencelist[count].tokenindex = tokenindex;
-    precedencelist[count].inlinepartindex = oppartindex;
-    precedencelist[count].precedence = insert_precedence;
-    *precedencelist_count = count + 1;
+    *k = i;
 }
+
+#define INLINEMODE_NONGREEDY 0
+#define INLINEMODE_GREEDY 1
 
 int ast_ParseExprInlineOperator_Recurse(
         const char *fileuri,
@@ -153,7 +135,8 @@ int ast_ParseExprInlineOperator_Recurse(
         int *parsefail,
         int *outofmemory,
         h64expression **out_expr,
-        int *out_tokenlen
+        int *out_tokenlen,
+        int nestingdepth
         ) {
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
@@ -162,6 +145,19 @@ int ast_ParseExprInlineOperator_Recurse(
             i >= max_tokens_touse) {
         if (parsefail) *parsefail = 0;
         // XXX: do NOT free lefthandside if no parse error.
+        return 0;
+    }
+
+    nestingdepth++;
+    if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
+        char buf[64];
+        snprintf(buf, sizeof(buf) - 1,
+            "exceeded maximum parser recursion of %d, "
+            "less nesting expected", H64LIMIT_MAXPARSERECURSION
+        );
+        result_ErrorNoLoc(resultmsg, buf, fileuri);
+        if (outofmemory) *outofmemory = 0;
+        if (parsefail) *parsefail = 1;
         return 0;
     }
 
@@ -177,7 +173,8 @@ int ast_ParseExprInlineOperator_Recurse(
                 tokens, token_count, max_tokens_touse,
                 INLINEMODE_NONGREEDY,
                 &innerparsefail, &inneroom,
-                &innerexpr, &tlen)) {
+                &innerexpr, &tlen, nestingdepth
+                )) {
             if (inneroom) {
                 if (outofmemory) *outofmemory = 1;
                 if (lefthandside) ast_FreeExpression(lefthandside);
@@ -219,7 +216,8 @@ int ast_ParseExprInlineOperator_Recurse(
                         lefthandside, lefthandsidetokenlen,
                         i, precedencelevel - 1,
                         &innerparsefail, &inneroom,
-                        &innerexpr, &tlen)) {
+                        &innerexpr, &tlen, nestingdepth
+                        )) {
                     if (inneroom) {
                         if (outofmemory) *outofmemory = 1;
                         return 0;
@@ -296,7 +294,9 @@ int ast_ParseExprInlineOperator_Recurse(
                         tokens, token_count, max_tokens_touse,
                         INLINEMODE_NONGREEDY,
                         &innerparsefail, &inneroom,
-                        &righthandside, &righthandsidelen)) {
+                        &righthandside, &righthandsidelen,
+                        nestingdepth
+                        )) {
                     if (inneroom) {
                         if (outofmemory) *outofmemory = 1;
                         if (lefthandside) ast_FreeExpression(lefthandside);
@@ -359,14 +359,15 @@ int ast_ParseExprInlineOperator(
         int *parsefail,
         int *outofmemory,
         h64expression **out_expr,
-        int *out_tokenlen
+        int *out_tokenlen,
+        int nestingdepth
         ) {
     return ast_ParseExprInlineOperator_Recurse(
         fileuri, resultmsg, addtoscope, tokens,
         token_count, max_tokens_touse,
         NULL, 0, 0, operator_precedences_total_count - 1,
         parsefail, outofmemory,
-        out_expr, out_tokenlen
+        out_expr, out_tokenlen, nestingdepth
     ); 
 }
 
@@ -381,7 +382,8 @@ int ast_ParseExprInline(
         int *parsefail,
         int *outofmemory,
         h64expression **out_expr,
-        int *out_tokenlen
+        int *out_tokenlen,
+        int nestingdepth
         ) {
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
@@ -389,6 +391,20 @@ int ast_ParseExprInline(
         if (parsefail) *parsefail = 0;
         return 0;
     }
+
+    nestingdepth++;
+    if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
+        char buf[64];
+        snprintf(buf, sizeof(buf) - 1,
+            "exceeded maximum parser recursion of %d, "
+            "less nesting expected", H64LIMIT_MAXPARSERECURSION
+        );
+        result_ErrorNoLoc(resultmsg, buf, fileuri);
+        if (outofmemory) *outofmemory = 0;
+        if (parsefail) *parsefail = 1;
+        return 0;
+    }
+
     h64expression *expr = malloc(sizeof(*expr));
     if (!expr) {
         result_ErrorNoLoc(
@@ -439,7 +455,7 @@ int ast_ParseExprInline(
                 fileuri, resultmsg, addtoscope,
                 tokens, token_count, max_tokens_touse,
                 &innerparsefail, &inneroom,
-                &innerexpr, &tlen
+                &innerexpr, &tlen, nestingdepth
                 )) {
             if (inneroom) {
                 if (outofmemory) *outofmemory = 1;
@@ -472,7 +488,7 @@ int ast_ParseExprInline(
                 tokens, token_count, max_tokens_touse,
                 INLINEMODE_NONGREEDY,
                 &innerparsefail, &inneroom,
-                &innerexpr, &tlen
+                &innerexpr, &tlen, nestingdepth
                 )) {
             if (inneroom) {
                 if (outofmemory) *outofmemory = 1;
@@ -511,14 +527,29 @@ int ast_ParseExprStmt(
         int *parsefail,
         int *outofmemory,
         h64expression **out_expr,
-        int *out_tokenlen
+        int *out_tokenlen,
+        int nestingdepth
         ) {
-    if (outofmemory) *outofmemory = 1;
+    if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
     if (token_count < 0 || max_tokens_touse < 0) {
         if (parsefail) *parsefail = 0;
         return 0;
     }
+
+    nestingdepth++;
+    if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
+        char buf[64];
+        snprintf(buf, sizeof(buf) - 1,
+            "exceeded maximum parser recursion of %d, "
+            "less nesting expected", H64LIMIT_MAXPARSERECURSION
+        );
+        result_ErrorNoLoc(resultmsg, buf, fileuri);
+        if (outofmemory) *outofmemory = 0;
+        if (parsefail) *parsefail = 1;
+        return 0;
+    }
+
     h64expression *expr = malloc(sizeof(*expr));
     if (!expr) {
         result_ErrorNoLoc(
@@ -587,7 +618,8 @@ int ast_ParseExprStmt(
                     INLINEMODE_GREEDY,
                     &_innerparsefail,
                     &_inneroutofmemory, &innerexpr,
-                    &tlen)) {
+                    &tlen, nestingdepth
+                    )) {
                 if (_inneroutofmemory) {
                     if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
@@ -706,7 +738,8 @@ int ast_ParseExprStmt(
                         max_tokens_touse - i,
                         &_innerparsefail,
                         &_inneroutofmemory, &innerexpr,
-                        &tlen)) {
+                        &tlen, nestingdepth
+                        )) {
                     if (_inneroutofmemory) {
                         if (outofmemory) *outofmemory = 1;
                         ast_FreeExpression(expr);
@@ -715,7 +748,7 @@ int ast_ParseExprStmt(
                     if (_innerparsefail) {
                         // Try to recover by finding next obvious
                         // statement, or possible function end:
-                        ast_ParseRecoverInnerStatementBlock(
+                        ast_ParseRecover_FindNextStatement(
                             tokens, token_count, max_tokens_touse, &i
                         );
                         continue;
@@ -762,10 +795,15 @@ int ast_ParseExprStmt(
                         H64MSG_ERROR, buf, fileuri,
                         _refline(tokens, token_count, i),
                         _refcol(tokens, token_count, i)
-                        ))
+                        )) {
                     if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
-                return 0;
+                    ast_FreeExpression(expr);
+                    return 0;
+                } else {
+                    ast_ParseRecover_FindEndOfBlock(
+                        tokens, token_count, max_tokens_touse, &i
+                    );
+                }
             }
             i++;
             break;
@@ -793,7 +831,8 @@ int ast_ParseExprStmt(
                 INLINEMODE_GREEDY,
                 &_innerparsefail,
                 &_inneroutofmemory, &innerexpr,
-                &tlen)) {
+                &tlen, nestingdepth
+                )) {
             if (_inneroutofmemory) {
                 if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
@@ -823,7 +862,7 @@ int ast_ParseExprStmt(
                             INLINEMODE_GREEDY,
                              &_innerparsefail,
                             &_inneroutofmemory, &innerexpr2,
-                            &tlen
+                            &tlen, nestingdepth
                         )) {
                     if (_inneroutofmemory) {
                         if (outofmemory) *outofmemory = 1;
@@ -1047,7 +1086,8 @@ h64ast ast_ParseFromTokens(
                 &result.scope,
                 &tokens[i], token_count - i,
                 token_count - i,
-                &parsefail, &oom, &expr, &tlen
+                &parsefail, &oom, &expr, &tlen,
+                0
                 )) {
             if (oom) {
                 result_ErrorNoLoc(

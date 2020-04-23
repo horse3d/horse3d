@@ -113,7 +113,8 @@ int ast_ParseExprInline(
     int *parsefail,
     int *outofmemory,
     h64expression **out_expr,
-    int *out_tokenlen
+    int *out_tokenlen,
+    int nestingdepth
 );
 
 char *ast_ExpressionToJSONStr(

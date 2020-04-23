@@ -85,7 +85,6 @@ __attribute__((constructor)) void _init_precedences() {
     i = 1;  // skip H64OP_INVALID
     while (i < TOTAL_OP_COUNT) {
         int precedence = operator_PrecedenceByType(i);
-        printf("%d %d\n", precedence, operator_precedences_total_count);
         assert(precedence >= 0 &&
                precedence < operator_precedences_total_count);
         int c = operators_by_precedence_counts[precedence];
