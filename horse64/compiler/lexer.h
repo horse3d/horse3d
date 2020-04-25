@@ -21,7 +21,8 @@ typedef enum h64tokentype {
     H64TK_CONSTANT_STRING,
     H64TK_BINOPSYMBOL,
     H64TK_UNOPSYMBOL,
-    H64TK_INLINEFUNC
+    H64TK_INLINEFUNC,
+    H64TK_MAPARROW
 } h64tokentype;
 
 typedef struct h64token {
@@ -49,6 +50,7 @@ static char *h64keywords[] = {
     "break", "continue", "try",
     "catch", "finally", "error",
     "self", "base", "new",
+    "return", "from",
     NULL
 };
 

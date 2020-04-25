@@ -798,12 +798,22 @@ h64tokenizedfile lexer_ParseFromFile(
             continue;
         }
 
+        // Arrow for maps:
+        if (c == '-' && i + 1 < (int)size && buffer[i + 1] == '>') {
+            result.token[result.token_count].type = H64TK_MAPARROW;
+            result.token_count++;
+            i += 2;
+            column += 2;
+            continue;
+        }
+
         // Arithmetic-style operators and -> dict assign:
         if (c == '+' || c == '%' || c == '|' || c == '&' ||
                 c == '^' || c == '.' ||
                 (c == '!' && i + 1 < (int)size && buffer[i + 1] == '=') ||
                 c == '/' || c == '\\' || c == '<' || c == '>' || c == '*' ||
-                c == '-' ||
+                (c == '-' && (i + 1 >= (int)size ||
+                 buffer[i + 1] != '>')) ||
                 (c == '=' && (i + 1 >= (int)size ||
                  buffer[i + 1] != '>')) ||
                 ((c == '(' || c == '[') && !could_be_unary_op)) {
@@ -1229,6 +1239,7 @@ static char _h64tkname_constant_none[] = "H64TK_CONSTANT_NULL";
 static char _h64tkname_constant_string[] = "H64TK_CONSTANT_STRING";
 static char _h64tkname_binopsymbol[] = "H64TK_BINOPSYMBOL";
 static char _h64tkname_unopsymbol[] = "H64TK_UNOPSYMBOL";
+static char _h64tkname_maparrow[] = "H64TK_MAPARROW";
 
 const char *lexer_TokenTypeToStr(h64tokentype type) {
     if (type == H64TK_INVALID) {
@@ -1255,6 +1266,8 @@ const char *lexer_TokenTypeToStr(h64tokentype type) {
         return _h64tkname_binopsymbol;
     } else if (type == H64TK_UNOPSYMBOL) {
         return _h64tkname_unopsymbol;
+    } else if (type == H64TK_MAPARROW) {
+        return _h64tkname_maparrow;
     }
     return NULL;
 }

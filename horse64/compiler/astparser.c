@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 // #define H64AST_DEBUG
 
@@ -823,7 +824,7 @@ int ast_ParseExprInlineOperator(
     ); 
 }
 
-int ast_ParseExprInlineFunc(
+int ast_ParseInlineFunc(
         const char *fileuri,
         h64result *resultmsg,
         h64scope *addtoscope,
@@ -1007,6 +1008,7 @@ int ast_ParseExprInlineFunc(
                 &expr->funcdef.scope,
                 &tokens[i], token_count - i,
                 max_tokens_touse - i,
+                STATEMENTMODE_INFUNC,
                 &innerparsefail,
                 &inneroutofmemory, &innerexpr,
                 &tlen, nestingdepth
@@ -1132,7 +1134,7 @@ int ast_ParseExprInline(
             int tlen = 0;
             int innerparsefail = 0;
             int inneroutofmemory = 0;
-            if (!ast_ParseExprInlineFunc(
+            if (!ast_ParseInlineFunc(
                     fileuri, resultmsg, addtoscope,
                     tokens, token_count, max_tokens_touse,
                     &innerparsefail, &inneroutofmemory,
@@ -1232,7 +1234,7 @@ int ast_ParseExprInline(
                     int tlen = 0;
                     int innerparsefail = 0;
                     int inneroutofmemory = 0;
-                    if (!ast_ParseExprInlineFunc(
+                    if (!ast_ParseInlineFunc(
                             fileuri, resultmsg, addtoscope,
                             tokens, token_count, max_tokens_touse,
                             &innerparsefail, &inneroutofmemory,
@@ -1328,11 +1330,448 @@ int ast_ParseExprInline(
             if (outofmemory) *outofmemory = 0;
             return 1;
         } else if (tokens[0].type == H64TK_BRACKET &&
-                tokens[0].char_value == '[') {
-            // List, vector, or map
-        } else if (tokens[0].type == H64TK_BRACKET &&
-                tokens[0].char_value == '{') {
-            // Set
+                (tokens[0].char_value == '[' ||
+                 tokens[0].char_value == '{')) {
+            // List, vector, set, or map
+            const char *_nm_vec = "vector";
+            const char *_nm_set = "set";
+            const char *_nm_map = "map";
+            const char *itemname = "list";
+            int islist = 1;
+            int ismap = 0;
+            int isset = 0;
+            int isvector = 0;
+            int vectorusesletters = 0;
+            if (tokens[0].char_value == '[' &&
+                    2 < token_count && 2 < max_tokens_touse && (
+                    (tokens[1].type == H64TK_IDENTIFIER &&
+                     strcmp(tokens[1].str_value, "x") == 0) ||
+                    (tokens[1].type == H64TK_CONSTANT_INT &&
+                     tokens[1].int_value == 0))) {
+                if (tokens[1].type == H64TK_IDENTIFIER)
+                    vectorusesletters = 1;
+                itemname = _nm_vec;
+                isvector = 1;
+                islist = 0;
+            }
+            if (tokens[0].char_value == '{') {
+                itemname = _nm_set;
+                isset = 1;
+                islist = 0;
+            }
+            if (tokens[0].char_value != '{' && !isvector) {
+                // Figure out if this is a map.
+                // For that, skip past first item:
+                int i = 1;
+                int bracket_depth = 0;
+                while (i < token_count && i < max_tokens_touse &&
+                        ((tokens[i].type != H64TK_COMMA &&
+                          tokens[i].type != H64TK_MAPARROW) ||
+                          bracket_depth > 0)) {
+                    if (tokens[i].type == H64TK_BRACKET) {
+                        if (tokens[i].char_value == '(' ||
+                                tokens[i].char_value == '[' ||
+                                tokens[i].char_value == '{') {
+                            bracket_depth++;
+                        } else if (tokens[i].char_value == ')' ||
+                                tokens[i].char_value == '[' ||
+                                tokens[i].char_value == '}') {
+                            bracket_depth--;
+                            if (bracket_depth < 0) bracket_depth = 0;
+                        }
+                    }
+                    i++;
+                }
+                if (i < token_count && i < max_tokens_touse &&
+                        tokens[i].type == H64TK_MAPARROW) {
+                    itemname = _nm_map;
+                    ismap = 1;
+                    islist = 0;
+                }
+                i = 0;
+            }
+            expr->type = (
+                ismap ? H64EXPRTYPE_MAP : H64EXPRTYPE_LIST
+            );
+
+            int hadanyitems = 0;
+            int i = 1;
+            while (1) {
+                int hadcomma = 0;
+                if (i < token_count && i < max_tokens_touse &&
+                        tokens[i].type == H64TK_COMMA) {
+                    i++;
+                }
+                if (i < token_count && i < max_tokens_touse &&
+                        tokens[i].type == H64TK_BRACKET &&
+                        tokens[i].char_value == ']') {
+                    i++;
+                    break;
+                }
+                if (hadanyitems && !hadcomma) {
+                    char buf[512]; char describebuf[64];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected %s, "
+                        "expected ']' or ',' resuming or ending %s "
+                        "starting in line %"
+                        PRId64 ", column %" PRId64 " instead",
+                        _describetoken(describebuf,
+                            tokens, token_count, i),
+                        itemname,
+                        expr->line, expr->column
+                    );
+                    if (parsefail) *parsefail = 1;
+                    if (outofmemory) *outofmemory = 0;
+                    if (!result_AddMessage(
+                            resultmsg,
+                            H64MSG_ERROR, buf, fileuri,
+                            _refline(tokens, token_count, i),
+                            _refcol(tokens, token_count, i)
+                            ))
+                        if (outofmemory) *outofmemory = 1;
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+
+                // Special handling of empty map [->]
+                if (ismap &&
+                        i + 1 < token_count &&
+                        i + 1 < max_tokens_touse &&
+                        tokens[i].type == H64TK_MAPARROW &&
+                        tokens[i + 1].type == H64TK_BRACKET &&
+                        tokens[i + 1].char_value == ']' &&
+                        !hadanyitems) {
+                    i += 2;
+                    break;
+                }
+
+                // Allocate space for next item:
+                if (ismap) {
+                    h64expression **new_keys = realloc(
+                        expr->constructormap.key,
+                        sizeof(*new_keys) *
+                        (expr->constructormap.entry_count + 1)
+                    );
+                    if (!new_keys) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    expr->constructormap.key = new_keys;
+                    h64expression **new_values = realloc(
+                        expr->constructormap.value,
+                        sizeof(*new_values) *
+                        (expr->constructormap.entry_count + 1)
+                    );
+                    if (!new_values) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    expr->constructormap.value = new_values;
+                } else if (islist) {
+                    h64expression **new_entries = realloc(
+                        expr->constructorlist.entry,
+                        sizeof(*new_entries) *
+                        (expr->constructorlist.entry_count + 1)
+                    );
+                    if (!new_entries) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    expr->constructorlist.entry = new_entries;
+                } else if (isset) {
+                    h64expression **new_entries = realloc(
+                        expr->constructorset.entry,
+                        sizeof(*new_entries) *
+                        (expr->constructorset.entry_count + 1)
+                    );
+                    if (!new_entries) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    expr->constructorset.entry = new_entries;
+                } else if (isvector) {
+                    h64expression **new_entries = realloc(
+                        expr->constructorvector.entry,
+                        sizeof(*new_entries) *
+                        (expr->constructorvector.entry_count + 1)
+                    );
+                    if (!new_entries) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    expr->constructorvector.entry = new_entries;
+                } else {
+                    // Should never be reached
+                    fprintf(stderr, "horsecc: error: unreachable "
+                        "code path reached (map/vector/list/set parser)");
+                    _exit(1);
+                }
+
+                if (isvector) {
+                    // Get prefix of next entry:
+                    if (vectorusesletters &&
+                            expr->constructorvector.entry_count >= 4) {
+                        char buf[512]; char describebuf[64];
+                        snprintf(buf, sizeof(buf) - 1,
+                            "unexpected %s, "
+                            "expected ']' to end %s "
+                            "starting in line %"
+                            PRId64 ", column %" PRId64 " instead",
+                            _describetoken(describebuf,
+                                tokens, token_count, i),
+                            itemname,
+                            expr->line, expr->column
+                        );
+                        if (parsefail) *parsefail = 1;
+                        if (outofmemory) *outofmemory = 0;
+                        if (!result_AddMessage(
+                                resultmsg,
+                                H64MSG_ERROR, buf, fileuri,
+                                _refline(tokens, token_count, i),
+                                _refcol(tokens, token_count, i)
+                                ))
+                            if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    int foundidx = -1;
+                    if (i < token_count && i < max_tokens_touse &&
+                            tokens[i].type == H64TK_IDENTIFIER &&
+                            strlen(tokens[i].str_value) == 1 &&
+                            vectorusesletters) {
+                        foundidx = tokens[i].str_value[0] - 'x';
+                        if (strcmp(tokens[i].str_value, "w") == 0)
+                            foundidx = 3;
+                    }
+                    if (i < token_count && i < max_tokens_touse &&
+                            tokens[i].type == H64TK_CONSTANT_INT &&
+                            !vectorusesletters &&
+                            tokens[i].int_value < INT_MAX) {
+                        foundidx = tokens[i].int_value;
+                    }
+                    if (foundidx < 0 ||
+                            foundidx != expr->constructorvector.entry_count
+                            ) {
+                        char buf[512]; char describebuf[64];
+                        char expect1dec[32];
+                        snprintf(expect1dec, sizeof(expect1dec) - 1,
+                            "\"%d\"", expr->constructorvector.entry_count);
+                        char expect2dec[32] = {0};
+                        if (vectorusesletters) {
+                            if (expr->constructorvector.entry_count < 3)
+                                snprintf(expect2dec, sizeof(expect2dec) - 1,
+                                    ", or \"%c\"",
+                                    'x' + expr->constructorvector.
+                                    entry_count);
+                            else
+                                memcpy(expect2dec, ", or \"w\"",
+                                       strlen(", or \"w\""));
+                        }
+                        snprintf(buf, sizeof(buf) - 1,
+                            "unexpected %s, "
+                            "expected %s%s for next entry, or "
+                            "']' to end %s "
+                            "starting in line %"
+                            PRId64 ", column %" PRId64 " instead",
+                            _describetoken(describebuf,
+                                tokens, token_count, i),
+                            expect1dec, expect2dec,
+                            itemname,
+                            expr->line, expr->column
+                        );
+                        if (parsefail) *parsefail = 1;
+                        if (outofmemory) *outofmemory = 0;
+                        if (!result_AddMessage(
+                                resultmsg,
+                                H64MSG_ERROR, buf, fileuri,
+                                _refline(tokens, token_count, i),
+                                _refcol(tokens, token_count, i)
+                                ))
+                            if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    i++;
+                    if (i >= token_count || i >= max_tokens_touse ||
+                            tokens[i].type != H64TK_COLON) {
+                        char buf[512]; char describebuf[64];
+                        snprintf(buf, sizeof(buf) - 1,
+                            "unexpected %s, "
+                            "expected ':' after vector entry label "
+                            "in line %"
+                            PRId64 ", column %" PRId64 " instead",
+                            _describetoken(describebuf,
+                                tokens, token_count, i),
+                            _refline(tokens, token_count, i - 1),
+                            _refcol(tokens, token_count, i - 1)
+                        );
+                        if (parsefail) *parsefail = 1;
+                        if (outofmemory) *outofmemory = 0;
+                        if (!result_AddMessage(
+                                resultmsg,
+                                H64MSG_ERROR, buf, fileuri,
+                                _refline(tokens, token_count, i),
+                                _refcol(tokens, token_count, i)
+                                ))
+                            if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    i++;
+                }
+
+                // Get next item:
+                h64expression *innerexpr = NULL;
+                int tlen = 0;
+                int innerparsefail = 0;
+                int inneroutofmemory = 0;
+                if (!ast_ParseExprInline(
+                        fileuri, resultmsg, addtoscope,
+                        tokens, token_count, max_tokens_touse,
+                        INLINEMODE_GREEDY,
+                        &innerparsefail, &inneroutofmemory,
+                        &innerexpr, &tlen, nestingdepth
+                        )) {
+                    if (inneroutofmemory) {
+                        if (outofmemory) *outofmemory = 1;
+                        if (parsefail) *parsefail = 0;
+                    } else {
+                        if (outofmemory) *outofmemory = 0;
+                        if (parsefail) *parsefail = 1;
+                    }
+                    if (!innerparsefail && !inneroutofmemory) {
+                        char buf[512]; char describebuf[64];
+                        snprintf(buf, sizeof(buf) - 1,
+                            "unexpected %s, "
+                            "expected inline value as next %s "
+                            "in %s starting in line %"
+                            PRId64 ", column %" PRId64 " instead",
+                            _describetoken(describebuf, tokens, token_count, i),
+                            (ismap ? "key" : "entry"),
+                            itemname,
+                            expr->line, expr->column
+                        );
+                        if (parsefail) *parsefail = 1;
+                        if (!result_AddMessage(
+                                resultmsg,
+                                H64MSG_ERROR, buf, fileuri,
+                                _refline(tokens, token_count, i),
+                                _refcol(tokens, token_count, i)
+                                ))
+                            if (outofmemory) *outofmemory = 1;
+                    }
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+                i += tlen;
+                hadanyitems = 1;
+                if (isvector) {
+                    expr->constructorvector.entry[
+                        expr->constructorvector.entry_count
+                    ] = innerexpr;
+                    expr->constructorvector.entry_count++;
+                    continue;
+                } else if (isset) {
+                    expr->constructorset.entry[
+                        expr->constructorset.entry_count
+                    ] = innerexpr;
+                    expr->constructorset.entry_count++;
+                    continue;
+                } else if (islist) {
+                    expr->constructorlist.entry[
+                        expr->constructorlist.entry_count
+                    ] = innerexpr;
+                    expr->constructorlist.entry_count++;
+                    continue;
+                }
+                assert(ismap);
+                if (i >= token_count || i >= max_tokens_touse ||
+                        tokens[i].type != H64TK_MAPARROW) {
+                    char buf[512]; char describebuf[64];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected %s, "
+                        "expected \"=>\" after key entry "
+                        "for map starting in line %"
+                        PRId64 ", column %" PRId64 " instead",
+                        _describetoken(describebuf,
+                            tokens, token_count, i),
+                        _refline(tokens, token_count, 0),
+                        _refcol(tokens, token_count, 0)
+                    );
+                    if (parsefail) *parsefail = 1;
+                    if (outofmemory) *outofmemory = 0;
+                    if (!result_AddMessage(
+                            resultmsg,
+                            H64MSG_ERROR, buf, fileuri,
+                            _refline(tokens, token_count, i),
+                            _refcol(tokens, token_count, i)
+                            ))
+                        if (outofmemory) *outofmemory = 1;
+                    ast_FreeExpression(innerexpr);
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+                h64expression *innerexpr2 = NULL;
+                int tlen2 = 0;
+                innerparsefail = 0;
+                inneroutofmemory = 0;
+                if (!ast_ParseExprInline(
+                        fileuri, resultmsg, addtoscope,
+                        tokens, token_count, max_tokens_touse,
+                        INLINEMODE_GREEDY,
+                        &innerparsefail, &inneroutofmemory,
+                        &innerexpr2, &tlen2, nestingdepth
+                        )) {
+                    if (inneroutofmemory) {
+                        if (outofmemory) *outofmemory = 1;
+                        if (parsefail) *parsefail = 0;
+                    } else {
+                        if (outofmemory) *outofmemory = 0;
+                        if (parsefail) *parsefail = 1;
+                    }
+
+                    if (!innerparsefail && !inneroutofmemory) {
+                        char buf[512]; char describebuf[64];
+                        snprintf(buf, sizeof(buf) - 1,
+                            "unexpected %s, "
+                            "expected inline value following \"=>\" "
+                            "for map starting in line %"
+                            PRId64 ", column %" PRId64 " instead",
+                            _describetoken(describebuf, tokens, token_count, i),
+                            expr->line, expr->column
+                        );
+                        if (parsefail) *parsefail = 1;
+                        if (!result_AddMessage(
+                                resultmsg,
+                                H64MSG_ERROR, buf, fileuri,
+                                _refline(tokens, token_count, i),
+                                _refcol(tokens, token_count, i)
+                                ))
+                            if (outofmemory) *outofmemory = 1;
+                    }
+                    ast_FreeExpression(innerexpr);
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+                i += tlen2;
+                expr->constructormap.key[
+                    expr->constructorlist.entry_count
+                ] = innerexpr;
+                expr->constructormap.value[
+                    expr->constructorlist.entry_count
+                ] = innerexpr2;
+                expr->constructormap.entry_count++;
+            }
+            if (outofmemory) *outofmemory = 0;
+            if (parsefail) *parsefail = 0;
+            *out_expr = expr;
+            if (out_tokenlen) *out_tokenlen = 1;
+            return 1;
         }
 
         if (parsefail) *parsefail = 0;
@@ -1429,6 +1868,7 @@ int ast_ParseExprStmt(
         h64token *tokens,
         int token_count,
         int max_tokens_touse,
+        int statementmode,
         int *parsefail,
         int *outofmemory,
         h64expression **out_expr,
@@ -1691,6 +2131,9 @@ int ast_ParseExprStmt(
                         &expr->funcdef.scope,
                         &tokens[i], token_count - i,
                         max_tokens_touse - i,
+                        (statementmode != STATEMENTMODE_INCLASS ?
+                         STATEMENTMODE_INFUNC :
+                         STATEMENTMODE_INCLASSFUNC),
                         &_innerparsefail,
                         &_inneroutofmemory, &innerexpr,
                         &tlen, nestingdepth
@@ -1768,7 +2211,9 @@ int ast_ParseExprStmt(
     }
 
     // Assignments and function calls:
-    if (tokens[0].type == H64TK_IDENTIFIER &&
+    if ((statementmode == STATEMENTMODE_INFUNC ||
+            statementmode == STATEMENTMODE_INCLASSFUNC) &&
+            tokens[0].type == H64TK_IDENTIFIER &&
             token_count > 1 && max_tokens_touse > 1) {
         int i = 0;
         expr->type = H64EXPRTYPE_ASSIGN_STMT;
@@ -1918,6 +2363,7 @@ h64ast ast_ParseFromTokens(
                 &result.scope,
                 &tokens[i], token_count - i,
                 token_count - i,
+                STATEMENTMODE_TOPLEVEL,
                 &parsefail, &oom, &expr, &tlen,
                 0
                 )) {

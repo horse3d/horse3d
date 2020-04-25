@@ -15,6 +15,9 @@ typedef struct h64ast {
 
 void ast_FreeContents(h64ast *ast);
 
+#define INLINEMODE_NONGREEDY 0
+#define INLINEMODE_GREEDY 1
+
 int ast_ParseExprInline(
     const char *fileuri,
     h64result *resultmsg,
@@ -30,6 +33,11 @@ int ast_ParseExprInline(
     int nestingdepth
 );
 
+#define STATEMENTMODE_TOPLEVEL 0
+#define STATEMENTMODE_INFUNC 1
+#define STATEMENTMODE_INCLASS 2
+#define STATEMENTMODE_INCLASSFUNC 3
+
 int ast_ParseExprStmt(
     const char *fileuri,
     h64result *resultmsg,
@@ -37,6 +45,7 @@ int ast_ParseExprStmt(
     h64token *tokens,
     int token_count,
     int max_tokens_touse,
+    int statementmode,
     int *parsefail,
     int *outofmemory,
     h64expression **out_expr,

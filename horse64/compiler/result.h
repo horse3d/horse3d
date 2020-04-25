@@ -55,8 +55,7 @@ int result_AddMessageNoLoc(
     h64result *result,
     h64messagetype type,
     const char *message,
-    const char *fileuri,
-    int64_t line, int64_t column
+    const char *fileuri
 );
 
 void result_FreeContents(h64result *result);
