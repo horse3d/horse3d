@@ -53,6 +53,22 @@ int ast_ParseExprStmt(
     int nestingdepth
 );
 
+int ast_ParseCodeBlock(
+    const char *fileuri,
+    h64result *resultmsg,
+    h64scope *addtoscope,
+    h64token *tokens,
+    int token_count,
+    int max_tokens_touse,
+    int statementmode,
+    h64expression ***stmt_ptr,
+    int *stmt_count_ptr,
+    int *parsefail,
+    int *outofmemory,
+    int *out_tokenlen,
+    int nestingdepth
+);
+
 h64ast ast_ParseFromTokens(
     const char *fileuri, h64token *tokens, int token_count
 );

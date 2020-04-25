@@ -117,6 +117,25 @@ typedef struct h64expression {
             h64expression **key;
             h64expression **value;
         } constructormap;
+        struct forstmt {
+            char *iterator_identifier;
+            h64scope scope;
+            h64expression *iterated_container;
+            int stmt_count;
+            h64expression **stmt;
+        } forstmt;
+        struct whilestmt {
+            h64scope scope;
+            h64expression *conditional;
+            int stmt_count;
+            h64expression **stmt;
+        } whilestmt;
+        struct ifstmt {
+            h64scope scope;
+            h64expression *conditional;
+            int stmt_count;
+            h64expression **stmt;
+        } ifstmt;
     }; 
 } h64expression;
 
