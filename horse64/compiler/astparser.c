@@ -2206,8 +2206,8 @@ int ast_ParseExprStmt(
                 if (!result_AddMessage(
                         resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, 0),
-                        _refcol(tokenstreaminfo, tokens, 0)
+                        _refline(tokenstreaminfo, tokens, i),
+                        _refcol(tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -2216,11 +2216,52 @@ int ast_ParseExprStmt(
             }
             i += tlen;
         }
-        if (i < max_tokens_touse &&
-                tokens[i].type == H64TK_KEYWORD &&
-                strcmp(tokens[i].str_value, "threadable") == 0) {
-            i++;
-            expr->funcdef.is_threadable = 1;
+        while (1) {
+            if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->funcdef.is_threadable &&
+                    strcmp(tokens[i].str_value, "threadable") == 0) {
+                i++;
+                expr->funcdef.is_threadable = 1;
+                continue;
+            } else if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->funcdef.is_getter &&
+                    strcmp(tokens[i].str_value, "getter") == 0) {
+                i++;
+                expr->funcdef.is_getter = 1;
+                continue;
+            } else if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->funcdef.is_setter &&
+                    strcmp(tokens[i].str_value, "setter") == 0) {
+                i++;
+                expr->funcdef.is_setter = 1;
+                continue;
+            }
+            break;
+        }
+        if (expr->funcdef.is_setter && expr->funcdef.is_getter) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected combination of getter/setter, "
+                "expected just one for function definition "
+                " starting in line %" PRId64
+                ", column %" PRId64,
+                _refline(tokenstreaminfo, tokens, 0),
+                _refcol(tokenstreaminfo, tokens, 0)
+            );
+            if (outofmemory) *outofmemory = 0;
+            if (!result_AddMessage(
+                    resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(tokenstreaminfo, tokens, i),
+                    _refcol(tokenstreaminfo, tokens, i)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 1;
+            ast_FreeExpression(expr);
+            return 0;
         }
         int tlen = 0;
         int innerparsefail = 0;
@@ -2243,8 +2284,8 @@ int ast_ParseExprStmt(
                     resultmsg,
                     H64MSG_ERROR, "internal error: failed to "
                     "get code block somehow", fileuri,
-                    _refline(tokenstreaminfo, tokens, 0),
-                    _refcol(tokenstreaminfo, tokens, 0)
+                    _refline(tokenstreaminfo, tokens, i),
+                    _refcol(tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
@@ -2261,6 +2302,7 @@ int ast_ParseExprStmt(
     // Class definitions:
     if (tokens[0].type == H64TK_KEYWORD &&
             strcmp(tokens[0].str_value, "class") == 0) {
+        int i = 0;
         if (statementmode != STATEMENTMODE_TOPLEVEL) {
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
@@ -2270,8 +2312,8 @@ int ast_ParseExprStmt(
             if (!result_AddMessage(
                     resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, 0),
-                    _refcol(tokenstreaminfo, tokens, 0)
+                    _refline(tokenstreaminfo, tokens, i),
+                    _refcol(tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -2279,8 +2321,8 @@ int ast_ParseExprStmt(
         }
         expr->type = H64EXPRTYPE_CLASSDEF_STMT;
         expr->classdef.scope.parentscope = addtoscope;
+        i++;
 
-        int i = 1;
         if (i >= max_tokens_touse ||
                 tokens[i].type != H64TK_IDENTIFIER) {
             char buf[256]; char describebuf[64];
@@ -2296,8 +2338,8 @@ int ast_ParseExprStmt(
             if (!result_AddMessage(
                     resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, 0),
-                    _refcol(tokenstreaminfo, tokens, 0)
+                    _refline(tokenstreaminfo, tokens, i),
+                    _refcol(tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -2357,8 +2399,8 @@ int ast_ParseExprStmt(
                 if (!result_AddMessage(
                         resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, 0),
-                        _refcol(tokenstreaminfo, tokens, 0)
+                        _refline(tokenstreaminfo, tokens, i),
+                        _refcol(tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
@@ -2390,8 +2432,8 @@ int ast_ParseExprStmt(
                         resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
                         "get code block somehow", fileuri,
-                        _refline(tokenstreaminfo, tokens, 0),
-                        _refcol(tokenstreaminfo, tokens, 0)
+                        _refline(tokenstreaminfo, tokens, i),
+                        _refcol(tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -2472,9 +2514,128 @@ int ast_ParseExprStmt(
         return 1;
     }
 
+    // import statements:
+    if (tokens[0].type == H64TK_KEYWORD &&
+            strcmp(tokens[0].str_value, "import") == 0) {
+        int i = 0;
+        if (statementmode != STATEMENTMODE_TOPLEVEL) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected \"import\", "
+                "this is only allowed outside of functions and classes"
+            );
+            if (!result_AddMessage(
+                    resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(tokenstreaminfo, tokens, i),
+                    _refcol(tokenstreaminfo, tokens, i)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
+        }
+        i++;
+
+        // Get import path:
+        while (1) {
+            if (i >= max_tokens_touse ||
+                    tokens[i].type != H64TK_IDENTIFIER) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected identifier for import path",
+                    _describetoken(
+                        describebuf, tokenstreaminfo, tokens, i
+                    )
+                );
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(tokenstreaminfo, tokens, i),
+                        _refcol(tokenstreaminfo, tokens, i)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            char **new_elements = realloc(
+                expr->importstmt.import_elements,
+                sizeof(expr->importstmt.import_elements_count + 1)
+            );
+            if (!new_elements) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            expr->importstmt.import_elements = new_elements;
+            expr->importstmt.import_elements[
+                expr->importstmt.import_elements_count
+            ] = strdup(tokens[i].str_value);
+            if (!expr->importstmt.import_elements[
+                    expr->importstmt.import_elements_count
+                    ]) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            expr->importstmt.import_elements_count++;
+            i++;
+
+            if (i >= max_tokens_touse ||
+                    tokens[i].type != H64TK_BINOPSYMBOL ||
+                    tokens[i].int_value !=
+                    H64OP_MEMBERBYIDENTIFIER)
+                break;
+        }
+
+        if (i < max_tokens_touse &&
+                tokens[i].type == H64TK_KEYWORD &&
+                strcmp(tokens[i].str_value, "from") == 0) {
+            i++;
+            if (i >= max_tokens_touse ||
+                    tokens[i].type != H64TK_IDENTIFIER) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected identifier following \"from\" keyword",
+                    _describetoken(
+                        describebuf, tokenstreaminfo, tokens, i
+                    )
+                );
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(tokenstreaminfo, tokens, i),
+                        _refcol(tokenstreaminfo, tokens, i)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            expr->importstmt.library_source = strdup(
+                tokens[i].str_value
+            );
+            if (!expr->importstmt.library_source) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            i++;
+        }
+
+        *out_expr = expr;
+        if (out_tokenlen) *out_tokenlen = i;
+        if (outofmemory) *outofmemory = 0;
+        if (parsefail) *parsefail = 0;
+        return 1;
+    }
+
     // return statements:
     if (tokens[0].type == H64TK_KEYWORD &&
             strcmp(tokens[0].str_value, "return") == 0) {
+        int i = 0;
         if (statementmode != STATEMENTMODE_INFUNC &&
                 statementmode != STATEMENTMODE_INCLASSFUNC) {
             char buf[256];
@@ -2485,16 +2646,16 @@ int ast_ParseExprStmt(
             if (!result_AddMessage(
                     resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, 0),
-                    _refcol(tokenstreaminfo, tokens, 0)
+                    _refline(tokenstreaminfo, tokens, i),
+                    _refcol(tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
             return 0;
         }
         expr->type = H64EXPRTYPE_RETURN_STMT;
+        i++;
 
-        int i = 1;
         int tlen = 0;
         int innerparsefail = 0;
         int inneroutofmemory = 0;
@@ -2538,7 +2699,7 @@ int ast_ParseExprStmt(
             (strcmp(tokens[0].str_value, "if") == 0 ||
              strcmp(tokens[0].str_value, "while") == 0 ||
              strcmp(tokens[0].str_value, "for") == 0)) {
-
+        int i = 0;
         if (statementmode != STATEMENTMODE_INFUNC &&
                 statementmode != STATEMENTMODE_INCLASSFUNC) {
             char buf[256];
@@ -2550,15 +2711,14 @@ int ast_ParseExprStmt(
             if (!result_AddMessage(
                     resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, 0),
-                    _refcol(tokenstreaminfo, tokens, 0)
+                    _refline(tokenstreaminfo, tokens, i),
+                    _refcol(tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
             return 0;
         }
 
-        int i = 0;
         int firstentry = 1;
         while (1) {
             struct h64ifstmt *current_clause = NULL;
@@ -2612,8 +2772,8 @@ int ast_ParseExprStmt(
                     if (!result_AddMessage(
                             resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, 0),
-                            _refcol(tokenstreaminfo, tokens, 0)
+                            _refline(tokenstreaminfo, tokens, i),
+                            _refcol(tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
@@ -2638,8 +2798,8 @@ int ast_ParseExprStmt(
                     if (!result_AddMessage(
                             resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, 0),
-                            _refcol(tokenstreaminfo, tokens, 0)
+                            _refline(tokenstreaminfo, tokens, i),
+                            _refcol(tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
@@ -2689,8 +2849,8 @@ int ast_ParseExprStmt(
                     if (!result_AddMessage(
                             resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, 0),
-                            _refcol(tokenstreaminfo, tokens, 0)
+                            _refline(tokenstreaminfo, tokens, i),
+                            _refcol(tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
@@ -2776,8 +2936,8 @@ int ast_ParseExprStmt(
                         resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
                         "get code block somehow", fileuri,
-                        _refline(tokenstreaminfo, tokens, 0),
-                        _refcol(tokenstreaminfo, tokens, 0)
+                        _refline(tokenstreaminfo, tokens, i),
+                        _refcol(tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -2808,6 +2968,7 @@ int ast_ParseExprStmt(
     // Assignments and function calls:
     if (tokens[0].type == H64TK_IDENTIFIER &&
             max_tokens_touse > 1) {
+        int i = 0;
         if (statementmode != STATEMENTMODE_INFUNC &&
                 statementmode != STATEMENTMODE_INCLASSFUNC) {
             char buf[256];
@@ -2818,14 +2979,13 @@ int ast_ParseExprStmt(
             if (!result_AddMessage(
                     resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, 0),
-                    _refcol(tokenstreaminfo, tokens, 0)
+                    _refline(tokenstreaminfo, tokens, i),
+                    _refcol(tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
             return 0;
         }
-        int i = 0;
         expr->type = H64EXPRTYPE_ASSIGN_STMT;
         int tlen = 0;
         int _innerparsefail = 0;
@@ -2876,8 +3036,8 @@ int ast_ParseExprStmt(
                     if (!result_AddMessage(
                             resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, 0),
-                            _refcol(tokenstreaminfo, tokens, 0)
+                            _refline(tokenstreaminfo, tokens, i),
+                            _refcol(tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(innerexpr);

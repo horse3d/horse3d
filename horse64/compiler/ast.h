@@ -79,6 +79,8 @@ typedef struct h64expression {
         struct funcdef {
             char *identifier;
             int is_threadable;
+            int is_getter;
+            int is_setter;
             int stmt_count;
             h64expression **stmt;
             h64scope scope;
@@ -115,7 +117,7 @@ typedef struct h64expression {
         struct importstmt {
             int import_elements_count;
             char **import_elements;
-            char *library;
+            char *library_source;
         } importstmt;
         struct constructorvector {
             int entry_count;
