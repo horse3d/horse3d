@@ -1006,7 +1006,7 @@ int ast_ParseInlineFunc(
     int inneroom = 0;
     if (!ast_ParseCodeBlock(
             fileuri, resultmsg, addtoscope,
-            tokenstreaminfo, tokens, max_tokens_touse,
+            tokenstreaminfo, tokens + i, max_tokens_touse - i,
             STATEMENTMODE_INFUNC,
             &expr->funcdef.stmt, &expr->funcdef.stmt_count,
             &innerparsefail, &inneroom, &tlen, nestingdepth
@@ -1878,8 +1878,7 @@ int ast_ParseCodeBlock(
         snprintf(buf, sizeof(buf) - 1,
             "unexpected %s, "
             "expected \"{\" for "
-            "code block for "
-            "function definition",
+            "code block",
             _describetoken(describebuf,
                 tokenstreaminfo, tokens, i)
         );
@@ -2268,7 +2267,7 @@ int ast_ParseExprStmt(
         int inneroom = 0;
         if (!ast_ParseCodeBlock(
                 fileuri, resultmsg, &expr->funcdef.scope,
-                tokenstreaminfo, tokens, max_tokens_touse,
+                tokenstreaminfo, tokens + i, max_tokens_touse - i,
                 statementmode,
                 &expr->funcdef.stmt, &expr->funcdef.stmt_count,
                 &innerparsefail, &inneroom, &tlen, nestingdepth
@@ -2418,7 +2417,7 @@ int ast_ParseExprStmt(
         int inneroom = 0;
         if (!ast_ParseCodeBlock(
                 fileuri, resultmsg, addtoscope,
-                tokenstreaminfo, tokens, max_tokens_touse,
+                tokenstreaminfo, tokens + i, max_tokens_touse - i,
                 STATEMENTMODE_INCLASS,
                 &stmt, &stmt_count,
                 &innerparsefail, &inneroom, &tlen, nestingdepth
@@ -2920,7 +2919,7 @@ int ast_ParseExprStmt(
             int inneroom = 0;
             if (!ast_ParseCodeBlock(
                     fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens, max_tokens_touse,
+                    tokenstreaminfo, tokens + i, max_tokens_touse - i,
                     statementmode,
                     stmt_ptr, stmt_count_ptr,
                     &innerparsefail, &inneroom, &tlen, nestingdepth
