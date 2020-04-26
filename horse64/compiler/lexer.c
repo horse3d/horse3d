@@ -578,7 +578,8 @@ h64tokenizedfile lexer_ParseFromFile(
                      (buffer[i] >= 'a' && buffer[i] <= 'f' && ishex) ||
                      (buffer[i] >= 'A' && buffer[i] <= 'F' && ishex) ||
                     (buffer[i] == '.' && !sawdot && lastwasdigit &&
-                     !sawxorb) ||
+                     !sawxorb && i + 1 < (int)size &&
+                     buffer[i + 1] >= '0' && buffer[i + 1] <= '9') ||
                     (buffer[i] == 'b' && lastwasdigit &&
                      nodigitotherthanzero && !sawdot) ||
                     (buffer[i] == 'x' && lastwasdigit &&
@@ -629,6 +630,7 @@ h64tokenizedfile lexer_ParseFromFile(
                       numbuf[numbuflen - 1] > 'F'))) {
                 result.token[result.token_count].type = H64TK_INVALID;
                 result.token_count++;
+                numbuf[numbuflen] = '\0';
                 char buf[512];
                 snprintf(
                     buf, sizeof(buf) - 1,
