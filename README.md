@@ -2,8 +2,8 @@
 Horse64
 =======
 
-Welcome to *Horse64*, a **elegant & comprehensive programming
-language** for applications.
+Welcome to *Horse64*, an **elegant & comprehensive programming
+language** for your applications.
 
 [![logo](misc/logo-readme.png)](https://horse64.org)
 
