@@ -101,6 +101,11 @@ typedef struct h64expression {
         struct identifierref {
             char *value;
         } identifierref;
+        struct importstmt {
+            int import_elements_count;
+            char **import_elements;
+            char *library;
+        } importstmt;
         struct constructorvector {
             int entry_count;
             h64expression **entry;
@@ -121,6 +126,15 @@ typedef struct h64expression {
         struct returnstmt {
             h64expression *returned_expression;
         } returnstmt;
+        struct classdef {
+            h64scope scope;
+            char *name;
+            h64expression *baseclass_ref;
+            int vardef_count;
+            h64expression **vardef;
+            int funcdef_count;
+            h64expression **funcdef;
+        } classdef;
         struct forstmt {
             char *iterator_identifier;
             h64scope scope;

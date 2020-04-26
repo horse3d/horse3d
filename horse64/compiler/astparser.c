@@ -18,6 +18,12 @@
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
 
+
+typedef struct tokenstreaminfo {
+    h64token *token;
+    int tokenlength;
+} tokenstreaminfo;
+
 static int64_t _refline(h64token *token, int token_count, int i) {
     if (i > token_count - 1)
         i = token_count - 1;
@@ -1792,6 +1798,22 @@ int ast_CanBeLValue(h64expression *e) {
     return 0;
 }
 
+int ast_CanBeClassRef(h64expression *e) {
+    if (e->type == H64EXPRTYPE_IDENTIFIERREF) {
+        return 1;
+    } else if (e->type == H64EXPRTYPE_BINARYOP) {
+        if (e->op.optype != H64OP_MEMBERBYIDENTIFIER)
+            return 0;
+        if (!ast_CanBeClassRef(e->op.value1))
+            return 0;
+        if (e->op.value2->type != H64EXPRTYPE_IDENTIFIERREF)
+            return 0;
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 int ast_ParseCodeBlock(
         const char *fileuri,
         h64result *resultmsg,
@@ -2080,6 +2102,8 @@ int ast_ParseExprStmt(
     if (tokens[0].type == H64TK_KEYWORD &&
             strcmp(tokens[0].str_value, "func") == 0) {
         expr->type = H64EXPRTYPE_FUNCDEF_STMT;
+        expr->funcdef.scope.parentscope = addtoscope;
+
         int i = 1;
         if (i >= token_count || i >= max_tokens_touse ||
                 tokens[i].type != H64TK_IDENTIFIER) {
@@ -2199,6 +2223,219 @@ int ast_ParseExprStmt(
         return 1;
     }
 
+    // Class definitions:
+    if (tokens[0].type == H64TK_KEYWORD &&
+            strcmp(tokens[0].str_value, "class") == 0) {
+        if (statementmode != STATEMENTMODE_TOPLEVEL) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected \"class\", "
+                "this is not valid outside of functions"
+            );
+            if (!result_AddMessage(
+                    resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(tokens, token_count, 0),
+                    _refcol(tokens, token_count, 0)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
+        }
+        expr->type = H64EXPRTYPE_CLASSDEF_STMT;
+        expr->classdef.scope.parentscope = addtoscope;
+
+        int i = 1;
+        if (i >= token_count || i >= max_tokens_touse ||
+                tokens[i].type != H64TK_IDENTIFIER) {
+            char buf[256]; char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected %s, "
+                "expected identifier for class name",
+                _describetoken(
+                    describebuf, tokens, token_count, i
+                )
+            );
+            if (parsefail) *parsefail = 1;
+            if (!result_AddMessage(
+                    resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(tokens, token_count, 0),
+                    _refcol(tokens, token_count, 0)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
+        }
+        expr->classdef.name = strdup(tokens[i].str_value);
+        if (!expr->classdef.name) {
+            if (parsefail) *parsefail = 0;
+            if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
+        }
+        i++;
+
+        if (i < token_count && i < max_tokens_touse &&
+                tokens[0].type == H64TK_KEYWORD &&
+                strcmp(tokens[0].str_value, "extends") == 0) {
+            i++;
+            int tlen = 0;
+            int innerparsefail = 0;
+            int inneroutofmemory = 0;
+            h64expression *innerexpr = NULL;
+            if (!ast_ParseExprInline(
+                    fileuri, resultmsg,
+                    &expr->classdef.scope,
+                    &tokens[i], token_count - i,
+                    max_tokens_touse - i,
+                    INLINEMODE_GREEDY,
+                    &innerparsefail,
+                    &inneroutofmemory, &innerexpr,
+                    &tlen, nestingdepth
+                    ) || !ast_CanBeClassRef(innerexpr)) {
+                if (innerexpr)
+                    ast_FreeExpression(innerexpr);
+                if (inneroutofmemory) {
+                    if (parsefail) *parsefail = 0;
+                    if (outofmemory) *outofmemory = 1;
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+                if (innerparsefail) {
+                    if (parsefail) *parsefail = 1;
+                    if (outofmemory) *outofmemory = 0;
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected reference to base class "
+                    "to extend from",
+                    _describetoken(
+                        describebuf, tokens, token_count, i
+                    )
+                );
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(tokens, token_count, 0),
+                        _refcol(tokens, token_count, 0)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            expr->classdef.baseclass_ref = innerexpr;
+            i += tlen;
+        }
+
+        // Extract class contents:
+        int stmt_count = 0;
+        h64expression **stmt = NULL;
+        int tlen = 0;
+        int innerparsefail = 0;
+        int inneroom = 0;
+        if (!ast_ParseCodeBlock(
+                fileuri, resultmsg, addtoscope,
+                tokens, token_count, max_tokens_touse,
+                STATEMENTMODE_INCLASS,
+                &stmt, &stmt_count,
+                &innerparsefail, &inneroom, &tlen, nestingdepth
+                )) {
+            if (inneroom) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
+            } else {
+                if (outofmemory) *outofmemory = 0;
+                if (!innerparsefail && !result_AddMessage(
+                        resultmsg,
+                        H64MSG_ERROR, "internal error: failed to "
+                        "get code block somehow", fileuri,
+                        _refline(tokens, token_count, 0),
+                        _refcol(tokens, token_count, 0)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 1;
+            }
+            classparsefail: ;
+            int k = 0;
+            while (k < stmt_count) {
+                ast_FreeExpression(stmt[k]);
+                k++;
+            }
+            free(stmt);
+            ast_FreeExpression(expr);
+            return 0;
+        }
+        i += tlen;
+
+        // Separate actual definition types:
+        int vardefcount = 0;
+        int funcdefcount = 0;
+        int k = 0;
+        while (k < stmt_count) {
+            assert(stmt[k]->type == H64EXPRTYPE_VARDEF_STMT ||
+                    stmt[k]->type == H64EXPRTYPE_FUNCDEF_STMT);
+            if (stmt[k]->type == H64EXPRTYPE_VARDEF_STMT)
+                vardefcount++;
+            else
+                funcdefcount++;
+            k++;
+        }
+        if (funcdefcount > 0) {
+            expr->classdef.funcdef = malloc(
+                sizeof(*expr->classdef.funcdef) *
+                funcdefcount
+            );
+            if (!expr->classdef.funcdef)
+                goto classparsefail;
+            expr->classdef.funcdef_count = funcdefcount;
+            k = 0;
+            while (k < stmt_count) {
+                if (stmt[k]->type == H64EXPRTYPE_FUNCDEF_STMT) {
+                    expr->classdef.funcdef[k] = stmt[k];
+                    stmt[k] = NULL;
+                }
+                k++;
+            }
+        }
+        if (vardefcount > 0) {
+            expr->classdef.vardef = malloc(
+                sizeof(*expr->classdef.vardef) *
+                vardefcount
+            );
+            if (!expr->classdef.vardef)
+                goto classparsefail;
+            expr->classdef.vardef_count = vardefcount;
+            k = 0;
+            while (k < stmt_count) {
+                if (stmt[k]->type == H64EXPRTYPE_FUNCDEF_STMT) {
+                    expr->classdef.vardef[k] = stmt[k];
+                    stmt[k] = NULL;
+                }
+                k++;
+            }
+        }
+        #ifndef NDEBUG
+        k = 0;
+        while (k < stmt_count) {
+            assert(stmt[k] == NULL);
+            k++;
+        }
+        #endif
+        free(stmt);
+        stmt = NULL;
+
+        if (outofmemory) *outofmemory = 0;
+        if (parsefail) *parsefail = 0;
+        *out_expr = expr;
+        if (out_tokenlen) *out_tokenlen = i;
+        return 1;
+    }
+
     // return statements:
     if (tokens[0].type == H64TK_KEYWORD &&
             strcmp(tokens[0].str_value, "return") == 0) {
@@ -2206,7 +2443,7 @@ int ast_ParseExprStmt(
                 statementmode != STATEMENTMODE_INCLASSFUNC) {
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
-                "unexpected use of \"return\", "
+                "unexpected \"return\", "
                 "this is not valid outside of functions"
             );
             if (!result_AddMessage(
@@ -2289,13 +2526,17 @@ int ast_ParseExprStmt(
         const char *__nm_while = "while";
         const char *__nm_for = "for";
         const char *stmt_name = "if";
-        expr->type = H64EXPRTYPE_IF_STMT;
         if (strcmp(tokens[0].str_value, "while") == 0) {
             expr->type = H64EXPRTYPE_WHILE_STMT;
             stmt_name = __nm_while;
+            expr->whilestmt.scope.parentscope = addtoscope;
         } else if (strcmp(tokens[0].str_value, "for") == 0) {
             expr->type = H64EXPRTYPE_FOR_STMT;
             stmt_name = __nm_for;
+            expr->forstmt.scope.parentscope = addtoscope;
+        } else {
+            expr->type = H64EXPRTYPE_IF_STMT;
+            expr->ifstmt.scope.parentscope = addtoscope;
         }
         int i = 1;
 
