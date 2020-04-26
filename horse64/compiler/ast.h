@@ -15,6 +15,7 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_WHILE_STMT,
     H64EXPRTYPE_FOR_STMT,
     H64EXPRTYPE_IMPORT_STMT,
+    H64EXPRTYPE_RETURN_STMT,
     H64EXPRTYPE_ASSIGN_STMT,
     H64EXPRTYPE_LITERAL,
     H64EXPRTYPE_IDENTIFIERREF,
@@ -117,6 +118,9 @@ typedef struct h64expression {
             h64expression **key;
             h64expression **value;
         } constructormap;
+        struct returnstmt {
+            h64expression *returned_expression;
+        } returnstmt;
         struct forstmt {
             char *iterator_identifier;
             h64scope scope;

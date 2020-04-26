@@ -2199,11 +2199,93 @@ int ast_ParseExprStmt(
         return 1;
     }
 
+    // return statements:
+    if (tokens[0].type == H64TK_KEYWORD &&
+            strcmp(tokens[0].str_value, "return") == 0) {
+        if (statementmode != STATEMENTMODE_INFUNC &&
+                statementmode != STATEMENTMODE_INCLASSFUNC) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected use of \"return\", "
+                "this is not valid outside of functions"
+            );
+            if (!result_AddMessage(
+                    resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(tokens, token_count, 0),
+                    _refcol(tokens, token_count, 0)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
+        }
+        expr->type = H64EXPRTYPE_RETURN_STMT;
+
+        int i = 1;
+        int tlen = 0;
+        int innerparsefail = 0;
+        int inneroutofmemory = 0;
+        h64expression *innerexpr = NULL;
+        if (!ast_ParseExprInline(
+                fileuri, resultmsg,
+                addtoscope,
+                &tokens[i], token_count - i,
+                max_tokens_touse - i,
+                INLINEMODE_GREEDY,
+                &innerparsefail,
+                &inneroutofmemory, &innerexpr,
+                &tlen, nestingdepth
+                )) {
+            if (inneroutofmemory) {
+                if (parsefail) *parsefail = 0;
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            if (innerparsefail) {
+                if (parsefail) *parsefail = 1;
+                if (outofmemory) *outofmemory = 0;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            innerexpr = NULL;
+            tlen = 0;
+        }
+        i += tlen;
+
+        expr->returnstmt.returned_expression = expr;
+        *out_expr = expr;
+        if (outofmemory) *outofmemory = 0;
+        if (parsefail) *parsefail = 0;
+        if (out_tokenlen) *out_tokenlen = i;
+        return 1;
+    }
+
     // 'if' and 'while' conditionals:
     if (tokens[0].type == H64TK_KEYWORD &&
             (strcmp(tokens[0].str_value, "if") == 0 ||
              strcmp(tokens[0].str_value, "while") == 0 ||
              strcmp(tokens[0].str_value, "for") == 0)) {
+
+        if (statementmode != STATEMENTMODE_INFUNC &&
+                statementmode != STATEMENTMODE_INCLASSFUNC) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected use of \"%s\", "
+                "this is not valid outside of functions",
+                tokens[0].str_value
+            );
+            if (!result_AddMessage(
+                    resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(tokens, token_count, 0),
+                    _refcol(tokens, token_count, 0)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
+        }
+
         const char *__nm_while = "while";
         const char *__nm_for = "for";
         const char *stmt_name = "if";
@@ -2383,6 +2465,7 @@ int ast_ParseExprStmt(
         i += tlen;
         *out_expr = expr;
         if (out_tokenlen) *out_tokenlen = i;
+        if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 0;
         return 1;
     }
