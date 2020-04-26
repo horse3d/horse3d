@@ -2561,6 +2561,7 @@ int ast_ParseExprStmt(
         int i = 0;
         int firstentry = 1;
         while (1) {
+            struct h64ifstmt *current_clause = NULL;
             const char *__nm_while = "while";
             const char *__nm_for = "for";
             const char *__nm_elseif = "elseif";
@@ -2592,6 +2593,7 @@ int ast_ParseExprStmt(
             }
             i++;
 
+            // Parse iterator label + "in" of for loops:
             const char *iteratorname = NULL;
             if (expr->type == H64EXPRTYPE_FOR_STMT) {
                 if (i >= max_tokens_touse ||
@@ -2646,50 +2648,54 @@ int ast_ParseExprStmt(
                 i++;
             }
 
-            int tlen = 0;
-            int _innerparsefail = 0;
-            int _inneroutofmemory = 0;
+            // Parse conditional, if any:
             h64expression *innerexpr = NULL;
-            if (!ast_ParseExprInline(
-                    fileuri, resultmsg,
-                    addtoscope,
-                    tokenstreaminfo, &tokens[i], max_tokens_touse - i,
-                    INLINEMODE_GREEDY,
-                    &_innerparsefail,
-                    &_inneroutofmemory, &innerexpr,
-                    &tlen, nestingdepth
-                    )) {
-                if (_inneroutofmemory) {
-                    if (outofmemory) *outofmemory = 1;
+            if (expr->type != H64EXPRTYPE_IF_STMT || !in_else) {
+                int tlen = 0;
+                int _innerparsefail = 0;
+                int _inneroutofmemory = 0;
+                if (!ast_ParseExprInline(
+                        fileuri, resultmsg,
+                        addtoscope,
+                        tokenstreaminfo, &tokens[i],
+                        max_tokens_touse - i,
+                        INLINEMODE_GREEDY,
+                        &_innerparsefail,
+                        &_inneroutofmemory, &innerexpr,
+                        &tlen, nestingdepth
+                        )) {
+                    if (_inneroutofmemory) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    if (_innerparsefail) {
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    char buf[256]; char describebuf[64];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected %s, "
+                        "expected valid inline expression for "
+                        "%s of \"%s\" statement",
+                        _describetoken(
+                            describebuf, tokenstreaminfo, tokens, i
+                        ),
+                        (expr->type == H64EXPRTYPE_FOR_STMT ?
+                         "iterated container" : "conditional"),
+                        stmt_name
+                    );
+                    if (parsefail) *parsefail = 1;
+                    if (!result_AddMessage(
+                            resultmsg,
+                            H64MSG_ERROR, buf, fileuri,
+                            _refline(tokenstreaminfo, tokens, 0),
+                            _refcol(tokenstreaminfo, tokens, 0)
+                            ))
+                        if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
                     return 0;
                 }
-                if (_innerparsefail) {
-                    ast_FreeExpression(expr);
-                    return 0;
-                }
-                char buf[256]; char describebuf[64];
-                snprintf(buf, sizeof(buf) - 1,
-                    "unexpected %s, "
-                    "expected valid inline expression for "
-                    "%s of \"%s\" statement",
-                    _describetoken(
-                        describebuf, tokenstreaminfo, tokens, i
-                    ),
-                    (expr->type == H64EXPRTYPE_FOR_STMT ?
-                     "iterated container" : "conditional"),
-                    stmt_name
-                );
-                if (parsefail) *parsefail = 1;
-                if (!result_AddMessage(
-                        resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, 0),
-                        _refcol(tokenstreaminfo, tokens, 0)
-                        ))
-                    if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
-                return 0;
             }
             if (expr->type == H64EXPRTYPE_FOR_STMT) {
                 expr->forstmt.iterator_identifier = strdup(iteratorname);
@@ -2699,13 +2705,37 @@ int ast_ParseExprStmt(
                     return 0;
                 }
                 expr->forstmt.iterated_container = innerexpr;
-            } else {
-                assert(expr->type == H64EXPRTYPE_IF_STMT ||
-                       expr->type == H64EXPRTYPE_WHILE_STMT);
-                if (expr->type == H64EXPRTYPE_IF_STMT)
+            } else if (expr->type == H64EXPRTYPE_IF_STMT) {
+                if (in_elseif || in_else) {
+                    struct h64ifstmt *new_current_clause = malloc(
+                        sizeof(*new_current_clause)
+                    );
+                    if (!current_clause) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        ast_FreeExpression(innerexpr);
+                        return 0;
+                    }
+                    memset(new_current_clause, 0,
+                        sizeof(*new_current_clause));
+                    if (current_clause) {
+                        current_clause->followup_clause = new_current_clause;
+                    } else {
+                        expr->ifstmt.followup_clause = new_current_clause;
+                    }
+                    current_clause = new_current_clause;
+                    if (in_elseif) {
+                        current_clause->conditional = innerexpr;
+                    } else {
+                        assert(innerexpr == NULL);
+                    }
+                } else {
                     expr->ifstmt.conditional = innerexpr;
-                else if (expr->type == H64EXPRTYPE_IF_STMT)
-                    expr->whilestmt.conditional = innerexpr;
+                    current_clause = &expr->ifstmt;
+                }
+            } else {
+                assert(expr->type == H64EXPRTYPE_WHILE_STMT);
+                expr->whilestmt.conditional = innerexpr;
             }
 
             h64expression ***stmt_ptr = NULL;
@@ -2720,12 +2750,12 @@ int ast_ParseExprStmt(
                 stmt_count_ptr = &expr->whilestmt.stmt_count;
                 scope = &expr->whilestmt.scope;
             } else if (expr->type == H64EXPRTYPE_IF_STMT) {
-                stmt_ptr = &expr->ifstmt.stmt;
-                stmt_count_ptr = &expr->ifstmt.stmt_count;
-                scope = &expr->ifstmt.scope;
+                stmt_ptr = &current_clause->stmt;
+                stmt_count_ptr = &current_clause->stmt_count;
+                scope = &current_clause->scope;
             }
 
-            tlen = 0;
+            int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
             if (!ast_ParseCodeBlock(
@@ -2755,6 +2785,18 @@ int ast_ParseExprStmt(
                 return 0;
             }
             i += tlen;
+
+            // Check continuation with further clauses::
+            if (expr->type == H64EXPRTYPE_IF_STMT &&
+                    i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    (strcmp(tokens[i].str_value, "elseif") == 0 ||
+                     (strcmp(tokens[i].str_value, "else") == 0 &&
+                      !in_else))
+                    ) {
+                continue;
+            }
+
             *out_expr = expr;
             if (out_tokenlen) *out_tokenlen = i;
             if (outofmemory) *outofmemory = 0;

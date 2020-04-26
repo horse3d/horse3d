@@ -55,6 +55,17 @@ typedef struct h64funcargs {
     h64expression **arg_value;
 } h64funcargs;
 
+struct h64ifstmt;
+
+struct h64ifstmt {
+    h64scope scope;
+    h64expression *conditional;
+    int stmt_count;
+    h64expression **stmt;
+
+    struct h64ifstmt *followup_clause;
+};
+
 typedef struct h64expression {
     int64_t line, column;
     int scopeline;
@@ -148,12 +159,7 @@ typedef struct h64expression {
             int stmt_count;
             h64expression **stmt;
         } whilestmt;
-        struct ifstmt {
-            h64scope scope;
-            h64expression *conditional;
-            int stmt_count;
-            h64expression **stmt;
-        } ifstmt;
+        struct h64ifstmt ifstmt;
     }; 
 } h64expression;
 
