@@ -1923,11 +1923,15 @@ int ast_ParseCodeBlock(
                 if (_innerparsefail) {
                     // Try to recover by finding next obvious
                     // statement, or possible function end:
+                    int previ = i;
+                    i++;
                     ast_ParseRecover_FindNextStatement(
                         tokenstreaminfo, tokens, max_tokens_touse, &i
                     );
+                    assert(i > previ || i >= max_tokens_touse);
                     continue;
                 }
+                break;
             } else {
                 assert(innerexpr != NULL);
                 assert(tlen > 0);
@@ -3167,6 +3171,13 @@ h64ast ast_ParseFromTokens(
                         ))
                     // OOM on final error msg? Not much we can do...
                     break;
+                int previ = i;
+                i++;
+                ast_ParseRecover_FindNextStatement(
+                    &tokenstreaminfo, tokens, token_count, &i
+                );
+                assert(i > previ || i >= token_count);
+                continue;
             }
             result.resultmsg.success = 0;
             return result;
