@@ -51,6 +51,7 @@ static char *h64keywords[] = {
     "catch", "finally", "error",
     "self", "base", "new",
     "return", "from",
+    "getter", "setter", "value",
     NULL
 };
 

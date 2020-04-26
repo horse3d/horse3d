@@ -15,6 +15,13 @@ typedef struct h64ast {
 
 void ast_FreeContents(h64ast *ast);
 
+
+typedef struct tsinfo {
+    h64token *token;
+    int token_count;
+} tsinfo;
+
+
 #define INLINEMODE_NONGREEDY 0
 #define INLINEMODE_GREEDY 1
 
@@ -22,8 +29,8 @@ int ast_ParseExprInline(
     const char *fileuri,
     h64result *resultmsg,
     h64scope *addtoscope,
+    tsinfo *tokenstreaminfo,
     h64token *tokens,
-    int token_count,
     int max_tokens_touse,
     int inlinemode,
     int *parsefail,
@@ -42,8 +49,8 @@ int ast_ParseExprStmt(
     const char *fileuri,
     h64result *resultmsg,
     h64scope *addtoscope,
+    tsinfo *tokenstreaminfo,
     h64token *tokens,
-    int token_count,
     int max_tokens_touse,
     int statementmode,
     int *parsefail,
@@ -57,8 +64,8 @@ int ast_ParseCodeBlock(
     const char *fileuri,
     h64result *resultmsg,
     h64scope *addtoscope,
+    tsinfo *tokenstreaminfo,
     h64token *tokens,
-    int token_count,
     int max_tokens_touse,
     int statementmode,
     h64expression ***stmt_ptr,
