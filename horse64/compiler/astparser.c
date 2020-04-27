@@ -1377,11 +1377,13 @@ int ast_ParseExprInline(
                 int hadcomma = 0;
                 if (i < max_tokens_touse &&
                         tokens[i].type == H64TK_COMMA) {
+                    hadcomma = 1;
                     i++;
                 }
                 if (i < max_tokens_touse &&
                         tokens[i].type == H64TK_BRACKET &&
-                        tokens[i].char_value == ']') {
+                        ((tokens[i].char_value == ']' && !isset) ||
+                         (tokens[i].char_value == '}' && isset))) {
                     i++;
                     break;
                 }
@@ -1389,11 +1391,12 @@ int ast_ParseExprInline(
                     char buf[512]; char describebuf[64];
                     snprintf(buf, sizeof(buf) - 1,
                         "unexpected %s, "
-                        "expected ']' or ',' resuming or ending %s "
+                        "expected '%c' or ',' resuming or ending %s "
                         "starting in line %"
                         PRId64 ", column %" PRId64 " instead",
                         _describetoken(describebuf,
                             tokenstreaminfo, tokens, i),
+                        (isset ? '}' : ']'),
                         itemname,
                         expr->line, expr->column
                     );
@@ -1696,6 +1699,7 @@ int ast_ParseExprInline(
                     ast_FreeExpression(expr);
                     return 0;
                 }
+                i++;
                 h64expression *innerexpr2 = NULL;
                 int tlen2 = 0;
                 innerparsefail = 0;
@@ -1752,7 +1756,7 @@ int ast_ParseExprInline(
             if (outofmemory) *outofmemory = 0;
             if (parsefail) *parsefail = 0;
             *out_expr = expr;
-            if (out_tokenlen) *out_tokenlen = 1;
+            if (out_tokenlen) *out_tokenlen = i;
             return 1;
         }
 
