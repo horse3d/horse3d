@@ -50,7 +50,7 @@ static char *h64keywords[] = {
     "break", "continue", "try",
     "catch", "finally", "error",
     "self", "base", "new",
-    "return", "from",
+    "return", "as",
     "getter", "setter", "value",
     NULL
 };

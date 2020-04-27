@@ -16,6 +16,7 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_FOR_STMT,
     H64EXPRTYPE_IMPORT_STMT,
     H64EXPRTYPE_RETURN_STMT,
+    H64EXPRTYPE_TRY_STMT,
     H64EXPRTYPE_ASSIGN_STMT,
     H64EXPRTYPE_LITERAL,
     H64EXPRTYPE_IDENTIFIERREF,
@@ -117,7 +118,7 @@ typedef struct h64expression {
         struct importstmt {
             int import_elements_count;
             char **import_elements;
-            char *library_source;
+            char *import_as;
         } importstmt;
         struct constructorvector {
             int entry_count;
@@ -162,6 +163,17 @@ typedef struct h64expression {
             h64expression **stmt;
         } whilestmt;
         struct h64ifstmt ifstmt;
+        struct trystmt {
+            int trystmt_count;
+            h64expression **trystmt;
+            int exceptions_count;
+            h64expression **exceptions;
+            char *exception_name;
+            int catchstmt_count;
+            h64expression **catchstmt;
+            int finallystmt_count;
+            h64expression **finallystmt;
+        } trystmt;
     }; 
 } h64expression;
 
