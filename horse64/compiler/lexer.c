@@ -276,6 +276,7 @@ h64tokenizedfile lexer_ParseFromFile(
     uri_Free(uinfo);
     uinfo = NULL;
 
+    int post_identifier_is_likely_func = 0;
     int tokenallocsize = 0;
     int64_t line = 1;
     int64_t column = 1;
@@ -339,6 +340,7 @@ h64tokenizedfile lexer_ParseFromFile(
 
         // Separating commas:
         if (c == ',') {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_COMMA;
             result.token_count++;
             i++;
@@ -365,6 +367,7 @@ h64tokenizedfile lexer_ParseFromFile(
 
         // Constants/literals:
         if (c == '"' || c == '\'') {
+            post_identifier_is_likely_func = 0;
             unsigned char startc = c;
             int startcolumn = column;
             int startline = line;
@@ -541,6 +544,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 i + 1 < (int)size &&
                 nexttokenisdigit(buffer + i + 1, ((int)size) - i - 1)) ||
                 (c >= '0' && c <= '9')) {
+            post_identifier_is_likely_func = 0;
             int64_t startline = line;
             int64_t startcolumn = column;
             char *numbuf = malloc(8);
@@ -736,6 +740,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 i + strlen("true") >= (unsigned int)size ||
                 (!is_identifier_char(buffer[i + 4]) &&
                  !is_digit(buffer[i + 4])))) {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_CONSTANT_BOOL;
             result.token[result.token_count].int_value = 1;
             result.token_count++;
@@ -751,6 +756,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 i + strlen("false") >= (unsigned int)size ||
                 (!is_identifier_char(buffer[i + 5]) &&
                  !is_digit(buffer[i + 5])))) {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_CONSTANT_BOOL;
             result.token[result.token_count].int_value = 0;
             result.token_count++;
@@ -765,6 +771,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 i + strlen("none") >= (unsigned int)size ||
                 (!is_identifier_char(buffer[i + 4]) &&
                  !is_digit(buffer[i + 4])))) {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_CONSTANT_NONE;
             result.token_count++;
             i += strlen("none");
@@ -773,7 +780,8 @@ h64tokenizedfile lexer_ParseFromFile(
         }
 
         // Brackets:
-        if ((c == '(' && could_be_unary_op) || c == ')' ||
+        if ((c == '(' && (could_be_unary_op ||
+                post_identifier_is_likely_func)) || c == ')' ||
                 (c == '[' && could_be_unary_op) || c == ']' ||
                 c == '{' || c == '}') {
             result.token[result.token_count].type = H64TK_BRACKET;
@@ -784,6 +792,7 @@ h64tokenizedfile lexer_ParseFromFile(
                     H64OP_MEMBERBYEXPR
                 );
             }
+            post_identifier_is_likely_func = 0;
             result.token_count++;
             i++;
             column++;
@@ -792,6 +801,7 @@ h64tokenizedfile lexer_ParseFromFile(
 
         // Colon for vectors:
         if (c == ':') {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_COLON;
             result.token[result.token_count].char_value = c;
             result.token_count++;
@@ -802,6 +812,7 @@ h64tokenizedfile lexer_ParseFromFile(
 
         // Arrow for maps:
         if (c == '-' && i + 1 < (int)size && buffer[i + 1] == '>') {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_MAPARROW;
             result.token_count++;
             i += 2;
@@ -819,6 +830,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 (c == '=' && (i + 1 >= (int)size ||
                  buffer[i + 1] != '>')) ||
                 ((c == '(' || c == '[') && !could_be_unary_op)) {
+            post_identifier_is_likely_func = 0;
             int tokentype = H64TK_BINOPSYMBOL;
             int optype = H64OP_INVALID;
 
@@ -994,6 +1006,7 @@ h64tokenizedfile lexer_ParseFromFile(
         // => inline func:
         if (c == '=' && i + 1 < (int)size &&
                  buffer[i + 1] != '>') {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_INLINEFUNC;
             result.token_count++;
             i++;
@@ -1004,6 +1017,7 @@ h64tokenizedfile lexer_ParseFromFile(
         if (c == 'a' && i + 1 < (int)size && buffer[i + 1] == 'n' &&
                 i + 2 < (int)size && buffer[i + 2] == 'd' &&
                 (i + 3 >= (int)size || !is_identifier_char(buffer[i + 3]))) {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_BINOPSYMBOL;
             result.token[result.token_count].int_value = H64OP_BOOLCOND_AND;
             result.token_count++;
@@ -1014,6 +1028,7 @@ h64tokenizedfile lexer_ParseFromFile(
         // "or" operator:
         if (c == 'o' && i + 1 < (int)size && buffer[i + 1] == 'r' &&
                 (i + 2 >= (int)size || !is_identifier_char(buffer[i + 2]))) {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_BINOPSYMBOL;
             result.token[result.token_count].int_value = H64OP_BOOLCOND_OR;
             result.token_count++;
@@ -1024,6 +1039,7 @@ h64tokenizedfile lexer_ParseFromFile(
         // "in" operator:
         if (c == 'i' && i + 1 < (int)size && buffer[i + 1] == 'n' &&
                 (i + 2 >= (int)size || !is_identifier_char(buffer[i + 2]))) {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_BINOPSYMBOL;
             result.token[result.token_count].int_value = H64OP_BOOLCOND_IN;
             result.token_count++;
@@ -1035,6 +1051,7 @@ h64tokenizedfile lexer_ParseFromFile(
         if (c == 'n' && i + 1 < (int)size && buffer[i + 1] == 'o' &&
                 i + 2 < (int)size && buffer[i + 2] == 't' &&
                 (i + 3 >= (int)size || !is_identifier_char(buffer[i + 3]))) {
+            post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_UNOPSYMBOL;
             result.token[result.token_count].int_value = H64OP_BOOLCOND_NOT;
             result.token_count++;
@@ -1143,6 +1160,12 @@ h64tokenizedfile lexer_ParseFromFile(
                         result.token[result.token_count].str_value,
                         h64keywords[k]) == 0) {
                     result.token[result.token_count].type = H64TK_KEYWORD;
+                    if (strcmp(result.token[result.token_count].str_value,
+                               "func") == 0) {
+                        post_identifier_is_likely_func = 1;
+                    } else {
+                        post_identifier_is_likely_func = 0;
+                    }
                     break;
                 }
                 k++;

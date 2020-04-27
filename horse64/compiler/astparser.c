@@ -213,8 +213,11 @@ int _ast_ParseFunctionArgList_Ex(
         return 0;
     }
 
-    assert(tokens[0].type == H64TK_BINOPSYMBOL &&
-            tokens[0].int_value == H64OP_CALL);
+    assert(
+        (tokens[0].type == H64TK_BRACKET &&
+         tokens[0].char_value == '(') ||
+        (tokens[0].type == H64TK_BINOPSYMBOL &&
+         tokens[0].int_value == H64OP_CALL));
     i++;
     while (1) {
         if (i < max_tokens_touse &&
@@ -2485,11 +2488,13 @@ int ast_ParseExprStmt(
             if (!expr->classdef.funcdef)
                 goto classparsefail;
             expr->classdef.funcdef_count = funcdefcount;
+            int j = 0;
             k = 0;
             while (k < stmt_count) {
                 if (stmt[k]->type == H64EXPRTYPE_FUNCDEF_STMT) {
-                    expr->classdef.funcdef[k] = stmt[k];
+                    expr->classdef.funcdef[j] = stmt[k];
                     stmt[k] = NULL;
+                    j++;
                 }
                 k++;
             }
@@ -2502,11 +2507,14 @@ int ast_ParseExprStmt(
             if (!expr->classdef.vardef)
                 goto classparsefail;
             expr->classdef.vardef_count = vardefcount;
+            int j = 0;
             k = 0;
             while (k < stmt_count) {
-                if (stmt[k]->type == H64EXPRTYPE_VARDEF_STMT) {
+                if (stmt[k] &&
+                        stmt[k]->type == H64EXPRTYPE_VARDEF_STMT) {
                     expr->classdef.vardef[k] = stmt[k];
                     stmt[k] = NULL;
+                    j++;
                 }
                 k++;
             }
@@ -2887,7 +2895,8 @@ int ast_ParseExprStmt(
             }
             char **new_elements = realloc(
                 expr->importstmt.import_elements,
-                sizeof(expr->importstmt.import_elements_count + 1)
+                sizeof(*new_elements) *
+                (expr->importstmt.import_elements_count + 1)
             );
             if (!new_elements) {
                 if (outofmemory) *outofmemory = 1;
