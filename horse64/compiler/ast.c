@@ -120,12 +120,55 @@ void ast_FreeExpression(h64expression *expr) {
         }
         free(expr->forstmt.stmt);
         break;
-    case H64EXPRTYPE_IDENTIFIERREF:
-        free(expr->identifierref.value);
+    case H64EXPRTYPE_IMPORT_STMT:
+        i = 0;
+        while (i < expr->importstmt.import_elements_count) {
+            free(expr->importstmt.import_elements[i]);
+            i++;
+        }
+        free(expr->importstmt.import_elements);
+        free(expr->importstmt.import_as);
+        break;
+    case H64EXPRTYPE_RETURN_STMT:
+        free(expr->returnstmt.returned_expression);
+        break;
+    case H64EXPRTYPE_TRY_STMT:
+        i = 0;
+        while (i < expr->trystmt.trystmt_count) {
+            ast_FreeExpression(expr->trystmt.trystmt[i]);
+            i++;
+        }
+        free(expr->trystmt.trystmt);
+        i = 0;
+        while (i < expr->trystmt.exceptions_count) {
+            ast_FreeExpression(expr->trystmt.exceptions[i]);
+            i++;
+        }
+        free(expr->trystmt.exceptions);
+        free(expr->trystmt.exception_name);
+        i = 0;
+        while (i < expr->trystmt.catchstmt_count) {
+            ast_FreeExpression(expr->trystmt.catchstmt[i]);
+            i++;
+        }
+        free(expr->trystmt.catchstmt);
+        i = 0;
+        while (i < expr->trystmt.finallystmt_count) {
+            ast_FreeExpression(expr->trystmt.finallystmt[i]);
+            i++;
+        }
+        free(expr->trystmt.finallystmt);
+        break;
+    case H64EXPRTYPE_ASSIGN_STMT:
+        ast_FreeExpression(expr->assignstmt.lvalue);
+        ast_FreeExpression(expr->assignstmt.rvalue);
         break;
     case H64EXPRTYPE_LITERAL:
         if (expr->literal.type == H64TK_CONSTANT_STRING)
             free(expr->literal.str_value);
+        break;
+    case H64EXPRTYPE_IDENTIFIERREF:
+        free(expr->identifierref.value);
         break;
     case H64EXPRTYPE_BINARYOP:
         ast_FreeExpression(expr->op.value1);
@@ -133,6 +176,47 @@ void ast_FreeExpression(h64expression *expr) {
         break;
     case H64EXPRTYPE_UNARYOP:
         ast_FreeExpression(expr->op.value1);
+        break;
+    case H64EXPRTYPE_CALL:
+        ast_FreeExpression(expr->inlinecall.value);
+        break;
+    case H64EXPRTYPE_LIST:
+        i = 0;
+        while (i < expr->constructorlist.entry_count) {
+            ast_FreeExpression(expr->constructorlist.entry[i]);
+            i++;
+        }
+        free(expr->constructorlist.entry);
+        break;
+    case H64EXPRTYPE_SET:
+        i = 0;
+        while (i < expr->constructorset.entry_count) {
+            ast_FreeExpression(expr->constructorset.entry[i]);
+            i++;
+        }
+        free(expr->constructorset.entry);
+        break;
+    case H64EXPRTYPE_MAP:
+        i = 0;
+        while (i < expr->constructormap.entry_count) {
+            ast_FreeExpression(expr->constructormap.key[i]);
+            i++;
+        }
+        free(expr->constructormap.key);
+        i = 0;
+        while (i < expr->constructormap.entry_count) {
+            ast_FreeExpression(expr->constructormap.value[i]);
+            i++;
+        }
+        free(expr->constructormap.value);
+        break;
+    case H64EXPRTYPE_VECTOR:
+        i = 0;
+        while (i < expr->constructorvector.entry_count) {
+            ast_FreeExpression(expr->constructorvector.entry[i]);
+            i++;
+        }
+        free(expr->constructorvector.entry);
         break;
     default:
         fprintf(stderr, "horsecc: warning: internal issue, "
