@@ -1256,6 +1256,7 @@ static char _h64tkname_invalid[] = "H64TK_INVALID";
 static char _h64tkname_identifier[] = "H64TK_IDENTIFIER";
 static char _h64tkname_bracket[] = "H64TK_BRACKET";
 static char _h64tkname_comma[] = "H64TK_COMMA";
+static char _h64tkname_colon[] = "H64TK_COLON";
 static char _h64tkname_keyword[] = "H64TK_KEYWORD";
 static char _h64tkname_constant_int[] = "H64TK_CONSTANT_INT";
 static char _h64tkname_constant_float[] = "H64TK_CONSTANT_FLOAT";
@@ -1275,6 +1276,8 @@ const char *lexer_TokenTypeToStr(h64tokentype type) {
         return _h64tkname_bracket;
     } else if (type == H64TK_COMMA) {
         return _h64tkname_comma;
+    } else if (type == H64TK_COLON) {
+        return _h64tkname_colon;
     } else if (type == H64TK_KEYWORD) {
         return _h64tkname_keyword;
     } else if (type == H64TK_CONSTANT_INT) {
@@ -1360,4 +1363,16 @@ jsonvalue *lexer_TokenToJSON(h64token *t, const char *fileuri) {
         return NULL;
     }
     return v;
+}
+
+void lexer_DebugPrintTokens(h64token *t, int count) {
+    printf("horsecc: debug: tokens:");
+    int i = 0;
+    while (i < count) {
+        printf(" %s", lexer_TokenTypeToStr(t[i].type));
+        if (t[i].type == H64TK_CONSTANT_INT)
+            printf("(%" PRId64 ")", t[i].int_value);
+        i++;
+    }
+    printf("\n");
 }

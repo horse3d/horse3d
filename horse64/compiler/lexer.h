@@ -73,4 +73,6 @@ int is_valid_utf8_char(
 
 int utf8_char_len(const unsigned char *p);
 
+void lexer_DebugPrintTokens(h64token *t, int count);
+
 #endif  // HORSE3D_COMPILER_LEXER_H_

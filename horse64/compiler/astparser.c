@@ -198,7 +198,7 @@ int _ast_ParseFunctionArgList_Ex(
     int i = 0;
     nestingdepth++;
     if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
-        char buf[64];
+        char buf[128];
         snprintf(buf, sizeof(buf) - 1,
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
@@ -432,7 +432,7 @@ int ast_ParseExprInlineOperator_Recurse(
     int i = 0;
     nestingdepth++;
     if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
-        char buf[64];
+        char buf[128];
         snprintf(buf, sizeof(buf) - 1,
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
@@ -886,17 +886,18 @@ int ast_ParseInlineFunc(
         return 0;
     }
 
+    int i = 0;
     nestingdepth++;
     if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
-        char buf[64];
+        char buf[128];
         snprintf(buf, sizeof(buf) - 1,
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
         result_Error(
             resultmsg, buf, fileuri,
-            _refline(tokenstreaminfo, tokens, 0),
-            _refcol(tokenstreaminfo, tokens, 0)
+            _refline(tokenstreaminfo, tokens, i),
+            _refcol(tokenstreaminfo, tokens, i)
         );
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
@@ -912,7 +913,6 @@ int ast_ParseInlineFunc(
     expr->type = H64EXPRTYPE_INLINEFUNC; 
     expr->line = _refline(tokenstreaminfo, tokens, 0);
     expr->column = _refcol(tokenstreaminfo, tokens, 0);
-    int i = 0;
     if (tokens[0].type == H64TK_BRACKET &&
             tokens[0].char_value == '(') {
         int tlen = 0;
@@ -1072,7 +1072,7 @@ int ast_ParseExprInline(
 
     nestingdepth++;
     if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
-        char buf[64];
+        char buf[128];
         snprintf(buf, sizeof(buf) - 1,
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
@@ -1602,13 +1602,15 @@ int ast_ParseExprInline(
                 }
 
                 // Get next item:
+                assert(i > 0);
                 h64expression *innerexpr = NULL;
                 int tlen = 0;
                 int innerparsefail = 0;
                 int inneroutofmemory = 0;
                 if (!ast_ParseExprInline(
                         fileuri, resultmsg, addtoscope,
-                        tokenstreaminfo, tokens, max_tokens_touse,
+                        tokenstreaminfo,
+                        tokens + i, max_tokens_touse - i,
                         INLINEMODE_GREEDY,
                         &innerparsefail, &inneroutofmemory,
                         &innerexpr, &tlen, nestingdepth
@@ -1645,6 +1647,7 @@ int ast_ParseExprInline(
                     ast_FreeExpression(expr);
                     return 0;
                 }
+                assert(tlen > 0);
                 i += tlen;
                 hadanyitems = 1;
                 if (isvector) {
@@ -1699,7 +1702,8 @@ int ast_ParseExprInline(
                 inneroutofmemory = 0;
                 if (!ast_ParseExprInline(
                         fileuri, resultmsg, addtoscope,
-                        tokenstreaminfo, tokens, max_tokens_touse,
+                        tokenstreaminfo,
+                        tokens + i, max_tokens_touse - i,
                         INLINEMODE_GREEDY,
                         &innerparsefail, &inneroutofmemory,
                         &innerexpr2, &tlen2, nestingdepth
@@ -2025,12 +2029,14 @@ int ast_ParseExprStmt(
 
     nestingdepth++;
     if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
-        char buf[64];
+        char buf[128];
         snprintf(buf, sizeof(buf) - 1,
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
-        result_ErrorNoLoc(resultmsg, buf, fileuri);
+        result_Error(resultmsg, buf, fileuri,
+            _refline(tokenstreaminfo, tokens, 0),
+            _refcol(tokenstreaminfo, tokens, 0));
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
         return 0;
