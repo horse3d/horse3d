@@ -195,6 +195,7 @@ int _ast_ParseFunctionArgList_Ex(
     }
     memset(out_funcargs, 0, sizeof(*out_funcargs));
 
+    int i = 0;
     nestingdepth++;
     if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
         char buf[64];
@@ -202,13 +203,16 @@ int _ast_ParseFunctionArgList_Ex(
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
-        result_ErrorNoLoc(resultmsg, buf, fileuri);
+        result_Error(
+            resultmsg, buf, fileuri,
+            _refline(tokenstreaminfo, tokens, i),
+            _refcol(tokenstreaminfo, tokens, i)
+        );
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
         return 0;
     }
 
-    int i = 0;
     assert(tokens[0].type == H64TK_BINOPSYMBOL &&
             tokens[0].int_value == H64OP_CALL);
     i++;
@@ -422,6 +426,7 @@ int ast_ParseExprInlineOperator_Recurse(
          _describetoken(describebuf, tokenstreaminfo, tokens, 0));
     #endif
 
+    int i = 0;
     nestingdepth++;
     if (nestingdepth > H64LIMIT_MAXPARSERECURSION) {
         char buf[64];
@@ -429,14 +434,17 @@ int ast_ParseExprInlineOperator_Recurse(
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
-        result_ErrorNoLoc(resultmsg, buf, fileuri);
+        result_Error(resultmsg, buf, fileuri,
+            _refline(tokenstreaminfo, tokens, i),
+            _refcol(tokenstreaminfo, tokens, i)
+        );
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
         return 0;
     }
 
     h64expression *original_lefthand = lefthandside;
-    int i = lefthandsidetokenlen;
+    i += lefthandsidetokenlen;
     int operatorsprocessed = 0;
 
     // Parse left-hand side if we don't have any yet:
@@ -1066,7 +1074,10 @@ int ast_ParseExprInline(
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
-        result_ErrorNoLoc(resultmsg, buf, fileuri);
+        result_Error(resultmsg, buf, fileuri,
+            _refline(tokenstreaminfo, tokens, 0),
+            _refcol(tokenstreaminfo, tokens, 0)
+        );
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
         return 0;
