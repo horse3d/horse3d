@@ -35,12 +35,18 @@ void ast_FreeExpression(h64expression *expr) {
     if (!expr)
         return;
 
-    if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+    int i = 0;
+    switch (expr->type) {
+    case H64EXPRTYPE_INVALID:
+        // nothing to do;
+        break;
+    case H64EXPRTYPE_VARDEF_STMT:
         if (expr->vardef.identifier)
             free(expr->vardef.identifier);
         if (expr->vardef.value)
             ast_FreeExpression(expr->vardef.value);
-    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+        break;
+    case H64EXPRTYPE_FUNCDEF_STMT:
         if (expr->funcdef.identifier)
             free(expr->funcdef.identifier);
         ast_ClearFunctionArgs(&expr->funcdef.arguments);
@@ -51,24 +57,49 @@ void ast_FreeExpression(h64expression *expr) {
         }
         if (expr->funcdef.stmt) free(expr->funcdef.stmt);
         ast_ClearFunctionArgs(&expr->funcdef.arguments);
-    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
+        break;
+    case H64EXPRTYPE_CALL_STMT:
+        if (expr->callstmt.call) {
+            if (expr->callstmt.call->inlinecall.value)
+                ast_FreeExpression(
+                    expr->callstmt.call->inlinecall.value
+                );
+            ast_ClearFunctionArgs(
+                &expr->callstmt.call->inlinecall.arguments
+            );
+        }
+        break;
+    case H64EXPRTYPE_CLASSDEF_STMT:
+        free(expr->classdef.name);
+        ast_FreeExpression(expr->classdef.baseclass_ref);
+        i = 0;
+        while (i < expr->classdef.vardef_count) {
+            ast_FreeExpression(expr->classdef.vardef[i]);
+            i++;
+        }
+        free(expr->classdef.vardef);
+        i = 0;
+        while (i < expr->classdef.funcdef_count) {
+            ast_FreeExpression(expr->classdef.funcdef[i]);
+            i++;
+        }
+        free(expr->classdef.funcdef);
+        break;
+    case H64EXPRTYPE_IDENTIFIERREF:
         free(expr->identifierref.value);
-    } else if (expr->type == H64EXPRTYPE_LITERAL &&
-            expr->literal.type == H64TK_CONSTANT_STRING) {
-        free(expr->literal.str_value);
-    } else if (expr->type == H64EXPRTYPE_BINARYOP) {
+        break;
+    case H64EXPRTYPE_LITERAL:
+        if (expr->literal.type == H64TK_CONSTANT_STRING)
+            free(expr->literal.str_value);
+        break;
+    case H64EXPRTYPE_BINARYOP:
         ast_FreeExpression(expr->op.value1);
         ast_FreeExpression(expr->op.value2);
-    } else if (expr->type == H64EXPRTYPE_UNARYOP) {
+        break;
+    case H64EXPRTYPE_UNARYOP:
         ast_FreeExpression(expr->op.value1);
-    } else if (expr->type == H64EXPRTYPE_INVALID ||
-            (expr->type == H64EXPRTYPE_LITERAL && (
-             expr->literal.type == H64TK_CONSTANT_FLOAT ||
-             expr->literal.type == H64TK_CONSTANT_INT ||
-             expr->literal.type == H64TK_CONSTANT_BOOL ||
-             expr->literal.type == H64TK_CONSTANT_NONE))) {
-        // Nothing to do.
-    } else {
+        break;
+    default:
         fprintf(stderr, "horsecc: warning: internal issue, "
             "unhandled expression in ast_FreeExpression(): "
             "type=%d, LIKELY MEMORY LEAK.\n", expr->type);
