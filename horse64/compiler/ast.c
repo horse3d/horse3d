@@ -85,6 +85,41 @@ void ast_FreeExpression(h64expression *expr) {
         }
         free(expr->classdef.funcdef);
         break;
+    case H64EXPRTYPE_IF_STMT: ;
+        struct h64ifstmt *current_clause = &expr->ifstmt;
+        while (current_clause) {
+            struct h64ifstmt *next_clause = (
+                current_clause->followup_clause
+            );
+            ast_FreeExpression(current_clause->conditional);
+            i = 0;
+            while (i < current_clause->stmt_count) {
+                ast_FreeExpression(current_clause->stmt[i]);
+                i++;
+            }
+            free(current_clause->stmt);
+            current_clause = next_clause;
+        }
+        break;
+    case H64EXPRTYPE_WHILE_STMT:
+        ast_FreeExpression(expr->whilestmt.conditional);
+        i = 0;
+        while (i < expr->whilestmt.stmt_count) {
+            ast_FreeExpression(expr->whilestmt.stmt[i]);
+            i++;
+        }
+        free(expr->whilestmt.stmt);
+        break;
+    case H64EXPRTYPE_FOR_STMT:
+        free(expr->forstmt.iterator_identifier);
+        ast_FreeExpression(expr->forstmt.iterated_container);
+        i = 0;
+        while (i < expr->forstmt.stmt_count) {
+            ast_FreeExpression(expr->forstmt.stmt[i]);
+            i++;
+        }
+        free(expr->forstmt.stmt);
+        break;
     case H64EXPRTYPE_IDENTIFIERREF:
         free(expr->identifierref.value);
         break;

@@ -2902,6 +2902,7 @@ int ast_ParseExprStmt(
                     tokens[i].int_value !=
                     H64OP_MEMBERBYIDENTIFIER)
                 break;
+            i++;  // skip past dot and continue
         }
 
         if (i < max_tokens_touse &&
