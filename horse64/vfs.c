@@ -21,7 +21,7 @@
 #include "filesys.h"
 #include "vfs.h"
 
-#define DEBUG_VFS
+//#define DEBUG_VFS
 
 static int vfs_includes_cwd = 1;
 
@@ -45,7 +45,7 @@ void vfs_fclose(VFSFILE *f) {
 
 int vfs_fgetc(VFSFILE *f) {
     unsigned char buf[1];
-    size_t result = vfs_fread((unsigned char *)buf, 1, 1, f);
+    size_t result = vfs_fread((char *)buf, 1, 1, f);
     if (result == 1)
         return (int)buf[0];
     return -1;
@@ -67,7 +67,7 @@ int vfs_peakc(VFSFILE *f) {
     if (byteoffset < 0 || vfs_feof(f))
         return -1;
     unsigned char buf[1];
-    size_t result = vfs_fread((unsigned char *)buf, 1, 1, f);
+    size_t result = vfs_fread((char *)buf, 1, 1, f);
     if (!f->via_physfs)
         fseek(f->diskhandle, byteoffset, SEEK_SET);
     else
@@ -81,7 +81,7 @@ size_t vfs_freadline(VFSFILE *f, char *buf, size_t bufsize) {
     if (bufsize <= 0 || !f)
         return 0;
     buf[0] = '\0';
-    int i = 0;
+    uint64_t i = 0;
     while (i + 2 < bufsize) {
         int c_result = vfs_fgetc(f);
         if ((c_result < 0 && vfs_feof(f)) ||
@@ -142,7 +142,7 @@ size_t vfs_fread(
         size_t presult = PHYSFS_readBytes(
             f->physfshandle, p, bytes
         );
-        if (presult >= bytes) {
+        if (presult >= (uint64_t)bytes) {
             result++;
             numn--;
             p += bytes;
@@ -212,7 +212,7 @@ VFSFILE *vfs_fopen(const char *path, const char *mode) {
     return vfile;
 }
 
-int vfs_EnableCurrentDirectoryDiskAccess(int enable) {
+void vfs_EnableCurrentDirectoryDiskAccess(int enable) {
     vfs_includes_cwd = (enable != 0);
 }
 
@@ -224,12 +224,12 @@ int vfs_AddPak(const char *path) {
                    ".h3dpak", strlen(".h3dpak")) != 0)
         return 0;
     #if defined(DEBUG_VFS) && !defined(NDEBUG)
-    printf("horse3d/vfs.c: debug: "
+    printf("horse64/vfs.c: debug: "
            "adding resource pack: %s\n", path);
     #endif
     if (!PHYSFS_mount(path, "/", 1)) {
         fprintf(stderr,
-            "horse3d/vfs.c: warning: "
+            "horse64/vfs.c: warning: "
             "failed to add resource pack: %s\n", path
         );
         return 0;
@@ -415,7 +415,7 @@ void vfs_Init(const char *argv0) {
         execdir = _s;
     }
     if (!execdir) {
-        fprintf(stderr, "horse3d/vfs.c: warning: "
+        fprintf(stderr, "horse64/vfs.c: warning: "
                 "failed to locate binary directory");
         return;
     }
@@ -425,7 +425,7 @@ void vfs_Init(const char *argv0) {
     free(execdir);
     execdir = NULL;
     if (!coreapipath) {
-        fprintf(stderr, "horse3d/vfs.c: warning: "
+        fprintf(stderr, "horse64/vfs.c: warning: "
                 "failed to allocate coreapi path");
         return;
     }

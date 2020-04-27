@@ -14,7 +14,7 @@ int vfs_IsDirectory(const char *path, int *result);
 
 int vfs_Size(const char *path, uint64_t *result);
 
-int vfs_EnableCurrentDirectoryDiskAccess(int enable);
+void vfs_EnableCurrentDirectoryDiskAccess(int enable);
 
 char *vfs_NormalizePath(const char *path);
 
