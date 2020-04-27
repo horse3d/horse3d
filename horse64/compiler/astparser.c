@@ -2749,6 +2749,7 @@ int ast_ParseExprStmt(
                     ast_FreeExpression(expr);
                     return 0;
                 }
+                i++;
             }
 
             // Get code block in catch { ... }
