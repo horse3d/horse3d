@@ -700,6 +700,10 @@ int ast_ParseExprInlineOperator_Recurse(
             callexpr->line = tokens[i - 1].line;
             callexpr->column = tokens[i - 1].column;
             callexpr->type = H64EXPRTYPE_CALL;
+            callexpr->inlinecall.value = lefthandside;
+            if (lefthandside == original_lefthand)
+                original_lefthand = NULL;
+            lefthandside = NULL;
             i--;
             int tlen = 0;
             int inneroom = 0;
@@ -739,8 +743,6 @@ int ast_ParseExprInlineOperator_Recurse(
                 return 0;
             }
             i += tlen;
-            if (lefthandside && original_lefthand != lefthandside)
-                ast_FreeExpression(lefthandside);
             lefthandside = callexpr;
             lefthandsidetokenlen = i;
             #ifdef H64AST_DEBUG
@@ -826,7 +828,8 @@ int ast_ParseExprInlineOperator_Recurse(
             opexpr->type = H64EXPRTYPE_UNARYOP;
             assert(lefthandside == NULL);
             opexpr->op.value1 = righthandside;
-            if (lefthandside && lefthandside != original_lefthand)
+            if (lefthandside && lefthandside != original_lefthand &&
+                    lefthandside != righthandside)
                 ast_FreeExpression(lefthandside);
             lefthandside = NULL;
         } else {

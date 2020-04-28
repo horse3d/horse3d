@@ -191,4 +191,12 @@ jsonvalue *ast_ExpressionToJSON(
 
 void ast_ClearFunctionArgs(h64funcargs *fargs);
 
+int ast_VisitExpression(
+    h64expression *expr, h64expression *parent,
+    int (*visit_in)(
+        h64expression *expr, h64expression *parent, void *ud),
+    int (*visit_out)(
+        h64expression *expr, h64expression *parent, void *ud),
+    void *ud
+);
 #endif  // HORSE64_COMPILER_AST_H_
