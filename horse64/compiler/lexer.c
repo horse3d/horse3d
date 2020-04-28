@@ -1025,6 +1025,18 @@ h64tokenizedfile lexer_ParseFromFile(
             column++;
             continue;
         }
+        // "new" operator:
+        if (c == 'n' && i + 1 < (int)size && buffer[i + 1] == 'e' &&
+                i + 2 < (int)size && buffer[i + 2] == 'w' &&
+                (i + 3 >= (int)size || !is_identifier_char(buffer[i + 3]))) {
+            post_identifier_is_likely_func = 0;
+            result.token[result.token_count].type = H64TK_UNOPSYMBOL;
+            result.token[result.token_count].int_value = H64OP_NEW;
+            result.token_count++;
+            i++;
+            column++;
+            continue;
+        }
         // "or" operator:
         if (c == 'o' && i + 1 < (int)size && buffer[i + 1] == 'r' &&
                 (i + 2 >= (int)size || !is_identifier_char(buffer[i + 2]))) {

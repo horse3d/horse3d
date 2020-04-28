@@ -835,6 +835,8 @@ int ast_ParseExprInlineOperator_Recurse(
         } else {
             opexpr->type = H64EXPRTYPE_BINARYOP;
             opexpr->op.value1 = lefthandside;
+            if (original_lefthand == lefthandside)
+                original_lefthand = NULL;
             opexpr->op.value2 = righthandside;
             lefthandside = NULL;
         }
@@ -2224,9 +2226,9 @@ int ast_ParseExprStmt(
             ast_FreeExpression(expr);
             return 0;
         }
-        expr->funcdef.identifier = strdup(tokens[i].str_value);
+        expr->funcdef.name = strdup(tokens[i].str_value);
         i++;
-        if (!expr->funcdef.identifier) {
+        if (!expr->funcdef.name) {
             if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
             return 0;
@@ -2643,7 +2645,7 @@ int ast_ParseExprStmt(
         }
 
         if (i >= max_tokens_touse ||
-                tokens[i].type == H64TK_KEYWORD || (
+                tokens[i].type != H64TK_KEYWORD || (
                 strcmp(tokens[i].str_value, "catch") != 0 &&
                 strcmp(tokens[i].str_value, "finally"))) {
             char buf[256]; char describebuf[64];
@@ -2737,9 +2739,9 @@ int ast_ParseExprStmt(
                 }
                 expr->trystmt.exceptions = new_exceptions;
                 expr->trystmt.exceptions[
-                    expr->trystmt.trystmt_count
+                    expr->trystmt.exceptions_count
                 ] = innerexpr;
-                expr->trystmt.trystmt_count++;
+                expr->trystmt.exceptions_count++;
 
                 if (i < max_tokens_touse &&
                         tokens[i].type == H64TK_COMMA) {
@@ -2756,7 +2758,7 @@ int ast_ParseExprStmt(
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
-                    "expected \"as\" or \"{\" for catch clause"
+                    "expected \"as\" or \"{\" for catch clause "
                     "in line %" PRId64
                     ", column, %" PRId64,
                     _describetoken(
@@ -2779,12 +2781,12 @@ int ast_ParseExprStmt(
             int named_error = (tokens[i].type == H64TK_KEYWORD);
             i++;
             if (named_error && (i >= max_tokens_touse ||
-                    tokens[i].type == H64TK_IDENTIFIER)) {
+                    tokens[i].type != H64TK_IDENTIFIER)) {
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
                     "expected identifier to name error "
-                    "for catch clause"
+                    "for catch clause "
                     "in line %" PRId64
                     ", column, %" PRId64,
                     _describetoken(

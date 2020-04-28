@@ -44,6 +44,7 @@ static char h64opprinted_boolcond_in[] = "in";
 static char h64opprinted_memberbyidentifier[] = ".";
 static char h64opprinted_memberbyexpr[] = "[";
 static char h64opprinted_call[] = "(";
+static char h64opprinted_new[] = "new";
 
 
 const char *operator_OpPrintedAsStr(h64optype type) {
@@ -124,6 +125,8 @@ const char *operator_OpPrintedAsStr(h64optype type) {
         return h64opprinted_memberbyexpr;
     case H64OP_CALL:
         return h64opprinted_call;
+    case H64OP_NEW:
+        return h64opprinted_new;
     case TOTAL_OP_COUNT:
         return NULL;
     }
@@ -168,6 +171,7 @@ static char h64opname_boolcond_in[] = "H64OP_BOOLCOND_IN";
 static char h64opname_memberbyidentifier[] = "H64OP_MEMBERBYIDENTIFIER";
 static char h64opname_memberbyexpr[] = "H64OP_MEMBERBYEXPR";
 static char h64opname_call[] = "H64OP_CALL";
+static char h64opname_new[] = "H64OP_NEW";
 
 
 int operator_precedences_total_count = 0;
@@ -303,6 +307,8 @@ const char *operator_OpTypeToStr(h64optype type) {
         return h64opname_memberbyexpr;
     case H64OP_CALL:
         return h64opname_call;
+    case H64OP_NEW:
+        return h64opname_new;
     case TOTAL_OP_COUNT:
         return NULL;
     }

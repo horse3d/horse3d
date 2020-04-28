@@ -328,8 +328,8 @@ void ast_FreeExpression(h64expression *expr) {
         break;
     case H64EXPRTYPE_FUNCDEF_STMT:
     case H64EXPRTYPE_INLINEFUNC:
-        if (expr->funcdef.identifier)
-            free(expr->funcdef.identifier);
+        if (expr->funcdef.name)
+            free(expr->funcdef.name);
         ast_ClearFunctionArgs(&expr->funcdef.arguments);
         int i = 0;
         while (i < expr->funcdef.stmt_count) {
@@ -519,6 +519,7 @@ static char _h64exprname_if_stmt[] = "H64EXPRTYPE_IF_STMT";
 static char _h64exprname_while_stmt[] = "H64EXPRTYPE_WHILE_STMT";
 static char _h64exprname_for_stmt[] = "H64EXPRTYPE_FOR_STMT";
 static char _h64exprname_import_stmt[] = "H64EXPRTYPE_IMPORT_STMT";
+static char _h64exprname_try_stmt[] = "H64EXPRTYPE_TRY_STMT";
 static char _h64exprname_assign_stmt[] = "H64EXPRTYPE_ASSIGN_STMT";
 static char _h64exprname_literal[] = "H64EXPRTYPE_LITERAL";
 static char _h64exprname_identifierref[] = "H64EXPRTYPE_IDENTIFIERREF";
@@ -550,6 +551,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_for_stmt;
     case H64EXPRTYPE_IMPORT_STMT:
         return _h64exprname_import_stmt;
+    case H64EXPRTYPE_TRY_STMT:
+        return _h64exprname_try_stmt;
     case H64EXPRTYPE_ASSIGN_STMT:
         return _h64exprname_assign_stmt;
     case H64EXPRTYPE_LITERAL:
@@ -692,10 +695,48 @@ jsonvalue *ast_ExpressionToJSON(
                 }
             }
         }
+    } else if (e->type == H64EXPRTYPE_CLASSDEF_STMT) {
+        if (e->classdef.name &&
+                !json_SetDictStr(v, "name", e->classdef.name))
+            fail = 1;
+        jsonvalue *vardefs = json_List();
+        int i = 0;
+        while (i < e->classdef.vardef_count) {
+            jsonvalue *varjson = ast_ExpressionToJSON(
+                e->classdef.vardef[i], fileuri
+            );
+            if (!json_AddToList(vardefs, varjson)) {
+                json_Free(varjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        jsonvalue *funcdefs = json_List();
+        i = 0;
+        while (i < e->classdef.funcdef_count) {
+            jsonvalue *funcjson = ast_ExpressionToJSON(
+                e->classdef.funcdef[i], fileuri
+            );
+            if (!json_AddToList(funcdefs, funcjson)) {
+                json_Free(funcjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "variables", vardefs)) {
+            fail = 1;
+            json_Free(vardefs);
+        }
+        if (!json_SetDict(v, "functions", funcdefs)) {
+            fail = 1;
+            json_Free(funcdefs);
+        }
     } else if (e->type == H64EXPRTYPE_FUNCDEF_STMT) {
         jsonvalue *attributes = json_List();
-        if (e->funcdef.identifier &&
-                !json_SetDictStr(v, "name", e->funcdef.identifier))
+        if (e->funcdef.name &&
+                !json_SetDictStr(v, "name", e->funcdef.name))
             fail = 1;
         jsonvalue *statements = json_List();
         int i = 0;
@@ -704,6 +745,7 @@ jsonvalue *ast_ExpressionToJSON(
                 e->funcdef.stmt[i], fileuri
             );
             if (!json_AddToList(statements, stmtjson)) {
+                json_Free(stmtjson);
                 fail = 1;
                 break;
             }

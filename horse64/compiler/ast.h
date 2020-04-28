@@ -78,7 +78,7 @@ typedef struct h64expression {
             h64expression *value;
         } vardef;
         struct funcdef {
-            char *identifier;
+            char *name;
             int is_threadable;
             int is_getter;
             int is_setter;
@@ -174,6 +174,9 @@ typedef struct h64expression {
             int finallystmt_count;
             h64expression **finallystmt;
         } trystmt;
+        struct inlinenew {
+            h64expression *value;
+        } inlinenew;
     }; 
 } h64expression;
 

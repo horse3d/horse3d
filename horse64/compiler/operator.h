@@ -46,12 +46,13 @@ typedef enum h64optype {
     H64OP_MEMBERBYIDENTIFIER,
     H64OP_MEMBERBYEXPR,
     H64OP_CALL,
+    H64OP_NEW,
     TOTAL_OP_COUNT
 } h64optype;
 
 #define IS_UNARY_OP(x) (x == H64OP_MATH_UNARY_SUBSTRACT || \
     x == H64OP_BOOLCOND_NOT || \
-    x == H64OP_MATH_BINNOT)
+    x == H64OP_MATH_BINNOT || x == H64OP_NEW)
 #define IS_ASSIGN_OP(x) (x >= H64OP_ASSIGNMATH_DIVIDE && x <= H64OP_ASSIGN)
 #define IS_UNWANTED_ASSIGN_OP(x) (x >= H64OP_ASSIGNMATH_MODULO && x <= H64OP_ASSIGNMATH_BINSHIFTRIGHT)
 
@@ -66,28 +67,29 @@ static int operator_PrecedenceByType(int type) {
     case H64OP_MEMBERBYIDENTIFIER: return 0;
     case H64OP_MEMBERBYEXPR: return 0;
     case H64OP_CALL: return 0;
-    case H64OP_MATH_UNARYSUBSTRACT: return 1;
-    case H64OP_MATH_BINNOT: return 1;
-    case H64OP_MATH_BINAND: return 2;
-    case H64OP_MATH_BINOR: return 3;
-    case H64OP_MATH_BINXOR: return 4;
-    case H64OP_MATH_DIVIDE: return 5;
-    case H64OP_MATH_MULTIPLY: return 5;
-    case H64OP_MATH_MODULO: return 5;
-    case H64OP_MATH_ADD: return 6;
-    case H64OP_MATH_SUBSTRACT: return 6;
-    case H64OP_MATH_BINSHIFTLEFT: return 7;
-    case H64OP_MATH_BINSHIFTRIGHT: return 7;
-    case H64OP_CMP_EQUAL: return 8;
-    case H64OP_CMP_NOTEQUAL: return 8;
-    case H64OP_CMP_LARGEROREQUAL: return 9;
-    case H64OP_CMP_SMALLEROREQUAL: return 9;
-    case H64OP_CMP_LARGER: return 9;
-    case H64OP_CMP_SMALLER: return 9;
-    case H64OP_BOOLCOND_IN: return 10;
-    case H64OP_BOOLCOND_NOT: return 11;
-    case H64OP_BOOLCOND_AND: return 12;
-    case H64OP_BOOLCOND_OR: return 13;
+    case H64OP_NEW: return 1;
+    case H64OP_MATH_UNARYSUBSTRACT: return 2;
+    case H64OP_MATH_BINNOT: return 3;
+    case H64OP_MATH_BINAND: return 3;
+    case H64OP_MATH_BINOR: return 4;
+    case H64OP_MATH_BINXOR: return 5;
+    case H64OP_MATH_DIVIDE: return 6;
+    case H64OP_MATH_MULTIPLY: return 6;
+    case H64OP_MATH_MODULO: return 6;
+    case H64OP_MATH_ADD: return 7;
+    case H64OP_MATH_SUBSTRACT: return 7;
+    case H64OP_MATH_BINSHIFTLEFT: return 8;
+    case H64OP_MATH_BINSHIFTRIGHT: return 8;
+    case H64OP_CMP_EQUAL: return 9;
+    case H64OP_CMP_NOTEQUAL: return 9;
+    case H64OP_CMP_LARGEROREQUAL: return 10;
+    case H64OP_CMP_SMALLEROREQUAL: return 10;
+    case H64OP_CMP_LARGER: return 10;
+    case H64OP_CMP_SMALLER: return 10;
+    case H64OP_BOOLCOND_IN: return 11;
+    case H64OP_BOOLCOND_NOT: return 12;
+    case H64OP_BOOLCOND_AND: return 13;
+    case H64OP_BOOLCOND_OR: return 14;
     }
     return -1;
 }
