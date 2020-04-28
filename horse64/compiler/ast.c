@@ -671,6 +671,10 @@ jsonvalue *ast_ExpressionToJSON(
             e->type);
         fail = 1;
     }
+    if (e->tokenindex >= 0) {
+        if (!json_SetDictInt(v, "tokenindex", e->tokenindex))
+            fail = 1;
+    }
     if (e->line >= 0) {
         if (!json_SetDictInt(v, "line", e->line)) {
             fail = 1;

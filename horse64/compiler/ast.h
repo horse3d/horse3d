@@ -69,6 +69,7 @@ struct h64ifstmt {
 
 typedef struct h64expression {
     int64_t line, column;
+    int tokenindex;
     int scopeline;
     h64expressiontype type;
     union {

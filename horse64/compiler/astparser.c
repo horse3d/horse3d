@@ -699,6 +699,9 @@ int ast_ParseExprInlineOperator_Recurse(
             memset(callexpr, 0, sizeof(*callexpr));
             callexpr->line = tokens[i - 1].line;
             callexpr->column = tokens[i - 1].column;
+            callexpr->tokenindex = (i - 1) + (
+                ((char*)tokens - (char*)tokenstreaminfo->token) / sizeof(*tokens)
+            );
             callexpr->type = H64EXPRTYPE_CALL;
             callexpr->inlinecall.value = lefthandside;
             if (lefthandside == original_lefthand)
@@ -823,6 +826,7 @@ int ast_ParseExprInlineOperator_Recurse(
             return 0;
         }
         memset(opexpr, 0, sizeof(*opexpr));
+        opexpr->tokenindex = -1;
         opexpr->op.optype = tokens[optokenoffset].int_value;
         if (tokens[optokenoffset].type == H64TK_UNOPSYMBOL) {
             opexpr->type = H64EXPRTYPE_UNARYOP;
@@ -847,6 +851,11 @@ int ast_ParseExprInlineOperator_Recurse(
         lefthandside = opexpr;
         lefthandsidetokenlen = i;
         opexpr->op.totaltokenlen = i;
+        if (opexpr->op.value1) {
+            opexpr->tokenindex = opexpr->op.value1->tokenindex;
+            opexpr->line = opexpr->op.value1->line;
+            opexpr->column = opexpr->op.value1->column;
+        }
 
         #ifdef H64AST_DEBUG
         char describebufy2[64];
@@ -951,6 +960,9 @@ int ast_ParseInlineFunc(
     expr->type = H64EXPRTYPE_INLINEFUNC; 
     expr->line = _refline(tokenstreaminfo, tokens, 0);
     expr->column = _refcol(tokenstreaminfo, tokens, 0);
+    expr->tokenindex = 0 + (
+        ((char*)tokens - (char*)tokenstreaminfo->token) / sizeof(*tokens)
+    );
     if (tokens[0].type == H64TK_BRACKET &&
             tokens[0].char_value == '(') {
         int tlen = 0;
@@ -1139,6 +1151,9 @@ int ast_ParseExprInline(
 
     expr->line = tokens[0].line;
     expr->column = tokens[0].column;
+    expr->tokenindex = 0 + (
+        ((char*)tokens - (char*)tokenstreaminfo->token) / sizeof(*tokens)
+    );
 
     if (inlinemode == INLINEMODE_NONGREEDY) {
         if (tokens[0].type == H64TK_IDENTIFIER &&
@@ -1955,6 +1970,7 @@ int ast_ParseCodeBlock(
     }
     int64_t codeblock_line = tokens[i].line;
     int64_t codeblock_column = tokens[i].column;
+
     i++;
     while (1) {
         if (i < max_tokens_touse && (
@@ -2099,6 +2115,9 @@ int ast_ParseExprStmt(
 
     expr->line = tokens[0].line;
     expr->column = tokens[0].column;
+    expr->tokenindex = 0 + (
+        ((char*)tokens - (char*)tokenstreaminfo->token) / sizeof(*tokens)
+    );
 
     // Variable definitions:
     if (tokens[0].type == H64TK_KEYWORD &&
