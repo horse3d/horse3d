@@ -348,6 +348,7 @@ void ast_FreeExpression(h64expression *expr) {
             ast_ClearFunctionArgs(
                 &expr->callstmt.call->inlinecall.arguments
             );
+            free(expr->callstmt.call);
         }
         break;
     case H64EXPRTYPE_CLASSDEF_STMT:

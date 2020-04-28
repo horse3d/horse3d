@@ -749,7 +749,7 @@ int ast_ParseExprInlineOperator_Recurse(
             char describebufy2[64];
             char *lhandside2 = ast_ExpressionToJSONStr(lefthandside, NULL);
             printf("horsecc: debug: "
-                "GOT CALL ARGS %s AND NOW AT %d %s (tlen was: %d) - "
+                "GOT CALL %s AND NOW AT %d %s (tlen was: %d) - "
                 "current handling level: %d\n", lhandside2, i,
                 _describetoken(describebufy2,
                     tokenstreaminfo, tokens, i), tlen,
