@@ -1370,8 +1370,11 @@ void lexer_DebugPrintTokens(h64token *t, int count) {
     int i = 0;
     while (i < count) {
         printf(" %s", lexer_TokenTypeToStr(t[i].type));
-        if (t[i].type == H64TK_CONSTANT_INT)
+        if (t[i].type == H64TK_CONSTANT_INT) {
             printf("(%" PRId64 ")", t[i].int_value);
+        } else if (t[i].type == H64TK_BINOPSYMBOL) {
+            printf("(\"%s\")", operator_OpPrintedAsStr(t[i].int_value));
+        }
         i++;
     }
     printf("\n");

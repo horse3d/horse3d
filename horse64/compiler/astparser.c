@@ -468,17 +468,28 @@ int ast_ParseExprInlineOperator_Recurse(
             if (inneroom) {
                 if (outofmemory) *outofmemory = 1;
                 if (lefthandside) ast_FreeExpression(lefthandside);
+                if (original_lefthand &&
+                        original_lefthand != lefthandside)
+                    ast_FreeExpression(original_lefthand);
                 return 0;
             } else if (innerparsefail) {
                 if (outofmemory) *outofmemory = 0;
                 if (parsefail) *parsefail = 1;
                 if (lefthandside) ast_FreeExpression(lefthandside);
+                if (original_lefthand &&
+                        original_lefthand != lefthandside)
+                    ast_FreeExpression(original_lefthand);
                 return 0;
             }
             if (parsefail) *parsefail = 0;
-            // XXX: do NOT free lefthandside if no parse error.
+            if (lefthandside &&
+                    original_lefthand != lefthandside)
+                ast_FreeExpression(lefthandside);
+            // XXX: do NOT free original_lefthandside if no parse error.
             return 0;
         }
+        if (lefthandside && original_lefthand != lefthandside)
+            ast_FreeExpression(lefthandside);
         lefthandside = innerexpr;
         lefthandsidetokenlen = tlen;
         i += tlen;
@@ -597,13 +608,15 @@ int ast_ParseExprInlineOperator_Recurse(
                     &innerexpr, &tlen, nestingdepth
                     )) {
                 if (inneroom) {
-                    if (original_lefthand && original_lefthand != lefthandside)
+                    if (original_lefthand &&
+                            original_lefthand != lefthandside)
                         ast_FreeExpression(original_lefthand);
                     ast_FreeExpression(lefthandside);
                     if (outofmemory) *outofmemory = 1;
                     return 0;
                 } else if (innerparsefail) {
-                    if (original_lefthand && original_lefthand != lefthandside)
+                    if (original_lefthand &&
+                            original_lefthand != lefthandside)
                         ast_FreeExpression(original_lefthand);
                     ast_FreeExpression(lefthandside);
                     if (outofmemory) *outofmemory = 0;
@@ -612,23 +625,35 @@ int ast_ParseExprInlineOperator_Recurse(
                 }
                 break;
             }
+            if (innerexpr == original_lefthand)
+                original_lefthand = NULL;
+            if (innerexpr == lefthandside)
+                lefthandside = NULL;
             assert(innerexpr != NULL);
             assert(innerexpr->type == H64EXPRTYPE_BINARYOP ||
                 innerexpr->type == H64EXPRTYPE_UNARYOP ||
                 innerexpr->type == H64EXPRTYPE_CALL);
             if (lefthandside && i - skipback > 0) {
                 if (lefthandside->type == H64EXPRTYPE_BINARYOP) {
+                    if (lefthandside->op.value2 &&
+                            lefthandside->op.value2 != original_lefthand &&
+                            lefthandside->op.value2 != innerrighthand)
+                        ast_FreeExpression(lefthandside->op.value2);
                     lefthandside->op.value2 = innerexpr;
                 } else {
                     assert(lefthandside->type == H64EXPRTYPE_UNARYOP);
+                    if (lefthandside->op.value1 &&
+                            lefthandside->op.value1 != original_lefthand &&
+                            lefthandside->op.value1 != innerrighthand)
+                        ast_FreeExpression(lefthandside->op.value1);
                     lefthandside->op.value1 = innerexpr;
                 }
                 assert(tlen > innerrighthandlen &&
                     i - skipback + tlen > i);
             } else {
-                if (lefthandside)
+                if (lefthandside && original_lefthand != lefthandside &&
+                        lefthandside != innerrighthand)
                     ast_FreeExpression(lefthandside);
-                original_lefthand = NULL;
                 lefthandside = innerexpr;
             }
             lefthandsidetokenlen = (i - skipback) + tlen;
@@ -714,6 +739,8 @@ int ast_ParseExprInlineOperator_Recurse(
                 return 0;
             }
             i += tlen;
+            if (lefthandside && original_lefthand != lefthandside)
+                ast_FreeExpression(lefthandside);
             lefthandside = callexpr;
             lefthandsidetokenlen = i;
             #ifdef H64AST_DEBUG
@@ -799,10 +826,14 @@ int ast_ParseExprInlineOperator_Recurse(
             opexpr->type = H64EXPRTYPE_UNARYOP;
             assert(lefthandside == NULL);
             opexpr->op.value1 = righthandside;
+            if (lefthandside && lefthandside != original_lefthand)
+                ast_FreeExpression(lefthandside);
+            lefthandside = NULL;
         } else {
             opexpr->type = H64EXPRTYPE_BINARYOP;
             opexpr->op.value1 = lefthandside;
             opexpr->op.value2 = righthandside;
+            lefthandside = NULL;
         }
         assert((optokenoffset > 0 ||
             tokens[optokenoffset].type == H64TK_UNOPSYMBOL) &&
@@ -836,6 +867,8 @@ int ast_ParseExprInlineOperator_Recurse(
         if (lefthandside &&
                 original_lefthand != lefthandside)
             ast_FreeExpression(lefthandside);
+        if (original_lefthand && original_lefthand != lefthandside)
+            ast_FreeExpression(original_lefthand);
     }
     *out_expr = NULL;
     if (outofmemory) *outofmemory = 0;
@@ -2879,6 +2912,7 @@ int ast_ParseExprStmt(
             return 0;
         }
         i++;
+        expr->type = H64EXPRTYPE_IMPORT_STMT;
 
         // Get import path:
         while (1) {
