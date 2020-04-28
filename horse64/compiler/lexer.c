@@ -1322,7 +1322,7 @@ jsonvalue *lexer_TokenToJSON(h64token *t, const char *fileuri) {
         }
         free(typestr);
     } else {
-        fprintf(stderr, "horsecc: error: internal error, "
+        fprintf(stderr, "horsec: error: internal error, "
             "fail of handling token type %d in lexer_TokenTypeToStr\n",
             t->type);
         fail = 1;
@@ -1378,7 +1378,7 @@ jsonvalue *lexer_TokenToJSON(h64token *t, const char *fileuri) {
 }
 
 void lexer_DebugPrintTokens(h64token *t, int count) {
-    printf("horsecc: debug: tokens:");
+    printf("horsec: debug: tokens:");
     int i = 0;
     while (i < count) {
         printf(" %s", lexer_TokenTypeToStr(t[i].type));

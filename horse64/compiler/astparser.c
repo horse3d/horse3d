@@ -123,8 +123,23 @@ void ast_ParseRecover_FindNextStatement(
                     strcmp(s, "const") == 0 ||
                     strcmp(s, "for") == 0 ||
                     strcmp(s, "while") == 0 ||
-                    strcmp(s, "func") == 0) {
+                    strcmp(s, "func") == 0 ||
+                    strcmp(s, "try") == 0 ||
+                    strcmp(s, "class") == 0) {
                 *k = i;
+                return;
+            }
+        } else if ((tokens[i].type == H64TK_CONSTANT_INT ||
+                tokens[i].type == H64TK_CONSTANT_STRING ||
+                tokens[i].type == H64TK_CONSTANT_FLOAT ||
+                tokens[i].type == H64TK_CONSTANT_BOOL ||
+                tokens[i].type == H64TK_CONSTANT_NONE ||
+                tokens[i].type == H64TK_IDENTIFIER) && brackets_depth == 0) {
+            int i2 = i + 1;
+            if (i2 < tokenstreaminfo->token_count - starti - 1 &&
+                    i2 < max_tokens_touse &&
+                    tokens[i2].type == H64TK_IDENTIFIER) {
+                *k = i2;
                 return;
             }
         }
@@ -158,8 +173,7 @@ void ast_ParseRecover_FindEndOfBlock(
             }
         } else if (tokens[i].type == H64TK_IDENTIFIER) {
             char *s = tokens[i].str_value;
-            if (strcmp(s, "function") == 0 ||
-                    strcmp(s, "class") == 0 ||
+            if (strcmp(s, "class") == 0 ||
                     strcmp(s, "import") == 0) {
                 *k = i;
                 return;
@@ -425,7 +439,7 @@ int ast_ParseExprInlineOperator_Recurse(
 
     #ifdef H64AST_DEBUG
     char describebuf[64];
-    printf("horsecc: debug: OP PARSE FROM %d, token: %s\n", 0,
+    printf("horsec: debug: OP PARSE FROM %d, token: %s\n", 0,
          _describetoken(describebuf, tokenstreaminfo, tokens, 0));
     #endif
 
@@ -518,7 +532,7 @@ int ast_ParseExprInlineOperator_Recurse(
     #ifdef H64AST_DEBUG
     char describebufy[64];
     char *lhandside = ast_ExpressionToJSONStr(lefthandside, NULL); 
-    printf("horsecc: debug: "
+    printf("horsec: debug: "
          "GOT LEFT HAND SIDE %s AND NOW AT %d %s - "
          "current handling level: %d\n", lhandside, i,
          _describetoken(describebufy, tokenstreaminfo, tokens, i),
@@ -566,7 +580,7 @@ int ast_ParseExprInlineOperator_Recurse(
         // Hand off different precedence levels:
         if (precedence < precedencelevel) {
             #ifdef H64AST_DEBUG
-            printf("horsecc: debug: "
+            printf("horsec: debug: "
                 "RECURSE down to %d AT %d FOR op %s\n",
                 precedencelevel - 1, i,
                 operator_OpPrintedAsStr(tokens[i].int_value));
@@ -659,7 +673,7 @@ int ast_ParseExprInlineOperator_Recurse(
             lefthandsidetokenlen = (i - skipback) + tlen;
             #ifdef H64AST_DEBUG
             char *lhandside = ast_ExpressionToJSONStr(lefthandside, NULL);
-            printf("horsecc: debug: FROM RECURSIVE INNER, "
+            printf("horsec: debug: FROM RECURSIVE INNER, "
                 "GOT NEW lefthand: %s\n", lhandside);
             if (lhandside) free(lhandside);
             #endif
@@ -671,7 +685,7 @@ int ast_ParseExprInlineOperator_Recurse(
             break;
         } else {
             #ifdef H64AST_DEBUG
-            printf("horsecc: debug: handling op %s at level %d\n",
+            printf("horsec: debug: handling op %s at level %d\n",
                 operator_OpPrintedAsStr(tokens[i].int_value),
                precedencelevel);
             #endif
@@ -681,7 +695,7 @@ int ast_ParseExprInlineOperator_Recurse(
         int optokenoffset = i - 1;
         operatorsprocessed++;
         assert(
-            tokens[i - 1].type == H64TK_BINOPSYMBOL ||
+            tokens[i - 1].type == H64TK_UNOPSYMBOL ||
             i - 1 > 0
         );
 
@@ -751,7 +765,7 @@ int ast_ParseExprInlineOperator_Recurse(
             #ifdef H64AST_DEBUG
             char describebufy2[64];
             char *lhandside2 = ast_ExpressionToJSONStr(lefthandside, NULL);
-            printf("horsecc: debug: "
+            printf("horsec: debug: "
                 "GOT CALL %s AND NOW AT %d %s (tlen was: %d) - "
                 "current handling level: %d\n", lhandside2, i,
                 _describetoken(describebufy2,
@@ -860,7 +874,7 @@ int ast_ParseExprInlineOperator_Recurse(
         #ifdef H64AST_DEBUG
         char describebufy2[64];
         char *lhandside2 = ast_ExpressionToJSONStr(lefthandside, NULL);
-        printf("horsecc: debug: "
+        printf("horsec: debug: "
             "GOT NEW LEFT HAND SIDE %s AND NOW AT %d %s - "
              "current handling level: %d\n", lhandside2, i,
              _describetoken(describebufy2,
@@ -1196,11 +1210,56 @@ int ast_ParseExprInline(
             if (out_expr) *out_expr = expr;
             if (out_tokenlen) *out_tokenlen = tlen;
             return 1;
+        } else if (tokens[0].type == H64TK_UNOPSYMBOL) {
+            h64expression *innerexpr = NULL;
+            int tlen = 0;
+            int innerparsefail = 0;
+            int inneroutofmemory = 0;
+            if (!ast_ParseExprInlineOperator_Recurse(
+                    fileuri, resultmsg, addtoscope,
+                    tokenstreaminfo, tokens, max_tokens_touse,
+                    NULL, 0, operator_PrecedenceByType(tokens[0].int_value),
+                    &innerparsefail, &inneroutofmemory,
+                    &innerexpr, &tlen, nestingdepth
+                    )) {
+                if (inneroutofmemory) {
+                    if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 0;
+                } else {
+                    if (outofmemory) *outofmemory = 0;
+                    if (parsefail) *parsefail = 1;
+                    if (!innerparsefail) {
+                        result_ErrorNoLoc(
+                            resultmsg,
+                            "internal error, unexpectedly failed "
+                            "to parse inline unaryop. this should never "
+                            "happen, not even when out of memory...",
+                            fileuri
+                        );
+                    }
+                }
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            ast_FreeExpression(expr);
+            *out_expr = innerexpr;
+            if (out_tokenlen) *out_tokenlen = tlen;
+            if (parsefail) *parsefail = 0;
+            if (outofmemory) *outofmemory = 0;
+            return 1;
         } else if (tokens[0].type == H64TK_IDENTIFIER) {
             expr->type = H64EXPRTYPE_IDENTIFIERREF;
+            expr->identifierref.value = strdup(tokens[0].str_value);
+            if (!expr->identifierref.value) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
+                ast_FreeExpression(expr);
+                return 0;
+            }
             *out_expr = expr;
             if (out_tokenlen) *out_tokenlen = 1;
             if (parsefail) *parsefail = 0;
+            if (outofmemory) *outofmemory = 0;
             return 1;
         } else if (tokens[0].type == H64TK_CONSTANT_INT ||
                 tokens[0].type == H64TK_CONSTANT_FLOAT ||
@@ -1224,7 +1283,7 @@ int ast_ParseExprInline(
                 }
             } else {
                 // Should be impossible to reach!
-                fprintf(stderr, "horsecc: error: UNHANDLED LITERAL TYPE\n");
+                fprintf(stderr, "horsec: error: UNHANDLED LITERAL TYPE\n");
                 ast_FreeExpression(expr);
                 if (outofmemory) *outofmemory = 1;
                 return 0;
@@ -1232,6 +1291,7 @@ int ast_ParseExprInline(
             *out_expr = expr;
             if (out_tokenlen) *out_tokenlen = 1;
             if (parsefail) *parsefail = 0;
+            if (outofmemory) *outofmemory = 0;
             return 1;
         } else if (tokens[0].type == H64TK_BRACKET &&
                 tokens[0].char_value == '(') {
@@ -1539,7 +1599,7 @@ int ast_ParseExprInline(
                     expr->constructorvector.entry = new_entries;
                 } else {
                     // Should never be reached
-                    fprintf(stderr, "horsecc: error: unreachable "
+                    fprintf(stderr, "horsec: error: unreachable "
                         "code path reached (map/vector/list/set parser)");
                     _exit(1);
                 }
@@ -1820,7 +1880,7 @@ int ast_ParseExprInline(
 
     #ifdef H64AST_DEBUG
     char describebuf[64];
-    printf("horsecc: debug: GREEDY PARSE FROM %d %s\n", 0,
+    printf("horsec: debug: GREEDY PARSE FROM %d %s\n", 0,
          _describetoken(describebuf,
              tokenstreaminfo, tokens, 0));
     #endif
@@ -3419,7 +3479,7 @@ int ast_ParseExprStmt(
             #ifdef H64AST_DEBUG
             char dbuf[64];
             char *lhandside = ast_ExpressionToJSONStr(innerexpr, NULL);
-            printf("horsecc: debug: checking statement with lvalue %s, "
+            printf("horsec: debug: checking statement with lvalue %s, "
                    "we're at token %d -> %s\n",
                    lhandside, i,
                    _describetoken(dbuf,

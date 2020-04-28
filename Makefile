@@ -1,6 +1,6 @@
 
 SHELL:=bash
-BINNAME:=horsecc
+BINNAME:=horsec
 
 ifndef DEBUGGABLE
 override DEBUGGABLE = true

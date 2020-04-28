@@ -23,7 +23,7 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
     if (msg->type == H64MSG_INFO)
         output_fd = stdout;
     fprintf(output_fd,
-        "horsecc: %s: ", verb
+        "horsec: %s: ", verb
     );
     const char *fileuri = (msg->fileuri ? msg->fileuri : result->fileuri);
     if (!fileuri && msg->line >= 0) {
@@ -268,7 +268,7 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
     }
     if (!fileuri) {
         fprintf(stderr,
-            "horsecc: error: get_ast: need argument \"file\"\n");
+            "horsec: error: get_ast: need argument \"file\"\n");
         return 0;
     }
 

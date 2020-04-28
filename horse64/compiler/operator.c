@@ -193,7 +193,7 @@ __attribute__((constructor)) void _init_precedences() {
     );
     if (!operators_by_precedence) {
         allocfail:
-        fprintf(stderr, "horsecc: error: FATAL: "
+        fprintf(stderr, "horsec: error: FATAL: "
             "operator precedence table alloc fail");
         _exit(1);
         return;

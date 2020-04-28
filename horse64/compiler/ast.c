@@ -297,7 +297,7 @@ int ast_VisitExpression(
         }
         break;
     default:
-        fprintf(stderr, "horsecc: warning: internal issue, "
+        fprintf(stderr, "horsec: warning: internal issue, "
             "unhandled expression in ast_VisitExpression(): "
             "type=%d, LIKELY BREAKAGE AHEAD.\n", expr->type);
     }
@@ -502,7 +502,7 @@ void ast_FreeExpression(h64expression *expr) {
         free(expr->constructorvector.entry);
         break;
     default:
-        fprintf(stderr, "horsecc: warning: internal issue, "
+        fprintf(stderr, "horsec: warning: internal issue, "
             "unhandled expression in ast_FreeExpression(): "
             "type=%d, LIKELY MEMORY LEAK.\n", expr->type);
     }
@@ -665,7 +665,7 @@ jsonvalue *ast_ExpressionToJSON(
         }
         free(typestr);
     } else {
-        fprintf(stderr, "horsecc: error: internal error, "
+        fprintf(stderr, "horsec: error: internal error, "
             "fail of handling expression type %d in "
             "ast_ExpressionTypeToStr\n",
             e->type);
@@ -820,6 +820,10 @@ jsonvalue *ast_ExpressionToJSON(
         }
         if (!json_SetDictStr(v, "operator",
                 operator_OpTypeToStr(e->op.optype)))
+            fail = 1;
+    } else if (e->type == H64EXPRTYPE_IDENTIFIERREF) {
+        if (e->identifierref.value &&
+                !json_SetDictStr(v, "value", e->identifierref.value))
             fail = 1;
     } else if (e->type == H64EXPRTYPE_UNARYOP) {
         jsonvalue *value1 = ast_ExpressionToJSON(
