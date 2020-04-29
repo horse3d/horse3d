@@ -1009,8 +1009,8 @@ h64tokenizedfile lexer_ParseFromFile(
             post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_INLINEFUNC;
             result.token_count++;
-            i++;
-            column++;
+            i += 2;
+            column += 2;
             continue;
         }
         // "and" operator:
@@ -1021,8 +1021,8 @@ h64tokenizedfile lexer_ParseFromFile(
             result.token[result.token_count].type = H64TK_BINOPSYMBOL;
             result.token[result.token_count].int_value = H64OP_BOOLCOND_AND;
             result.token_count++;
-            i++;
-            column++;
+            i += strlen("and");
+            column += strlen("and");
             continue;
         }
         // "new" operator:
@@ -1033,8 +1033,8 @@ h64tokenizedfile lexer_ParseFromFile(
             result.token[result.token_count].type = H64TK_UNOPSYMBOL;
             result.token[result.token_count].int_value = H64OP_NEW;
             result.token_count++;
-            i++;
-            column++;
+            i += strlen("new");
+            column += strlen("new");
             continue;
         }
         // "or" operator:
@@ -1044,8 +1044,8 @@ h64tokenizedfile lexer_ParseFromFile(
             result.token[result.token_count].type = H64TK_BINOPSYMBOL;
             result.token[result.token_count].int_value = H64OP_BOOLCOND_OR;
             result.token_count++;
-            i++;
-            column++;
+            i += strlen("or");
+            column += strlen("or");
             continue;
         }
         // "in" operator:
@@ -1055,8 +1055,8 @@ h64tokenizedfile lexer_ParseFromFile(
             result.token[result.token_count].type = H64TK_BINOPSYMBOL;
             result.token[result.token_count].int_value = H64OP_BOOLCOND_IN;
             result.token_count++;
-            i++;
-            column++;
+            i += strlen("in");
+            column += strlen("in");
             continue;
         }
         // "not" operator:
@@ -1067,8 +1067,8 @@ h64tokenizedfile lexer_ParseFromFile(
             result.token[result.token_count].type = H64TK_UNOPSYMBOL;
             result.token[result.token_count].int_value = H64OP_BOOLCOND_NOT;
             result.token_count++;
-            i++;
-            column++;
+            i += strlen("not");
+            column += strlen("not");
             continue;
         }
 
@@ -1384,6 +1384,10 @@ void lexer_DebugPrintTokens(h64token *t, int count) {
         printf(" %s", lexer_TokenTypeToStr(t[i].type));
         if (t[i].type == H64TK_CONSTANT_INT) {
             printf("(%" PRId64 ")", t[i].int_value);
+        } else if (t[i].type == H64TK_CONSTANT_STRING) {
+            printf("(\"%s\")", t[i].str_value);
+        } else if (t[i].type == H64TK_IDENTIFIER) {
+            printf("(%s)", t[i].str_value);
         } else if (t[i].type == H64TK_BINOPSYMBOL) {
             printf("(\"%s\")", operator_OpPrintedAsStr(t[i].int_value));
         }

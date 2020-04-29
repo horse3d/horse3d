@@ -72,6 +72,12 @@ static const char *_describetoken(
             token[i].type == H64TK_UNOPSYMBOL) {
         snprintf(buf, maxlen - 1, "\"%s\"", operator_OpPrintedAsStr(
             token[i].int_value));
+    } else if (token[i].type == H64TK_KEYWORD) {
+        snprintf(buf, maxlen - 1, "%s keyword", token[i].str_value);
+    } else if (token[i].type == H64TK_IDENTIFIER) {
+        snprintf(buf, maxlen - 1, "identifier \"%s\"", token[i].str_value);
+        if (strlen(buf) > 35)
+            memcpy(buf + 32, "...\"", strlen("...\"") + 1);
     } else if (token[i].type == H64TK_CONSTANT_INT) {
         snprintf(
             buf, maxlen - 1,
@@ -150,7 +156,8 @@ void ast_ParseRecover_FindNextStatement(
 
 void ast_ParseRecover_FindEndOfBlock(
         tsinfo *tokenstreaminfo,
-        h64token *tokens, int max_tokens_touse, int *k
+        h64token *tokens,
+        int max_tokens_touse, int *k
         ) {
     ptrdiff_t offset = (tokens - tokenstreaminfo->token);
     assert(offset >= 0);
@@ -171,6 +178,10 @@ void ast_ParseRecover_FindEndOfBlock(
                     return;
                 }
             }
+        } else if (tokens[i].type == H64TK_BINOPSYMBOL &&
+                (tokens[i].int_value == H64OP_CALL ||
+                 tokens[i].int_value == H64OP_MEMBERBYEXPR)) {
+            brackets_depth++;
         } else if (tokens[i].type == H64TK_IDENTIFIER) {
             char *s = tokens[i].str_value;
             if (strcmp(s, "class") == 0 ||
@@ -2067,7 +2078,6 @@ int ast_ParseCodeBlock(
                     assert(i > previ || i >= max_tokens_touse);
                     continue;
                 }
-                break;
             } else {
                 assert(innerexpr != NULL);
                 assert(tlen > 0);
@@ -2115,6 +2125,11 @@ int ast_ParseCodeBlock(
                 ast_ParseRecover_FindEndOfBlock(
                     tokenstreaminfo, tokens, max_tokens_touse, &i
                 );
+                if (i < max_tokens_touse &&
+                        tokens[i].type == H64TK_BRACKET &&
+                        tokens[i].char_value == '}')
+                    i++;
+                break;
             }
         }
         i++;
