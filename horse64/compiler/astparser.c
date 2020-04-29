@@ -520,7 +520,8 @@ int ast_ParseExprInlineOperator_Recurse(
         lefthandside = innerexpr;
         lefthandsidetokenlen = tlen;
         i += tlen;
-    } else if (!lefthandside && tokens[i].type == H64TK_BINOPSYMBOL) {
+    } else if (!lefthandside && tokens[i].type == H64TK_BINOPSYMBOL &&
+            !IS_ASSIGN_OP(tokens[i].int_value)) {
         char buf[512]; char describebuf[64];
         snprintf(buf, sizeof(buf) - 1,
             "unexpected %s, "
@@ -555,7 +556,8 @@ int ast_ParseExprInlineOperator_Recurse(
 
     // Deal with operators we encounter:
     while (i < max_tokens_touse) {
-        if (tokens[i].type != H64TK_BINOPSYMBOL &&
+        if ((tokens[i].type != H64TK_BINOPSYMBOL ||
+                IS_ASSIGN_OP(tokens[i].int_value)) &&
                 tokens[i].type != H64TK_UNOPSYMBOL)
             break;
 
@@ -3506,7 +3508,7 @@ int ast_ParseExprStmt(
 
             if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_BINOPSYMBOL &&
-                    IS_ASSIGN_OP(tokens[i].int_value)) {
+-                   IS_ASSIGN_OP(tokens[i].int_value)) {
                 if (ast_CanBeLValue(innerexpr)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
