@@ -176,6 +176,8 @@ void ast_ParseRecover_FindEndOfBlock(
                 if (brackets_depth == -1 && c == '}') {  // -1 = leave scope
                     *k = i;
                     return;
+                } else if (brackets_depth < 0) {
+                    brackets_depth = 0;  // probably not truly left scope
                 }
             }
         } else if (tokens[i].type == H64TK_BINOPSYMBOL &&
