@@ -789,7 +789,7 @@ h64tokenizedfile lexer_ParseFromFile(
             if (!could_be_unary_op && c == '[') {
                 result.token[result.token_count].type = H64TK_BINOPSYMBOL;
                 result.token[result.token_count].int_value = (
-                    H64OP_MEMBERBYEXPR
+                    H64OP_INDEXBYEXPR
                 );
             }
             post_identifier_is_likely_func = 0;
@@ -839,7 +839,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 optype = H64OP_CALL;
                 break;
             case '[':
-                optype = H64OP_MEMBERBYEXPR;
+                optype = H64OP_INDEXBYEXPR;
                 break;
             case '.':
                 optype = H64OP_MEMBERBYIDENTIFIER;

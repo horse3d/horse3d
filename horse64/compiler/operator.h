@@ -44,7 +44,7 @@ typedef enum h64optype {
     H64OP_BOOLCOND_NOT,
     H64OP_BOOLCOND_IN,
     H64OP_MEMBERBYIDENTIFIER,
-    H64OP_MEMBERBYEXPR,
+    H64OP_INDEXBYEXPR,
     H64OP_CALL,
     H64OP_NEW,
     TOTAL_OP_COUNT
@@ -65,7 +65,7 @@ static int operator_PrecedenceByType(int type) {
         return 10;
     switch (type) {
     case H64OP_MEMBERBYIDENTIFIER: return 0;
-    case H64OP_MEMBERBYEXPR: return 0;
+    case H64OP_INDEXBYEXPR: return 0;
     case H64OP_CALL: return 0;
     case H64OP_NEW: return 1;
     case H64OP_MATH_UNARYSUBSTRACT: return 2;

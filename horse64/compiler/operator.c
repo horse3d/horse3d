@@ -121,7 +121,7 @@ const char *operator_OpPrintedAsStr(h64optype type) {
         return h64opprinted_boolcond_in;
     case H64OP_MEMBERBYIDENTIFIER:
         return h64opprinted_memberbyidentifier;
-    case H64OP_MEMBERBYEXPR:
+    case H64OP_INDEXBYEXPR:
         return h64opprinted_memberbyexpr;
     case H64OP_CALL:
         return h64opprinted_call;
@@ -169,7 +169,7 @@ static char h64opname_boolcond_or[] = "H64OP_BOOLCOND_OR";
 static char h64opname_boolcond_not[] = "H64OP_BOOLCOND_NOT";
 static char h64opname_boolcond_in[] = "H64OP_BOOLCOND_IN";
 static char h64opname_memberbyidentifier[] = "H64OP_MEMBERBYIDENTIFIER";
-static char h64opname_memberbyexpr[] = "H64OP_MEMBERBYEXPR";
+static char h64opname_memberbyexpr[] = "H64OP_INDEXBYEXPR";
 static char h64opname_call[] = "H64OP_CALL";
 static char h64opname_new[] = "H64OP_NEW";
 
@@ -303,7 +303,7 @@ const char *operator_OpTypeToStr(h64optype type) {
         return h64opname_boolcond_in;
     case H64OP_MEMBERBYIDENTIFIER:
         return h64opname_memberbyidentifier;
-    case H64OP_MEMBERBYEXPR:
+    case H64OP_INDEXBYEXPR:
         return h64opname_memberbyexpr;
     case H64OP_CALL:
         return h64opname_call;

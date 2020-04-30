@@ -182,7 +182,7 @@ void ast_ParseRecover_FindEndOfBlock(
             }
         } else if (tokens[i].type == H64TK_BINOPSYMBOL &&
                 (tokens[i].int_value == H64OP_CALL ||
-                 tokens[i].int_value == H64OP_MEMBERBYEXPR)) {
+                 tokens[i].int_value == H64OP_INDEXBYEXPR)) {
             brackets_depth++;
         } else if (tokens[i].type == H64TK_IDENTIFIER) {
             char *s = tokens[i].str_value;
@@ -797,12 +797,12 @@ int ast_ParseExprInlineOperator_Recurse(
         {
             int inneroom = 0;
             int innerparsefail = 0;
-            int ismemberbyexpr = (
+            int isindexbyexpr = (
                 tokens[i - 1].type == H64TK_BINOPSYMBOL &&
-                tokens[i - 1].int_value == H64OP_MEMBERBYEXPR
+                tokens[i - 1].int_value == H64OP_INDEXBYEXPR
             );
             if (i >= max_tokens_touse ||
-                    (!ismemberbyexpr && !ast_ParseExprInline(
+                    (!isindexbyexpr && !ast_ParseExprInline(
                         fileuri, resultmsg,
                         addtoscope,
                         tokenstreaminfo, tokens + i, max_tokens_touse - i,
@@ -811,7 +811,7 @@ int ast_ParseExprInlineOperator_Recurse(
                         &righthandside, &righthandsidelen,
                         nestingdepth
                         )
-                    ) || (ismemberbyexpr && !ast_ParseExprInline(
+                    ) || (isindexbyexpr && !ast_ParseExprInline(
                         fileuri, resultmsg, addtoscope,
                         tokenstreaminfo, tokens + i, max_tokens_touse - i,
                         INLINEMODE_GREEDY,
@@ -840,7 +840,7 @@ int ast_ParseExprInlineOperator_Recurse(
                     "expected %s",
                     _describetoken(describebuf,
                         tokenstreaminfo, tokens, i),
-                    (ismemberbyexpr ? "expression for indexing" :
+                    (isindexbyexpr ? "expression for indexing" :
                      "right-hand side to binary operator")
                 );
                 if (outofmemory) *outofmemory = 0;
@@ -857,14 +857,14 @@ int ast_ParseExprInlineOperator_Recurse(
                     ast_FreeExpression(original_lefthand);
                 return 0;
             }
-            if (ismemberbyexpr && (
+            if (isindexbyexpr && (
                     i + righthandsidelen >= max_tokens_touse ||
                     tokens[i + righthandsidelen].type != H64TK_BRACKET ||
                     tokens[i + righthandsidelen].char_value != ']')) {
                 ast_FreeExpression(righthandside);
                 righthandside = NULL;
                 goto righthandsideparsefail;
-            } else if (ismemberbyexpr) {
+            } else if (isindexbyexpr) {
                 i++;  // go past closing ']'
             }
         }
