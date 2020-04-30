@@ -797,15 +797,27 @@ int ast_ParseExprInlineOperator_Recurse(
         {
             int inneroom = 0;
             int innerparsefail = 0;
+            int ismemberbyexpr = (
+                tokens[i - 1].type == H64TK_BINOPSYMBOL &&
+                tokens[i - 1].int_value == H64OP_MEMBERBYEXPR
+            );
             if (i >= max_tokens_touse ||
-                    !ast_ParseExprInline(
-                    fileuri, resultmsg,
-                    addtoscope,
-                    tokenstreaminfo, tokens + i, max_tokens_touse - i,
-                    INLINEMODE_NONGREEDY,
-                    &innerparsefail, &inneroom,
-                    &righthandside, &righthandsidelen,
-                    nestingdepth
+                    (!ismemberbyexpr && !ast_ParseExprInline(
+                        fileuri, resultmsg,
+                        addtoscope,
+                        tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                        INLINEMODE_NONGREEDY,
+                        &innerparsefail, &inneroom,
+                        &righthandside, &righthandsidelen,
+                        nestingdepth
+                        )
+                    ) || (ismemberbyexpr && !ast_ParseExprInline(
+                        fileuri, resultmsg, addtoscope,
+                        tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                        INLINEMODE_GREEDY,
+                        &innerparsefail, &inneroom,
+                        &righthandside, &righthandsidelen, nestingdepth
+                        )
                     )) {
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
@@ -821,12 +833,15 @@ int ast_ParseExprInlineOperator_Recurse(
                         ast_FreeExpression(original_lefthand);
                     return 0;
                 }
+                righthandsideparsefail: ;
                 char buf[512]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
-                    "expected right-hand side to binary operator",
+                    "expected %s",
                     _describetoken(describebuf,
-                        tokenstreaminfo, tokens, i)
+                        tokenstreaminfo, tokens, i),
+                    (ismemberbyexpr ? "expression for indexing" :
+                     "right-hand side to binary operator")
                 );
                 if (outofmemory) *outofmemory = 0;
                 if (!result_AddMessage(
@@ -841,6 +856,16 @@ int ast_ParseExprInlineOperator_Recurse(
                 if (original_lefthand && original_lefthand != lefthandside)
                     ast_FreeExpression(original_lefthand);
                 return 0;
+            }
+            if (ismemberbyexpr && (
+                    i + righthandsidelen >= max_tokens_touse ||
+                    tokens[i + righthandsidelen].type != H64TK_BRACKET ||
+                    tokens[i + righthandsidelen].char_value != ']')) {
+                ast_FreeExpression(righthandside);
+                righthandside = NULL;
+                goto righthandsideparsefail;
+            } else if (ismemberbyexpr) {
+                i++;  // go past closing ']'
             }
         }
         assert(righthandside != NULL && righthandsidelen > 0);
