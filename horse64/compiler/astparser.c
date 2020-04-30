@@ -1521,7 +1521,10 @@ int ast_ParseExprInline(
                 i = 0;
             }
             expr->type = (
-                ismap ? H64EXPRTYPE_MAP : H64EXPRTYPE_LIST
+                ismap ? H64EXPRTYPE_MAP : (
+                isset ? H64EXPRTYPE_SET : (
+                isvector ? H64EXPRTYPE_VECTOR : H64EXPRTYPE_LIST
+                ))
             );
 
             int hadanyitems = 0;
