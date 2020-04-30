@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,36 +9,43 @@
 #include "hash.h"
 #include "secrandom.h"
 
-static char global_hash_secret[16];
+
+static char global_hashsecret[16];
 
 
-#define MAPTYPE_BYTES 0
-#define MAPTYPE_STRING 1
-#define MAPTYPE_NUMBER 2
-#define MAPTYPE_STRINGTOSTRING 3
+#define HASHTYPE_BYTES 0
+#define HASHTYPE_STRING 1
+#define HASHTYPE_NUMBER 2
+#define HASHTYPE_STRINGTOSTRING 3
 
+typedef struct hashmap_bucket hashmap_bucket;
 
-struct hashmap_bucket {
+typedef struct hashmap_bucket {
     char *bytes; uint64_t byteslen;
     uint64_t number;
-    struct hashmap_bucket *next, *prev;
-};
+    hashmap_bucket *next, *prev;
+} hashmap_bucket;
 
 
-struct hashmap {
+typedef struct hashmap {
+    int fixedhashsecretset;
+    char fixedhashsecret[16];
+
     int type;
     int bucket_count;
-    struct hashmap_bucket **buckets;
-};
+    hashmap_bucket **buckets;
+} hashmap;
 
 
-uint64_t hash_StringHash(const char *s) {
-    return hash_ByteHash(s, strlen(s));
+uint64_t hash_StringHash(const char *s, uint8_t *secret) {
+    if (!secret)
+        secret = (uint8_t*)global_hashsecret;
+    return hash_ByteHash(s, strlen(s), secret);
 }
 
 
-struct hashmap *hash_NewBytesMap(int buckets) {
-    struct hashmap *map = malloc(sizeof(*map));
+hashmap *hash_NewBytesMap(int buckets) {
+    hashmap *map = malloc(sizeof(*map));
     if (!map)
         return NULL;
     memset(map, 0, sizeof(*map));
@@ -51,45 +59,46 @@ struct hashmap *hash_NewBytesMap(int buckets) {
     return map;
 }
 
-
-struct hashmap *hash_NewStringMap(int buckets) {
-    struct hashmap *map = hash_NewBytesMap(buckets);
+hashmap *hash_NewStringMap(int buckets) {
+    hashmap *map = hash_NewBytesMap(buckets);
     if (!map)
         return NULL;
-    map->type = MAPTYPE_STRING;
+    map->type = HASHTYPE_STRING;
     return map;
 }
 
-struct hashmap *hash_NewStringToStringMap(int buckets) {
-    struct hashmap *map = hash_NewBytesMap(buckets);
+hashmap *hash_NewStringToStringMap(int buckets) {
+    hashmap *map = hash_NewBytesMap(buckets);
     if (!map)
         return NULL;
-    map->type = MAPTYPE_STRINGTOSTRING;
+    map->type = HASHTYPE_STRINGTOSTRING;
     return map;
 }
 
-struct hashmap *hash_NewIntMap(int buckets) {
-    struct hashmap *map = hash_NewBytesMap(buckets);
+hashmap *hash_NewIntMap(int buckets) {
+    hashmap *map = hash_NewBytesMap(buckets);
     if (!map)
         return NULL;
-    map->type = MAPTYPE_NUMBER;
+    map->type = HASHTYPE_NUMBER;
     return map;
 }
 
 
 static int _hash_MapGetBucket(
-        struct hashmap *map, const char *bytes, int byteslen) {
-    uint64_t hash = hash_ByteHash(bytes, byteslen);
+        hashmap *map, const char *bytes, int byteslen) {
+    uint64_t hash = hash_ByteHash(
+        bytes, byteslen,
+        (uint8_t*)(map->fixedhashsecretset ? map->fixedhashsecret : NULL)
+    );
     uint64_t bucket = (uint64_t)(hash % ((uint64_t)map->bucket_count));
     return bucket;
 }
 
-
 static int _hash_MapSet(
-        struct hashmap *map, const char *bytes,
+        hashmap *map, const char *bytes,
         int byteslen, uint64_t result) {
     int i = _hash_MapGetBucket(map, bytes, byteslen);
-    struct hashmap_bucket *bk = malloc(sizeof(*bk));
+    hashmap_bucket *bk = malloc(sizeof(*bk));
     if (!bk)
         return 0;
     memset(bk, 0, sizeof(*bk));
@@ -100,7 +109,7 @@ static int _hash_MapSet(
     }
     memcpy(bk->bytes, bytes, byteslen);
     bk->byteslen = byteslen;
-    struct hashmap_bucket *prevbk = NULL;
+    hashmap_bucket *prevbk = NULL;
     if (map->buckets[i]) {
         prevbk = map->buckets[i];
         while (prevbk && prevbk->next)
@@ -118,12 +127,12 @@ static int _hash_MapSet(
 
 
 static int _hash_MapGet(
-        struct hashmap *map, const char *bytes,
+        hashmap *map, const char *bytes,
         uint64_t byteslen, uint64_t *result) {
     int i = _hash_MapGetBucket(map, bytes, byteslen);
     if (!map->buckets[i])
         return 0;
-    struct hashmap_bucket *bk = map->buckets[i];
+    hashmap_bucket *bk = map->buckets[i];
     while (bk) {
         if (bk->byteslen == byteslen &&
                 memcmp(bk->bytes, bytes, byteslen) == 0) {
@@ -137,15 +146,15 @@ static int _hash_MapGet(
 
 
 static int _hash_MapUnset(
-        struct hashmap *map, const char *bytes,
+        hashmap *map, const char *bytes,
         uint64_t byteslen) {
     if (!map || !bytes)
         return 0; 
    int i = _hash_MapGetBucket(map, bytes, byteslen);
     if (!map->buckets[i])
         return 0;
-    struct hashmap_bucket *prevbk = NULL;
-    struct hashmap_bucket *bk = map->buckets[i];
+    hashmap_bucket *prevbk = NULL;
+    hashmap_bucket *bk = map->buckets[i];
     while (bk) {
         if (bk->byteslen == byteslen &&
                 bk->bytes &&
@@ -168,9 +177,10 @@ static int _hash_MapUnset(
 }
 
 
-int hash_BytesMapSet(struct hashmap *map, const char *bytes,
-                     size_t byteslen, uint64_t number) {
-    if (!map || map->type != MAPTYPE_BYTES || !bytes)
+int hash_BytesMapSet(
+        hashmap *map, const char *bytes,
+        size_t byteslen, uint64_t number) {
+    if (!map || map->type != HASHTYPE_BYTES || !bytes)
         return 0;
     _hash_MapUnset(map, bytes, byteslen);
     return _hash_MapSet(
@@ -178,10 +188,85 @@ int hash_BytesMapSet(struct hashmap *map, const char *bytes,
     );
 }
 
+struct bytemapiterateentry {
+    char *bytes;
+    uint64_t byteslen;
+    uint64_t number;
+};
 
-int hash_BytesMapGet(struct hashmap *map, const char *bytes,
-                     size_t byteslen, uint64_t *number) {
-    if (map->type != MAPTYPE_BYTES)
+int hash_BytesMapIterate(
+        hashmap *map,
+        int (*cb)(hashmap *map, const char *bytes,
+                  uint64_t byteslen, uint64_t number, void *ud),
+        void *ud
+        ) {
+    if (!map || map->type != HASHTYPE_BYTES)
+        return 0;
+
+    struct bytemapiterateentry *entries = NULL;
+    int alloc_size = 0;
+    int found_entries = 0;
+
+    int i = 0;
+    while (i < map->bucket_count) {
+        hashmap_bucket *bk = map->buckets[i];
+        while (bk) {
+            if (alloc_size <= found_entries) {
+                alloc_size *= 2;
+                if (alloc_size < found_entries + 8)
+                    alloc_size = found_entries + 8;
+                struct bytemapiterateentry *new_entries = realloc(
+                    entries, sizeof(*entries) * alloc_size
+                );
+                if (!new_entries) {
+                    allocfail: ;
+                    int k = 0;
+                    while (k < found_entries) {
+                        if (entries[k].bytes)
+                            free(entries[k].bytes);
+                        k++;
+                    }
+                    free(entries);
+                    return 0;
+                }
+                entries = new_entries;
+            }
+            memset(&entries[found_entries],
+                   0, sizeof(entries[found_entries]));
+            if (bk->byteslen > 0) {
+                entries[found_entries].bytes = malloc(bk->byteslen);
+                if (!entries[found_entries].bytes)
+                    goto allocfail;
+                memcpy(entries[found_entries].bytes,
+                       bk->bytes, bk->byteslen);
+                entries[found_entries].byteslen = bk->byteslen;
+            }
+            entries[found_entries].number = bk->number;
+            bk = bk->next;
+        }
+        i++;
+    }
+    i = 0;
+    while (i < found_entries) {
+        if (!cb(map, entries[i].bytes, entries[i].byteslen,
+                entries[i].number, ud))
+            break;
+        i++;
+    }
+    i = 0;
+    while (i < found_entries) {
+        if (entries[i].bytes)
+            free(entries[i].bytes);
+        i++;
+    }
+    free(entries);
+    return 1;
+}
+
+int hash_BytesMapGet(
+        hashmap *map, const char *bytes,
+        size_t byteslen, uint64_t *number) {
+    if (map->type != HASHTYPE_BYTES)
         return 0;
     return _hash_MapGet(
         map, bytes, byteslen, number
@@ -189,16 +274,19 @@ int hash_BytesMapGet(struct hashmap *map, const char *bytes,
 }
 
 
-int hash_BytesMapUnset(struct hashmap *map, const char *bytes,
-                       size_t byteslen) {
-    if (map->type != MAPTYPE_BYTES)
+int hash_BytesMapUnset(
+        hashmap *map, const char *bytes,
+        size_t byteslen) {
+    if (map->type != HASHTYPE_BYTES)
         return 0;
     return _hash_MapUnset(map, bytes, byteslen);
 }
 
 
-int hash_StringMapSet(struct hashmap *map, const char *s, uint64_t number) {
-    if (map->type != MAPTYPE_STRING)
+int hash_StringMapSet(
+        hashmap *map, const char *s, uint64_t number
+        ) {
+    if (map->type != HASHTYPE_STRING)
         return 0;
     _hash_MapUnset(map, s, strlen(s));
     return _hash_MapSet(
@@ -207,8 +295,10 @@ int hash_StringMapSet(struct hashmap *map, const char *s, uint64_t number) {
 }
 
 
-int hash_StringMapGet(struct hashmap *map, const char *s, uint64_t *number) {
-    if (map->type != MAPTYPE_STRING)
+int hash_StringMapGet(
+        hashmap *map, const char *s, uint64_t *number
+        ) {
+    if (map->type != HASHTYPE_STRING)
         return 0;
     return _hash_MapGet(
         map, s, strlen(s), number
@@ -216,15 +306,16 @@ int hash_StringMapGet(struct hashmap *map, const char *s, uint64_t *number) {
 }
 
 
-int hash_StringMapUnset(struct hashmap *map, const char *s) {
-    if (map->type != MAPTYPE_STRING)
+int hash_StringMapUnset(hashmap *map, const char *s) {
+    if (map->type != HASHTYPE_STRING)
         return 0;
     return _hash_MapUnset(map, s, strlen(s));
 }
 
-
-int hash_IntMapSet(struct hashmap *map, int64_t key, uint64_t number) {
-    if (map->type != MAPTYPE_NUMBER)
+int hash_IntMapSet(
+        hashmap *map, int64_t key, uint64_t number
+        ) {
+    if (map->type != HASHTYPE_NUMBER)
         return 0;
     _hash_MapUnset(map, (char*)&key, sizeof(key));
     return _hash_MapSet(
@@ -233,16 +324,16 @@ int hash_IntMapSet(struct hashmap *map, int64_t key, uint64_t number) {
 }
 
 
-int hash_IntMapGet(struct hashmap *map, int64_t key, uint64_t *number) {
-    if (map->type != MAPTYPE_NUMBER)
+int hash_IntMapGet(hashmap *map, int64_t key, uint64_t *number) {
+    if (map->type != HASHTYPE_NUMBER)
         return 0;
     return _hash_MapGet(
         map, (char*)&key, sizeof(key), number
     );
 }
 
-int hash_IntMapUnset(struct hashmap *map, int64_t key) {
-    if (map->type != MAPTYPE_NUMBER)
+int hash_IntMapUnset(hashmap *map, int64_t key) {
+    if (map->type != HASHTYPE_NUMBER)
         return 0;
     return _hash_MapUnset(map, (char*)&key, sizeof(key));
 }
@@ -250,29 +341,33 @@ int hash_IntMapUnset(struct hashmap *map, int64_t key) {
 int siphash(const uint8_t *in, const size_t inlen, const uint8_t *k,
             uint8_t *out, const size_t outlen);
 
-uint64_t hash_ByteHash(const char *bytes, uint64_t byteslen) {
+uint64_t hash_ByteHash(
+        const char *bytes, uint64_t byteslen,
+        uint8_t *secret) {
+    if (!secret)
+        secret = (uint8_t*)global_hashsecret;
     uint64_t hashval = 0;
-    siphash((uint8_t*)bytes, byteslen, (uint8_t*)&global_hash_secret,
+    siphash((uint8_t*)bytes, byteslen, secret,
             (uint8_t*)&hashval, sizeof(hashval));
     return hashval;
 }
 
-void hash_ClearMap(struct hashmap *map) {
+void hash_ClearMap(hashmap *map) {
     if (!map)
         return;
     if (map->buckets) {
         int i = 0;
         while (i < map->bucket_count) {
-            struct hashmap_bucket *bk = map->buckets[i];
+            hashmap_bucket *bk = map->buckets[i];
             while (bk) {
-                if (map->type == MAPTYPE_STRINGTOSTRING) {
+                if (map->type == HASHTYPE_STRINGTOSTRING) {
                     char *svalue = (char*)(uintptr_t)bk->number;
                     if (svalue)
                         free(svalue);
                 }
                 if (bk->bytes)
                     free(bk->bytes);
-                struct hashmap_bucket *nextbk = bk->next;
+                hashmap_bucket *nextbk = bk->next;
                 free(bk);
                 bk = nextbk;
             }
@@ -282,7 +377,7 @@ void hash_ClearMap(struct hashmap *map) {
     }
 }
 
-void hash_FreeMap(struct hashmap *map) {
+void hash_FreeMap(hashmap *map) {
     if (!map)
         return;
     hash_ClearMap(map);
@@ -291,9 +386,9 @@ void hash_FreeMap(struct hashmap *map) {
     free(map);
 }
 
-__attribute__((constructor)) static void hash_SetHashSecrets() {
+__attribute__((constructor)) static void hashSetHashSecrets() {
     if (!secrandom_GetBytes(
-            global_hash_secret, sizeof(global_hash_secret)
+            global_hashsecret, sizeof(global_hashsecret)
             )) {
         fprintf(stderr,
             "hash.c: FAILED TO INITIALIZE GLOBAL "
@@ -304,9 +399,9 @@ __attribute__((constructor)) static void hash_SetHashSecrets() {
 }
 
 int hash_STSMapSet(
-        struct hashmap *map, const char *key, const char *value
+        hashmap *map, const char *key, const char *value
         ) {
-    if (map->type != MAPTYPE_STRINGTOSTRING)
+    if (map->type != HASHTYPE_STRINGTOSTRING)
         return 0;
     uint64_t number = (uintptr_t)strdup(value);
     if (number == 0)
@@ -321,8 +416,8 @@ int hash_STSMapSet(
     return 1;
 }
 
-const char *hash_STSMapGet(struct hashmap *map, const char *key) {
-    if (map->type != MAPTYPE_STRINGTOSTRING)
+const char *hash_STSMapGet(hashmap *map, const char *key) {
+    if (map->type != HASHTYPE_STRINGTOSTRING)
         return NULL;
     uint64_t number = 0;
     if (!_hash_MapGet(
@@ -332,8 +427,8 @@ const char *hash_STSMapGet(struct hashmap *map, const char *key) {
     return (const char *)(uintptr_t)number;
 }
 
-int hash_STSMapUnset(struct hashmap *map, const char *key) {
-    if (map->type != MAPTYPE_STRINGTOSTRING)
+int hash_STSMapUnset(hashmap *map, const char *key) {
+    if (map->type != HASHTYPE_STRINGTOSTRING)
         return 0;
     uint64_t number = 0;
     if (_hash_MapGet(
@@ -344,9 +439,99 @@ int hash_STSMapUnset(struct hashmap *map, const char *key) {
     return _hash_MapUnset(map, key, strlen(key));
 }
 
+struct stsmapiterateentry {
+    char *key, *value;
+};
+
+int hash_STSMapIterate(
+        hashmap *map,
+        int (*cb)(hashmap *map, const char *key,
+                  const char *value, void *ud),
+        void *ud
+        ) {
+    if (!map || map->type != HASHTYPE_STRINGTOSTRING)
+        return 0;
+
+    struct stsmapiterateentry *entries = NULL;
+    int alloc_size = 0;
+    int found_entries = 0;
+
+    int i = 0;
+    while (i < map->bucket_count) {
+        hashmap_bucket *bk = map->buckets[i];
+        while (bk) {
+            if (alloc_size <= found_entries) {
+                alloc_size *= 2;
+                if (alloc_size < found_entries + 8)
+                    alloc_size = found_entries + 8;
+                struct stsmapiterateentry *new_entries = realloc(
+                    entries, sizeof(*entries) * alloc_size
+                );
+                if (!new_entries) {
+                    allocfail: ;
+                    int k = 0;
+                    while (k < found_entries) {
+                        if (entries[k].key)
+                            free(entries[k].key);
+                        if (entries[k].value)
+                            free(entries[k].value);
+                        k++;
+                    }
+                    free(entries);
+                    return 0;
+                }
+                entries = new_entries;
+            }
+            memset(&entries[found_entries],
+                   0, sizeof(entries[found_entries]));
+            if (bk->bytes != NULL) {
+                entries[found_entries].key = strdup(
+                    (const char*)bk->bytes
+                );
+                if (!entries[found_entries].key)
+                    goto allocfail;
+            }
+            if (bk->number != 0) {
+                entries[found_entries].value = strdup(
+                    (const char*)(uintptr_t)bk->number
+                );
+                if (!entries[found_entries].value)
+                    goto allocfail;
+            }
+            bk = bk->next;
+        }
+        i++;
+    }
+    i = 0;
+    while (i < found_entries) {
+        if (!cb(map, entries[i].key, entries[i].value, ud))
+            break;
+        i++;
+    }
+    i = 0;
+    while (i < found_entries) {
+        if (entries[i].key)
+            free(entries[i].key);
+        if (entries[i].value)
+            free(entries[i].value);
+        i++;
+    }
+    free(entries);
+    return 1;
+}
+
+void hashmap_SetFixedHashSecret(
+        hashmap *map, uint8_t *secret
+        ) {
+    map->fixedhashsecretset = 1;
+    memcpy(
+        map->fixedhashsecret, secret, sizeof(*map->fixedhashsecret)
+    );
+}
+
 
 typedef struct hashset {
-    hashmap *map;
+   hashmap *map;
 } hashset;
 
 
@@ -375,7 +560,9 @@ int hashset_Contains(
     return 1;
 }
 
-int hashset_Add(hashset *set, const void *itemdata, size_t itemdatasize) {
+int hashset_Add(
+        hashset *set, const void *itemdata, size_t itemdatasize
+        ) {
     if (hashset_Contains(set, itemdata, itemdatasize))
         return 1;
     return hash_BytesMapSet(
