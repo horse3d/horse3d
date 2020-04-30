@@ -2950,7 +2950,8 @@ int ast_ParseExprStmt(
                     fileuri, resultmsg, addtoscope,
                     tokenstreaminfo, tokens + i, max_tokens_touse - i,
                     statementmode,
-                    &expr->trystmt.trystmt, &expr->trystmt.trystmt_count,
+                    &expr->trystmt.catchstmt,
+                    &expr->trystmt.catchstmt_count,
                     &innerparsefail, &inneroom, &tlen, nestingdepth
                     )) {
                 if (inneroom) {

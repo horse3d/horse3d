@@ -3,6 +3,7 @@
 
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
+#include "compiler/scope.h"
 
 
 typedef enum h64expressiontype {
@@ -43,12 +44,6 @@ typedef enum h64literaltype {
 
 typedef struct h64expression h64expression;
 typedef struct h64scope h64scope;
-
-typedef struct h64scope {
-    int declarationref_count;
-    h64expression *declarationref;
-    h64scope *parentscope;
-} h64scope;
 
 typedef struct h64funcargs {
     int arg_count;

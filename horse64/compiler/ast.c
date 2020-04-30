@@ -699,6 +699,83 @@ jsonvalue *ast_ExpressionToJSON(
                 }
             }
         }
+    } else if (e->type == H64EXPRTYPE_TRY_STMT) {
+        jsonvalue *trysection = json_List();
+        int i = 0;
+        while (i < e->trystmt.trystmt_count) {
+            jsonvalue *stmtjson = ast_ExpressionToJSON(
+                e->trystmt.trystmt[i], fileuri
+            );
+            if (!json_AddToList(trysection, stmtjson)) {
+                json_Free(stmtjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "try-statements", trysection)) {
+            json_Free(trysection);
+            fail = 1;
+        }
+        jsonvalue *catchtypes = json_List();
+        i = 0;
+        while (i < e->trystmt.exceptions_count) {
+            jsonvalue *stmtjson = ast_ExpressionToJSON(
+                e->trystmt.exceptions[i], fileuri
+            );
+            if (!json_AddToList(catchtypes, stmtjson)) {
+                json_Free(stmtjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "exceptions", catchtypes)) {
+            json_Free(catchtypes);
+            fail = 1;
+        }
+        if (e->trystmt.exception_name) {
+            if (!json_SetDictStr(
+                    v, "exception-name", e->trystmt.exception_name))
+                fail = 1;
+        } else {
+            if (!json_SetDictNull(v, "exception-name"))
+                fail = 1;
+        }
+        jsonvalue *catchsection = json_List();
+        i = 0;
+        while (i < e->trystmt.catchstmt_count) {
+            jsonvalue *stmtjson = ast_ExpressionToJSON(
+                e->trystmt.catchstmt[i], fileuri
+            );
+            if (!json_AddToList(catchsection, stmtjson)) {
+                json_Free(stmtjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "catch-statements", catchsection)) {
+            json_Free(catchsection);
+            fail = 1;
+        }
+        jsonvalue *finallysection = json_List();
+        i = 0;
+        while (i < e->trystmt.finallystmt_count) {
+            jsonvalue *stmtjson = ast_ExpressionToJSON(
+                e->trystmt.finallystmt[i], fileuri
+            );
+            if (!json_AddToList(finallysection, stmtjson)) {
+                json_Free(stmtjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "finally-statements", finallysection)) {
+            json_Free(finallysection);
+            fail = 1;
+        }
     } else if (e->type == H64EXPRTYPE_CLASSDEF_STMT) {
         if (e->classdef.name &&
                 !json_SetDictStr(v, "name", e->classdef.name))
