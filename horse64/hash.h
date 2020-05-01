@@ -49,7 +49,14 @@ int hash_StringMapGet(
     hashmap *map, const char *s, uint64_t *number
 );
 int hash_StringMapUnset(hashmap *map, const char *s);
-
+int hash_StringMapIterate(
+    hashmap *map,
+    int (*callback)(
+        hashmap *map, const char *key, uint64_t number,
+        void *userdata
+    ),
+    void *userdata
+);
 
 hashmap *hash_NewIntMap(int buckets);
 int hash_IntMapSet(

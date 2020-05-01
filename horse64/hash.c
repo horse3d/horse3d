@@ -194,13 +194,13 @@ struct bytemapiterateentry {
     uint64_t number;
 };
 
-int hash_BytesMapIterate(
-        hashmap *map,
+static int hash_BytesMapIterateEx(
+        hashmap *map, int checktype,
         int (*cb)(hashmap *map, const char *bytes,
                   uint64_t byteslen, uint64_t number, void *ud),
         void *ud
         ) {
-    if (!map || map->type != HASHTYPE_BYTES)
+    if (!map || (map->type != HASHTYPE_BYTES && checktype))
         return 0;
 
     struct bytemapiterateentry *entries = NULL;
@@ -263,6 +263,17 @@ int hash_BytesMapIterate(
     return 1;
 }
 
+int hash_BytesMapIterate(
+        hashmap *map,
+        int (*cb)(hashmap *map, const char *bytes,
+                  uint64_t byteslen, uint64_t number, void *ud),
+        void *ud
+        ) {
+    return hash_BytesMapIterateEx(
+        map, 1, cb, ud
+    );
+}
+
 int hash_BytesMapGet(
         hashmap *map, const char *bytes,
         size_t byteslen, uint64_t *number) {
@@ -291,6 +302,45 @@ int hash_StringMapSet(
     _hash_MapUnset(map, s, strlen(s));
     return _hash_MapSet(
         map, s, strlen(s), number
+    );
+}
+
+
+struct stringmapiterateinfo {
+    void *ud;
+    int (*cb)(hashmap *map, const char *key, uint64_t number,
+              void *ud);
+};
+
+static int _hashstringmap_iterate(
+        hashmap *map, const char *bytes,
+        __attribute__((unused)) uint64_t byteslen,
+        uint64_t number, void *ud
+        ) {
+    struct stringmapiterateinfo *iterinfo = (
+        (struct stringmapiterateinfo*)ud
+    );
+    return iterinfo->cb(map, bytes, number, iterinfo->ud);
+}
+
+int hash_StringMapIterate(
+        hashmap *map,
+        int (*callback)(
+            hashmap *map, const char *key, uint64_t number,
+            void *userdata
+        ),
+        void *userdata
+        ) {
+    if (!map || map->type != HASHTYPE_STRING)
+        return 0;
+
+    struct stringmapiterateinfo iinfo;
+    memset(&iinfo, 0, sizeof(iinfo));
+    iinfo.ud = userdata;
+    iinfo.cb = callback;
+
+    return hash_BytesMapIterateEx(
+        map, 0, &_hashstringmap_iterate, &iinfo
     );
 }
 

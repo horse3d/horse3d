@@ -44,7 +44,7 @@ int filesys_GetComponentCount(const char *path) {
             path[2] == '\\'))
         i = 2;
     #endif
-    while (i < strlen(path)) {
+    while (i < (int)strlen(path)) {
         if (i > 0 && path[i] != '/' &&
                 #if defined(_WIN32) || defined(_WIN64)
                 path[i] != '\\' &&
@@ -71,7 +71,7 @@ char *filesys_RemoveDoubleSlashes(const char *path) {
     // Remove double slashes:
     int lastwassep = 0;
     int i = 0;
-    while (i < strlen(p)) {
+    while (i < (int)strlen(p)) {
         if (p[i] == '/'
                 #if defined(_WIN32) || defined(_WIN64)
                 || p[i] == '\\'
@@ -114,7 +114,7 @@ char *filesys_Normalize(const char *path) {
     // Remove all unnecessary ../ and ./ inside the path:
     int last_component_start = -1;
     int i = 0;
-    while (i < strlen(result)) {
+    while (i < (int)strlen(result)) {
         if ((result[i] == '/'
                 #if defined(_WIN32) || defined(_WIN64)
                 || result[i] == '\\'
@@ -167,6 +167,15 @@ char *filesys_Normalize(const char *path) {
                 #endif
                 ) {
             last_component_start = i;
+            // Collapse all double slashes away:
+            while (result[i + 1] == '/'
+                    #if defined(_WIN32) || defined(_WIN64)
+                    || result[i] == '\\'
+                    #endif
+                    ) {
+                memmove(result + i, result + (i + 1),
+                        strlen(result) - (i - 1) + 1);
+            }
         }
         i++;
     }
@@ -183,7 +192,7 @@ char *filesys_Normalize(const char *path) {
 
     // Unify path separators:
     i = 0;
-    while (i < strlen(result)) {
+    while (i < (int)strlen(result)) {
         if (result[i] == '/'
                 #if defined(_WIN32) || defined(_WIN64)
                 || result[i] == '\\'
@@ -726,7 +735,7 @@ char *filesys_Dirname(const char *path) {
 
 char *filesys_Basename(const char *path) {
     int i = 0;
-    while (strlen(path) > i &&
+    while ((int)strlen(path) > i &&
             path[strlen(path) - i - 1] != '/'
             #if defined(_WIN32) || defined(_WIN64)
             &&
@@ -748,6 +757,21 @@ char *filesys_ParentdirOfItem(const char *path) {
     char *p = strdup(path);
     if (!p)
         return NULL;
+
+    // If this is already shortened to absolute path root, abort:
+    #if defined(_WIN32) || defined(_WIN64)
+    if (strlen(path) >= 2 && strlen(path) <= 3 &&
+            path[1] == ':' && (strlen(path) == 2 ||
+            path[2] == '/' || path[2] == '\\') &&
+            ((path[0] >= 'a' && path[0] <= 'z') ||
+              path[0] >= 'A' && path[0] <= 'Z'))
+        return p;
+    #else
+    if (strlen(path) == 1 && path[0] == '/')
+        return p;
+    #endif
+
+    // Strip trailing slash if any, then go back one component:
     #if defined(_WIN32) || defined(_WIN64)
     while (strlen(p) > 0 && (
             p[strlen(p) - 1] == '/' ||
@@ -1105,7 +1129,7 @@ char *filesys_TurnIntoPathRelativeTo(
     int similar_up_to = -1;
     int last_component = -1;
     int i = 0;
-    while (i < strlen(reltopath) && i < strlen(input_path)) {
+    while (i < (int)strlen(reltopath) && i < (int)strlen(input_path)) {
         if (reltopath[i] == input_path[i]) {
             similar_up_to = i;
         } else {
@@ -1120,16 +1144,16 @@ char *filesys_TurnIntoPathRelativeTo(
         }
         i++;
     }
-    if (similar_up_to + 1 >= strlen(reltopath) &&
-            (similar_up_to + 1 < strlen(input_path) && (
+    if (similar_up_to + 1 >= (int)strlen(reltopath) &&
+            (similar_up_to + 1 < (int)strlen(input_path) && (
             input_path[similar_up_to + 1] == '/'
             #if defined(_WIN32) || defined(_WIN64)
             || input_path[similar_up_to + 1] == '\\'
             #endif
             ))) {
         last_component = similar_up_to + 1;
-    } else if (similar_up_to + 1 >= strlen(input_path) &&
-            (similar_up_to + 1 < strlen(reltopath) && (
+    } else if (similar_up_to + 1 >= (int)strlen(input_path) &&
+            (similar_up_to + 1 < (int)strlen(reltopath) && (
             reltopath[similar_up_to + 1] == '/'
             #if defined(_WIN32) || defined(_WIN64)
             || reltopath[similar_up_to + 1] == '\\'
@@ -1281,4 +1305,31 @@ __attribute__((constructor)) static void _tests() {
         );
         free(n);
     }
+}
+
+int filesys_FolderContainsPath(
+        const char *folder_path, const char *check_path
+        ) {
+    if (!folder_path || !check_path)
+        return 0;
+    char *fnormalized = filesys_Normalize(folder_path);
+    char *checknormalized = filesys_Normalize(check_path);
+    if (!fnormalized || !checknormalized) {
+        free(fnormalized);
+        free(checknormalized);
+        return NULL;
+    }
+    if (strlen(fnormalized) < strlen(checknormalized) && (
+            checknormalized[strlen(fnormalized)] == '/'
+            #if defined(_WIN32) || defined(_WIN64)
+            || checknormalized[strlen(fnormalized)] == '\\'
+            #endif
+            )) {
+        free(fnormalized);
+        free(checknormalized);
+        return 1;
+    }
+    free(fnormalized);
+    free(checknormalized);
+    return 0;
 }

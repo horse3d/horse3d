@@ -4,6 +4,7 @@
 #include "compiler/ast.h"
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
+#include "compiler/scope.h"
 
 
 typedef struct h64ast {

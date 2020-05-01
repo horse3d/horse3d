@@ -6,7 +6,9 @@
 #include "compiler/codemodule.h"
 #include "compiler/lexer.h"
 
-h64ast codemodule_GetAST(const char *fileuri) {
+h64ast codemodule_GetASTUncached(
+        __attribute__((unused)) h64compileproject *pr, const char *fileuri
+        ) {
     // 1. Get tokens:
     h64tokenizedfile tfile = lexer_ParseFromFile(fileuri);
     int haderrormessages = 0;

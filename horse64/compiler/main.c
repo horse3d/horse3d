@@ -6,6 +6,7 @@
 
 #include "compiler/astparser.h"
 #include "compiler/codemodule.h"
+#include "compiler/compileproject.h"
 #include "compiler/lexer.h"
 #include "compiler/main.h"
 #include "json.h"
@@ -55,9 +56,30 @@ int compiler_command_Compile(const char **argv, int argc, int argoffset) {
         i++;
     }
 
-    h64ast ast = codemodule_GetAST(
-        fileuri
+    char *error = NULL;
+    char *project_folder_uri = compileproject_FolderGuess(
+        fileuri, 1, &error
     );
+    if (!project_folder_uri) {
+        fprintf(stderr, "horsec: error: %s\n", error);
+        free(error);
+        return 0;
+    }
+    h64compileproject *project = compileproject_New(project_folder_uri);
+    free(project_folder_uri);
+    project_folder_uri = NULL;
+    if (!project) {
+        fprintf(stderr, "horsec: error: alloc failure\n");
+        return 0;
+    }
+    h64ast ast;
+    if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
+        fprintf(stderr, "horsec: error: %s\n", error);
+        free(error);
+        return 0;
+    }
+    compileproject_Free(project);
+
     int haderrormessages = 0;
     i = 0;
     while (i < ast.resultmsg.message_count) {
@@ -288,9 +310,59 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
 jsonvalue *compiler_ParseASTToJSON(
         const char *fileuri
         ) {
-    h64ast tast = codemodule_GetAST(
-        fileuri
+    char *error = NULL;
+
+    char *project_folder_uri = compileproject_FolderGuess(
+        fileuri, 1, &error
     );
+    if (!project_folder_uri) {
+        failedproject: ;
+        int fail = 1;
+        jsonvalue *v = json_Dict();
+        jsonvalue *infolist = json_List();
+        jsonvalue *warninglist = json_List();
+        jsonvalue *errorlist = json_List();
+        jsonvalue *errobj = json_Dict();
+        if (!json_SetDictStr(
+                errobj, "message",
+                (error ? error : "basic I/O or allocation failure")
+                )) {
+            fail = 1;
+        }
+        if (error) free(error);
+        if (!json_AddToList(errorlist, errobj)) {
+            fail = 1;
+            json_Free(errobj);
+        }
+        if (!json_SetDict(v, "errors", errorlist)) {
+            fail = 1;
+            json_Free(errorlist);
+        }
+        if (!json_SetDict(v, "warnings", warninglist)) {
+            fail = 1;
+            json_Free(warninglist);
+        }
+        if (!json_SetDict(v, "information", infolist)) {
+            fail = 1;
+            json_Free(infolist);
+        }
+        return v;
+    }
+    h64compileproject *project = compileproject_New(project_folder_uri);
+    free(project_folder_uri);
+    project_folder_uri = NULL;
+    if (!project)
+        goto failedproject;
+    h64ast tast;
+    if (!compileproject_GetAST(
+            project, fileuri, &tast, &error
+            )) {
+        compileproject_Free(project);
+        project = NULL;
+        goto failedproject;
+    }
+    compileproject_Free(project);
+    project = NULL;
 
     char *normalizeduri = uri_Normalize(fileuri, 1);
     if (!normalizeduri) {

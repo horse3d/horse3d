@@ -3,6 +3,10 @@
 
 #include "compiler/astparser.h"
 
-h64ast codemodule_GetAST(const char *fileuri);
+typedef struct h64compileproject h64compileproject;
+
+h64ast codemodule_GetASTUncached(
+    h64compileproject *pr, const char *fileuri
+);
 
 #endif  // HORSE64_CODEMODULE_H_
