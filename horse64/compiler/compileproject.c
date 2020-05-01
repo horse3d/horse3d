@@ -162,6 +162,7 @@ int _compileproject_astfreecallback(
         ) {
     h64ast *resultptr = (h64ast*)(uintptr_t)number;
     if (resultptr) {
+        result_FreeContents(&resultptr->resultmsg);
         ast_FreeContents(resultptr);
         free(resultptr);
     }

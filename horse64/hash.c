@@ -242,6 +242,7 @@ static int hash_BytesMapIterateEx(
                 entries[found_entries].byteslen = bk->byteslen;
             }
             entries[found_entries].number = bk->number;
+            found_entries++;
             bk = bk->next;
         }
         i++;

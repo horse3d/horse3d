@@ -76,9 +76,9 @@ int compiler_command_Compile(const char **argv, int argc, int argoffset) {
     if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
         fprintf(stderr, "horsec: error: %s\n", error);
         free(error);
+        compileproject_Free(project);
         return 0;
     }
-    compileproject_Free(project);
 
     int haderrormessages = 0;
     i = 0;
@@ -88,7 +88,7 @@ int compiler_command_Compile(const char **argv, int argc, int argoffset) {
         printmsg(&ast.resultmsg, &ast.resultmsg.message[i]);
         i++;
     }
-    result_FreeContents(&ast.resultmsg);
+    compileproject_Free(project);
     if (haderrormessages || !ast.resultmsg.success)
         return 0;
     return 1;
@@ -361,13 +361,11 @@ jsonvalue *compiler_ParseASTToJSON(
         project = NULL;
         goto failedproject;
     }
-    compileproject_Free(project);
-    project = NULL;
 
     char *normalizeduri = uri_Normalize(fileuri, 1);
     if (!normalizeduri) {
-        result_FreeContents(&tast.resultmsg);
-        ast_FreeContents(&tast);
+        compileproject_Free(project);
+        project = NULL;
         return 0;
     }
 
@@ -395,7 +393,6 @@ jsonvalue *compiler_ParseASTToJSON(
         }
         i++;
     }
-    ast_FreeContents(&tast);
 
     i = 0;
     while (i < tast.resultmsg.message_count) {
@@ -411,7 +408,6 @@ jsonvalue *compiler_ParseASTToJSON(
         }
         i++;
     }
-    result_FreeContents(&tast.resultmsg);
 
     if (!json_SetDictBool(v, "success", !(haderrormessages ||
             !tast.resultmsg.success))) {
@@ -442,6 +438,8 @@ jsonvalue *compiler_ParseASTToJSON(
             exprlist = NULL;
         }
     }
+    compileproject_Free(project);
+    project = NULL;
     if (failure) {
         json_Free(errorlist);
         json_Free(warninglist);
