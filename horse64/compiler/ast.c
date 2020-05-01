@@ -814,6 +814,106 @@ jsonvalue *ast_ExpressionToJSON(
             fail = 1;
             json_Free(funcdefs);
         }
+    } else if (e->type == H64EXPRTYPE_MAP) {
+        jsonvalue *keys = json_List();
+        jsonvalue *values = json_List();
+        int i = 0;
+        while (i < e->constructormap.entry_count) {
+            jsonvalue *exprjson = ast_ExpressionToJSON(
+                e->constructormap.key[i], fileuri
+            );
+            if (!json_AddToList(keys, exprjson)) {
+                json_Free(exprjson);
+                fail = 1;
+                break;
+            }
+            exprjson = ast_ExpressionToJSON(
+                e->constructormap.value[i], fileuri
+            );
+            if (!json_AddToList(values, exprjson)) {
+                json_Free(exprjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "keys", keys)) {
+            fail = 1;
+            json_Free(keys);
+        }
+        if (!json_SetDict(v, "values", values)) {
+            fail = 1;
+            json_Free(values);
+        }
+    } else if (e->type == H64EXPRTYPE_ASSIGN_STMT) {
+        jsonvalue *lvaluejson = ast_ExpressionToJSON(
+            e->assignstmt.lvalue, fileuri
+        );
+        jsonvalue *rvaluejson = ast_ExpressionToJSON(
+            e->assignstmt.rvalue, fileuri
+        );
+        if (!json_SetDict(v, "lvalue", lvaluejson)) {
+            fail = 1;
+            json_Free(lvaluejson);
+        }
+        if (!json_SetDict(v, "rvalue", rvaluejson)) {
+            fail = 1;
+            json_Free(rvaluejson);
+        }
+    } else if (e->type == H64EXPRTYPE_LIST) {
+        jsonvalue *contents = json_List();
+        int i = 0;
+        while (i < e->constructorlist.entry_count) {
+            jsonvalue *exprjson = ast_ExpressionToJSON(
+                e->constructorlist.entry[i], fileuri
+            );
+            if (!json_AddToList(contents, exprjson)) {
+                json_Free(exprjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "contents", contents)) {
+            fail = 1;
+            json_Free(contents);
+        }
+    } else if (e->type == H64EXPRTYPE_VECTOR) {
+        jsonvalue *contents = json_List();
+        int i = 0;
+        while (i < e->constructorvector.entry_count) {
+            jsonvalue *exprjson = ast_ExpressionToJSON(
+                e->constructorvector.entry[i], fileuri
+            );
+            if (!json_AddToList(contents, exprjson)) {
+                json_Free(exprjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "contents", contents)) {
+            fail = 1;
+            json_Free(contents);
+        }
+    } else if (e->type == H64EXPRTYPE_SET) {
+        jsonvalue *contents = json_List();
+        int i = 0;
+        while (i < e->constructorset.entry_count) {
+            jsonvalue *exprjson = ast_ExpressionToJSON(
+                e->constructorset.entry[i], fileuri
+            );
+            if (!json_AddToList(contents, exprjson)) {
+                json_Free(exprjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "contents", contents)) {
+            fail = 1;
+            json_Free(contents);
+        }
     } else if (e->type == H64EXPRTYPE_FUNCDEF_STMT) {
         jsonvalue *attributes = json_List();
         if (e->funcdef.name &&
