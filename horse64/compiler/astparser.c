@@ -14,6 +14,7 @@
 
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
+#include "compiler/compileproject.h"
 #include "compiler/globallimits.h"
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
@@ -201,12 +202,8 @@ void ast_ParseRecover_FindEndOfBlock(
 #define INLINEMODE_GREEDY 1
 
 int _ast_ParseFunctionArgList_Ex(
-        const char *fileuri,
-        h64result *resultmsg,
-        h64scope *addtoscope,
-        tsinfo *tokenstreaminfo,
-        h64token *tokens,
-        int max_tokens_touse,
+        h64parsecontext *context,
+        h64parsethis *parsethis,
         int is_call,
         int *parsefail,
         int *outofmemory,
@@ -214,6 +211,10 @@ int _ast_ParseFunctionArgList_Ex(
         int *out_tokenlen,
         int nestingdepth
         ) {
+    int max_tokens_touse = parsethis->max_tokens_touse;
+    h64token *tokens = parsethis->tokens;
+    const char *fileuri = context->fileuri;
+
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
     if (max_tokens_touse <= 0) {
@@ -231,9 +232,9 @@ int _ast_ParseFunctionArgList_Ex(
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
         result_Error(
-            resultmsg, buf, fileuri,
-            _refline(tokenstreaminfo, tokens, i),
-            _refcol(tokenstreaminfo, tokens, i)
+            context->resultmsg, buf, fileuri,
+            _refline(context->tokenstreaminfo, tokens, i),
+            _refcol(context->tokenstreaminfo, tokens, i)
         );
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
@@ -309,23 +310,25 @@ int _ast_ParseFunctionArgList_Ex(
                     "unexpected %s, "
                     "expected identifier for function argument name",
                     _describetoken(describebuf,
-                        tokenstreaminfo, tokens, i)
+                        context->tokenstreaminfo, tokens, i)
                 );
             } else {
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
                     "expected ',' or ')' to resume argument list",
                     _describetoken(describebuf,
-                        tokenstreaminfo, tokens, i + 1)
+                        context->tokenstreaminfo, tokens, i + 1)
                 );
                 bugindex++;
             }
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, bugindex),
-                    _refcol(tokenstreaminfo, tokens, bugindex)
+                    _refline(context->tokenstreaminfo,
+                             tokens, bugindex),
+                    _refcol(context->tokenstreaminfo,
+                            tokens, bugindex)
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
@@ -337,13 +340,14 @@ int _ast_ParseFunctionArgList_Ex(
         int innerparsefail = 0;
         h64expression *expr = NULL;
         int tlen = 0;
-
+        h64parsethis _buf;
         assert(i > 0);
         if (i >= max_tokens_touse ||
                 !ast_ParseExprInline(
-                        fileuri, resultmsg,
-                        addtoscope,
-                        tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                        context, PARSETHIS(
+                            &_buf, parsethis,
+                            tokens + i, max_tokens_touse - i
+                        ),
                         INLINEMODE_GREEDY,
                         &innerparsefail, &inneroom,
                         &expr, &tlen,
@@ -355,14 +359,14 @@ int _ast_ParseFunctionArgList_Ex(
                 "unexpected %s, "
                 "expected valid inline value for argument list",
                 _describetoken(describebuf,
-                    tokenstreaminfo, tokens, i)
+                    context->tokenstreaminfo, tokens, i)
             );
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
@@ -384,12 +388,8 @@ int _ast_ParseFunctionArgList_Ex(
 }
 
 int ast_ParseFuncCallArgs(
-        const char *fileuri,
-        h64result *resultmsg,
-        h64scope *addtoscope,
-        tsinfo *tokenstreaminfo,
-        h64token *tokens,
-        int max_tokens_touse,
+        h64parsecontext *context,
+        h64parsethis *parsethis,
         int *parsefail,
         int *outofmemory,
         h64funcargs *out_funcargs,
@@ -397,20 +397,15 @@ int ast_ParseFuncCallArgs(
         int nestingdepth
         ) {
     return _ast_ParseFunctionArgList_Ex(
-        fileuri, resultmsg, addtoscope,
-        tokenstreaminfo, tokens, max_tokens_touse,
+        context, parsethis,
         1, parsefail, outofmemory,
         out_funcargs, out_tokenlen, nestingdepth
     );
 }
 
 int ast_ParseFuncDefArgs(
-        const char *fileuri,
-        h64result *resultmsg,
-        h64scope *addtoscope,
-        tsinfo *tokenstreaminfo,
-        h64token *tokens,
-        int max_tokens_touse,
+        h64parsecontext *context,
+        h64parsethis *parsethis,
         int *parsefail,
         int *outofmemory,
         h64funcargs *out_funcargs,
@@ -418,20 +413,15 @@ int ast_ParseFuncDefArgs(
         int nestingdepth
         ) {
     return _ast_ParseFunctionArgList_Ex(
-        fileuri, resultmsg, addtoscope,
-        tokenstreaminfo, tokens, max_tokens_touse,
+        context, parsethis,
         0, parsefail, outofmemory,
         out_funcargs, out_tokenlen, nestingdepth
     );
 }
 
 int ast_ParseExprInlineOperator_Recurse(
-        const char *fileuri,
-        h64result *resultmsg,
-        h64scope *addtoscope,
-        tsinfo *tokenstreaminfo,
-        h64token *tokens,
-        int max_tokens_touse,
+        h64parsecontext *context,
+        h64parsethis *parsethis,
         h64expression *lefthandside,
         int lefthandsidetokenlen,
         int precedencelevel,
@@ -441,6 +431,10 @@ int ast_ParseExprInlineOperator_Recurse(
         int *out_tokenlen,
         int nestingdepth
         ) {
+    int max_tokens_touse = parsethis->max_tokens_touse;
+    h64token *tokens = parsethis->tokens;
+    const char *fileuri = context->fileuri;
+
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
     if (max_tokens_touse <= 0) {
@@ -464,9 +458,10 @@ int ast_ParseExprInlineOperator_Recurse(
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
-        result_Error(resultmsg, buf, fileuri,
-            _refline(tokenstreaminfo, tokens, i),
-            _refcol(tokenstreaminfo, tokens, i)
+        result_Error(
+            context->resultmsg, buf, fileuri,
+            _refline(context->tokenstreaminfo, tokens, i),
+            _refcol(context->tokenstreaminfo, tokens, i)
         );
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
@@ -484,10 +479,12 @@ int ast_ParseExprInlineOperator_Recurse(
         int innerparsefail = 0;
         int tlen = 0;
         h64expression *innerexpr = NULL;
+        h64parsethis _buf;
         if (!ast_ParseExprInline(
-                fileuri, resultmsg,
-                addtoscope,
-                tokenstreaminfo, tokens, max_tokens_touse,
+                context, PARSETHIS(
+                    &_buf, parsethis,
+                    tokens, max_tokens_touse
+                ),
                 INLINEMODE_NONGREEDY,
                 &innerparsefail, &inneroom,
                 &innerexpr, &tlen, nestingdepth
@@ -526,14 +523,15 @@ int ast_ParseExprInlineOperator_Recurse(
         snprintf(buf, sizeof(buf) - 1,
             "unexpected %s, "
             "expected left hand value before binary operator",
-            _describetoken(describebuf, tokenstreaminfo, tokens, i)
+            _describetoken(describebuf,
+                           context->tokenstreaminfo, tokens, i)
         );
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
-                resultmsg,
+                context->resultmsg,
                 H64MSG_ERROR, buf, fileuri,
-                _refline(tokenstreaminfo, tokens, i),
-                _refcol(tokenstreaminfo, tokens, i)
+                _refline(context->tokenstreaminfo, tokens, i),
+                _refcol(context->tokenstreaminfo, tokens, i)
                 ))
             if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 1;
@@ -573,16 +571,17 @@ int ast_ParseExprInlineOperator_Recurse(
                 "expected binary operator or end of inline "
                 "expression starting in line %"
                 PRId64 ", column %" PRId64 " instead",
-                _describetoken(describebuf, tokenstreaminfo, tokens, i),
-                _refline(tokenstreaminfo, tokens, 0),
-                _refline(tokenstreaminfo, tokens, 0)
+                _describetoken(describebuf,
+                    context->tokenstreaminfo, tokens, i),
+                _refline(context->tokenstreaminfo, tokens, 0),
+                _refline(context->tokenstreaminfo, tokens, 0)
             );
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
@@ -625,11 +624,11 @@ int ast_ParseExprInlineOperator_Recurse(
             int skipback = innerrighthandlen;
             if (!innerrighthand) skipback = i;
             h64expression *innerexpr = NULL;
+            h64parsethis _buf;
             if (!ast_ParseExprInlineOperator_Recurse(
-                    fileuri, resultmsg,
-                    addtoscope,
-                    tokenstreaminfo, tokens + i - skipback,
-                    max_tokens_touse - (i - skipback),
+                    context,
+                    PARSETHIS(&_buf, parsethis, tokens + i - skipback,
+                              max_tokens_touse - (i - skipback)),
                     innerrighthand,
                     innerrighthandlen,
                     precedencelevel - 1,
@@ -729,7 +728,8 @@ int ast_ParseExprInlineOperator_Recurse(
             callexpr->line = tokens[i - 1].line;
             callexpr->column = tokens[i - 1].column;
             callexpr->tokenindex = (i - 1) + (
-                ((char*)tokens - (char*)tokenstreaminfo->token) / sizeof(*tokens)
+                ((char*)tokens -
+                 (char*)context->tokenstreaminfo->token) / sizeof(*tokens)
             );
             callexpr->type = H64EXPRTYPE_CALL;
             callexpr->inlinecall.value = lefthandside;
@@ -740,10 +740,11 @@ int ast_ParseExprInlineOperator_Recurse(
             int tlen = 0;
             int inneroom = 0;
             int innerparsefail = 0;
+            h64parsethis _buf;
             if (!ast_ParseFuncCallArgs(
-                    fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens + i,
-                    max_tokens_touse - i,
+                    context, PARSETHIS(
+                        &_buf, parsethis, tokens + i, max_tokens_touse - i
+                    ),
                     &innerparsefail, &inneroom,
                     &callexpr->inlinecall.arguments,
                     &tlen, nestingdepth
@@ -752,19 +753,20 @@ int ast_ParseExprInlineOperator_Recurse(
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
                     if (lefthandside) ast_FreeExpression(lefthandside);
-                    if (original_lefthand && original_lefthand != lefthandside)
+                    if (original_lefthand &&
+                            original_lefthand != lefthandside)
                         ast_FreeExpression(original_lefthand);
                     return 0;
                 }
                 if (outofmemory) *outofmemory = 0;
                 if (!innerparsefail) {
                     if (!result_AddMessage(
-                            resultmsg,
+                            context->resultmsg,
                             H64MSG_ERROR, "internal error? "
                             "got no function args "
                             "but no error", fileuri,
-                            _refline(tokenstreaminfo, tokens, i),
-                            _refcol(tokenstreaminfo, tokens, i)
+                            _refline(context->tokenstreaminfo, tokens, i),
+                            _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                 }
@@ -801,19 +803,21 @@ int ast_ParseExprInlineOperator_Recurse(
                 tokens[i - 1].type == H64TK_BINOPSYMBOL &&
                 tokens[i - 1].int_value == H64OP_INDEXBYEXPR
             );
+            h64parsethis _buf;
             if (i >= max_tokens_touse ||
                     (!isindexbyexpr && !ast_ParseExprInline(
-                        fileuri, resultmsg,
-                        addtoscope,
-                        tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                        context, PARSETHIS(
+                            &_buf, parsethis, tokens + i, max_tokens_touse - i
+                        ),
                         INLINEMODE_NONGREEDY,
                         &innerparsefail, &inneroom,
                         &righthandside, &righthandsidelen,
                         nestingdepth
                         )
                     ) || (isindexbyexpr && !ast_ParseExprInline(
-                        fileuri, resultmsg, addtoscope,
-                        tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                        context, PARSETHIS(
+                            &_buf, parsethis, tokens + i, max_tokens_touse - i
+                        ),
                         INLINEMODE_GREEDY,
                         &innerparsefail, &inneroom,
                         &righthandside, &righthandsidelen, nestingdepth
@@ -839,16 +843,16 @@ int ast_ParseExprInlineOperator_Recurse(
                     "unexpected %s, "
                     "expected %s",
                     _describetoken(describebuf,
-                        tokenstreaminfo, tokens, i),
+                        context->tokenstreaminfo, tokens, i),
                     (isindexbyexpr ? "expression for indexing" :
                      "right-hand side to binary operator")
                 );
                 if (outofmemory) *outofmemory = 0;
                 if (!result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -945,12 +949,8 @@ int ast_ParseExprInlineOperator_Recurse(
 }
 
 int ast_ParseExprInlineOperator(
-        const char *fileuri,
-        h64result *resultmsg,
-        h64scope *addtoscope,
-        tsinfo *tokenstreaminfo,
-        h64token *tokens,
-        int max_tokens_touse,
+        h64parsecontext *context,
+        h64parsethis *parsethis,
         int *parsefail,
         int *outofmemory,
         h64expression **out_expr,
@@ -958,8 +958,7 @@ int ast_ParseExprInlineOperator(
         int nestingdepth
         ) {
     return ast_ParseExprInlineOperator_Recurse(
-        fileuri, resultmsg, addtoscope,
-        tokenstreaminfo, tokens, max_tokens_touse,
+        context, parsethis,
         NULL, 0,
         operator_precedences_total_count - 1,
         parsefail, outofmemory,
@@ -968,18 +967,18 @@ int ast_ParseExprInlineOperator(
 }
 
 int ast_ParseInlineFunc(
-        const char *fileuri,
-        h64result *resultmsg,
-        h64scope *addtoscope,
-        tsinfo *tokenstreaminfo,
-        h64token *tokens,
-        int max_tokens_touse,
+        h64parsecontext *context,
+        h64parsethis *parsethis,
         int *parsefail,
         int *outofmemory,
         h64expression **out_expr,
         int *out_tokenlen,
         int nestingdepth
         ) {
+    int max_tokens_touse = parsethis->max_tokens_touse;
+    h64token *tokens = parsethis->tokens;
+    const char *fileuri = context->fileuri;
+
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
     if ( max_tokens_touse <= 0) {
@@ -996,9 +995,9 @@ int ast_ParseInlineFunc(
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
         result_Error(
-            resultmsg, buf, fileuri,
-            _refline(tokenstreaminfo, tokens, i),
-            _refcol(tokenstreaminfo, tokens, i)
+            context->resultmsg, buf, fileuri,
+            _refline(context->tokenstreaminfo, tokens, i),
+            _refcol(context->tokenstreaminfo, tokens, i)
         );
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
@@ -1012,19 +1011,29 @@ int ast_ParseInlineFunc(
     }
     memset(expr, 0, sizeof(*expr));
     expr->type = H64EXPRTYPE_INLINEFUNC; 
-    expr->line = _refline(tokenstreaminfo, tokens, 0);
-    expr->column = _refcol(tokenstreaminfo, tokens, 0);
+    expr->line = _refline(context->tokenstreaminfo, tokens, 0);
+    expr->column = _refcol(context->tokenstreaminfo, tokens, 0);
+    expr->funcdef.scope.parentscope = parsethis->scope;
+    if (!scope_Init(&expr->funcdef.scope, context->project->hashsecret)) {
+        if (outofmemory) *outofmemory = 1;
+        ast_FreeExpression(expr);
+        return 0;
+    }
     expr->tokenindex = 0 + (
-        ((char*)tokens - (char*)tokenstreaminfo->token) / sizeof(*tokens)
+        ((char*)tokens -
+         (char*)context->tokenstreaminfo->token) / sizeof(*tokens)
     );
     if (tokens[0].type == H64TK_BRACKET &&
             tokens[0].char_value == '(') {
         int tlen = 0;
         int innerparsefail = 0;
         int inneroom = 0;
+        h64parsethis _buf;
         if (!ast_ParseFuncDefArgs(
-                fileuri, resultmsg, addtoscope,
-                tokenstreaminfo, tokens, max_tokens_touse,
+                context, PARSETHIS_SCOPE(
+                    &_buf, parsethis, &expr->funcdef.scope,
+                    tokens, max_tokens_touse
+                ),
                 &innerparsefail, &inneroom,
                 &expr->funcdef.arguments, &tlen, nestingdepth
                 )) {
@@ -1044,14 +1053,14 @@ int ast_ParseInlineFunc(
                 "unexpected %s, "
                 "expected function argument list for inline "
                 "function definition",
-                _reftokname(tokenstreaminfo, tokens, i)
+                _reftokname(context->tokenstreaminfo, tokens, i)
             );
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, 0),
-                    _refcol(tokenstreaminfo, tokens, 0)
+                    _refline(context->tokenstreaminfo, tokens, 0),
+                    _refcol(context->tokenstreaminfo, tokens, 0)
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
@@ -1081,14 +1090,14 @@ int ast_ParseInlineFunc(
         snprintf(buf, sizeof(buf) - 1,
             "unexpected %s, "
             "expected function argument list for inline function",
-            _reftokname(tokenstreaminfo, tokens, i)
+            _reftokname(context->tokenstreaminfo, tokens, i)
         );
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
-                resultmsg,
+                context->resultmsg,
                 H64MSG_ERROR, buf, fileuri,
-                _refline(tokenstreaminfo, tokens, 0),
-                _refcol(tokenstreaminfo, tokens, 0)
+                _refline(context->tokenstreaminfo, tokens, 0),
+                _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
             if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 1;
@@ -1101,14 +1110,14 @@ int ast_ParseInlineFunc(
         snprintf(buf, sizeof(buf) - 1,
             "unexpected %s, "
             "expected \"=>\" for inline function",
-            _reftokname(tokenstreaminfo, tokens, i)
+            _reftokname(context->tokenstreaminfo, tokens, i)
         );
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
-                resultmsg,
+                context->resultmsg,
                 H64MSG_ERROR, buf, fileuri,
-                _refline(tokenstreaminfo, tokens, 0),
-                _refcol(tokenstreaminfo, tokens, 0)
+                _refline(context->tokenstreaminfo, tokens, 0),
+                _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
             if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 1;
@@ -1119,9 +1128,12 @@ int ast_ParseInlineFunc(
     int tlen = 0;
     int innerparsefail = 0;
     int inneroom = 0;
+    h64parsethis _buf;
     if (!ast_ParseCodeBlock(
-            fileuri, resultmsg, addtoscope,
-            tokenstreaminfo, tokens + i, max_tokens_touse - i,
+            context, PARSETHIS_SCOPE(
+                &_buf, parsethis, &expr->funcdef.scope,
+                tokens + i, max_tokens_touse - i
+            ),
             STATEMENTMODE_INFUNC,
             &expr->funcdef.stmt, &expr->funcdef.stmt_count,
             &innerparsefail, &inneroom, &tlen, nestingdepth
@@ -1134,11 +1146,11 @@ int ast_ParseInlineFunc(
         }
         if (outofmemory) *outofmemory = 0;
         if (!innerparsefail && !result_AddMessage(
-                resultmsg,
+                context->resultmsg,
                 H64MSG_ERROR, "internal error: failed to "
                 "get code block somehow", fileuri,
-                _refline(tokenstreaminfo, tokens, 0),
-                _refcol(tokenstreaminfo, tokens, 0)
+                _refline(context->tokenstreaminfo, tokens, 0),
+                _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
             if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 1;
@@ -1154,12 +1166,8 @@ int ast_ParseInlineFunc(
 }
 
 int ast_ParseExprInline(
-        const char *fileuri,
-        h64result *resultmsg,
-        h64scope *addtoscope,
-        tsinfo *tokenstreaminfo,
-        h64token *tokens,
-        int max_tokens_touse,
+        h64parsecontext *context,
+        h64parsethis *parsethis,
         int inlinemode,
         int *parsefail,
         int *outofmemory,
@@ -1167,6 +1175,10 @@ int ast_ParseExprInline(
         int *out_tokenlen,
         int nestingdepth
         ) {
+    int max_tokens_touse = parsethis->max_tokens_touse;
+    h64token *tokens = parsethis->tokens;
+    const char *fileuri = context->fileuri;
+
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
     if (max_tokens_touse < 0) {
@@ -1181,9 +1193,10 @@ int ast_ParseExprInline(
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
-        result_Error(resultmsg, buf, fileuri,
-            _refline(tokenstreaminfo, tokens, 0),
-            _refcol(tokenstreaminfo, tokens, 0)
+        result_Error(
+            context->resultmsg, buf, fileuri,
+            _refline(context->tokenstreaminfo, tokens, 0),
+            _refcol(context->tokenstreaminfo, tokens, 0)
         );
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
@@ -1193,7 +1206,7 @@ int ast_ParseExprInline(
     h64expression *expr = malloc(sizeof(*expr));
     if (!expr) {
         result_ErrorNoLoc(
-            resultmsg,
+            context->resultmsg,
             "failed to allocate expression, "
             "out of memory?",
             fileuri
@@ -1206,7 +1219,8 @@ int ast_ParseExprInline(
     expr->line = tokens[0].line;
     expr->column = tokens[0].column;
     expr->tokenindex = 0 + (
-        ((char*)tokens - (char*)tokenstreaminfo->token) / sizeof(*tokens)
+        ((char*)tokens -
+         (char*)context->tokenstreaminfo->token) / sizeof(*tokens)
     );
 
     if (inlinemode == INLINEMODE_NONGREEDY) {
@@ -1218,8 +1232,7 @@ int ast_ParseExprInline(
             int innerparsefail = 0;
             int inneroutofmemory = 0;
             if (!ast_ParseInlineFunc(
-                    fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens, max_tokens_touse,
+                    context, parsethis,
                     &innerparsefail, &inneroutofmemory,
                     &innerexpr, &tlen, nestingdepth
                     )) {
@@ -1231,7 +1244,7 @@ int ast_ParseExprInline(
                     if (parsefail) *parsefail = 1;
                     if (!innerparsefail) {
                         result_ErrorNoLoc(
-                            resultmsg,
+                            context->resultmsg,
                             "internal error, unexpectedly failed "
                             "to parse inline func. this should never "
                             "happen, not even when out of memory...",
@@ -1256,8 +1269,7 @@ int ast_ParseExprInline(
             int innerparsefail = 0;
             int inneroutofmemory = 0;
             if (!ast_ParseExprInlineOperator_Recurse(
-                    fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens, max_tokens_touse,
+                    context, parsethis,
                     NULL, 0, operator_PrecedenceByType(tokens[0].int_value),
                     &innerparsefail, &inneroutofmemory,
                     &innerexpr, &tlen, nestingdepth
@@ -1270,7 +1282,7 @@ int ast_ParseExprInline(
                     if (parsefail) *parsefail = 1;
                     if (!innerparsefail) {
                         result_ErrorNoLoc(
-                            resultmsg,
+                            context->resultmsg,
                             "internal error, unexpectedly failed "
                             "to parse inline unaryop. this should never "
                             "happen, not even when out of memory...",
@@ -1364,8 +1376,7 @@ int ast_ParseExprInline(
                     int innerparsefail = 0;
                     int inneroutofmemory = 0;
                     if (!ast_ParseInlineFunc(
-                            fileuri, resultmsg, addtoscope,
-                            tokenstreaminfo, tokens, max_tokens_touse,
+                            context, parsethis,
                             &innerparsefail, &inneroutofmemory,
                             &innerexpr, &tlen, nestingdepth
                             )) {
@@ -1377,7 +1388,7 @@ int ast_ParseExprInline(
                             if (parsefail) *parsefail = 1;
                             if (!innerparsefail) {
                                 result_ErrorNoLoc(
-                                    resultmsg,
+                                    context->resultmsg,
                                     "internal error, unexpectedly failed "
                                     "to parse inline func. this should never "
                                     "happen, not even when out of memory...",
@@ -1406,9 +1417,11 @@ int ast_ParseExprInline(
             int inneroom = 0;
             int innerparsefail = 0;
             int i = 1;
+            h64parsethis _buf;
             if (!ast_ParseExprInline(
-                    fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                    context, PARSETHIS(
+                        &_buf, parsethis, tokens + i, max_tokens_touse - i
+                    ),
                     INLINEMODE_NONGREEDY,
                     &innerparsefail, &inneroom,
                     &innerexpr, &tlen, nestingdepth
@@ -1437,15 +1450,15 @@ int ast_ParseExprInline(
                     "expected ')' corresponding to opening '(' "
                     "in line %" PRId64 ", column %" PRId64 " instead",
                     _reftokname(
-                        tokenstreaminfo, tokens, i),
-                    _refline(tokenstreaminfo, tokens, 0),
-                    _refcol(tokenstreaminfo, tokens, 0)
+                        context->tokenstreaminfo, tokens, i),
+                    _refline(context->tokenstreaminfo, tokens, 0),
+                    _refcol(context->tokenstreaminfo, tokens, 0)
                 );
                 if (!result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -1551,7 +1564,7 @@ int ast_ParseExprInline(
                         "starting in line %"
                         PRId64 ", column %" PRId64 " instead",
                         _describetoken(describebuf,
-                            tokenstreaminfo, tokens, i),
+                            context->tokenstreaminfo, tokens, i),
                         (isset ? '}' : ']'),
                         itemname,
                         expr->line, expr->column
@@ -1559,10 +1572,10 @@ int ast_ParseExprInline(
                     if (parsefail) *parsefail = 1;
                     if (outofmemory) *outofmemory = 0;
                     if (!result_AddMessage(
-                            resultmsg,
+                            context->resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, i),
-                            _refcol(tokenstreaminfo, tokens, i)
+                            _refline(context->tokenstreaminfo, tokens, i),
+                            _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
@@ -1658,17 +1671,19 @@ int ast_ParseExprInline(
                             "starting in line %"
                             PRId64 ", column %" PRId64 " instead",
                             _describetoken(describebuf,
-                                tokenstreaminfo, tokens, i),
+                                context->tokenstreaminfo, tokens, i),
                             itemname,
                             expr->line, expr->column
                         );
                         if (parsefail) *parsefail = 1;
                         if (outofmemory) *outofmemory = 0;
                         if (!result_AddMessage(
-                                resultmsg,
+                                context->resultmsg,
                                 H64MSG_ERROR, buf, fileuri,
-                                _refline(tokenstreaminfo, tokens, i),
-                                _refcol(tokenstreaminfo, tokens, i)
+                                _refline(
+                                    context->tokenstreaminfo, tokens, i),
+                                _refcol(
+                                    context->tokenstreaminfo, tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
                         ast_FreeExpression(expr);
@@ -1714,7 +1729,7 @@ int ast_ParseExprInline(
                             "starting in line %"
                             PRId64 ", column %" PRId64 " instead",
                             _describetoken(describebuf,
-                                tokenstreaminfo, tokens, i),
+                                context->tokenstreaminfo, tokens, i),
                             expect1dec, expect2dec,
                             itemname,
                             expr->line, expr->column
@@ -1722,10 +1737,12 @@ int ast_ParseExprInline(
                         if (parsefail) *parsefail = 1;
                         if (outofmemory) *outofmemory = 0;
                         if (!result_AddMessage(
-                                resultmsg,
+                                context->resultmsg,
                                 H64MSG_ERROR, buf, fileuri,
-                                _refline(tokenstreaminfo, tokens, i),
-                                _refcol(tokenstreaminfo, tokens, i)
+                                _refline(
+                                    context->tokenstreaminfo, tokens, i),
+                                _refcol(
+                                    context->tokenstreaminfo, tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
                         ast_FreeExpression(expr);
@@ -1741,17 +1758,20 @@ int ast_ParseExprInline(
                             "in line %"
                             PRId64 ", column %" PRId64 " instead",
                             _describetoken(describebuf,
-                                tokenstreaminfo, tokens, i),
-                            _refline(tokenstreaminfo, tokens, i - 1),
-                            _refcol(tokenstreaminfo, tokens, i - 1)
+                                context->tokenstreaminfo, tokens, i),
+                            _refline(context->tokenstreaminfo,
+                                     tokens, i - 1),
+                            _refcol(context->tokenstreaminfo,
+                                    tokens, i - 1)
                         );
                         if (parsefail) *parsefail = 1;
                         if (outofmemory) *outofmemory = 0;
                         if (!result_AddMessage(
-                                resultmsg,
+                                context->resultmsg,
                                 H64MSG_ERROR, buf, fileuri,
-                                _refline(tokenstreaminfo, tokens, i),
-                                _refcol(tokenstreaminfo, tokens, i)
+                                _refline(context->tokenstreaminfo,
+                                         tokens, i),
+                                _refcol(context->tokenstreaminfo, tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
                         ast_FreeExpression(expr);
@@ -1766,10 +1786,12 @@ int ast_ParseExprInline(
                 int tlen = 0;
                 int innerparsefail = 0;
                 int inneroutofmemory = 0;
+                h64parsethis _buf;
                 if (!ast_ParseExprInline(
-                        fileuri, resultmsg, addtoscope,
-                        tokenstreaminfo,
-                        tokens + i, max_tokens_touse - i,
+                        context, PARSETHIS(
+                            &_buf, parsethis, tokens + i,
+                            max_tokens_touse - i
+                        ),
                         INLINEMODE_GREEDY,
                         &innerparsefail, &inneroutofmemory,
                         &innerexpr, &tlen, nestingdepth
@@ -1789,17 +1811,19 @@ int ast_ParseExprInline(
                             "in %s starting in line %"
                             PRId64 ", column %" PRId64 " instead",
                             _describetoken(describebuf,
-                                tokenstreaminfo, tokens, i),
+                                context->tokenstreaminfo, tokens, i),
                             (ismap ? "key" : "entry"),
                             itemname,
                             expr->line, expr->column
                         );
                         if (parsefail) *parsefail = 1;
                         if (!result_AddMessage(
-                                resultmsg,
+                                context->resultmsg,
                                 H64MSG_ERROR, buf, fileuri,
-                                _refline(tokenstreaminfo, tokens, i),
-                                _refcol(tokenstreaminfo, tokens, i)
+                                _refline(context->tokenstreaminfo,
+                                         tokens, i),
+                                _refcol(context->tokenstreaminfo,
+                                        tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
                     }
@@ -1838,17 +1862,17 @@ int ast_ParseExprInline(
                         "for map starting in line %"
                         PRId64 ", column %" PRId64 " instead",
                         _describetoken(describebuf,
-                            tokenstreaminfo, tokens, i),
-                        _refline(tokenstreaminfo, tokens, 0),
-                        _refcol(tokenstreaminfo, tokens, 0)
+                            context->tokenstreaminfo, tokens, i),
+                        _refline(context->tokenstreaminfo, tokens, 0),
+                        _refcol(context->tokenstreaminfo, tokens, 0)
                     );
                     if (parsefail) *parsefail = 1;
                     if (outofmemory) *outofmemory = 0;
                     if (!result_AddMessage(
-                            resultmsg,
+                            context->resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, i),
-                            _refcol(tokenstreaminfo, tokens, i)
+                            _refline(context->tokenstreaminfo, tokens, i),
+                            _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(innerexpr);
@@ -1860,10 +1884,12 @@ int ast_ParseExprInline(
                 int tlen2 = 0;
                 innerparsefail = 0;
                 inneroutofmemory = 0;
+                h64parsethis _buf2;
                 if (!ast_ParseExprInline(
-                        fileuri, resultmsg, addtoscope,
-                        tokenstreaminfo,
-                        tokens + i, max_tokens_touse - i,
+                        context, PARSETHIS(
+                            &_buf2, parsethis,
+                            tokens + i, max_tokens_touse - i
+                        ),
                         INLINEMODE_GREEDY,
                         &innerparsefail, &inneroutofmemory,
                         &innerexpr2, &tlen2, nestingdepth
@@ -1884,15 +1910,17 @@ int ast_ParseExprInline(
                             "for map starting in line %"
                             PRId64 ", column %" PRId64 " instead",
                             _describetoken(describebuf,
-                                tokenstreaminfo, tokens, i),
+                                context->tokenstreaminfo, tokens, i),
                             expr->line, expr->column
                         );
                         if (parsefail) *parsefail = 1;
                         if (!result_AddMessage(
-                                resultmsg,
+                                context->resultmsg,
                                 H64MSG_ERROR, buf, fileuri,
-                                _refline(tokenstreaminfo, tokens, i),
-                                _refcol(tokenstreaminfo, tokens, i)
+                                _refline(context->tokenstreaminfo,
+                                         tokens, i),
+                                _refcol(context->tokenstreaminfo,
+                                        tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
                     }
@@ -1935,8 +1963,7 @@ int ast_ParseExprInline(
         int inneroom = 0;
         int innerparsefail = 0;
         if (!ast_ParseExprInlineOperator(
-                fileuri, resultmsg, addtoscope,
-                tokenstreaminfo, tokens, max_tokens_touse,
+                context, parsethis,
                 &innerparsefail, &inneroom,
                 &innerexpr, &tlen, nestingdepth
                 )) {
@@ -1967,8 +1994,7 @@ int ast_ParseExprInline(
         int inneroom = 0;
         int innerparsefail = 0;
         if (!ast_ParseExprInline(
-                fileuri, resultmsg, addtoscope,
-                tokenstreaminfo, tokens, max_tokens_touse,
+                context, parsethis,
                 INLINEMODE_NONGREEDY,
                 &innerparsefail, &inneroom,
                 &innerexpr, &tlen, nestingdepth
@@ -2033,12 +2059,8 @@ int ast_CanBeClassRef(h64expression *e) {
 }
 
 int ast_ParseCodeBlock(
-        const char *fileuri,
-        h64result *resultmsg,
-        h64scope *addtoscope,
-        tsinfo *tokenstreaminfo,
-        h64token *tokens,
-        int max_tokens_touse,
+        h64parsecontext *context,
+        h64parsethis *parsethis,
         int statementmode,
         h64expression ***stmt_ptr,
         int *stmt_count_ptr,
@@ -2047,15 +2069,19 @@ int ast_ParseCodeBlock(
         int *out_tokenlen,
         int nestingdepth
         ) {
+    int max_tokens_touse = parsethis->max_tokens_touse;
+    h64token *tokens = parsethis->tokens;
+    const char *fileuri = context->fileuri;
+
     if (max_tokens_touse <= 0) {
         if (parsefail) *parsefail = 1;
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
-                resultmsg,
+                context->resultmsg,
                 H64MSG_ERROR, "unexpected missing code block, "
                 "expected '{' for code block", fileuri,
-                _refline(tokenstreaminfo, tokens, 0),
-                _refcol(tokenstreaminfo, tokens, 0)
+                _refline(context->tokenstreaminfo, tokens, 0),
+                _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
             if (outofmemory) *outofmemory = 1;
         return 0;
@@ -2070,15 +2096,15 @@ int ast_ParseCodeBlock(
             "expected \"{\" for "
             "code block",
             _describetoken(describebuf,
-                tokenstreaminfo, tokens, i)
+                context->tokenstreaminfo, tokens, i)
         );
         if (parsefail) *parsefail = 1;
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
-                resultmsg,
+                context->resultmsg,
                 H64MSG_ERROR, buf, fileuri,
-                _refline(tokenstreaminfo, tokens, i),
-                _refcol(tokenstreaminfo, tokens, i)
+                _refline(context->tokenstreaminfo, tokens, i),
+                _refcol(context->tokenstreaminfo, tokens, i)
                 ))
             if (outofmemory) *outofmemory = 1;
         return 0;
@@ -2094,11 +2120,13 @@ int ast_ParseCodeBlock(
             int tlen = 0;
             int _innerparsefail = 0;
             int _inneroutofmemory = 0;
+            h64parsethis _buf;
             h64expression *innerexpr = NULL;
             if (!ast_ParseExprStmt(
-                    fileuri, resultmsg,
-                    addtoscope,
-                    tokenstreaminfo, &tokens[i], max_tokens_touse - i,
+                    context, PARSETHIS(
+                        &_buf, parsethis,
+                        &tokens[i], max_tokens_touse - i
+                    ),
                     (statementmode != STATEMENTMODE_INCLASS &&
                      statementmode != STATEMENTMODE_INCLASSFUNC ?
                      STATEMENTMODE_INFUNC :
@@ -2117,7 +2145,8 @@ int ast_ParseCodeBlock(
                     int previ = i;
                     i++;
                     ast_ParseRecover_FindNextStatement(
-                        tokenstreaminfo, tokens, max_tokens_touse, &i
+                        context->tokenstreaminfo,
+                        tokens, max_tokens_touse, &i
                     );
                     assert(i > previ || i >= max_tokens_touse);
                     continue;
@@ -2154,20 +2183,21 @@ int ast_ParseCodeBlock(
                 "code block opened with \"{\" in line %"
                 PRId64 ", column %" PRId64 " instead",
                 _describetoken(describebuf,
-                    tokenstreaminfo, tokens, i),
+                    context->tokenstreaminfo, tokens, i),
                 codeblock_line, codeblock_column
             );
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     )) {
                 if (outofmemory) *outofmemory = 1;
                 return 0;
             } else {
                 ast_ParseRecover_FindEndOfBlock(
-                    tokenstreaminfo, tokens, max_tokens_touse, &i
+                    context->tokenstreaminfo, tokens,
+                    max_tokens_touse, &i
                 );
                 if (i < max_tokens_touse &&
                         tokens[i].type == H64TK_BRACKET &&
@@ -2184,12 +2214,8 @@ int ast_ParseCodeBlock(
 }
 
 int ast_ParseExprStmt(
-        const char *fileuri,
-        h64result *resultmsg,
-        h64scope *addtoscope,
-        tsinfo *tokenstreaminfo,
-        h64token *tokens,
-        int max_tokens_touse,
+        h64parsecontext *context,
+        h64parsethis *parsethis,
         int statementmode,
         int *parsefail,
         int *outofmemory,
@@ -2197,6 +2223,10 @@ int ast_ParseExprStmt(
         int *out_tokenlen,
         int nestingdepth
         ) {
+    int max_tokens_touse = parsethis->max_tokens_touse;
+    h64token *tokens = parsethis->tokens;
+    const char *fileuri = context->fileuri;
+
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
     if (max_tokens_touse <= 0) {
@@ -2211,9 +2241,10 @@ int ast_ParseExprStmt(
             "exceeded maximum parser recursion of %d, "
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
-        result_Error(resultmsg, buf, fileuri,
-            _refline(tokenstreaminfo, tokens, 0),
-            _refcol(tokenstreaminfo, tokens, 0));
+        result_Error(
+            context->resultmsg, buf, fileuri,
+            _refline(context->tokenstreaminfo, tokens, 0),
+            _refcol(context->tokenstreaminfo, tokens, 0));
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
         return 0;
@@ -2222,7 +2253,7 @@ int ast_ParseExprStmt(
     h64expression *expr = malloc(sizeof(*expr));
     if (!expr) {
         result_ErrorNoLoc(
-            resultmsg,
+            context->resultmsg,
             "failed to allocate expression, "
             "out of memory?",
             fileuri
@@ -2235,7 +2266,8 @@ int ast_ParseExprStmt(
     expr->line = tokens[0].line;
     expr->column = tokens[0].column;
     expr->tokenindex = 0 + (
-        ((char*)tokens - (char*)tokenstreaminfo->token) / sizeof(*tokens)
+        ((char*)tokens -
+         (char*)context->tokenstreaminfo->token) / sizeof(*tokens)
     );
 
     // Variable definitions:
@@ -2256,15 +2288,15 @@ int ast_ParseExprStmt(
                 "expected identifier to name variable "
                 "instead",
                 _describetoken(describebuf,
-                    tokenstreaminfo, tokens, i)
+                    context->tokenstreaminfo, tokens, i)
             );
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
                     _refline(
-                        tokenstreaminfo, tokens, i),
+                        context->tokenstreaminfo, tokens, i),
                     _refcol(
-                        tokenstreaminfo, tokens, i)
+                        context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -2286,11 +2318,12 @@ int ast_ParseExprStmt(
             int _innerparsefail = 0;
             int _inneroutofmemory = 0;
             h64expression *innerexpr = NULL;
+            h64parsethis _buf;
             if (!ast_ParseExprInline(
-                    fileuri, resultmsg,
-                    addtoscope,
-                    tokenstreaminfo,
-                    &tokens[i], max_tokens_touse - i,
+                    context, PARSETHIS(
+                        &_buf, parsethis,
+                        &tokens[i], max_tokens_touse - i
+                    ),
                     INLINEMODE_GREEDY,
                     &_innerparsefail,
                     &_inneroutofmemory, &innerexpr,
@@ -2311,16 +2344,16 @@ int ast_ParseExprStmt(
                         "variable definition in line %"
                         PRId64 ", column %" PRId64 " instead",
                         _describetoken(describebuf,
-                            tokenstreaminfo, tokens, i),
+                            context->tokenstreaminfo, tokens, i),
                         expr->line, expr->column
                     );
                     if (!result_AddMessage(
-                            resultmsg,
+                            context->resultmsg,
                             H64MSG_ERROR, buf, fileuri,
                             _refline(
-                                tokenstreaminfo, tokens, i),
+                                context->tokenstreaminfo, tokens, i),
                             _refcol(
-                                tokenstreaminfo, tokens, i)
+                                context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                 }
@@ -2340,7 +2373,13 @@ int ast_ParseExprStmt(
     if (tokens[0].type == H64TK_KEYWORD &&
             strcmp(tokens[0].str_value, "func") == 0) {
         expr->type = H64EXPRTYPE_FUNCDEF_STMT;
-        expr->funcdef.scope.parentscope = addtoscope;
+        expr->funcdef.scope.parentscope = parsethis->scope;
+        if (!scope_Init(&expr->funcdef.scope,
+                context->project->hashsecret)) {
+            if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
+        }
 
         int i = 1;
         if (i >= max_tokens_touse ||
@@ -2350,15 +2389,15 @@ int ast_ParseExprStmt(
                 "unexpected %s, "
                 "expected identifier to name function "
                 "instead",
-                _reftokname(tokenstreaminfo, tokens, i)
+                _reftokname(context->tokenstreaminfo, tokens, i)
             );
             if (parsefail) *parsefail = 1;
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -2371,16 +2410,19 @@ int ast_ParseExprStmt(
             ast_FreeExpression(expr);
             return 0;
         }
-        expr->funcdef.scope.parentscope = addtoscope;
+        expr->funcdef.scope.parentscope = parsethis->scope;
         if (i < max_tokens_touse &&
                 tokens[i].type == H64TK_BRACKET &&
                 tokens[i].char_value == '(') {
             int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
+            h64parsethis _buf;
             if (!ast_ParseFuncDefArgs(
-                    fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                    context, PARSETHIS(
+                        &_buf, parsethis,
+                        tokens + i, max_tokens_touse - i
+                    ),
                     &innerparsefail, &inneroom,
                     &expr->funcdef.arguments, &tlen, nestingdepth
                     )) {
@@ -2401,16 +2443,16 @@ int ast_ParseExprStmt(
                     "expected function argument list for function "
                     "definition starting in line %" PRId64
                     ", column %" PRId64,
-                    _reftokname(tokenstreaminfo, tokens, i),
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _reftokname(context->tokenstreaminfo, tokens, i),
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                 );
                 if (outofmemory) *outofmemory = 0;
                 if (!result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -2451,15 +2493,15 @@ int ast_ParseExprStmt(
                 "expected just one for function definition "
                 " starting in line %" PRId64
                 ", column %" PRId64,
-                _refline(tokenstreaminfo, tokens, 0),
-                _refcol(tokenstreaminfo, tokens, 0)
+                _refline(context->tokenstreaminfo, tokens, 0),
+                _refcol(context->tokenstreaminfo, tokens, 0)
             );
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
@@ -2469,9 +2511,13 @@ int ast_ParseExprStmt(
         int tlen = 0;
         int innerparsefail = 0;
         int inneroom = 0;
+        h64parsethis _buf;
         if (!ast_ParseCodeBlock(
-                fileuri, resultmsg, &expr->funcdef.scope,
-                tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                context, PARSETHIS_SCOPE(
+                    &_buf, parsethis,
+                    &expr->funcdef.scope,
+                    tokens + i, max_tokens_touse - i
+                ),
                 statementmode,
                 &expr->funcdef.stmt, &expr->funcdef.stmt_count,
                 &innerparsefail, &inneroom, &tlen, nestingdepth
@@ -2484,11 +2530,11 @@ int ast_ParseExprStmt(
             }
             if (outofmemory) *outofmemory = 0;
             if (!innerparsefail && !result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, "internal error: failed to "
                     "get code block somehow", fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
@@ -2513,17 +2559,17 @@ int ast_ParseExprStmt(
                 "this is not valid outside of functions"
             );
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
             return 0;
         }
         expr->type = H64EXPRTYPE_CLASSDEF_STMT;
-        expr->classdef.scope.parentscope = addtoscope;
+        expr->classdef.scope.parentscope = parsethis->scope;
         i++;
 
         if (i >= max_tokens_touse ||
@@ -2534,15 +2580,15 @@ int ast_ParseExprStmt(
                 "expected identifier for class name",
                 _describetoken(
                     describebuf,
-                    tokenstreaminfo, tokens, i
+                    context->tokenstreaminfo, tokens, i
                 )
             );
             if (parsefail) *parsefail = 1;
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -2565,10 +2611,12 @@ int ast_ParseExprStmt(
             int innerparsefail = 0;
             int inneroutofmemory = 0;
             h64expression *innerexpr = NULL;
+            h64parsethis _buf;
             if (!ast_ParseExprInline(
-                    fileuri, resultmsg,
-                    &expr->classdef.scope,
-                    tokenstreaminfo, &tokens[i], max_tokens_touse - i,
+                    context, PARSETHIS_SCOPE(
+                        &_buf, parsethis, &expr->classdef.scope,
+                        &tokens[i], max_tokens_touse - i
+                    ),
                     INLINEMODE_GREEDY,
                     &innerparsefail,
                     &inneroutofmemory, &innerexpr,
@@ -2595,15 +2643,15 @@ int ast_ParseExprStmt(
                     "to extend from",
                     _describetoken(
                         describebuf,
-                        tokenstreaminfo, tokens, i
+                        context->tokenstreaminfo, tokens, i
                     )
                 );
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
@@ -2619,9 +2667,12 @@ int ast_ParseExprStmt(
         int tlen = 0;
         int innerparsefail = 0;
         int inneroom = 0;
+        h64parsethis _buf;
         if (!ast_ParseCodeBlock(
-                fileuri, resultmsg, addtoscope,
-                tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                context, PARSETHIS(
+                    &_buf, parsethis,
+                    tokens + i, max_tokens_touse - i
+                ),
                 STATEMENTMODE_INCLASS,
                 &stmt, &stmt_count,
                 &innerparsefail, &inneroom, &tlen, nestingdepth
@@ -2632,11 +2683,11 @@ int ast_ParseExprStmt(
             } else {
                 if (outofmemory) *outofmemory = 0;
                 if (!innerparsefail && !result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
                         "get code block somehow", fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -2734,10 +2785,10 @@ int ast_ParseExprStmt(
                 "this is only allowed in functions"
             );
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -2751,10 +2802,12 @@ int ast_ParseExprStmt(
             int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
+            h64parsethis _buf;
             if (!ast_ParseCodeBlock(
-                    fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens + i,
-                    max_tokens_touse - i,
+                    context, PARSETHIS(
+                        &_buf, parsethis,
+                        tokens + i, max_tokens_touse - i
+                    ),
                     statementmode,
                     &expr->trystmt.trystmt,
                     &expr->trystmt.trystmt_count,
@@ -2768,11 +2821,11 @@ int ast_ParseExprStmt(
                 }
                 if (outofmemory) *outofmemory = 0;
                 if (!innerparsefail && !result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
                         "get code block somehow", fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -2793,17 +2846,17 @@ int ast_ParseExprStmt(
                 "try statement starting in line %" PRId64
                 ", column, %" PRId64,
                 _describetoken(
-                    describebuf, tokenstreaminfo, tokens, i
+                    describebuf, context->tokenstreaminfo, tokens, i
                 ),
-                _refline(tokenstreaminfo, tokens, 0),
-                _refcol(tokenstreaminfo, tokens, 0)
+                _refline(context->tokenstreaminfo, tokens, 0),
+                _refcol(context->tokenstreaminfo, tokens, 0)
             );
             if (parsefail) *parsefail = 1;
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -2818,11 +2871,12 @@ int ast_ParseExprStmt(
                 int innerparsefail = 0;
                 int inneroutofmemory = 0;
                 h64expression *innerexpr = NULL;
+                h64parsethis _buf;
                 if (!ast_ParseExprInline(
-                        fileuri, resultmsg,
-                        addtoscope,
-                        tokenstreaminfo, &tokens[i],
-                        max_tokens_touse - i,
+                        context, PARSETHIS(
+                            &_buf, parsethis,
+                            &tokens[i], max_tokens_touse - i
+                        ),
                         INLINEMODE_GREEDY,
                         &innerparsefail,
                         &inneroutofmemory, &innerexpr,
@@ -2844,17 +2898,22 @@ int ast_ParseExprStmt(
                             "error for catch clause in line %" PRId64
                             ", column, %" PRId64,
                             _describetoken(
-                                describebuf, tokenstreaminfo, tokens, i
+                                describebuf, context->tokenstreaminfo,
+                                tokens, i
                             ),
-                            _refline(tokenstreaminfo, tokens, catch_i),
-                            _refcol(tokenstreaminfo, tokens, catch_i)
+                            _refline(context->tokenstreaminfo,
+                                     tokens, catch_i),
+                            _refcol(context->tokenstreaminfo,
+                                    tokens, catch_i)
                         );
                         if (parsefail) *parsefail = 1;
                         if (!result_AddMessage(
-                                resultmsg,
+                                context->resultmsg,
                                 H64MSG_ERROR, buf, fileuri,
-                                _refline(tokenstreaminfo, tokens, i),
-                                _refcol(tokenstreaminfo, tokens, i)
+                                _refline(context->tokenstreaminfo,
+                                         tokens, i),
+                                _refcol(context->tokenstreaminfo,
+                                        tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
                     }
@@ -2900,17 +2959,17 @@ int ast_ParseExprStmt(
                     "in line %" PRId64
                     ", column, %" PRId64,
                     _describetoken(
-                        describebuf, tokenstreaminfo, tokens, i
+                        describebuf, context->tokenstreaminfo, tokens, i
                     ),
-                    _refline(tokenstreaminfo, tokens, catch_i),
-                    _refcol(tokenstreaminfo, tokens, catch_i)
+                    _refline(context->tokenstreaminfo, tokens, catch_i),
+                    _refcol(context->tokenstreaminfo, tokens, catch_i)
                 );
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
@@ -2928,17 +2987,17 @@ int ast_ParseExprStmt(
                     "in line %" PRId64
                     ", column, %" PRId64,
                     _describetoken(
-                        describebuf, tokenstreaminfo, tokens, i
+                        describebuf, context->tokenstreaminfo, tokens, i
                     ),
-                    _refline(tokenstreaminfo, tokens, catch_i),
-                    _refcol(tokenstreaminfo, tokens, catch_i)
+                    _refline(context->tokenstreaminfo, tokens, catch_i),
+                    _refcol(context->tokenstreaminfo, tokens, catch_i)
                 );
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
@@ -2961,9 +3020,12 @@ int ast_ParseExprStmt(
             int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
+            h64parsethis _buf;
             if (!ast_ParseCodeBlock(
-                    fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                    context, PARSETHIS(
+                        &_buf, parsethis,
+                        tokens + i, max_tokens_touse - i
+                    ),
                     statementmode,
                     &expr->trystmt.catchstmt,
                     &expr->trystmt.catchstmt_count,
@@ -2977,11 +3039,11 @@ int ast_ParseExprStmt(
                 }
                 if (outofmemory) *outofmemory = 0;
                 if (!innerparsefail && !result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
                         "get code block somehow", fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -2998,9 +3060,12 @@ int ast_ParseExprStmt(
             int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
+            h64parsethis _buf;
             if (!ast_ParseCodeBlock(
-                    fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                    context, PARSETHIS(
+                        &_buf, parsethis,
+                        tokens + i, max_tokens_touse - i
+                    ),
                     statementmode,
                     &expr->trystmt.finallystmt,
                     &expr->trystmt.finallystmt_count,
@@ -3014,11 +3079,11 @@ int ast_ParseExprStmt(
                 }
                 if (outofmemory) *outofmemory = 0;
                 if (!innerparsefail && !result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
                         "get code block somehow", fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -3046,10 +3111,10 @@ int ast_ParseExprStmt(
                 "this is only allowed outside of functions and classes"
             );
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -3067,15 +3132,15 @@ int ast_ParseExprStmt(
                     "unexpected %s, "
                     "expected identifier for import path",
                     _describetoken(
-                        describebuf, tokenstreaminfo, tokens, i
+                        describebuf, context->tokenstreaminfo, tokens, i
                     )
                 );
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
@@ -3124,15 +3189,15 @@ int ast_ParseExprStmt(
                     "unexpected %s, "
                     "expected identifier following \"as\" keyword",
                     _describetoken(
-                        describebuf, tokenstreaminfo, tokens, i
+                        describebuf, context->tokenstreaminfo, tokens, i
                     )
                 );
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, buf, fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
@@ -3168,10 +3233,10 @@ int ast_ParseExprStmt(
                 "this is not valid outside of functions"
             );
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -3184,10 +3249,12 @@ int ast_ParseExprStmt(
         int innerparsefail = 0;
         int inneroutofmemory = 0;
         h64expression *innerexpr = NULL;
+        h64parsethis _buf;
         if (!ast_ParseExprInline(
-                fileuri, resultmsg,
-                addtoscope,
-                tokenstreaminfo, &tokens[i], max_tokens_touse - i,
+                context, PARSETHIS(
+                    &_buf, parsethis,
+                    &tokens[i], max_tokens_touse - i
+                ),
                 INLINEMODE_GREEDY,
                 &innerparsefail,
                 &inneroutofmemory, &innerexpr,
@@ -3233,10 +3300,10 @@ int ast_ParseExprStmt(
                 tokens[0].str_value
             );
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -3256,18 +3323,19 @@ int ast_ParseExprStmt(
             if (strcmp(tokens[i].str_value, "while") == 0) {
                 expr->type = H64EXPRTYPE_WHILE_STMT;
                 stmt_name = __nm_while;
-                expr->whilestmt.scope.parentscope = addtoscope;
+                expr->whilestmt.scope.parentscope = parsethis->scope;
+                // Note: scope_Init() is done further below
             } else if (strcmp(tokens[i].str_value, "for") == 0) {
                 expr->type = H64EXPRTYPE_FOR_STMT;
                 stmt_name = __nm_for;
-                expr->forstmt.scope.parentscope = addtoscope;
+                expr->forstmt.scope.parentscope = parsethis->scope;
             } else {
                 in_elseif = 0;
                 in_else = 0;
                 if (firstentry) {
                     assert(strcmp(tokens[i].str_value, "if") == 0);
                     expr->type = H64EXPRTYPE_IF_STMT;
-                    expr->ifstmt.scope.parentscope = addtoscope;
+                    expr->ifstmt.scope.parentscope = parsethis->scope;
                 } else if (strcmp(tokens[i].str_value, "elseif") == 0) {
                     in_elseif = 1;
                 } else {
@@ -3288,16 +3356,17 @@ int ast_ParseExprStmt(
                         "expected identifier for iterator "
                         "of \"%s\" statement",
                         _describetoken(
-                            describebuf, tokenstreaminfo, tokens, i
+                            describebuf, context->tokenstreaminfo,
+                            tokens, i
                         ),
                         stmt_name
                     );
                     if (parsefail) *parsefail = 1;
                     if (!result_AddMessage(
-                            resultmsg,
+                            context->resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, i),
-                            _refcol(tokenstreaminfo, tokens, i)
+                            _refline(context->tokenstreaminfo, tokens, i),
+                            _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
@@ -3314,16 +3383,18 @@ int ast_ParseExprStmt(
                         "expected identifier for iterator "
                         "of \"%s\" statement",
                         _describetoken(
-                            describebuf, tokenstreaminfo, tokens, i
+                            describebuf, context->tokenstreaminfo,
+                            tokens, i
                         ),
                         stmt_name
                     );
                     if (parsefail) *parsefail = 1;
                     if (!result_AddMessage(
-                            resultmsg,
+                            context->resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, i),
-                            _refcol(tokenstreaminfo, tokens, i)
+                            _refline(context->tokenstreaminfo,
+                                     tokens, i),
+                            _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
@@ -3338,11 +3409,12 @@ int ast_ParseExprStmt(
                 int tlen = 0;
                 int _innerparsefail = 0;
                 int _inneroutofmemory = 0;
+                h64parsethis _buf;
                 if (!ast_ParseExprInline(
-                        fileuri, resultmsg,
-                        addtoscope,
-                        tokenstreaminfo, &tokens[i],
-                        max_tokens_touse - i,
+                        context, PARSETHIS(
+                            &_buf, parsethis,
+                            &tokens[i], max_tokens_touse - i
+                        ),
                         INLINEMODE_GREEDY,
                         &_innerparsefail,
                         &_inneroutofmemory, &innerexpr,
@@ -3363,7 +3435,8 @@ int ast_ParseExprStmt(
                         "expected valid inline expression for "
                         "%s of \"%s\" statement",
                         _describetoken(
-                            describebuf, tokenstreaminfo, tokens, i
+                            describebuf, context->tokenstreaminfo,
+                            tokens, i
                         ),
                         (expr->type == H64EXPRTYPE_FOR_STMT ?
                          "iterated container" : "conditional"),
@@ -3371,10 +3444,11 @@ int ast_ParseExprStmt(
                     );
                     if (parsefail) *parsefail = 1;
                     if (!result_AddMessage(
-                            resultmsg,
+                            context->resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, i),
-                            _refcol(tokenstreaminfo, tokens, i)
+                            _refline(context->tokenstreaminfo,
+                                     tokens, i),
+                            _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
@@ -3438,13 +3512,21 @@ int ast_ParseExprStmt(
                 stmt_count_ptr = &current_clause->stmt_count;
                 scope = &current_clause->scope;
             }
+            if (!scope_Init(scope, context->project->hashsecret)) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
 
             int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
+            h64parsethis _buf;
             if (!ast_ParseCodeBlock(
-                    fileuri, resultmsg, addtoscope,
-                    tokenstreaminfo, tokens + i, max_tokens_touse - i,
+                    context, PARSETHIS(
+                        &_buf, parsethis,
+                        tokens + i, max_tokens_touse - i
+                    ),
                     statementmode,
                     stmt_ptr, stmt_count_ptr,
                     &innerparsefail, &inneroom, &tlen, nestingdepth
@@ -3457,11 +3539,11 @@ int ast_ParseExprStmt(
                 }
                 if (outofmemory) *outofmemory = 0;
                 if (!innerparsefail && !result_AddMessage(
-                        resultmsg,
+                        context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
                         "get code block somehow", fileuri,
-                        _refline(tokenstreaminfo, tokens, i),
-                        _refcol(tokenstreaminfo, tokens, i)
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
@@ -3501,10 +3583,10 @@ int ast_ParseExprStmt(
                 "this is not valid outside of functions"
             );
             if (!result_AddMessage(
-                    resultmsg,
+                    context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
-                    _refline(tokenstreaminfo, tokens, i),
-                    _refcol(tokenstreaminfo, tokens, i)
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
@@ -3515,10 +3597,12 @@ int ast_ParseExprStmt(
         int _innerparsefail = 0;
         int _inneroutofmemory = 0;
         h64expression *innerexpr = NULL;
+        h64parsethis _buf;
         if (!ast_ParseExprInline(
-                fileuri, resultmsg,
-                addtoscope,
-                tokenstreaminfo, &tokens[i], max_tokens_touse - i,
+                context, PARSETHIS(
+                    &_buf, parsethis,
+                    &tokens[i], max_tokens_touse - i
+                ),
                 INLINEMODE_GREEDY,
                 &_innerparsefail,
                 &_inneroutofmemory, &innerexpr,
@@ -3543,7 +3627,7 @@ int ast_ParseExprStmt(
                    "we're at token %d -> %s\n",
                    lhandside, i,
                    _describetoken(dbuf,
-                        tokenstreaminfo, tokens, i));
+                        context->tokenstreaminfo, tokens, i));
             if (lhandside) free(lhandside);
             #endif
 
@@ -3558,10 +3642,12 @@ int ast_ParseExprStmt(
                         "instead"
                     );
                     if (!result_AddMessage(
-                            resultmsg,
+                            context->resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, 0),
-                            _refcol(tokenstreaminfo, tokens, 0)
+                            _refline(context->tokenstreaminfo,
+                                     tokens, 0),
+                            _refcol(context->tokenstreaminfo,
+                                    tokens, 0)
                             )) {
                         if (outofmemory) *outofmemory = 1;
                         ast_FreeExpression(innerexpr);
@@ -3575,11 +3661,13 @@ int ast_ParseExprStmt(
                 int _innerparsefail = 0;
                 int _inneroutofmemory = 0;
                 h64expression *innerexpr2 = NULL;
+                h64parsethis _buf;
                 if (i >= max_tokens_touse ||
                         !ast_ParseExprInline(
-                            fileuri, resultmsg,
-                            addtoscope, tokenstreaminfo,
-                            &tokens[i], max_tokens_touse - i,
+                            context, PARSETHIS(
+                                &_buf, parsethis,
+                                &tokens[i], max_tokens_touse - i
+                            ),
                             INLINEMODE_GREEDY,
                              &_innerparsefail,
                             &_inneroutofmemory, &innerexpr2,
@@ -3599,15 +3687,17 @@ int ast_ParseExprStmt(
                             PRId64 ", column %" PRId64 " instead",
                             _describetoken(
                                 describebuf,
-                                tokenstreaminfo, tokens, i
+                                context->tokenstreaminfo, tokens, i
                             ),
                             expr->line, expr->column
                         );
                         if (!result_AddMessage(
-                                resultmsg,
+                                context->resultmsg,
                                 H64MSG_ERROR, buf, fileuri,
-                                _refline(tokenstreaminfo, tokens, i),
-                                _refcol(tokenstreaminfo, tokens, i)
+                                _refline(context->tokenstreaminfo,
+                                    tokens, i),
+                                _refcol(context->tokenstreaminfo,
+                                    tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
                     }
@@ -3641,7 +3731,7 @@ int ast_ParseExprStmt(
 }
 
 h64ast ast_ParseFromTokens(
-        const char *fileuri,
+        h64compileproject *project, const char *fileuri,
         h64token *tokens, int token_count
         ) {
     h64ast result;
@@ -3659,11 +3749,19 @@ h64ast ast_ParseFromTokens(
         int tlen = 0;
         int parsefail = 0;
         int oom = 0;
+        h64parsecontext pcontext;
+        memset(&pcontext, 0, sizeof(pcontext));
+        pcontext.project = project;
+        pcontext.resultmsg = &result.resultmsg;
+        pcontext.fileuri = fileuri;
+        pcontext.tokenstreaminfo = &tokenstreaminfo;
+        h64parsethis pthis;
+        memset(&pthis, 0, sizeof(pthis));
+        pthis.scope = &result.scope;
+        pthis.tokens = &tokens[i];
+        pthis.max_tokens_touse = token_count - i;
         if (!ast_ParseExprStmt(
-                fileuri, &result.resultmsg,
-                &result.scope,
-                &tokenstreaminfo,
-                &tokens[i], token_count - i,
+                &pcontext, &pthis,
                 STATEMENTMODE_TOPLEVEL,
                 &parsefail, &oom, &expr, &tlen,
                 0

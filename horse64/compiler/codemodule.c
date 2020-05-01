@@ -4,10 +4,11 @@
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 #include "compiler/codemodule.h"
+#include "compiler/compileproject.h"
 #include "compiler/lexer.h"
 
 h64ast codemodule_GetASTUncached(
-        __attribute__((unused)) h64compileproject *pr, const char *fileuri
+        h64compileproject *pr, const char *fileuri
         ) {
     // 1. Get tokens:
     h64tokenizedfile tfile = lexer_ParseFromFile(fileuri);
@@ -29,7 +30,7 @@ h64ast codemodule_GetASTUncached(
 
     // 2. Parse AST from tokens:
     h64ast tcode = ast_ParseFromTokens(
-        fileuri, tfile.token, tfile.token_count
+        pr, fileuri, tfile.token, tfile.token_count
     );
     lexer_FreeFileTokens(&tfile);
     haderrormessages = 0;

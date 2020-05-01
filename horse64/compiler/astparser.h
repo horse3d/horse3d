@@ -7,6 +7,8 @@
 #include "compiler/scope.h"
 
 
+typedef struct h64compileproject h64compileproject;
+
 typedef struct h64ast {
     h64result resultmsg;
     h64scope scope;
@@ -14,25 +16,55 @@ typedef struct h64ast {
     h64expression **stmt;
 } h64ast;
 
-void ast_FreeContents(h64ast *ast);
-
-
 typedef struct tsinfo {
     h64token *token;
     int token_count;
 } tsinfo;
+
+typedef struct h64parsecontext {
+    h64compileproject *project;
+    h64result *resultmsg;
+    const char *fileuri;
+    tsinfo *tokenstreaminfo;
+} h64parsecontext;
+
+typedef struct h64parsethis {
+    h64scope *scope;
+    h64token *tokens;
+    int max_tokens_touse;
+} h64parsethis;
+
+static h64parsethis *PARSETHIS(
+        h64parsethis *_buf, h64parsethis *previous,
+        h64token *tokens, int max_tokens_touse
+        ) {
+    memcpy(_buf, previous, sizeof(*previous));
+    _buf->tokens = tokens;
+    _buf->max_tokens_touse = max_tokens_touse;
+    return _buf;
+}
+
+static h64parsethis *PARSETHIS_SCOPE(
+        h64parsethis *_buf, h64parsethis *previous,
+        h64scope *scope,
+        h64token *tokens, int max_tokens_touse
+        ) {
+    memcpy(_buf, previous, sizeof(*previous));
+    _buf->scope = scope;
+    _buf->tokens = tokens;
+    _buf->max_tokens_touse = max_tokens_touse;
+    return _buf;
+}
+
+void ast_FreeContents(h64ast *ast);
 
 
 #define INLINEMODE_NONGREEDY 0
 #define INLINEMODE_GREEDY 1
 
 int ast_ParseExprInline(
-    const char *fileuri,
-    h64result *resultmsg,
-    h64scope *addtoscope,
-    tsinfo *tokenstreaminfo,
-    h64token *tokens,
-    int max_tokens_touse,
+    h64parsecontext *context,
+    h64parsethis *parsethis,
     int inlinemode,
     int *parsefail,
     int *outofmemory,
@@ -47,12 +79,8 @@ int ast_ParseExprInline(
 #define STATEMENTMODE_INCLASSFUNC 3
 
 int ast_ParseExprStmt(
-    const char *fileuri,
-    h64result *resultmsg,
-    h64scope *addtoscope,
-    tsinfo *tokenstreaminfo,
-    h64token *tokens,
-    int max_tokens_touse,
+    h64parsecontext *context,
+    h64parsethis *parsethis,
     int statementmode,
     int *parsefail,
     int *outofmemory,
@@ -62,12 +90,8 @@ int ast_ParseExprStmt(
 );
 
 int ast_ParseCodeBlock(
-    const char *fileuri,
-    h64result *resultmsg,
-    h64scope *addtoscope,
-    tsinfo *tokenstreaminfo,
-    h64token *tokens,
-    int max_tokens_touse,
+    h64parsecontext *context,
+    h64parsethis *parsethis,
     int statementmode,
     h64expression ***stmt_ptr,
     int *stmt_count_ptr,
@@ -78,7 +102,8 @@ int ast_ParseCodeBlock(
 );
 
 h64ast ast_ParseFromTokens(
-    const char *fileuri, h64token *tokens, int token_count
+    h64compileproject *project, const char *fileuri,
+    h64token *tokens, int token_count
 );
 
 int ast_CanBeLValue(h64expression *e);
