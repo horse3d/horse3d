@@ -2001,7 +2001,19 @@ int ast_ParseExprInline(
 }
 
 int ast_CanBeLValue(h64expression *e) {
-    return 0;
+    if (e->type == H64EXPRTYPE_IDENTIFIERREF) {
+        return 1;
+    } else if (e->type == H64EXPRTYPE_BINARYOP) {
+        if (e->op.optype != H64OP_MEMBERBYIDENTIFIER &&
+                e->op.optype != H64OP_CALL &&
+                e->op.optype != H64OP_INDEXBYEXPR)
+            return 0;
+        if (!ast_CanBeLValue(e->op.value1))
+            return 0;
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 int ast_CanBeClassRef(h64expression *e) {
@@ -3538,7 +3550,7 @@ int ast_ParseExprStmt(
             if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_BINOPSYMBOL &&
 -                   IS_ASSIGN_OP(tokens[i].int_value)) {
-                if (ast_CanBeLValue(innerexpr)) {
+                if (!ast_CanBeLValue(innerexpr)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
                         "unexpected term at left hand of assignment, "
@@ -3548,13 +3560,15 @@ int ast_ParseExprStmt(
                     if (!result_AddMessage(
                             resultmsg,
                             H64MSG_ERROR, buf, fileuri,
-                            _refline(tokenstreaminfo, tokens, i),
-                            _refcol(tokenstreaminfo, tokens, i)
-                            ))
+                            _refline(tokenstreaminfo, tokens, 0),
+                            _refcol(tokenstreaminfo, tokens, 0)
+                            )) {
                         if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(innerexpr);
-                    ast_FreeExpression(expr);
-                    return 0;
+                        ast_FreeExpression(innerexpr);
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                    // Continue anyway, to return a usable AST
                 }
                 i++;
                 int tlen = 0;
