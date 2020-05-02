@@ -710,6 +710,135 @@ jsonvalue *ast_ExpressionToJSON(
                 }
             }
         }
+    } else if (e->type == H64EXPRTYPE_IF_STMT) {
+        struct h64ifstmt *current_clause = &e->ifstmt;
+
+        int i = -1;;
+
+        while (current_clause) {
+            i++;
+            jsonvalue *scopeval = scope_ScopeToJSON(&current_clause->scope);
+            char name_scope[64];
+            char name_statements[64];
+            char name_condition[64] = {0};
+            if (i <= 0) {
+                memcpy(name_scope, "if-scope", strlen("if-scope"));
+                memcpy(name_statements, "if-statements",
+                       strlen("if-statements"));
+                memcpy(name_condition, "if-conditional",
+                       strlen("if-statements"));
+            } else {
+                if (current_clause->conditional) {
+                    snprintf(name_scope, sizeof(name_scope),
+                             "elseif-%d-scope", i);
+                    snprintf(name_statements, sizeof(name_statements),
+                             "elseif-%d-statements", i);
+                    snprintf(name_condition, sizeof(name_condition),
+                             "elseif-%d-conditional", i);
+                } else {
+                    memcpy(name_scope, "else-scope", strlen("else-scope"));
+                    memcpy(name_statements, "else-statements",
+                           strlen("else-statements"));
+                }
+            }
+            if (!json_SetDict(v, name_scope, scopeval)) {
+                fail = 1;
+                json_Free(scopeval);
+            }
+            jsonvalue *cblock = json_List();
+            int i = 0;
+            while (i < current_clause->stmt_count) {
+                jsonvalue *stmtjson = ast_ExpressionToJSON(
+                    current_clause->stmt[i], fileuri
+                );
+                if (!json_AddToList(cblock, stmtjson)) {
+                    json_Free(stmtjson);
+                    fail = 1;
+                    break;
+                }
+                i++;
+            }
+            if (!json_SetDict(v, name_statements, cblock)) {
+                json_Free(cblock);
+                fail = 1;
+            }
+            if (current_clause->conditional) {
+                jsonvalue *conditionval = ast_ExpressionToJSON(
+                    current_clause->conditional, fileuri
+                );
+                if (!json_SetDict(v, name_condition, conditionval)) {
+                    json_Free(conditionval);
+                    fail = 1;
+                }
+            }
+
+            current_clause = current_clause->followup_clause;
+        }
+    } else if (e->type == H64EXPRTYPE_WHILE_STMT) {
+        jsonvalue *scopeval = scope_ScopeToJSON(&e->whilestmt.scope);
+        if (!json_SetDict(v, "scope", scopeval)) {
+            fail = 1;
+            json_Free(scopeval);
+        }
+        jsonvalue *cblock = json_List();
+        int i = 0;
+        while (i < e->whilestmt.stmt_count) {
+            jsonvalue *stmtjson = ast_ExpressionToJSON(
+                e->whilestmt.stmt[i], fileuri
+            );
+            if (!json_AddToList(cblock, stmtjson)) {
+                json_Free(stmtjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "statements", cblock)) {
+            json_Free(cblock);
+            fail = 1;
+        }
+        jsonvalue *conditionval = ast_ExpressionToJSON(
+            e->whilestmt.conditional, fileuri
+        );
+        if (!json_SetDict(v, "condition", conditionval)) {
+            json_Free(conditionval);
+            fail = 1;
+        }
+    } else if (e->type == H64EXPRTYPE_FOR_STMT) {
+        if (!json_SetDictStr(
+                v, "iterator-identifier",
+                e->forstmt.iterator_identifier)) {
+            fail = 1;
+        }
+        jsonvalue *iterate_container = ast_ExpressionToJSON(
+            e->forstmt.iterated_container, fileuri
+        );
+        if (!json_SetDict(v, "iterated-container", iterate_container)) {
+            json_Free(iterate_container);
+            fail = 1;
+        }
+        jsonvalue *scopeval = scope_ScopeToJSON(&e->forstmt.scope);
+        if (!json_SetDict(v, "scope", scopeval)) {
+            fail = 1;
+            json_Free(scopeval);
+        }
+        jsonvalue *cblock = json_List();
+        int i = 0;
+        while (i < e->forstmt.stmt_count) {
+            jsonvalue *stmtjson = ast_ExpressionToJSON(
+                e->forstmt.stmt[i], fileuri
+            );
+            if (!json_AddToList(cblock, stmtjson)) {
+                json_Free(stmtjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "statements", cblock)) {
+            json_Free(cblock);
+            fail = 1;
+        }
     } else if (e->type == H64EXPRTYPE_TRY_STMT) {
         jsonvalue *trysection = json_List();
         int i = 0;
@@ -727,6 +856,11 @@ jsonvalue *ast_ExpressionToJSON(
         if (!json_SetDict(v, "try-statements", trysection)) {
             json_Free(trysection);
             fail = 1;
+        }
+        jsonvalue *tryscopeval = scope_ScopeToJSON(&e->trystmt.tryscope);
+        if (!json_SetDict(v, "try-scope", tryscopeval)) {
+            fail = 1;
+            json_Free(tryscopeval);
         }
         jsonvalue *catchtypes = json_List();
         i = 0;
@@ -771,6 +905,11 @@ jsonvalue *ast_ExpressionToJSON(
             json_Free(catchsection);
             fail = 1;
         }
+        jsonvalue *catchscopeval = scope_ScopeToJSON(&e->trystmt.catchscope);
+        if (!json_SetDict(v, "catch-scope", catchscopeval)) {
+            fail = 1;
+            json_Free(catchscopeval);
+        }
         jsonvalue *finallysection = json_List();
         i = 0;
         while (i < e->trystmt.finallystmt_count) {
@@ -784,11 +923,23 @@ jsonvalue *ast_ExpressionToJSON(
             }
             i++;
         }
+        jsonvalue *finallyscopeval = scope_ScopeToJSON(
+            &e->trystmt.finallyscope
+        );
         if (!json_SetDict(v, "finally-statements", finallysection)) {
             json_Free(finallysection);
             fail = 1;
         }
+        if (!json_SetDict(v, "finally-scope", finallyscopeval)) {
+            fail = 1;
+            json_Free(finallyscopeval);
+        }
     } else if (e->type == H64EXPRTYPE_CLASSDEF_STMT) {
+        jsonvalue *scopeval = scope_ScopeToJSON(&e->classdef.scope);
+        if (!json_SetDict(v, "scope", scopeval)) {
+            fail = 1;
+            json_Free(scopeval);
+        }
         if (e->classdef.name &&
                 !json_SetDictStr(v, "name", e->classdef.name))
             fail = 1;
@@ -926,9 +1077,15 @@ jsonvalue *ast_ExpressionToJSON(
             fail = 1;
             json_Free(contents);
         }
-    } else if (e->type == H64EXPRTYPE_FUNCDEF_STMT) {
+    } else if (e->type == H64EXPRTYPE_FUNCDEF_STMT ||
+            e->type == H64EXPRTYPE_INLINEFUNCDEF) {
+        jsonvalue *scopeval = scope_ScopeToJSON(&e->funcdef.scope);
+        if (!json_SetDict(v, "scope", scopeval)) {
+            fail = 1;
+            json_Free(scopeval);
+        }
         jsonvalue *attributes = json_List();
-        if (e->funcdef.name &&
+        if (e->funcdef.name && e->type != H64EXPRTYPE_INLINEFUNCDEF &&
                 !json_SetDictStr(v, "name", e->funcdef.name))
             fail = 1;
         jsonvalue *statements = json_List();

@@ -413,38 +413,28 @@ jsonvalue *compiler_ParseASTToJSON(
             !tast.resultmsg.success))) {
         failure = 1;
     }
-    if (!failure) {
-        if (!json_SetDict(v, "errors", errorlist)) {
-            failure = 1;
-        } else {
-            errorlist = NULL;
-        }
-        if (!json_SetDict(v, "warnings", warninglist)) {
-            failure = 1;
-        } else {
-            warninglist = NULL;
-        }
-        if (!json_SetDict(v, "information", infolist)) {
-            failure = 1;
-        } else {
-            infolist = NULL;
-        }
-        if (!json_SetDictStr(v, "file-uri", normalizeduri)) {
-            failure = 1;
-        }
-        if (!json_SetDict(v, "ast", exprlist)) {
-            failure = 1;
-        } else {
-            exprlist = NULL;
-        }
+    if (!json_SetDict(v, "errors", errorlist)) {
+        failure = 1;
+        json_Free(errorlist);
+    }
+    if (!json_SetDict(v, "warnings", warninglist)) {
+        failure = 1;
+        json_Free(warninglist);
+    }
+    if (!json_SetDict(v, "information", infolist)) {
+        failure = 1;
+        json_Free(infolist);
+    }
+    if (!json_SetDictStr(v, "file-uri", normalizeduri)) {
+        failure = 1;
+    }
+    if (!json_SetDict(v, "ast", exprlist)) {
+        failure = 1;
+        json_Free(exprlist);
     }
     compileproject_Free(project);
     project = NULL;
     if (failure) {
-        json_Free(errorlist);
-        json_Free(warninglist);
-        json_Free(infolist);
-        json_Free(exprlist);
         json_Free(v);
         free(normalizeduri);
         return NULL;
