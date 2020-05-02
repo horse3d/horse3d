@@ -3481,6 +3481,7 @@ int ast_ParseExprStmt(
                     ast_FreeExpression(expr);
                     return 0;
                 }
+                i += tlen;
             }
             if (expr->type == H64EXPRTYPE_FOR_STMT) {
                 expr->forstmt.iterator_identifier = strdup(iteratorname);
@@ -3587,6 +3588,7 @@ int ast_ParseExprStmt(
                      (strcmp(tokens[i].str_value, "else") == 0 &&
                       !in_else))
                     ) {
+                firstentry = 0;
                 continue;
             }
 
