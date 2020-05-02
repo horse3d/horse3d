@@ -52,7 +52,7 @@ LDFLAGS+= -lm -ldl
 STRIPTOOL:=strip
 endif
 
-.PHONY: test check-submodules sdl2 sdlttf freetype datapak release debug bullet3 lua doc releases
+.PHONY: test check-submodules sdl2 sdlttf freetype datapak release debug bullet3 lua releases
 
 debug: all
 testo:
@@ -149,15 +149,6 @@ ifeq ($(PLATFORM),windows)
 endif
 endif
 
-doc:
-	rm -rf ./doc-output/
-	rm -f doc/ldoc.css doc-output/logo.png
-	cp vendor/ldoc.css doc/ldoc.css
-	mkdir -p ./doc-output/
-	cp misc/logo.png doc-output/logo.png
-	cd doc && ldoc -d ../doc-output/ --style . -c ./config.ld ../horse64/scriptcore/ && cp *.png ../doc-output/topics/
-	rm -f doc/ldoc.css
-	python3 tools/fix-buggy-ldoc.py ./doc-output/
 
 releases:
 	# Clean out releases:
