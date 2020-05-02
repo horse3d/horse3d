@@ -21,7 +21,7 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_ASSIGN_STMT,
     H64EXPRTYPE_LITERAL,
     H64EXPRTYPE_IDENTIFIERREF,
-    H64EXPRTYPE_INLINEFUNC,
+    H64EXPRTYPE_INLINEFUNCDEF,
     H64EXPRTYPE_UNARYOP,
     H64EXPRTYPE_BINARYOP,
     H64EXPRTYPE_CALL,
@@ -161,13 +161,18 @@ typedef struct h64expression {
         struct trystmt {
             int trystmt_count;
             h64expression **trystmt;
+            h64scope tryscope;
+
             int exceptions_count;
             h64expression **exceptions;
             char *exception_name;
             int catchstmt_count;
             h64expression **catchstmt;
+            h64scope catchscope;
+
             int finallystmt_count;
             h64expression **finallystmt;
+            h64scope finallyscope;
         } trystmt;
         struct inlinenew {
             h64expression *value;

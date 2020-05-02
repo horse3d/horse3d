@@ -1010,7 +1010,7 @@ int ast_ParseInlineFunc(
         return 0;
     }
     memset(expr, 0, sizeof(*expr));
-    expr->type = H64EXPRTYPE_INLINEFUNC; 
+    expr->type = H64EXPRTYPE_INLINEFUNCDEF;
     expr->line = _refline(context->tokenstreaminfo, tokens, 0);
     expr->column = _refcol(context->tokenstreaminfo, tokens, 0);
     expr->funcdef.scope.parentscope = parsethis->scope;
@@ -2570,6 +2570,12 @@ int ast_ParseExprStmt(
         }
         expr->type = H64EXPRTYPE_CLASSDEF_STMT;
         expr->classdef.scope.parentscope = parsethis->scope;
+        if (!scope_Init(&expr->classdef.scope,
+                        context->project->hashsecret)) {
+            if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
+        }
         i++;
 
         if (i >= max_tokens_touse ||
@@ -2669,8 +2675,8 @@ int ast_ParseExprStmt(
         int inneroom = 0;
         h64parsethis _buf;
         if (!ast_ParseCodeBlock(
-                context, PARSETHIS(
-                    &_buf, parsethis,
+                context, PARSETHIS_SCOPE(
+                    &_buf, parsethis, &expr->classdef.scope,
                     tokens + i, max_tokens_touse - i
                 ),
                 STATEMENTMODE_INCLASS,
@@ -2799,13 +2805,20 @@ int ast_ParseExprStmt(
 
         // Get code block in try { ... }
         {
+            expr->trystmt.tryscope.parentscope = parsethis->scope;
+            if (!scope_Init(&expr->trystmt.tryscope,
+                            context->project->hashsecret)) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
             int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
             h64parsethis _buf;
             if (!ast_ParseCodeBlock(
-                    context, PARSETHIS(
-                        &_buf, parsethis,
+                    context, PARSETHIS_SCOPE(
+                        &_buf, parsethis, &expr->trystmt.tryscope,
                         tokens + i, max_tokens_touse - i
                     ),
                     statementmode,
@@ -2864,6 +2877,13 @@ int ast_ParseExprStmt(
         }
 
         if (strcmp(tokens[i].str_value, "catch") == 0) {
+            expr->trystmt.catchscope.parentscope = parsethis->scope;
+            if (!scope_Init(&expr->trystmt.catchscope,
+                            context->project->hashsecret)) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
             int catch_i = i;
             i++;
             while (1) {
@@ -2873,8 +2893,8 @@ int ast_ParseExprStmt(
                 h64expression *innerexpr = NULL;
                 h64parsethis _buf;
                 if (!ast_ParseExprInline(
-                        context, PARSETHIS(
-                            &_buf, parsethis,
+                        context, PARSETHIS_SCOPE(
+                            &_buf, parsethis, &expr->trystmt.catchscope,
                             &tokens[i], max_tokens_touse - i
                         ),
                         INLINEMODE_GREEDY,
@@ -3022,8 +3042,8 @@ int ast_ParseExprStmt(
             int inneroom = 0;
             h64parsethis _buf;
             if (!ast_ParseCodeBlock(
-                    context, PARSETHIS(
-                        &_buf, parsethis,
+                    context, PARSETHIS_SCOPE(
+                        &_buf, parsethis, &expr->trystmt.catchscope,
                         tokens + i, max_tokens_touse - i
                     ),
                     statementmode,
@@ -3061,9 +3081,16 @@ int ast_ParseExprStmt(
             int innerparsefail = 0;
             int inneroom = 0;
             h64parsethis _buf;
+            expr->trystmt.finallyscope.parentscope = parsethis->scope;
+            if (!scope_Init(&expr->trystmt.finallyscope,
+                            context->project->hashsecret)) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
             if (!ast_ParseCodeBlock(
-                    context, PARSETHIS(
-                        &_buf, parsethis,
+                    context, PARSETHIS_SCOPE(
+                        &_buf, parsethis, &expr->trystmt.finallyscope,
                         tokens + i, max_tokens_touse - i
                     ),
                     statementmode,

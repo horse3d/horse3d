@@ -62,7 +62,8 @@ int ast_VisitExpression(
                 return 0;
         break;
     case H64EXPRTYPE_FUNCDEF_STMT:
-    case H64EXPRTYPE_INLINEFUNC:
+    case H64EXPRTYPE_INLINEFUNCDEF:
+        scope_FreeData(&expr->funcdef.scope);
         i = 0;
         while (i < expr->funcdef.arguments.arg_count) {
             if (!ast_VisitExpression(
@@ -89,6 +90,7 @@ int ast_VisitExpression(
                 return 0;
         break;
     case H64EXPRTYPE_CLASSDEF_STMT:
+        scope_FreeData(&expr->classdef.scope);
         if (!ast_VisitExpression(
                 expr->classdef.baseclass_ref, expr, visit_in, visit_out, ud
                 ))
@@ -117,6 +119,7 @@ int ast_VisitExpression(
                 current_clause->followup_clause
             );
 
+            scope_FreeData(&current_clause->scope);
             if (!ast_VisitExpression(
                     current_clause->conditional, expr, visit_in, visit_out, ud
                     ))
@@ -134,6 +137,7 @@ int ast_VisitExpression(
         }
         break;
     case H64EXPRTYPE_WHILE_STMT:
+        scope_FreeData(&expr->whilestmt.scope);
         if (!ast_VisitExpression(
                 expr->whilestmt.conditional, expr, visit_in, visit_out, ud
                 ))
@@ -148,6 +152,7 @@ int ast_VisitExpression(
         }
         break;
     case H64EXPRTYPE_FOR_STMT:
+        scope_FreeData(&expr->forstmt.scope);
         if (!ast_VisitExpression(
                 expr->forstmt.iterated_container, expr,
                 visit_in, visit_out, ud
@@ -172,6 +177,7 @@ int ast_VisitExpression(
             return 0;
         break;
     case H64EXPRTYPE_TRY_STMT:
+        scope_FreeData(&expr->trystmt.tryscope);
         i = 0;
         while (i < expr->trystmt.trystmt_count) {
             if (!ast_VisitExpression(
@@ -189,6 +195,7 @@ int ast_VisitExpression(
                 return 0;
             i++;
         }
+        scope_FreeData(&expr->trystmt.catchscope);
         i = 0;
         while (i < expr->trystmt.catchstmt_count) {
             if (!ast_VisitExpression(
@@ -197,6 +204,7 @@ int ast_VisitExpression(
                 return 0;
             i++;
         }
+        scope_FreeData(&expr->trystmt.finallyscope);
         i = 0;
         while (i < expr->trystmt.finallystmt_count) {
             if (!ast_VisitExpression(
@@ -327,7 +335,7 @@ void ast_FreeExpression(h64expression *expr) {
             ast_FreeExpression(expr->vardef.value);
         break;
     case H64EXPRTYPE_FUNCDEF_STMT:
-    case H64EXPRTYPE_INLINEFUNC:
+    case H64EXPRTYPE_INLINEFUNCDEF:
         if (expr->funcdef.name)
             free(expr->funcdef.name);
         ast_ClearFunctionArgs(&expr->funcdef.arguments);
@@ -523,6 +531,7 @@ static char _h64exprname_try_stmt[] = "H64EXPRTYPE_TRY_STMT";
 static char _h64exprname_assign_stmt[] = "H64EXPRTYPE_ASSIGN_STMT";
 static char _h64exprname_literal[] = "H64EXPRTYPE_LITERAL";
 static char _h64exprname_identifierref[] = "H64EXPRTYPE_IDENTIFIERREF";
+static char _h64exprname_inlinefuncdef[] = "H64EXPRTYPE_INLINEFUNCDEF";
 static char _h64exprname_unaryop[] = "H64EXPRTYPE_UNARYOP";
 static char _h64exprname_binaryop[] = "H64EXPRTYPE_BINARYOP";
 static char _h64exprname_call[] = "H64EXPRTYPE_CALL";
@@ -559,6 +568,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_literal;
     case H64EXPRTYPE_IDENTIFIERREF:
         return _h64exprname_identifierref;
+    case H64EXPRTYPE_INLINEFUNCDEF:
+        return _h64exprname_inlinefuncdef;
     case H64EXPRTYPE_UNARYOP:
         return _h64exprname_unaryop;
     case H64EXPRTYPE_BINARYOP:
@@ -745,6 +756,7 @@ jsonvalue *ast_ExpressionToJSON(
         jsonvalue *catchsection = json_List();
         i = 0;
         while (i < e->trystmt.catchstmt_count) {
+            assert(e->trystmt.catchstmt[i] != NULL);
             jsonvalue *stmtjson = ast_ExpressionToJSON(
                 e->trystmt.catchstmt[i], fileuri
             );
