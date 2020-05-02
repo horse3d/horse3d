@@ -111,9 +111,17 @@ int compileproject_GetAST(
             pr->astfilemap, relfilepath, &entry
             ) && entry > 0) {
         h64ast *resultptr = (h64ast*)(uintptr_t)entry;
-        free(relfilepath);
-        memcpy(out_ast, resultptr, sizeof(*resultptr));
-        return 1;
+        if (resultptr->stmt_count > 0) {
+            free(relfilepath);
+            memcpy(out_ast, resultptr, sizeof(*resultptr));
+            return 1;
+        }
+        hash_StringMapUnset(
+            pr->astfilemap, relfilepath
+        );
+        result_FreeContents(&resultptr->resultmsg);
+        ast_FreeContents(resultptr);
+        free(resultptr);
     }
 
     char *absfilepath = filesys_Join(
@@ -138,8 +146,7 @@ int compileproject_GetAST(
     }
     memcpy(resultalloc, &result, sizeof(result));
 
-    if (resultalloc->stmt_count > 0 &&
-            !hash_StringMapSet(
+    if (!hash_StringMapSet(
             pr->astfilemap, relfilepath, (uintptr_t)resultalloc
             )) {
         ast_FreeContents(&result);
@@ -147,8 +154,6 @@ int compileproject_GetAST(
         free(resultalloc);
         *error = strdup("alloc fail");
         return 0;
-    } else if (resultalloc->stmt_count == 0) {
-        free(resultalloc);
     }
     memcpy(out_ast, &result, sizeof(result));
     free(relfilepath);

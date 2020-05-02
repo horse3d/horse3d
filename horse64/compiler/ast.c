@@ -371,6 +371,7 @@ void ast_FreeExpression(h64expression *expr) {
         break;
     case H64EXPRTYPE_IF_STMT: ;
         struct h64ifstmt *current_clause = &expr->ifstmt;
+        int isfirst = 1;
         while (current_clause) {
             struct h64ifstmt *next_clause = (
                 current_clause->followup_clause
@@ -383,6 +384,10 @@ void ast_FreeExpression(h64expression *expr) {
                 i++;
             }
             free(current_clause->stmt);
+            if (isfirst)
+                isfirst = 0;
+            else
+                free(current_clause);
             current_clause = next_clause;
         }
         break;
@@ -722,11 +727,11 @@ jsonvalue *ast_ExpressionToJSON(
             char name_statements[64];
             char name_condition[64] = {0};
             if (i <= 0) {
-                memcpy(name_scope, "if-scope", strlen("if-scope"));
+                memcpy(name_scope, "if-scope", strlen("if-scope") + 1);
                 memcpy(name_statements, "if-statements",
-                       strlen("if-statements"));
+                       strlen("if-statements") + 1);
                 memcpy(name_condition, "if-conditional",
-                       strlen("if-statements"));
+                       strlen("if-statements") + 1);
             } else {
                 if (current_clause->conditional) {
                     snprintf(name_scope, sizeof(name_scope),
@@ -736,9 +741,18 @@ jsonvalue *ast_ExpressionToJSON(
                     snprintf(name_condition, sizeof(name_condition),
                              "elseif-%d-conditional", i);
                 } else {
-                    memcpy(name_scope, "else-scope", strlen("else-scope"));
+                    memcpy(name_scope, "else-scope", strlen("else-scope") + 1);
                     memcpy(name_statements, "else-statements",
-                           strlen("else-statements"));
+                           strlen("else-statements") + 1);
+                }
+            }
+            if (current_clause->conditional) {
+                jsonvalue *conditionval = ast_ExpressionToJSON(
+                    current_clause->conditional, fileuri
+                );
+                if (!json_SetDict(v, name_condition, conditionval)) {
+                    json_Free(conditionval);
+                    fail = 1;
                 }
             }
             if (!json_SetDict(v, name_scope, scopeval)) {
@@ -761,15 +775,6 @@ jsonvalue *ast_ExpressionToJSON(
             if (!json_SetDict(v, name_statements, cblock)) {
                 json_Free(cblock);
                 fail = 1;
-            }
-            if (current_clause->conditional) {
-                jsonvalue *conditionval = ast_ExpressionToJSON(
-                    current_clause->conditional, fileuri
-                );
-                if (!json_SetDict(v, name_condition, conditionval)) {
-                    json_Free(conditionval);
-                    fail = 1;
-                }
             }
 
             current_clause = current_clause->followup_clause;

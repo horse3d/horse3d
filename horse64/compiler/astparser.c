@@ -3338,8 +3338,8 @@ int ast_ParseExprStmt(
         }
 
         int firstentry = 1;
+        struct h64ifstmt *current_clause = NULL;
         while (1) {
-            struct h64ifstmt *current_clause = NULL;
             const char *__nm_while = "while";
             const char *__nm_for = "for";
             const char *__nm_elseif = "elseif";
@@ -3496,7 +3496,7 @@ int ast_ParseExprStmt(
                     struct h64ifstmt *new_current_clause = malloc(
                         sizeof(*new_current_clause)
                     );
-                    if (!current_clause) {
+                    if (!new_current_clause) {
                         if (outofmemory) *outofmemory = 1;
                         ast_FreeExpression(expr);
                         ast_FreeExpression(innerexpr);
