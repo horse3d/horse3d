@@ -22,5 +22,9 @@ int scope_Init(h64scope *scope, char hashkey[16]) {
 }
 
 void scope_FreeData(h64scope *scope) {
+    if (!scope)
+        return;
 
+    if (scope->name_to_declaration_map)
+        hash_FreeMap(scope->name_to_declaration_map);
 }

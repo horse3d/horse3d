@@ -63,7 +63,6 @@ int ast_VisitExpression(
         break;
     case H64EXPRTYPE_FUNCDEF_STMT:
     case H64EXPRTYPE_INLINEFUNCDEF:
-        scope_FreeData(&expr->funcdef.scope);
         i = 0;
         while (i < expr->funcdef.arguments.arg_count) {
             if (!ast_VisitExpression(
@@ -90,7 +89,6 @@ int ast_VisitExpression(
                 return 0;
         break;
     case H64EXPRTYPE_CLASSDEF_STMT:
-        scope_FreeData(&expr->classdef.scope);
         if (!ast_VisitExpression(
                 expr->classdef.baseclass_ref, expr, visit_in, visit_out, ud
                 ))
@@ -119,7 +117,6 @@ int ast_VisitExpression(
                 current_clause->followup_clause
             );
 
-            scope_FreeData(&current_clause->scope);
             if (!ast_VisitExpression(
                     current_clause->conditional, expr, visit_in, visit_out, ud
                     ))
@@ -137,7 +134,6 @@ int ast_VisitExpression(
         }
         break;
     case H64EXPRTYPE_WHILE_STMT:
-        scope_FreeData(&expr->whilestmt.scope);
         if (!ast_VisitExpression(
                 expr->whilestmt.conditional, expr, visit_in, visit_out, ud
                 ))
@@ -152,7 +148,6 @@ int ast_VisitExpression(
         }
         break;
     case H64EXPRTYPE_FOR_STMT:
-        scope_FreeData(&expr->forstmt.scope);
         if (!ast_VisitExpression(
                 expr->forstmt.iterated_container, expr,
                 visit_in, visit_out, ud
@@ -177,7 +172,6 @@ int ast_VisitExpression(
             return 0;
         break;
     case H64EXPRTYPE_TRY_STMT:
-        scope_FreeData(&expr->trystmt.tryscope);
         i = 0;
         while (i < expr->trystmt.trystmt_count) {
             if (!ast_VisitExpression(
@@ -195,7 +189,6 @@ int ast_VisitExpression(
                 return 0;
             i++;
         }
-        scope_FreeData(&expr->trystmt.catchscope);
         i = 0;
         while (i < expr->trystmt.catchstmt_count) {
             if (!ast_VisitExpression(
@@ -204,7 +197,6 @@ int ast_VisitExpression(
                 return 0;
             i++;
         }
-        scope_FreeData(&expr->trystmt.finallyscope);
         i = 0;
         while (i < expr->trystmt.finallystmt_count) {
             if (!ast_VisitExpression(
@@ -336,6 +328,7 @@ void ast_FreeExpression(h64expression *expr) {
         break;
     case H64EXPRTYPE_FUNCDEF_STMT:
     case H64EXPRTYPE_INLINEFUNCDEF:
+        scope_FreeData(&expr->funcdef.scope);
         if (expr->funcdef.name)
             free(expr->funcdef.name);
         ast_ClearFunctionArgs(&expr->funcdef.arguments);
@@ -360,6 +353,7 @@ void ast_FreeExpression(h64expression *expr) {
         }
         break;
     case H64EXPRTYPE_CLASSDEF_STMT:
+        scope_FreeData(&expr->classdef.scope);
         free(expr->classdef.name);
         ast_FreeExpression(expr->classdef.baseclass_ref);
         i = 0;
@@ -381,6 +375,7 @@ void ast_FreeExpression(h64expression *expr) {
             struct h64ifstmt *next_clause = (
                 current_clause->followup_clause
             );
+            scope_FreeData(&current_clause->scope);
             ast_FreeExpression(current_clause->conditional);
             i = 0;
             while (i < current_clause->stmt_count) {
@@ -392,6 +387,7 @@ void ast_FreeExpression(h64expression *expr) {
         }
         break;
     case H64EXPRTYPE_WHILE_STMT:
+        scope_FreeData(&expr->whilestmt.scope);
         ast_FreeExpression(expr->whilestmt.conditional);
         i = 0;
         while (i < expr->whilestmt.stmt_count) {
@@ -401,6 +397,7 @@ void ast_FreeExpression(h64expression *expr) {
         free(expr->whilestmt.stmt);
         break;
     case H64EXPRTYPE_FOR_STMT:
+        scope_FreeData(&expr->forstmt.scope);
         free(expr->forstmt.iterator_identifier);
         ast_FreeExpression(expr->forstmt.iterated_container);
         i = 0;
@@ -423,6 +420,7 @@ void ast_FreeExpression(h64expression *expr) {
         free(expr->returnstmt.returned_expression);
         break;
     case H64EXPRTYPE_TRY_STMT:
+        scope_FreeData(&expr->trystmt.tryscope);
         i = 0;
         while (i < expr->trystmt.trystmt_count) {
             ast_FreeExpression(expr->trystmt.trystmt[i]);
@@ -436,12 +434,14 @@ void ast_FreeExpression(h64expression *expr) {
         }
         free(expr->trystmt.exceptions);
         free(expr->trystmt.exception_name);
+        scope_FreeData(&expr->trystmt.catchscope);
         i = 0;
         while (i < expr->trystmt.catchstmt_count) {
             ast_FreeExpression(expr->trystmt.catchstmt[i]);
             i++;
         }
         free(expr->trystmt.catchstmt);
+        scope_FreeData(&expr->trystmt.finallyscope);
         i = 0;
         while (i < expr->trystmt.finallystmt_count) {
             ast_FreeExpression(expr->trystmt.finallystmt[i]);
