@@ -2311,7 +2311,7 @@ int ast_ParseExprStmt(
         }
         h64scopedef *duplicateuse = NULL;
         if ((duplicateuse = scope_QueryItem(
-                parsethis->scope, expr->vardef.identifier
+                parsethis->scope, expr->vardef.identifier, 0
                 )) != NULL) {
             char buf[256];
             char describebuf[64];
@@ -2336,6 +2336,33 @@ int ast_ParseExprStmt(
                 return 0;
             }
         } else {
+            h64scopedef *shadoweduse = scope_QueryItem(
+                parsethis->scope, expr->vardef.identifier, 1
+            );
+            if (shadoweduse &&
+                    !shadoweduse->scope->is_global) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "variable definition \"%s\" shadows previous "
+                    "definition "
+                    "in line %" PRId64 ", column %" PRId64,
+                    expr->vardef.identifier,
+                    shadoweduse->declarationexpr[0]->line,
+                    shadoweduse->declarationexpr[0]->column
+                );
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_WARNING, buf, fileuri,
+                        _refline(
+                            context->tokenstreaminfo, tokens, 0),
+                        _refcol(
+                            context->tokenstreaminfo, tokens, 0)
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+            }
             if (!scope_AddItem(
                     parsethis->scope, expr->vardef.identifier,
                     expr
@@ -3818,6 +3845,7 @@ h64ast ast_ParseFromTokens(
     h64ast result;
     memset(&result, 0, sizeof(result));
     result.resultmsg.success = 1;
+    result.scope.is_global = 1;
 
     tsinfo tokenstreaminfo;
     memset(&tokenstreaminfo, 0, sizeof(tokenstreaminfo));

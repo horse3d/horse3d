@@ -45,7 +45,7 @@ int scope_AddItem(
         h64expression *expr
         ) {
     // Try to add to existing entry:
-    h64scopedef *def = scope_QueryItem(scope, identifier_ref);
+    h64scopedef *def = scope_QueryItem(scope, identifier_ref, 0);
     if (def) {
         assert(strcmp(def->identifier, identifier_ref) == 0);
         h64expression **new_exprs = realloc(
@@ -77,6 +77,7 @@ int scope_AddItem(
     assert(i < scope->definitionref_alloc);
     scope->definitionref_count++;
     memset(&scope->definitionref[i], 0, sizeof(*scope->definitionref));
+    scope->definitionref[i].scope = scope;
     scope->definitionref[i].identifier = identifier_ref;
     scope->definitionref[i].declarationexpr = malloc(
         sizeof(*scope->definitionref[i].declarationexpr)
@@ -97,15 +98,23 @@ int scope_AddItem(
     return 1;
 }
 
-h64scopedef *scope_QueryItem(h64scope *scope, const char *identifier_ref) {
+h64scopedef *scope_QueryItem(
+        h64scope *scope, const char *identifier_ref, int bubble_up
+        ) {
     uint64_t result = 0;
     assert(scope->name_to_declaration_map != NULL);
     if (!hash_StringMapGet(
             scope->name_to_declaration_map, identifier_ref, &result
-            ))
+            )) {
+        if (bubble_up && scope->parentscope)
+            return scope_QueryItem(scope->parentscope, identifier_ref, 1);
         return 0;
-    if (!result)
+    }
+    if (!result) {
+        if (bubble_up && scope->parentscope)
+            return scope_QueryItem(scope->parentscope, identifier_ref, 1);
         return 0;
+    }
     return (h64scopedef*)(uintptr_t)result;
 }
 
