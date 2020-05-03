@@ -34,7 +34,7 @@ typedef struct h64parsethis {
     int max_tokens_touse;
 } h64parsethis;
 
-static h64parsethis *PARSETHIS(
+static h64parsethis *newparsethis(
         h64parsethis *_buf, h64parsethis *previous,
         h64token *tokens, int max_tokens_touse
         ) {
@@ -44,7 +44,7 @@ static h64parsethis *PARSETHIS(
     return _buf;
 }
 
-static h64parsethis *PARSETHIS_SCOPE(
+static h64parsethis *newparsethis_newscope(
         h64parsethis *_buf, h64parsethis *previous,
         h64scope *scope,
         h64token *tokens, int max_tokens_touse

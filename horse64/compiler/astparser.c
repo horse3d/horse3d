@@ -344,7 +344,7 @@ int _ast_ParseFunctionArgList_Ex(
         assert(i > 0);
         if (i >= max_tokens_touse ||
                 !ast_ParseExprInline(
-                        context, PARSETHIS(
+                        context, newparsethis(
                             &_buf, parsethis,
                             tokens + i, max_tokens_touse - i
                         ),
@@ -481,7 +481,7 @@ int ast_ParseExprInlineOperator_Recurse(
         h64expression *innerexpr = NULL;
         h64parsethis _buf;
         if (!ast_ParseExprInline(
-                context, PARSETHIS(
+                context, newparsethis(
                     &_buf, parsethis,
                     tokens, max_tokens_touse
                 ),
@@ -627,7 +627,7 @@ int ast_ParseExprInlineOperator_Recurse(
             h64parsethis _buf;
             if (!ast_ParseExprInlineOperator_Recurse(
                     context,
-                    PARSETHIS(&_buf, parsethis, tokens + i - skipback,
+                    newparsethis(&_buf, parsethis, tokens + i - skipback,
                               max_tokens_touse - (i - skipback)),
                     innerrighthand,
                     innerrighthandlen,
@@ -742,7 +742,7 @@ int ast_ParseExprInlineOperator_Recurse(
             int innerparsefail = 0;
             h64parsethis _buf;
             if (!ast_ParseFuncCallArgs(
-                    context, PARSETHIS(
+                    context, newparsethis(
                         &_buf, parsethis, tokens + i, max_tokens_touse - i
                     ),
                     &innerparsefail, &inneroom,
@@ -806,7 +806,7 @@ int ast_ParseExprInlineOperator_Recurse(
             h64parsethis _buf;
             if (i >= max_tokens_touse ||
                     (!isindexbyexpr && !ast_ParseExprInline(
-                        context, PARSETHIS(
+                        context, newparsethis(
                             &_buf, parsethis, tokens + i, max_tokens_touse - i
                         ),
                         INLINEMODE_NONGREEDY,
@@ -815,7 +815,7 @@ int ast_ParseExprInlineOperator_Recurse(
                         nestingdepth
                         )
                     ) || (isindexbyexpr && !ast_ParseExprInline(
-                        context, PARSETHIS(
+                        context, newparsethis(
                             &_buf, parsethis, tokens + i, max_tokens_touse - i
                         ),
                         INLINEMODE_GREEDY,
@@ -1030,7 +1030,7 @@ int ast_ParseInlineFunc(
         int inneroom = 0;
         h64parsethis _buf;
         if (!ast_ParseFuncDefArgs(
-                context, PARSETHIS_SCOPE(
+                context, newparsethis_newscope(
                     &_buf, parsethis, &expr->funcdef.scope,
                     tokens, max_tokens_touse
                 ),
@@ -1130,7 +1130,7 @@ int ast_ParseInlineFunc(
     int inneroom = 0;
     h64parsethis _buf;
     if (!ast_ParseCodeBlock(
-            context, PARSETHIS_SCOPE(
+            context, newparsethis_newscope(
                 &_buf, parsethis, &expr->funcdef.scope,
                 tokens + i, max_tokens_touse - i
             ),
@@ -1419,7 +1419,7 @@ int ast_ParseExprInline(
             int i = 1;
             h64parsethis _buf;
             if (!ast_ParseExprInline(
-                    context, PARSETHIS(
+                    context, newparsethis(
                         &_buf, parsethis, tokens + i, max_tokens_touse - i
                     ),
                     INLINEMODE_NONGREEDY,
@@ -1788,7 +1788,7 @@ int ast_ParseExprInline(
                 int inneroutofmemory = 0;
                 h64parsethis _buf;
                 if (!ast_ParseExprInline(
-                        context, PARSETHIS(
+                        context, newparsethis(
                             &_buf, parsethis, tokens + i,
                             max_tokens_touse - i
                         ),
@@ -1886,7 +1886,7 @@ int ast_ParseExprInline(
                 inneroutofmemory = 0;
                 h64parsethis _buf2;
                 if (!ast_ParseExprInline(
-                        context, PARSETHIS(
+                        context, newparsethis(
                             &_buf2, parsethis,
                             tokens + i, max_tokens_touse - i
                         ),
@@ -2123,7 +2123,7 @@ int ast_ParseCodeBlock(
             h64parsethis _buf;
             h64expression *innerexpr = NULL;
             if (!ast_ParseExprStmt(
-                    context, PARSETHIS(
+                    context, newparsethis(
                         &_buf, parsethis,
                         &tokens[i], max_tokens_touse - i
                     ),
@@ -2309,6 +2309,43 @@ int ast_ParseExprStmt(
             ast_FreeExpression(expr);
             return 0;
         }
+        h64scopedef *duplicateuse = NULL;
+        if ((duplicateuse = scope_QueryItem(
+                parsethis->scope, expr->vardef.identifier
+                )) != NULL) {
+            char buf[256];
+            char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected duplicate variable \"%s\", "
+                "already defined in same scope "
+                "in line %" PRId64 ", column %" PRId64,
+                expr->vardef.identifier,
+                duplicateuse->declarationexpr[0]->line,
+                duplicateuse->declarationexpr[0]->column
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(
+                        context->tokenstreaminfo, tokens, i - 1),
+                    _refcol(
+                        context->tokenstreaminfo, tokens, i - 1)
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+        } else {
+            if (!scope_AddItem(
+                    parsethis->scope, expr->vardef.identifier,
+                    expr
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+        }
+
         char describebuf[64];
         if (i < max_tokens_touse &&
                 tokens[i].type == H64TK_BINOPSYMBOL &&
@@ -2320,7 +2357,7 @@ int ast_ParseExprStmt(
             h64expression *innerexpr = NULL;
             h64parsethis _buf;
             if (!ast_ParseExprInline(
-                    context, PARSETHIS(
+                    context, newparsethis(
                         &_buf, parsethis,
                         &tokens[i], max_tokens_touse - i
                     ),
@@ -2419,7 +2456,7 @@ int ast_ParseExprStmt(
             int inneroom = 0;
             h64parsethis _buf;
             if (!ast_ParseFuncDefArgs(
-                    context, PARSETHIS(
+                    context, newparsethis(
                         &_buf, parsethis,
                         tokens + i, max_tokens_touse - i
                     ),
@@ -2513,7 +2550,7 @@ int ast_ParseExprStmt(
         int inneroom = 0;
         h64parsethis _buf;
         if (!ast_ParseCodeBlock(
-                context, PARSETHIS_SCOPE(
+                context, newparsethis_newscope(
                     &_buf, parsethis,
                     &expr->funcdef.scope,
                     tokens + i, max_tokens_touse - i
@@ -2619,7 +2656,7 @@ int ast_ParseExprStmt(
             h64expression *innerexpr = NULL;
             h64parsethis _buf;
             if (!ast_ParseExprInline(
-                    context, PARSETHIS_SCOPE(
+                    context, newparsethis_newscope(
                         &_buf, parsethis, &expr->classdef.scope,
                         &tokens[i], max_tokens_touse - i
                     ),
@@ -2675,7 +2712,7 @@ int ast_ParseExprStmt(
         int inneroom = 0;
         h64parsethis _buf;
         if (!ast_ParseCodeBlock(
-                context, PARSETHIS_SCOPE(
+                context, newparsethis_newscope(
                     &_buf, parsethis, &expr->classdef.scope,
                     tokens + i, max_tokens_touse - i
                 ),
@@ -2817,7 +2854,7 @@ int ast_ParseExprStmt(
             int inneroom = 0;
             h64parsethis _buf;
             if (!ast_ParseCodeBlock(
-                    context, PARSETHIS_SCOPE(
+                    context, newparsethis_newscope(
                         &_buf, parsethis, &expr->trystmt.tryscope,
                         tokens + i, max_tokens_touse - i
                     ),
@@ -2893,7 +2930,7 @@ int ast_ParseExprStmt(
                 h64expression *innerexpr = NULL;
                 h64parsethis _buf;
                 if (!ast_ParseExprInline(
-                        context, PARSETHIS_SCOPE(
+                        context, newparsethis_newscope(
                             &_buf, parsethis, &expr->trystmt.catchscope,
                             &tokens[i], max_tokens_touse - i
                         ),
@@ -3042,7 +3079,7 @@ int ast_ParseExprStmt(
             int inneroom = 0;
             h64parsethis _buf;
             if (!ast_ParseCodeBlock(
-                    context, PARSETHIS_SCOPE(
+                    context, newparsethis_newscope(
                         &_buf, parsethis, &expr->trystmt.catchscope,
                         tokens + i, max_tokens_touse - i
                     ),
@@ -3089,7 +3126,7 @@ int ast_ParseExprStmt(
                 return 0;
             }
             if (!ast_ParseCodeBlock(
-                    context, PARSETHIS_SCOPE(
+                    context, newparsethis_newscope(
                         &_buf, parsethis, &expr->trystmt.finallyscope,
                         tokens + i, max_tokens_touse - i
                     ),
@@ -3293,7 +3330,7 @@ int ast_ParseExprStmt(
         h64expression *innerexpr = NULL;
         h64parsethis _buf;
         if (!ast_ParseExprInline(
-                context, PARSETHIS(
+                context, newparsethis(
                     &_buf, parsethis,
                     &tokens[i], max_tokens_touse - i
                 ),
@@ -3453,7 +3490,7 @@ int ast_ParseExprStmt(
                 int _inneroutofmemory = 0;
                 h64parsethis _buf;
                 if (!ast_ParseExprInline(
-                        context, PARSETHIS(
+                        context, newparsethis(
                             &_buf, parsethis,
                             &tokens[i], max_tokens_touse - i
                         ),
@@ -3566,8 +3603,8 @@ int ast_ParseExprStmt(
             int inneroom = 0;
             h64parsethis _buf;
             if (!ast_ParseCodeBlock(
-                    context, PARSETHIS(
-                        &_buf, parsethis,
+                    context, newparsethis_newscope(
+                        &_buf, parsethis, scope,
                         tokens + i, max_tokens_touse - i
                     ),
                     statementmode,
@@ -3643,7 +3680,7 @@ int ast_ParseExprStmt(
         h64expression *innerexpr = NULL;
         h64parsethis _buf;
         if (!ast_ParseExprInline(
-                context, PARSETHIS(
+                context, newparsethis(
                     &_buf, parsethis,
                     &tokens[i], max_tokens_touse - i
                 ),
@@ -3708,7 +3745,7 @@ int ast_ParseExprStmt(
                 h64parsethis _buf;
                 if (i >= max_tokens_touse ||
                         !ast_ParseExprInline(
-                            context, PARSETHIS(
+                            context, newparsethis(
                                 &_buf, parsethis,
                                 &tokens[i], max_tokens_touse - i
                             ),
