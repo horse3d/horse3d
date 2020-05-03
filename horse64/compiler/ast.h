@@ -202,4 +202,5 @@ int ast_VisitExpression(
         h64expression *expr, h64expression *parent, void *ud),
     void *ud
 );
+
 #endif  // HORSE64_COMPILER_AST_H_
