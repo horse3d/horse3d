@@ -3130,8 +3130,10 @@ int ast_ParseExprStmt(
     // import statements:
     if (tokens[0].type == H64TK_KEYWORD &&
             strcmp(tokens[0].str_value, "import") == 0) {
+        int brokenimport = 0;
         int i = 0;
         if (statementmode != STATEMENTMODE_TOPLEVEL) {
+            brokenimport = 1;
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected \"import\", "
@@ -3142,10 +3144,11 @@ int ast_ParseExprStmt(
                     H64MSG_ERROR, buf, fileuri,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
-                    ))
+                    )) {
                 if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
-            return 0;
+                ast_FreeExpression(expr);
+                return 0;
+            }
         }
         i++;
         expr->type = H64EXPRTYPE_IMPORT_STMT;
@@ -3239,6 +3242,18 @@ int ast_ParseExprStmt(
                 return 0;
             }
             i++;
+        }
+
+        if (!brokenimport && !scope_AddItem(
+                parsethis->scope, (
+                    expr->importstmt.import_as ?
+                    expr->importstmt.import_as :
+                    expr->importstmt.import_elements[0]
+                ), expr
+                )) {
+            if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
         }
 
         *out_expr = expr;
@@ -3772,6 +3787,17 @@ h64ast ast_ParseFromTokens(
     tokenstreaminfo.token = tokens;
     tokenstreaminfo.token_count = token_count;
 
+    if (!scope_Init(&result.scope, project->hashsecret)) {
+        result_ErrorNoLoc(
+            &result.resultmsg,
+            "out of memory / alloc fail",
+            fileuri
+        );
+        ast_FreeContents(&result);
+        result.resultmsg.success = 0;
+        return result;
+    }
+
     int i = 0;
     while (i < token_count) {
         h64expression *expr = NULL;
@@ -3867,4 +3893,5 @@ void ast_FreeContents(h64ast *ast) {
     ast->stmt_count = 0;
     free(ast->stmt);
     ast->stmt = NULL;
+    scope_FreeData(&ast->scope);
 }

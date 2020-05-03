@@ -11,13 +11,14 @@ typedef struct jsonvalue jsonvalue;
 typedef struct hashmap hashmap;
 
 typedef struct h64scopedef {
-    h64expression *declarationexpr;
+    int declarationexpr_count;
+    h64expression **declarationexpr;
     const char *identifier;
     int everused;
 } h64scopedef;
 
 typedef struct h64scope {
-    int definitionref_count;
+    int definitionref_count, definitionref_alloc;
     h64scopedef *definitionref;
 
     h64scope *parentscope;
@@ -28,6 +29,15 @@ typedef struct h64scope {
 
 
 int scope_Init(h64scope *scope, char hashkey[16]);
+
+int scope_AddItem(
+    h64scope *scope, const char *identifier_ref,
+    h64expression *expr
+);
+
+h64scopedef *scope_QueryItem(
+    h64scope *scope, const char *identifier_ref
+);
 
 void scope_FreeData(h64scope *scope);
 

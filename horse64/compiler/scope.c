@@ -1,4 +1,5 @@
 
+#include <assert.h>
 #include <string.h>
 
 #include "compiler/ast.h"
@@ -28,8 +29,84 @@ void scope_FreeData(h64scope *scope) {
 
     if (scope->name_to_declaration_map)
         hash_FreeMap(scope->name_to_declaration_map);
-    if (scope->definitionref)
+    if (scope->definitionref) {
+        int i = 0;
+        while (i < scope->definitionref_count) {
+            if (scope->definitionref[i].declarationexpr)
+                free(scope->definitionref[i].declarationexpr);
+            i++;
+        }
         free(scope->definitionref);
+    }
+}
+
+int scope_AddItem(
+        h64scope *scope, const char *identifier_ref,
+        h64expression *expr
+        ) {
+    // Try to add to existing entry:
+    h64scopedef *def = scope_QueryItem(scope, identifier_ref);
+    if (def) {
+        assert(strcmp(def->identifier, identifier_ref) == 0);
+        h64expression **new_exprs = realloc(
+            def->declarationexpr,
+            sizeof(*new_exprs) * (def->declarationexpr_count + 1)
+        );
+        if (!new_exprs)
+            return 0;
+        def->declarationexpr = new_exprs;
+        def->declarationexpr[def->declarationexpr_count] = expr;
+        def->declarationexpr_count++;
+        return 1;
+    }
+
+    // Add as new entry:
+    if (scope->definitionref_count + 1 > scope->definitionref_alloc) {
+        int new_alloc = scope->definitionref_alloc * 2;
+        if (new_alloc < scope->definitionref_count + 8)
+            new_alloc = scope->definitionref_count + 8;
+        h64scopedef *new_refs = realloc(
+            scope->definitionref, new_alloc * sizeof(*new_refs)
+        );
+        if (!new_refs)
+            return 0;
+        scope->definitionref_alloc = new_alloc;
+        scope->definitionref = new_refs;
+    }
+    int i = scope->definitionref_count;
+    assert(i < scope->definitionref_alloc);
+    scope->definitionref_count++;
+    memset(&scope->definitionref[i], 0, sizeof(*scope->definitionref));
+    scope->definitionref[i].identifier = identifier_ref;
+    scope->definitionref[i].declarationexpr = malloc(
+        sizeof(*scope->definitionref[i].declarationexpr)
+    );
+    if (!scope->definitionref[i].declarationexpr) {
+        scope->definitionref_count--;
+        return 0;
+    }
+    scope->definitionref[i].declarationexpr_count = 1;
+    scope->definitionref[i].declarationexpr[0] = expr;
+    if (!hash_StringMapSet(
+            scope->name_to_declaration_map, identifier_ref,
+            (uintptr_t)&scope->definitionref[i])) {
+        free(scope->definitionref[i].declarationexpr);
+        scope->definitionref_count--;
+        return 0;
+    }
+    return 1;
+}
+
+h64scopedef *scope_QueryItem(h64scope *scope, const char *identifier_ref) {
+    uint64_t result = 0;
+    assert(scope->name_to_declaration_map != NULL);
+    if (!hash_StringMapGet(
+            scope->name_to_declaration_map, identifier_ref, &result
+            ))
+        return 0;
+    if (!result)
+        return 0;
+    return (h64scopedef*)(uintptr_t)result;
 }
 
 jsonvalue *scope_ScopeToJSON(
@@ -52,7 +129,7 @@ jsonvalue *scope_ScopeToJSON(
         }
         if (!json_SetDictStr(item, "type",
                 ast_ExpressionTypeToStr(
-                scope->definitionref[i].declarationexpr->type)
+                scope->definitionref[i].declarationexpr[0]->type)
                 )) {
             fail = 1;
             json_Free(item);

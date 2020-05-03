@@ -428,6 +428,13 @@ jsonvalue *compiler_ParseASTToJSON(
     if (!json_SetDictStr(v, "file-uri", normalizeduri)) {
         failure = 1;
     }
+    jsonvalue *vscope = scope_ScopeToJSON(
+        &tast.scope
+    );
+    if (!json_SetDict(v, "scope", vscope)) {
+        failure = 1;
+        json_Free(vscope);
+    }
     if (!json_SetDict(v, "ast", exprlist)) {
         failure = 1;
         json_Free(exprlist);
