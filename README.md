@@ -33,14 +33,14 @@ func main {
 - **Easy to ship.** Single-binary output. No need to add an interpreter
   or separate libaries, making it suitable for cloud & micro service use.
 
-- **Multimedia included.** The runtime supports 3D via OpenGL, and
+- **Multimedia included.** Support for 3D via OpenGL, and
   2D UIs out of the box.
 
 - **Open.** *Horse64* is, excluding its logo, all free software
   under BSD-like licensing. [Check the license here.](LICENSE.md)
 
-- **Reliable.** Horse64 comes with comfortable garbage-collection,
-  giving you stability without manual hand-holding.
+- **Reliable.** Comfortable garbage-collection gives you
+  stability without manual hand-holding.
 
 
 Get Started
