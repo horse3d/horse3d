@@ -8,6 +8,7 @@
 void warningconfig_Init(h64compilewarnconfig *wconfig) {
     memset(wconfig, 0, sizeof(*wconfig));
     wconfig->warn_shadowing_vardefs = 1;
+    wconfig->warn_unrecognized_escape_sequences = 1;
 }
 
 int warningconfig_CheckOption(
@@ -38,6 +39,7 @@ int warningconfig_CheckOption(
         return 1;
     } else if (strcmp(warning_name, "all") == 0) {
         wconfig->warn_shadowing_vardefs = enable_warning;
+        wconfig->warn_unrecognized_escape_sequences = enable_warning;
         return 1;
     }
     return 0;
