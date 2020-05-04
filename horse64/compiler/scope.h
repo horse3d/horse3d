@@ -13,6 +13,8 @@ typedef struct hashmap hashmap;
 typedef struct h64scopedef h64scopedef;
 
 typedef struct h64scopedef {
+    int classandfuncnestinglevel;
+
     int declarationexpr_count;
     h64expression **declarationexpr;
     const char *identifier;
@@ -24,8 +26,10 @@ typedef struct h64scope {
     int definitionref_count, definitionref_alloc;
     h64scopedef *definitionref;
 
+    int classandfuncnestinglevel;
     h64scope *parentscope;
     int is_global;
+
     char hashkey[16];
     hashmap *name_to_declaration_map;
 } h64scope;

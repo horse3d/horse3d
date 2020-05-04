@@ -63,6 +63,9 @@ uriinfo *uri_ParseEx(
         const char *uri,
         const char *default_remote_protocol
         ) {
+    if (!uri)
+        return NULL;
+
     uriinfo *result = malloc(sizeof(*result));
     if (!result)
         return NULL;

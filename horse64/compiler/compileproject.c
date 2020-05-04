@@ -1,4 +1,5 @@
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -193,6 +194,7 @@ char *compileproject_FolderGuess(
         const char *fileuri, int cwd_fallback_if_appropriate,
         char **error
         ) {
+    assert(fileuri != NULL);
     uriinfo *uinfo = uri_ParseEx(fileuri, "https");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             strcasecmp(uinfo->protocol, "file") != 0) {

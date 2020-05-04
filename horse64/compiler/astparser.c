@@ -1068,6 +1068,8 @@ int ast_ParseInlineFunc(
         ast_FreeExpression(expr);
         return 0;
     }
+    expr->funcdef.scope.classandfuncnestinglevel =
+        expr->funcdef.scope.parentscope->classandfuncnestinglevel + 1;
     expr->tokenindex = 0 + (
         ((char*)tokens -
          (char*)context->tokenstreaminfo->token) / sizeof(*tokens)
@@ -2262,19 +2264,40 @@ int ast_ParseCodeBlock(
     return 1;
 }
 
+static const char _defnameimport[] = "import";
 static const char _defnamevar[] = "variable";
 static const char _defnamefunc[] = "function";
+static const char _defnamefuncparam[] = "function parameter";
 static const char _defnameclass[] = "class";
 static const char _defnameforloop[] = "for loop iterator";
 
-const char *_identifierdeclarationname(h64expression *expr) {
-    const char *deftype = _defnamevar;
-    if (expr->type == H64EXPRTYPE_FUNCDEF_STMT)
-        deftype = _defnamefunc;
-    else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT)
+const char *_identifierdeclarationname(
+        h64expression *expr, const char *identifier
+        ) {
+    const char *deftype = NULL;
+    if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+        if (expr->funcdef.name &&
+                strcmp(expr->funcdef.name, identifier) == 0) {
+            deftype = _defnamefunc;
+        } else {
+            assert(_funcdef_has_parameter_with_name(
+                expr, identifier
+            ));
+            deftype = _defnamefuncparam;
+        }
+    } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
         deftype = _defnameclass;
-    else if (expr->type == H64EXPRTYPE_FOR_STMT)
+    } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
         deftype = _defnameforloop;
+    } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
+        deftype = _defnameimport;
+    } else if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+        deftype = _defnamevar;
+    } else {
+        fprintf(stderr, "horsec: error: internal error: "
+            "what is this type: %d\n", expr->type);
+        assert(0 && "unrecognized scope definition type");
+    }
     return deftype;
 }
 
@@ -2287,7 +2310,6 @@ int ast_CanAddNameToScopeCheck(
         ) {
     h64scope *scope = parsethis->scope;
     int i = identifiertokenindex;
-    const char *deftype = _identifierdeclarationname(expr);
     const char *exprname = NULL;
     if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
         exprname = expr->funcdef.name;
@@ -2297,7 +2319,19 @@ int ast_CanAddNameToScopeCheck(
         exprname = expr->classdef.name;
     } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
         exprname = expr->forstmt.iterator_identifier;
+    } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
+        if (expr->importstmt.import_as != NULL) {
+            exprname = expr->importstmt.import_as;
+        } else {
+            assert(expr->importstmt.import_elements_count > 0);
+            exprname = expr->importstmt.import_elements[0];
+        }
+    } else {
+        assert(0 && "unexpected definition type, what is this?");
     }
+    const char *deftype = _identifierdeclarationname(
+        expr, exprname
+    );
 
     h64scopedef *duplicateuse = NULL;
     if ((duplicateuse = _getSameScopeShadowedDefinition(
@@ -2312,7 +2346,7 @@ int ast_CanAddNameToScopeCheck(
             ", this is not allowed",
             deftype, exprname,
             _identifierdeclarationname(
-                duplicateuse->declarationexpr[0]
+                duplicateuse->declarationexpr[0], exprname
             ),
             duplicateuse->declarationexpr[0]->line,
             duplicateuse->declarationexpr[0]->column
@@ -2338,6 +2372,8 @@ int ast_CanAddNameToScopeCheck(
                 H64EXPRTYPE_FUNCDEF_STMT ||
                 shadoweduse->declarationexpr[0]->type ==
                 H64EXPRTYPE_INLINEFUNCDEF) &&
+                shadoweduse->scope->classandfuncnestinglevel ==
+                parsethis->scope->classandfuncnestinglevel &&
                 _funcdef_has_parameter_with_name(
                 shadoweduse->declarationexpr[0],
                 expr->funcdef.name)) {
@@ -2366,21 +2402,56 @@ int ast_CanAddNameToScopeCheck(
                 if (outofmemory) *outofmemory = 1;
                 return 0;
             }
-        } else if (shadoweduse && !shadoweduse->scope->is_global &&
+        } else if (shadoweduse && ((
+                   !shadoweduse->scope->is_global &&
+                   shadoweduse->scope->classandfuncnestinglevel ==
+                   parsethis->scope->classandfuncnestinglevel &&
                    context->project->warnconfig.
-                   warn_shadowing_vardefs) {
+                   warn_shadowing_direct_locals
+                   ) || (
+                   !shadoweduse->scope->is_global &&
+                   shadoweduse->scope->classandfuncnestinglevel !=
+                   parsethis->scope->classandfuncnestinglevel &&
+                   context->project->warnconfig.
+                   warn_shadowing_parent_func_locals
+                   ) || (
+                   shadoweduse->scope->is_global &&
+                   context->project->warnconfig.
+                   warn_shadowing_globals))) {
+            char warningtypetext[64];
+            if (!shadoweduse->scope->is_global) {
+                if (shadoweduse->scope->classandfuncnestinglevel ==
+                        parsethis->scope->classandfuncnestinglevel) {
+                    snprintf(warningtypetext,
+                        sizeof(warningtypetext) - 1,
+                        ", this is not recommended "
+                        "[-Wshadowing-direct-locals]"
+                    );
+                } else {
+                    snprintf(warningtypetext,
+                        sizeof(warningtypetext) - 1,
+                        " [-Wshadowing-parent-func-locals]"
+                    );
+                }
+            } else {
+                snprintf(warningtypetext,
+                    sizeof(warningtypetext) - 1,
+                    " [-Wshadowing-globals]"
+                );
+            }
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
-                "unexpected %s \"%s\" shadowing "
+                "%s \"%s\" shadowing "
                 "previous %s definition "
                 "in line %" PRId64 ", column %" PRId64
-                ", this is not recommended [-Wshadowing-vardefs]",
+                "%s",
                 deftype, exprname,
                 _identifierdeclarationname(
-                    shadoweduse->declarationexpr[0]
+                    shadoweduse->declarationexpr[0], exprname
                 ),
                 shadoweduse->declarationexpr[0]->line,
-                shadoweduse->declarationexpr[0]->column
+                shadoweduse->declarationexpr[0]->column,
+                warningtypetext
             );
             if (!result_AddMessage(
                     context->resultmsg,
@@ -2592,6 +2663,8 @@ int ast_ParseExprStmt(
             ast_FreeExpression(expr);
             return 0;
         }
+        expr->funcdef.scope.classandfuncnestinglevel =
+            expr->funcdef.scope.parentscope->classandfuncnestinglevel + 1;
 
         int i = 1;
         if (i >= max_tokens_touse ||
@@ -2808,6 +2881,8 @@ int ast_ParseExprStmt(
             ast_FreeExpression(expr);
             return 0;
         }
+        expr->classdef.scope.classandfuncnestinglevel =
+            expr->classdef.scope.parentscope->classandfuncnestinglevel + 1;
         i++;
 
         if (i >= max_tokens_touse ||
@@ -3064,6 +3139,8 @@ int ast_ParseExprStmt(
                 ast_FreeExpression(expr);
                 return 0;
             }
+            expr->trystmt.tryscope.classandfuncnestinglevel =
+                expr->trystmt.tryscope.parentscope->classandfuncnestinglevel;
             int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
@@ -3136,6 +3213,8 @@ int ast_ParseExprStmt(
                 ast_FreeExpression(expr);
                 return 0;
             }
+            expr->trystmt.catchscope.classandfuncnestinglevel =
+                expr->trystmt.catchscope.parentscope->classandfuncnestinglevel;
             int catch_i = i;
             i++;
             while (1) {
@@ -3340,6 +3419,8 @@ int ast_ParseExprStmt(
                 ast_FreeExpression(expr);
                 return 0;
             }
+            expr->trystmt.finallyscope.classandfuncnestinglevel =
+                expr->trystmt.finallyscope.parentscope->classandfuncnestinglevel;
             if (!ast_ParseCodeBlock(
                     context, newparsethis_newscope(
                         &_buf, parsethis, &expr->trystmt.finallyscope,
@@ -3496,16 +3577,27 @@ int ast_ParseExprStmt(
             i++;
         }
 
-        if (!brokenimport && !scope_AddItem(
-                parsethis->scope, (
-                    expr->importstmt.import_as ?
-                    expr->importstmt.import_as :
-                    expr->importstmt.import_elements[0]
-                ), expr
-                )) {
-            if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
-            return 0;
+        if (!brokenimport) {
+            int scopeaddoom = 0;
+            if (ast_CanAddNameToScopeCheck(
+                    context, parsethis, expr, i - 1, &scopeaddoom
+                    )) {
+                if (!scope_AddItem(
+                        parsethis->scope, (
+                            expr->importstmt.import_as ?
+                            expr->importstmt.import_as :
+                            expr->importstmt.import_elements[0]
+                        ), expr
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+            } else if (scopeaddoom) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
         }
 
         *out_expr = expr;
@@ -3813,6 +3905,8 @@ int ast_ParseExprStmt(
                 ast_FreeExpression(expr);
                 return 0;
             }
+            scope->classandfuncnestinglevel =
+                scope->parentscope->classandfuncnestinglevel;
 
             int tlen = 0;
             int innerparsefail = 0;

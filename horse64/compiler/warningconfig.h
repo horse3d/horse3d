@@ -3,7 +3,9 @@
 
 
 typedef struct h64compilewarnconfig {
-    int warn_shadowing_vardefs;
+    int warn_shadowing_direct_locals;
+    int warn_shadowing_parent_func_locals;
+    int warn_shadowing_globals;
     int warn_unrecognized_escape_sequences;
 } h64compilewarnconfig;
 

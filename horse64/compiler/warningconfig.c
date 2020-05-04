@@ -7,7 +7,9 @@
 
 void warningconfig_Init(h64compilewarnconfig *wconfig) {
     memset(wconfig, 0, sizeof(*wconfig));
-    wconfig->warn_shadowing_vardefs = 1;
+    wconfig->warn_shadowing_direct_locals = 1;
+    wconfig->warn_shadowing_parent_func_locals = 0;
+    wconfig->warn_shadowing_globals = 0;
     wconfig->warn_unrecognized_escape_sequences = 1;
 }
 
@@ -31,14 +33,27 @@ int warningconfig_CheckOption(
                 sizeof(warning_name) - strlen("no-"));
     }
 
-    if (strcmp(warning_name, "shadowing-vardefs") == 0) {
-        wconfig->warn_shadowing_vardefs = enable_warning;
+    if (strcmp(warning_name, "shadowing-direct-locals") == 0) {
+        wconfig->warn_shadowing_direct_locals = enable_warning;
+        return 1;
+    } else if (strcmp(warning_name, "shadowing-parent-func-locals") == 0) {
+        wconfig->warn_shadowing_parent_func_locals = enable_warning;
+        return 1;
+    } else if (strcmp(warning_name, "shadowing-globals") == 0) {
+        wconfig->warn_shadowing_globals = enable_warning;
+        return 1;
+    } else if (strcmp(warning_name, "shadowing-all") == 0) {
+        wconfig->warn_shadowing_direct_locals = enable_warning;
+        wconfig->warn_shadowing_parent_func_locals = enable_warning;
+        wconfig->warn_shadowing_globals = enable_warning;
         return 1;
     } else if (strcmp(warning_name, "unrecognized-escape-sequences") == 0) {
         wconfig->warn_unrecognized_escape_sequences = enable_warning;
         return 1;
     } else if (strcmp(warning_name, "all") == 0) {
-        wconfig->warn_shadowing_vardefs = enable_warning;
+        wconfig->warn_shadowing_direct_locals = enable_warning;
+        wconfig->warn_shadowing_parent_func_locals = enable_warning;
+        wconfig->warn_shadowing_globals = enable_warning;
         wconfig->warn_unrecognized_escape_sequences = enable_warning;
         return 1;
     }
