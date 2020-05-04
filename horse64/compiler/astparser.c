@@ -204,6 +204,7 @@ void ast_ParseRecover_FindEndOfBlock(
 int _ast_ParseFunctionArgList_Ex(
         h64parsecontext *context,
         h64parsethis *parsethis,
+        h64expression *funcdefexpr,
         int is_call,
         int *parsefail,
         int *outofmemory,
@@ -211,6 +212,7 @@ int _ast_ParseFunctionArgList_Ex(
         int *out_tokenlen,
         int nestingdepth
         ) {
+    assert(is_call == (funcdefexpr == NULL));
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
     const char *fileuri = context->fileuri;
@@ -299,6 +301,10 @@ int _ast_ParseFunctionArgList_Ex(
             out_funcargs->arg_count++;
             i++;
             if (tokens[i].type == H64TK_COMMA) i++;
+            if (!is_call && !scope_AddItem(
+                    parsethis->scope, arg_name, funcdefexpr
+                    ))
+                goto oom;
             continue;
         }
         if (!is_call && !kwarg_name) {
@@ -335,6 +341,10 @@ int _ast_ParseFunctionArgList_Ex(
             ast_ClearFunctionArgs(out_funcargs);
             return 0;
         }
+        if (!is_call && !scope_AddItem(
+                parsethis->scope, kwarg_name, funcdefexpr
+                ))
+            goto oom;
 
         int inneroom = 0;
         int innerparsefail = 0;
@@ -397,7 +407,7 @@ int ast_ParseFuncCallArgs(
         int nestingdepth
         ) {
     return _ast_ParseFunctionArgList_Ex(
-        context, parsethis,
+        context, parsethis, NULL,
         1, parsefail, outofmemory,
         out_funcargs, out_tokenlen, nestingdepth
     );
@@ -406,6 +416,7 @@ int ast_ParseFuncCallArgs(
 int ast_ParseFuncDefArgs(
         h64parsecontext *context,
         h64parsethis *parsethis,
+        h64expression *funcdefexpr,
         int *parsefail,
         int *outofmemory,
         h64funcargs *out_funcargs,
@@ -413,7 +424,7 @@ int ast_ParseFuncDefArgs(
         int nestingdepth
         ) {
     return _ast_ParseFunctionArgList_Ex(
-        context, parsethis,
+        context, parsethis, funcdefexpr,
         0, parsefail, outofmemory,
         out_funcargs, out_tokenlen, nestingdepth
     );
@@ -1033,7 +1044,7 @@ int ast_ParseInlineFunc(
                 context, newparsethis_newscope(
                     &_buf, parsethis, &expr->funcdef.scope,
                     tokens, max_tokens_touse
-                ),
+                ), expr,
                 &innerparsefail, &inneroom,
                 &expr->funcdef.arguments, &tlen, nestingdepth
                 )) {
@@ -2469,12 +2480,7 @@ int ast_ParseExprStmt(
         }
         expr->funcdef.name = strdup(tokens[i].str_value);
         i++;
-        if (!expr->funcdef.name) {
-            if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
-            return 0;
-        }
-        expr->funcdef.scope.parentscope = parsethis->scope;
+
         if (i < max_tokens_touse &&
                 tokens[i].type == H64TK_BRACKET &&
                 tokens[i].char_value == '(') {
@@ -2483,10 +2489,10 @@ int ast_ParseExprStmt(
             int inneroom = 0;
             h64parsethis _buf;
             if (!ast_ParseFuncDefArgs(
-                    context, newparsethis(
-                        &_buf, parsethis,
+                    context, newparsethis_newscope(
+                        &_buf, parsethis, &expr->funcdef.scope,
                         tokens + i, max_tokens_touse - i
-                    ),
+                    ), expr,
                     &innerparsefail, &inneroom,
                     &expr->funcdef.arguments, &tlen, nestingdepth
                     )) {

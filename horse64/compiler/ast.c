@@ -1084,15 +1084,15 @@ jsonvalue *ast_ExpressionToJSON(
         }
     } else if (e->type == H64EXPRTYPE_FUNCDEF_STMT ||
             e->type == H64EXPRTYPE_INLINEFUNCDEF) {
+        if (e->funcdef.name && e->type != H64EXPRTYPE_INLINEFUNCDEF &&
+                !json_SetDictStr(v, "name", e->funcdef.name))
+            fail = 1;
         jsonvalue *scopeval = scope_ScopeToJSON(&e->funcdef.scope);
         if (!json_SetDict(v, "scope", scopeval)) {
             fail = 1;
             json_Free(scopeval);
         }
         jsonvalue *attributes = json_List();
-        if (e->funcdef.name && e->type != H64EXPRTYPE_INLINEFUNCDEF &&
-                !json_SetDictStr(v, "name", e->funcdef.name))
-            fail = 1;
         jsonvalue *statements = json_List();
         int i = 0;
         while (i < e->funcdef.stmt_count) {
