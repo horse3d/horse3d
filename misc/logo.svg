@@ -214,9 +214,9 @@
      inkscape:document-rotation="0"
      inkscape:current-layer="layer1"
      inkscape:document-units="mm"
-     inkscape:cy="101.43922"
-     inkscape:cx="123.24063"
-     inkscape:zoom="2.8"
+     inkscape:cy="35.696467"
+     inkscape:cx="-222.45171"
+     inkscape:zoom="0.98994949"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0"
      borderopacity="0.94117647"
@@ -324,12 +324,12 @@
        sodipodi:nodetypes="cccsccsccccccsc" />
     <text
        transform="translate(-17.100389,-18.858553)"
-       style="font-style:normal;font-weight:normal;font-size:17.6389px;line-height:11.0243px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;white-space:pre;shape-inside:url(#rect835);fill:url(#linearGradient1014);fill-opacity:1;stroke:#1c0c18;stroke-width:1.065;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;"
+       style="font-style:normal;font-weight:normal;font-size:17.6389px;line-height:11.0243px;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;white-space:pre;shape-inside:url(#rect835);fill:url(#linearGradient1014);fill-opacity:1;stroke:#1c0c18;stroke-width:0.865;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;"
        id="text833"
        xml:space="preserve"><tspan
          sodipodi:role="line"
          x="18.769531"
          y="57.592623"><tspan
-           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Bungee;-inkscape-font-specification:Bungee;fill:url(#linearGradient1014);fill-opacity:1;stroke:#1c0c18;stroke-width:1.065;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">Horse</tspan></tspan></text>
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Bungee;-inkscape-font-specification:Bungee;fill:url(#linearGradient1014);fill-opacity:1;stroke:#1c0c18;stroke-width:0.865;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">Horse</tspan></tspan></text>
   </g>
 </svg>
