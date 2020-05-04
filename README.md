@@ -75,7 +75,7 @@ syntax appeals to you, but their extremely dynamic nature gives you
 headaches in larger projects with either deployment, or development.
 
 **You may NOT want** to use Horse 64 if low-level memory control and
-brute performance is your main concern, since Horse64 still uses bytecode
+pure performance is your main concern, since Horse64 still uses bytecode
 at its heart and not low-level machine code compilation.
 
 
