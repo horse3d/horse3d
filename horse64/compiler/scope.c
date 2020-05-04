@@ -38,6 +38,7 @@ void scope_FreeData(h64scope *scope) {
         }
         free(scope->definitionref);
     }
+    memset(scope, 0, sizeof(*scope));
 }
 
 int scope_AddItem(

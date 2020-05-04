@@ -89,6 +89,44 @@ static const char *_describetoken(
     return buf;
 }
 
+static h64scopedef *_getSameScopeShadowedDefinition(
+        h64parsethis *parsethis, const char *identifier) {
+    h64scopedef *duplicateuse = scope_QueryItem(
+        parsethis->scope, identifier, 0
+    );
+    if (duplicateuse) {
+        if (duplicateuse->declarationexpr_count == 0)
+            return NULL;
+        h64expression *expr = duplicateuse->declarationexpr[0];
+        if (expr->type == H64EXPRTYPE_INLINEFUNCDEF)
+            return NULL;
+        if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+            if (expr->funcdef.name &&
+                    strcmp(expr->funcdef.name, identifier) == 0)
+                return duplicateuse;
+            return NULL;
+        }
+        return duplicateuse;
+    }
+    return NULL;
+}
+
+static int _funcdef_has_parameter_with_name(
+        h64expression *expr, const char *name) {
+    if (expr->type == H64EXPRTYPE_FUNCDEF_STMT
+            || expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
+        int i = 0;
+        while (i < expr->funcdef.arguments.arg_count) {
+            if (strcmp(expr->funcdef.arguments.arg_name[i], name) == 0)
+                return 1;
+            i++;
+        }
+        return 0;
+    } else {
+        return 0;
+    }
+}
+
 void ast_ParseRecover_FindNextStatement(
         tsinfo *tokenstreaminfo, h64token *tokens,
         int max_tokens_touse, int *k
@@ -2224,6 +2262,148 @@ int ast_ParseCodeBlock(
     return 1;
 }
 
+static const char _defnamevar[] = "variable";
+static const char _defnamefunc[] = "function";
+static const char _defnameclass[] = "class";
+static const char _defnameforloop[] = "for loop iterator";
+
+const char *_identifierdeclarationname(h64expression *expr) {
+    const char *deftype = _defnamevar;
+    if (expr->type == H64EXPRTYPE_FUNCDEF_STMT)
+        deftype = _defnamefunc;
+    else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT)
+        deftype = _defnameclass;
+    else if (expr->type == H64EXPRTYPE_FOR_STMT)
+        deftype = _defnameforloop;
+    return deftype;
+}
+
+int ast_CanAddNameToScopeCheck(
+        h64parsecontext *context,
+        h64parsethis *parsethis,
+        h64expression *expr,
+        int identifiertokenindex,
+        int *outofmemory
+        ) {
+    h64scope *scope = parsethis->scope;
+    int i = identifiertokenindex;
+    const char *deftype = _identifierdeclarationname(expr);
+    const char *exprname = NULL;
+    if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+        exprname = expr->funcdef.name;
+    } else if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+        exprname = expr->vardef.identifier;
+    } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
+        exprname = expr->classdef.name;
+    } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
+        exprname = expr->forstmt.iterator_identifier;
+    }
+
+    h64scopedef *duplicateuse = NULL;
+    if ((duplicateuse = _getSameScopeShadowedDefinition(
+            parsethis, exprname
+            )) != NULL) {
+        char buf[256];
+        char describebuf[64];
+        snprintf(buf, sizeof(buf) - 1,
+            "unexpected duplicate %s \"%s\", "
+            "already defined as %s in same scope "
+            "in line %" PRId64 ", column %" PRId64
+            ", this is not allowed",
+            deftype, exprname,
+            _identifierdeclarationname(
+                duplicateuse->declarationexpr[0]
+            ),
+            duplicateuse->declarationexpr[0]->line,
+            duplicateuse->declarationexpr[0]->column
+        );
+        if (!result_AddMessage(
+                context->resultmsg,
+                H64MSG_ERROR, buf, context->fileuri,
+                _refline(
+                    context->tokenstreaminfo, parsethis->tokens, i),
+                _refcol(
+                    context->tokenstreaminfo, parsethis->tokens, i)
+                )) {
+            if (outofmemory) *outofmemory = 1;
+            return 0;
+        }
+    } else {
+        h64scopedef *shadoweduse = scope_QueryItem(
+            parsethis->scope, exprname, 1
+        );
+        int forbidden = 0;
+        if (shadoweduse &&
+                (shadoweduse->declarationexpr[0]->type ==
+                H64EXPRTYPE_FUNCDEF_STMT ||
+                shadoweduse->declarationexpr[0]->type ==
+                H64EXPRTYPE_INLINEFUNCDEF) &&
+                _funcdef_has_parameter_with_name(
+                shadoweduse->declarationexpr[0],
+                expr->funcdef.name)) {
+            forbidden = 1;
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected %s \"%s\" "
+                "shadowing function "
+                "parameter seen "
+                "in line %" PRId64 ", column %" PRId64
+                ", this is not allowed",
+                deftype, exprname,
+                shadoweduse->declarationexpr[0]->line,
+                shadoweduse->declarationexpr[0]->column
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, context->fileuri,
+                    _refline(
+                        context->tokenstreaminfo,
+                        parsethis->tokens, i),
+                    _refcol(
+                        context->tokenstreaminfo,
+                        parsethis->tokens, i)
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+        } else if (shadoweduse && !shadoweduse->scope->is_global &&
+                   context->project->warnconfig.
+                   warn_shadowing_vardefs) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected %s \"%s\" shadowing "
+                "previous %s definition "
+                "in line %" PRId64 ", column %" PRId64
+                ", this is not recommended [-Wshadowing-vardefs]",
+                deftype, exprname,
+                _identifierdeclarationname(
+                    shadoweduse->declarationexpr[0]
+                ),
+                shadoweduse->declarationexpr[0]->line,
+                shadoweduse->declarationexpr[0]->column
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_WARNING, buf, context->fileuri,
+                    _refline(
+                        context->tokenstreaminfo,
+                        parsethis->tokens, i),
+                    _refcol(
+                        context->tokenstreaminfo,
+                        parsethis->tokens, i)
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+        }
+        if (!forbidden) {
+            return 1;
+        }
+    }
+    if (outofmemory) *outofmemory = 0;
+    return 0;
+}
+
 int ast_ParseExprStmt(
         h64parsecontext *context,
         h64parsethis *parsethis,
@@ -2320,97 +2500,21 @@ int ast_ParseExprStmt(
             ast_FreeExpression(expr);
             return 0;
         }
-        h64scopedef *duplicateuse = NULL;
-        if ((duplicateuse = scope_QueryItem(
-                parsethis->scope, expr->vardef.identifier, 0
-                )) != NULL) {
-            char buf[256];
-            char describebuf[64];
-            snprintf(buf, sizeof(buf) - 1,
-                "unexpected duplicate variable \"%s\", "
-                "already defined in same scope "
-                "in line %" PRId64 ", column %" PRId64,
-                expr->vardef.identifier,
-                duplicateuse->declarationexpr[0]->line,
-                duplicateuse->declarationexpr[0]->column
-            );
-            if (!result_AddMessage(
-                    context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
-                    _refline(
-                        context->tokenstreaminfo, tokens, i - 1),
-                    _refcol(
-                        context->tokenstreaminfo, tokens, i - 1)
+
+        {
+            int scopeaddoom = 0;
+            if (ast_CanAddNameToScopeCheck(
+                    context, parsethis, expr, i - 1, &scopeaddoom
                     )) {
-                if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
-                return 0;
-            }
-        } else {
-            h64scopedef *shadoweduse = scope_QueryItem(
-                parsethis->scope, expr->vardef.identifier, 1
-            );
-            int forbidden = 0;
-            if (shadoweduse &&
-                    !shadoweduse->scope->is_global) {
-                if (shadoweduse->declarationexpr[0]->type ==
-                        H64EXPRTYPE_FUNCDEF_STMT ||
-                        shadoweduse->declarationexpr[0]->type ==
-                        H64EXPRTYPE_INLINEFUNCDEF) {
-                    forbidden = 1;
-                    char buf[256];
-                    snprintf(buf, sizeof(buf) - 1,
-                        "unexpected variable definition \"%s\" "
-                        "shadowing function "
-                        "parameter seen "
-                        "in line %" PRId64 ", column %" PRId64
-                        ", this is not allowed",
-                        expr->vardef.identifier,
-                        shadoweduse->declarationexpr[0]->line,
-                        shadoweduse->declarationexpr[0]->column
-                    );
-                    if (!result_AddMessage(
-                            context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
-                            _refline(
-                                context->tokenstreaminfo, tokens, 0),
-                            _refcol(
-                                context->tokenstreaminfo, tokens, 0)
-                            )) {
-                        if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
-                        return 0;
-                    }
-                } else if (context->project->warnconfig.
-                           warn_shadowing_vardefs) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf) - 1,
-                        "unexpected variable definition \"%s\" shadowing "
-                        "previous variable definition "
-                        "in line %" PRId64 ", column %" PRId64
-                        ", this is not recommended [-Wshadowing-vardefs]",
-                        expr->vardef.identifier,
-                        shadoweduse->declarationexpr[0]->line,
-                        shadoweduse->declarationexpr[0]->column
-                    );
-                    if (!result_AddMessage(
-                            context->resultmsg,
-                            H64MSG_WARNING, buf, fileuri,
-                            _refline(
-                                context->tokenstreaminfo, tokens, 0),
-                            _refcol(
-                                context->tokenstreaminfo, tokens, 0)
-                            )) {
-                        if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
-                        return 0;
-                    }
+                if (!scope_AddItem(
+                        parsethis->scope, expr->vardef.identifier,
+                        expr
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    ast_FreeExpression(expr);
+                    return 0;
                 }
-            }
-            if (!forbidden && !scope_AddItem(
-                    parsethis->scope, expr->vardef.identifier,
-                    expr
-                    )) {
+            } else if (scopeaddoom) {
                 if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
                 return 0;
@@ -2513,6 +2617,31 @@ int ast_ParseExprStmt(
         }
         expr->funcdef.name = strdup(tokens[i].str_value);
         i++;
+        if (!expr->funcdef.name) {
+            if (outofmemory) *outofmemory = 1;
+            ast_FreeExpression(expr);
+            return 0;
+        }
+
+        {
+            int scopeaddoom = 0;
+            if (ast_CanAddNameToScopeCheck(
+                    context, parsethis, expr, i - 1, &scopeaddoom
+                    )) {
+                if (!scope_AddItem(
+                        parsethis->scope, expr->funcdef.name,
+                        expr
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+            } else if (scopeaddoom) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+        }
 
         if (i < max_tokens_touse &&
                 tokens[i].type == H64TK_BRACKET &&
@@ -2711,6 +2840,26 @@ int ast_ParseExprStmt(
             return 0;
         }
         i++;
+
+        {
+            int scopeaddoom = 0;
+            if (ast_CanAddNameToScopeCheck(
+                    context, parsethis, expr, i - 1, &scopeaddoom
+                    )) {
+                if (!scope_AddItem(
+                        parsethis->scope, expr->classdef.name,
+                        expr
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    ast_FreeExpression(expr);
+                    return 0;
+                }
+            } else if (scopeaddoom) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+        }
 
         if (i < max_tokens_touse &&
                 tokens[0].type == H64TK_KEYWORD &&
