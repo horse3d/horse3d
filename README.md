@@ -30,7 +30,7 @@ func main {
   typed languages, like C# or TypeScript,
   combined with easy use of a Python or JavaScript.
 
-- **Easy to ship.** Single-binary output. No need to include an interpreter
+- **Easy to ship.** Single-binary output. No need to add an interpreter
   or separate libaries, making it suitable for cloud & micro service use.
 
 - **Multimedia included.** The runtime supports 3D via OpenGL, and
@@ -39,7 +39,7 @@ func main {
 - **Open.** *Horse64* is, excluding its logo, all free software
   under BSD-like licensing. [Check the license here.](LICENSE.md)
 
-- **Stability.** Horse64 comes with comfortable garbage-collection,
+- **Reliable.** Horse64 comes with comfortable garbage-collection,
   giving you stability without manual hand-holding.
 
 
@@ -64,6 +64,17 @@ Help & Docs
 
   [![chat icon](misc/logo_README_chat.png)](https://discord.gg/4ySSJs5)
 
+
+Should I use Horse64?
+---------------------
+
+**You may want** to use Horse64 if: Python/Ruby/JavaScript's clean
+syntax appeals to you, but you have trouble making their super dynamic
+nature work in large projects.
+
+**You may NOT want** to use Horse 64 if: low-level memory control and
+brute performance is your main concern, since Horse64 still uses bytecode
+at its heart and not low-level machine code compilation.
 
 
 Advanced: Build it Yourself
