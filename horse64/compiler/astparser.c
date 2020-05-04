@@ -54,6 +54,19 @@ static const char *_reftokname(tsinfo *tokenstreaminfo, h64token *token, int i) 
     return lexer_TokenTypeToStr(token[i].type);
 }
 
+static const char *_shortenedname(
+        char *buf, const char *name
+        ) {
+    int copylen = strlen(name) + 1;
+    if (copylen > 32) {
+        memcpy(buf, name, 32);
+        memcpy(buf + 32, "...", 4);
+        return buf;
+    }
+    memcpy(buf, name, copylen);
+    return buf;
+}
+
 static const char *_describetoken(
         char *buf, tsinfo *tokenstreaminfo, h64token *token, int i) {
     ptrdiff_t offset = (token - tokenstreaminfo->token);
@@ -2344,7 +2357,7 @@ int ast_CanAddNameToScopeCheck(
             "already defined as %s in same scope "
             "in line %" PRId64 ", column %" PRId64
             ", this is not allowed",
-            deftype, exprname,
+            deftype, _shortenedname(describebuf, exprname),
             _identifierdeclarationname(
                 duplicateuse->declarationexpr[0], exprname
             ),
@@ -2379,13 +2392,14 @@ int ast_CanAddNameToScopeCheck(
                 expr->funcdef.name)) {
             forbidden = 1;
             char buf[256];
+            char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected %s \"%s\" "
                 "shadowing function "
                 "parameter seen "
                 "in line %" PRId64 ", column %" PRId64
                 ", this is not allowed",
-                deftype, exprname,
+                deftype, _shortenedname(describebuf, exprname),
                 shadoweduse->declarationexpr[0]->line,
                 shadoweduse->declarationexpr[0]->column
             );
@@ -2440,12 +2454,13 @@ int ast_CanAddNameToScopeCheck(
                 );
             }
             char buf[256];
+            char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,
                 "%s \"%s\" shadowing "
                 "previous %s definition "
                 "in line %" PRId64 ", column %" PRId64
                 "%s",
-                deftype, exprname,
+                deftype, _shortenedname(describebuf, exprname),
                 _identifierdeclarationname(
                     shadoweduse->declarationexpr[0], exprname
                 ),
