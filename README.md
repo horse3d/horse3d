@@ -15,30 +15,35 @@ func main {
 
 **Features:**
 
-- **Elegant.** Easy syntax, dynamic typing, quick to get started.
+- **Elegant.** Easy syntax with flexible dynamic typing,
+  quick to get started in.
+
+- **Cross-platform.** Supports Windows and Linux, with easy support
+  feasible for any platform supporting OpenGL in the future.
 
 - **Self-contained tooling.** Single-binary compiler, outputs your
   program as a single binary. No complex toolchains,
-  or giant IDEs (unless you want them).
+  or giant IDEs (unless you want them)
 
-- **Suitable for big projects.** Checks incorrect identifiers,
-  incorrect imports, in all dependencies at compile time.
+- **Ready for big projects.** Checks incorrect identifiers,
+  incorrect imports, in all dependencies, all at compile time.
   As such, Horse64 combines in-advance checks often only found in
   typed languages, like C# or TypeScript,
   with the untyped simplicity found in Python or JavaScript.
 
 - **Easy to ship.** Single-binary output means you don't need to
   figure out how to include an interpreter or pre-install libraries
-  yourself.
-
-- **Cross-platform.** Supports Windows and Linux, with easy support
-  feasible for any platform supporting OpenGL in the future.
+  yourself. This also makes it very suitable for cloud & micro service
+  use.
 
 - **Multimedia included.** The runtime supports 3D via OpenGL, and
   2D UIs out of the box.
 
 - **Open.** *Horse64* is, excluding its logo, all free software
   under BSD-like licensing. [Check the license here.](LICENSE.md)
+
+- **Simple memory management.** Despite its compile time advantages,
+  Horse64 still comes with comfortable garbage-collected memory management.
 
 
 Get Started
