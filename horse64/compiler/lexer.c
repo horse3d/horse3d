@@ -1190,13 +1190,13 @@ h64tokenizedfile lexer_ParseFromFile(
         char buf[256];
         snprintf(buf, sizeof(buf) - 1,
             "unexpected binary value 0x%x, "
-            "expected any valid  token instead",
+            "expected any valid token instead",
             (int)c
         );
         if (c >= 32 && c <= 126 && c != '\'') {
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected character \"%c\", "
-                "expected any valid  token instead",
+                "expected any valid token instead",
                 (int)c
             );
         }

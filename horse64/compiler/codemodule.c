@@ -19,7 +19,8 @@ h64ast codemodule_GetASTUncached(
             haderrormessages = 1;
         i++;
     }
-    if (haderrormessages || !tfile.resultmsg.success) {
+    if ((haderrormessages || !tfile.resultmsg.success) &&
+            tfile.token_count == 0) {
         lexer_FreeFileTokens(&tfile);
         h64ast tcode;
         memset(&tcode, 0, sizeof(tcode));
@@ -53,10 +54,12 @@ h64ast codemodule_GetASTUncached(
             tcode.resultmsg.success = 0;
             return tcode;
         }
+        if (tfile.resultmsg.message[i].type == H64MSG_ERROR)
+            haderrormessages = 1;
         i++;
     }
     result_FreeContents(&tfile.resultmsg);
-    if (haderrormessages || !tcode.resultmsg.success) {
+    if (haderrormessages || !tfile.resultmsg.success) {
         tcode.resultmsg.success = 0;
         return tcode;
     }
