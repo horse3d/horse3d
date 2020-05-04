@@ -12,6 +12,44 @@
 #include "json.h"
 #include "uri.h"
 
+static int _compileargparse(
+        const char *cmd,
+        const char **argv, int argc, int argoffset,
+        const char **fileuri, h64compilewarnconfig *wconfig
+        ) {
+    if (wconfig) warningconfig_Init(wconfig);
+    int doubledashed = 0;
+    int i = argoffset;
+    while (i < argc) {
+        if ((strlen(argv[i]) == 0 || argv[i][0] != '-' ||
+                doubledashed) && fileuri && !*fileuri) {
+            *fileuri = argv[i];
+        } else if (strcmp(argv[i], "--") == 0) {
+            doubledashed = 1;
+        } else if (wconfig && argv[i][0] == '-' &&
+                argv[i][1] == 'W') {
+            if (!warningconfig_CheckOption(
+                    wconfig, argv[i])) {
+                fprintf(stderr, "horsec: warning: %s: unrecognized warning "
+                    "option: %s\n", cmd, argv[i]);
+            }
+            i++;
+            continue;
+        } else {
+            fprintf(stderr, "horsec: error: %s: unrecognized option: %s\n",
+                    cmd, argv[i]);
+            return 0;
+        }
+        i++;
+    }
+    if (fileuri && !*fileuri) {
+        fprintf(stderr,
+            "horsec: error: %s: need argument \"file\"\n", cmd);
+        return 0;
+    }
+    return 1;
+}
+
 static void printmsg(h64result *result, h64resultmessage *msg) {
     const char *verb = "<unknown-msg-type>";
     if (msg->type == H64MSG_ERROR)
@@ -44,24 +82,19 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
 
 int compiler_command_Compile(const char **argv, int argc, int argoffset) {
     const char *fileuri = NULL;
-    int doubledashed = 0;
-    int i = argoffset;
-    while (i < argc) {
-        if ((strlen(argv[i]) == 0 || argv[i][0] != '-' ||
-                doubledashed) && !fileuri) {
-            fileuri = argv[i];
-        } else if (strcmp(argv[i], "--") == 0) {
-            doubledashed = 1;
-        }
-        i++;
-    }
+    h64compilewarnconfig wconfig;
+    if (!_compileargparse(
+            "compile", argv, argc,
+            argoffset, &fileuri, &wconfig
+            ))
+        return 0;
 
     char *error = NULL;
     char *project_folder_uri = compileproject_FolderGuess(
         fileuri, 1, &error
     );
     if (!project_folder_uri) {
-        fprintf(stderr, "horsec: error: %s\n", error);
+        fprintf(stderr, "horsec: error: compile: %s\n", error);
         free(error);
         return 0;
     }
@@ -69,19 +102,19 @@ int compiler_command_Compile(const char **argv, int argc, int argoffset) {
     free(project_folder_uri);
     project_folder_uri = NULL;
     if (!project) {
-        fprintf(stderr, "horsec: error: alloc failure\n");
+        fprintf(stderr, "horsec: error: compile: alloc failure\n");
         return 0;
     }
     h64ast ast;
     if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
-        fprintf(stderr, "horsec: error: %s\n", error);
+        fprintf(stderr, "horsec: error: compile: %s\n", error);
         free(error);
         compileproject_Free(project);
         return 0;
     }
 
     int haderrormessages = 0;
-    i = 0;
+    int i = 0;
     while (i < ast.resultmsg.message_count) {
         if (ast.resultmsg.message[i].type == H64MSG_ERROR)
             haderrormessages = 1;
@@ -154,8 +187,10 @@ int compiler_AddResultMessageAsJson(
     return 1;
 }
 
-jsonvalue *compiler_TokenizeToJSON(const char *fileuri) {
-    h64tokenizedfile tfile = lexer_ParseFromFile(fileuri);
+jsonvalue *compiler_TokenizeToJSON(
+        const char *fileuri, h64compilewarnconfig *wconfig
+        ) {
+    h64tokenizedfile tfile = lexer_ParseFromFile(fileuri, wconfig);
 
     char *normalizeduri = uri_Normalize(fileuri, 1);
     if (!normalizeduri) {
@@ -250,19 +285,14 @@ jsonvalue *compiler_TokenizeToJSON(const char *fileuri) {
 
 int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
     const char *fileuri = NULL;
-    int doubledashed = 0;
-    int i = argoffset;
-    while (i < argc) {
-        if ((strlen(argv[i]) == 0 || argv[i][0] != '-' ||
-                doubledashed) && !fileuri) {
-            fileuri = argv[i];
-        } else if (strcmp(argv[i], "--") == 0) {
-            doubledashed = 1;
-        }
-        i++;
-    }
+    h64compilewarnconfig wconfig;
+    if (!_compileargparse(
+            "get_tokens", argv, argc, argoffset,
+            &fileuri, &wconfig
+            ))
+        return 0;
 
-    jsonvalue *v = compiler_TokenizeToJSON(fileuri);
+    jsonvalue *v = compiler_TokenizeToJSON(fileuri, &wconfig);
     if (!v) {
         printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
@@ -277,24 +307,15 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
 
 int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
     const char *fileuri = NULL;
-    int doubledashed = 0;
-    int i = argoffset;
-    while (i < argc) {
-        if ((strlen(argv[i]) == 0 || argv[i][0] != '-' ||
-                doubledashed) && !fileuri) {
-            fileuri = argv[i];
-        } else if (strcmp(argv[i], "--") == 0) {
-            doubledashed = 1;
-        }
-        i++;
-    }
-    if (!fileuri) {
-        fprintf(stderr,
-            "horsec: error: get_ast: need argument \"file\"\n");
+    h64compilewarnconfig wconfig;
+    if (!_compileargparse(
+            "get_ast", argv, argc, argoffset,
+            &fileuri, &wconfig
+            ))
         return 0;
-    }
+    assert(fileuri != NULL);
 
-    jsonvalue *v = compiler_ParseASTToJSON(fileuri);
+    jsonvalue *v = compiler_ParseASTToJSON(fileuri, &wconfig);
     if (!v) {
         printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
@@ -308,7 +329,7 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
 }
 
 jsonvalue *compiler_ParseASTToJSON(
-        const char *fileuri
+        const char *fileuri, h64compilewarnconfig *wconfig
         ) {
     char *error = NULL;
 
@@ -353,6 +374,8 @@ jsonvalue *compiler_ParseASTToJSON(
     project_folder_uri = NULL;
     if (!project)
         goto failedproject;
+    if (wconfig)
+        memcpy(&project->warnconfig, wconfig, sizeof(*wconfig));
     h64ast tast;
     if (!compileproject_GetAST(
             project, fileuri, &tast, &error
@@ -452,17 +475,12 @@ jsonvalue *compiler_ParseASTToJSON(
 
 int compiler_command_Run(const char **argv, int argc, int argoffset) {
     const char *fileuri = NULL;
-    int doubledashed = 0;
-    int i = argoffset;
-    while (i < argc) {
-        if ((strlen(argv[i]) == 0 || argv[i][0] != '-' ||
-                doubledashed) && !fileuri) {
-            fileuri = argv[i];
-        } else if (strcmp(argv[i], "--") == 0) {
-            doubledashed = 1;
-        }
-        i++;
-    }
+    h64compilewarnconfig wconfig;
+    if (!_compileargparse(
+            "run", argv, argc, argoffset,
+            &fileuri, &wconfig
+            ))
+        return 0;
 
     //return compiler_TestCompileWithConsoleResult(fileuri);
     return 0;

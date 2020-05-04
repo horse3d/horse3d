@@ -23,6 +23,7 @@ h64compileproject *compileproject_New(
     if (!pr)
         return NULL;
     memset(pr, 0, sizeof(*pr));
+    warningconfig_Init(&pr->warnconfig);
 
     uriinfo *uinfo = uri_ParseEx(basefolderuri, "https");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
@@ -134,7 +135,7 @@ int compileproject_GetAST(
     }
 
     h64ast result = codemodule_GetASTUncached(
-        pr, absfilepath
+        pr, absfilepath, &pr->warnconfig
     );
     free(absfilepath); absfilepath = NULL;
     h64ast *resultalloc = malloc(sizeof(*resultalloc));

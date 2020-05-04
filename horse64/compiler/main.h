@@ -3,9 +3,15 @@
 
 #include "json.h"
 
-jsonvalue *compiler_TokenizeToJSON(const char *fileuri);
+typedef struct h64compilewarnconfig h64compilewarnconfig;
 
-jsonvalue *compiler_ParseASTToJSON(const char *fileuri);
+jsonvalue *compiler_TokenizeToJSON(
+    const char *fileuri, h64compilewarnconfig *wconfig
+);
+
+jsonvalue *compiler_ParseASTToJSON(
+    const char *fileuri, h64compilewarnconfig *wconfig
+);
 
 int compiler_command_Compile(
     const char **argc, int argv, int argoffset

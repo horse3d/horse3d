@@ -1,9 +1,13 @@
-#ifndef HORSE64_COMPILEPROJECT_H_
-#define HORSE64_COMPILEPROJECT_H_
+#ifndef HORSE64_COMPILER_COMPILEPROJECT_H_
+#define HORSE64_COMPILER_COMPILEPROJECT_H_
+
+#include "compiler/warningconfig.h"
 
 typedef struct hashmap hashmap;
 
 typedef struct h64compileproject {
+    h64compilewarnconfig warnconfig;
+
     char hashsecret[16];
 
     char *basefolder;
@@ -32,4 +36,4 @@ char *compileproject_FolderGuess(
     char **error
 );
 
-#endif  // HORSE64_COMPILEPROJECT_H_
+#endif  // HORSE64_COMPILER_COMPILEPROJECT_H_

@@ -6,12 +6,14 @@
 #include "compiler/codemodule.h"
 #include "compiler/compileproject.h"
 #include "compiler/lexer.h"
+#include "compiler/warningconfig.h"
 
 h64ast codemodule_GetASTUncached(
-        h64compileproject *pr, const char *fileuri
+        h64compileproject *pr, const char *fileuri,
+        h64compilewarnconfig *wconfig
         ) {
     // 1. Get tokens:
-    h64tokenizedfile tfile = lexer_ParseFromFile(fileuri);
+    h64tokenizedfile tfile = lexer_ParseFromFile(fileuri, wconfig);
     int haderrormessages = 0;
     int i = 0;
     while (i < tfile.resultmsg.message_count) {

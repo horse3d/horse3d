@@ -54,7 +54,8 @@ char *lexer_ParseStringLiteral(
         const char *literal,
         const char *fileuri,
         int line, int column,
-        h64result *result
+        h64result *result,
+        h64compilewarnconfig *wconfig
         ) {
     char *p = strdup(literal + 1);
     if (!p)
@@ -90,7 +91,8 @@ char *lexer_ParseStringLiteral(
                 } else if (literal[i] == '\'') {
                     p[k] = '\''; k++;
                 } else {
-                    if (result) {
+                    if (result && wconfig &&
+                            wconfig->warn_unrecognized_escape_sequences) {
                         char s[16];
                         snprintf(s, 15, "byte %d", literal[i]);
                         s[15] = '\0';
@@ -102,7 +104,7 @@ char *lexer_ParseStringLiteral(
                         char buf[512];
                         snprintf(buf, sizeof(buf) - 1,
                             "unrecognized escape sequence '\\' followed "
-                            "by %s", s);
+                            "by %s [-Wunrecognized-escape-sequences]", s);
                         if (!result_AddMessage(
                                 result,
                                 H64MSG_WARNING, buf,
@@ -152,7 +154,7 @@ static int is_digit(char c) {
 }
 
 h64tokenizedfile lexer_ParseFromFile(
-        const char *fileuri
+        const char *fileuri, h64compilewarnconfig *wconfig
         ) {
     h64tokenizedfile result;
     memset(&result, 0, sizeof(result));
@@ -515,7 +517,7 @@ h64tokenizedfile lexer_ParseFromFile(
             if (!hadinvaliderror) {
                 char *unescaped = lexer_ParseStringLiteral(
                     strbuf, fileuri, startline, startcolumn,
-                    &result.resultmsg
+                    &result.resultmsg, wconfig
                 );
                 free(strbuf);
                 strbuf = NULL;

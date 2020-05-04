@@ -2350,31 +2350,64 @@ int ast_ParseExprStmt(
             h64scopedef *shadoweduse = scope_QueryItem(
                 parsethis->scope, expr->vardef.identifier, 1
             );
+            int forbidden = 0;
             if (shadoweduse &&
                     !shadoweduse->scope->is_global) {
-                char buf[256];
-                snprintf(buf, sizeof(buf) - 1,
-                    "variable definition \"%s\" shadows previous "
-                    "definition "
-                    "in line %" PRId64 ", column %" PRId64,
-                    expr->vardef.identifier,
-                    shadoweduse->declarationexpr[0]->line,
-                    shadoweduse->declarationexpr[0]->column
-                );
-                if (!result_AddMessage(
-                        context->resultmsg,
-                        H64MSG_WARNING, buf, fileuri,
-                        _refline(
-                            context->tokenstreaminfo, tokens, 0),
-                        _refcol(
-                            context->tokenstreaminfo, tokens, 0)
-                        )) {
-                    if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
-                    return 0;
+                if (shadoweduse->declarationexpr[0]->type ==
+                        H64EXPRTYPE_FUNCDEF_STMT ||
+                        shadoweduse->declarationexpr[0]->type ==
+                        H64EXPRTYPE_INLINEFUNCDEF) {
+                    forbidden = 1;
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected variable definition \"%s\" "
+                        "shadowing function "
+                        "parameter seen "
+                        "in line %" PRId64 ", column %" PRId64
+                        ", this is not allowed",
+                        expr->vardef.identifier,
+                        shadoweduse->declarationexpr[0]->line,
+                        shadoweduse->declarationexpr[0]->column
+                    );
+                    if (!result_AddMessage(
+                            context->resultmsg,
+                            H64MSG_ERROR, buf, fileuri,
+                            _refline(
+                                context->tokenstreaminfo, tokens, 0),
+                            _refcol(
+                                context->tokenstreaminfo, tokens, 0)
+                            )) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                } else if (context->project->warnconfig.
+                           warn_shadowing_vardefs) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected variable definition \"%s\" shadowing "
+                        "previous variable definition "
+                        "in line %" PRId64 ", column %" PRId64
+                        ", this is not recommended [-Wshadowing-vardefs]",
+                        expr->vardef.identifier,
+                        shadoweduse->declarationexpr[0]->line,
+                        shadoweduse->declarationexpr[0]->column
+                    );
+                    if (!result_AddMessage(
+                            context->resultmsg,
+                            H64MSG_WARNING, buf, fileuri,
+                            _refline(
+                                context->tokenstreaminfo, tokens, 0),
+                            _refcol(
+                                context->tokenstreaminfo, tokens, 0)
+                            )) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
                 }
             }
-            if (!scope_AddItem(
+            if (!forbidden && !scope_AddItem(
                     parsethis->scope, expr->vardef.identifier,
                     expr
                     )) {
@@ -3625,6 +3658,7 @@ int ast_ParseExprStmt(
                 stmt_count_ptr = &current_clause->stmt_count;
                 scope = &current_clause->scope;
             }
+            scope->parentscope = parsethis->scope;
             if (!scope_Init(scope, context->project->hashsecret)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);

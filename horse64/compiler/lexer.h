@@ -5,6 +5,7 @@
 #include <stdlib.h>  // for NULL
 
 #include "compiler/result.h"
+#include "compiler/warningconfig.h"
 #include "json.h"
 
 typedef enum h64tokentype {
@@ -56,7 +57,7 @@ static char *h64keywords[] = {
 };
 
 h64tokenizedfile lexer_ParseFromFile(
-    const char *fileuri
+    const char *fileuri, h64compilewarnconfig *wconfig
 );
 
 void lexer_ClearToken(h64token *t);
