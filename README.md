@@ -65,14 +65,16 @@ Help & Docs
   [![chat icon](misc/logo_README_chat.png)](https://discord.gg/4ySSJs5)
 
 
-Should I use Horse64?
----------------------
+Should I switch to Horse64?
+---------------------------
 
-**You may want** to use Horse64 if: Python/Ruby/JavaScript's clean
-syntax appeals to you, but you have trouble making their super dynamic
-nature work in large projects.
+This is a quick guideline for experienced programmers:
 
-**You may NOT want** to use Horse 64 if: low-level memory control and
+**You may want** to use Horse64 if Python/Ruby/JavaScript's clean
+syntax appeals to you, but their extremely dynamic nature gives you
+headaches in larger projects.
+
+**You may NOT want** to use Horse 64 if low-level memory control and
 brute performance is your main concern, since Horse64 still uses bytecode
 at its heart and not low-level machine code compilation.
 
