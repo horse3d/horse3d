@@ -60,9 +60,9 @@ Help & Docs
 
 * [Help forum on Reddit](https://reddit.com/r/Horse64)
 
-* [Help chat on Discord](https://discord.gg/4ySSJs5)
+* [Help chat on Discord](https://discord.gg/pevKEKY)
 
-  [![chat icon](misc/logo_README_chat.png)](https://discord.gg/4ySSJs5)
+  [![chat icon](misc/logo_README_chat.png)](https://discord.gg/pevKEKY)
 
 
 Should I switch to Horse64?
