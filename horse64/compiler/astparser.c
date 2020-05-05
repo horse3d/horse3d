@@ -67,6 +67,14 @@ static const char *_shortenedname(
     return buf;
 }
 
+static int IdentifierIsReserved(const char *identifier) {
+    if (strcmp(identifier, "self") == 0 ||
+            strcmp(identifier, "base") == 0) {
+        return 1;
+    }
+    return 0;
+}
+
 static const char *_describetoken(
         char *buf, tsinfo *tokenstreaminfo, h64token *token, int i) {
     ptrdiff_t offset = (token - tokenstreaminfo->token);
@@ -2379,6 +2387,8 @@ int ast_CanAddNameToScopeCheck(
         h64scopedef *shadoweduse = scope_QueryItem(
             parsethis->scope, exprname, 1
         );
+        assert(!shadoweduse || shadoweduse->scope != NULL);
+        assert(context != NULL && context->project != NULL);
         int forbidden = 0;
         if (shadoweduse &&
                 (shadoweduse->declarationexpr[0]->type ==
@@ -2490,6 +2500,60 @@ int ast_CanAddNameToScopeCheck(
     return 0;
 }
 
+int ast_ProcessNewScopeIdentifier(
+        h64parsecontext *context,
+        h64parsethis *parsethis,
+        h64expression *expr,
+        const char *identifier,
+        int identifierindex,
+        h64scope *_add_to_this_scope_instead_of_default,
+        int *outofmemory
+        ) {
+    int i = identifierindex;
+    int success = 0;
+    if (IdentifierIsReserved(identifier)) {
+        char buf[256]; char describebuf[64];
+        snprintf(buf, sizeof(buf) - 1,
+            "unexpected identifier \"%s\", "
+            "this identifier is reserved and cannot be redefined",
+            _shortenedname(describebuf, identifier)
+        );
+        if (!result_AddMessage(
+                context->resultmsg,
+                H64MSG_ERROR, buf, context->fileuri,
+                _refline(context->tokenstreaminfo, parsethis->tokens, i),
+                _refcol(context->tokenstreaminfo, parsethis->tokens, i)
+                )) {
+            if (outofmemory) *outofmemory = 1;
+            return 0;
+        }
+    } else {
+        int scopeaddoom = 0;
+        if (ast_CanAddNameToScopeCheck(
+                context, parsethis, expr, i - 1,
+                &scopeaddoom
+                )) {
+            if (!scope_AddItem(
+                    (_add_to_this_scope_instead_of_default != NULL ?
+                     _add_to_this_scope_instead_of_default :
+                      parsethis->scope),
+                    identifier, expr
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+            success = 1;
+        } else {
+            if (scopeaddoom) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+        }
+    }
+    if (outofmemory) *outofmemory = 0;
+    return success;
+}
+
 int ast_ParseExprStmt(
         h64parsecontext *context,
         h64parsethis *parsethis,
@@ -2588,22 +2652,17 @@ int ast_ParseExprStmt(
         }
 
         {
-            int scopeaddoom = 0;
-            if (ast_CanAddNameToScopeCheck(
-                    context, parsethis, expr, i - 1, &scopeaddoom
+            int newidentifieroom = 0;
+            if (!ast_ProcessNewScopeIdentifier(
+                    context, parsethis, expr,
+                    expr->vardef.identifier, i - 1, NULL,
+                    &newidentifieroom
                     )) {
-                if (!scope_AddItem(
-                        parsethis->scope, expr->vardef.identifier,
-                        expr
-                        )) {
+                if (newidentifieroom) {
                     if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
                     return 0;
                 }
-            } else if (scopeaddoom) {
-                if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
-                return 0;
             }
         }
 
@@ -2712,22 +2771,17 @@ int ast_ParseExprStmt(
         }
 
         {
-            int scopeaddoom = 0;
-            if (ast_CanAddNameToScopeCheck(
-                    context, parsethis, expr, i - 1, &scopeaddoom
+            int newidentifieroom = 0;
+            if (!ast_ProcessNewScopeIdentifier(
+                    context, parsethis, expr,
+                    expr->funcdef.name, i - 1, NULL,
+                    &newidentifieroom
                     )) {
-                if (!scope_AddItem(
-                        parsethis->scope, expr->funcdef.name,
-                        expr
-                        )) {
+                if (newidentifieroom) {
                     if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
                     return 0;
                 }
-            } else if (scopeaddoom) {
-                if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
-                return 0;
             }
         }
 
@@ -2788,6 +2842,13 @@ int ast_ParseExprStmt(
                     strcmp(tokens[i].str_value, "threadable") == 0) {
                 i++;
                 expr->funcdef.is_threadable = 1;
+                continue;
+            } else if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->funcdef.is_deprecated &&
+                    strcmp(tokens[i].str_value, "deprecated") == 0) {
+                i++;
+                expr->funcdef.is_deprecated = 1;
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
@@ -2899,6 +2960,24 @@ int ast_ParseExprStmt(
         expr->classdef.scope.classandfuncnestinglevel =
             expr->classdef.scope.parentscope->classandfuncnestinglevel + 1;
         i++;
+        while (1) {  // read attributes
+            if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->classdef.is_deprecated &&
+                    strcmp(tokens[i].str_value, "deprecated") == 0) {
+                i++;
+                expr->classdef.is_deprecated = 1;
+                continue;
+            } else if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->classdef.is_threadable &&
+                    strcmp(tokens[i].str_value, "threadable") == 0) {
+                i++;
+                expr->classdef.is_threadable = 1;
+                continue;
+            }
+            break;
+        }
 
         if (i >= max_tokens_touse ||
                 tokens[i].type != H64TK_IDENTIFIER) {
@@ -2932,22 +3011,17 @@ int ast_ParseExprStmt(
         i++;
 
         {
-            int scopeaddoom = 0;
-            if (ast_CanAddNameToScopeCheck(
-                    context, parsethis, expr, i - 1, &scopeaddoom
+            int newidentifieroom = 0;
+            if (!ast_ProcessNewScopeIdentifier(
+                    context, parsethis, expr,
+                    expr->classdef.name, i - 1, NULL,
+                    &newidentifieroom
                     )) {
-                if (!scope_AddItem(
-                        parsethis->scope, expr->classdef.name,
-                        expr
-                        )) {
+                if (newidentifieroom) {
                     if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
                     return 0;
                 }
-            } else if (scopeaddoom) {
-                if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
-                return 0;
             }
         }
 
@@ -3007,6 +3081,25 @@ int ast_ParseExprStmt(
             }
             expr->classdef.baseclass_ref = innerexpr;
             i += tlen;
+        }
+
+        while (1) {  // read attributes
+            if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->classdef.is_deprecated &&
+                    strcmp(tokens[i].str_value, "deprecated") == 0) {
+                i++;
+                expr->classdef.is_deprecated = 1;
+                continue;
+            } else if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->classdef.is_threadable &&
+                    strcmp(tokens[i].str_value, "threadable") == 0) {
+                i++;
+                expr->classdef.is_threadable = 1;
+                continue;
+            }
+            break;
         }
 
         // Extract class contents:
@@ -3593,25 +3686,20 @@ int ast_ParseExprStmt(
         }
 
         if (!brokenimport) {
-            int scopeaddoom = 0;
-            if (ast_CanAddNameToScopeCheck(
-                    context, parsethis, expr, i - 1, &scopeaddoom
+            int newidentifieroom = 0;
+            if (!ast_ProcessNewScopeIdentifier(
+                    context, parsethis, expr, (
+                        expr->importstmt.import_as ?
+                        expr->importstmt.import_as :
+                        expr->importstmt.import_elements[0]
+                    ), i - 1, NULL,
+                    &newidentifieroom
                     )) {
-                if (!scope_AddItem(
-                        parsethis->scope, (
-                            expr->importstmt.import_as ?
-                            expr->importstmt.import_as :
-                            expr->importstmt.import_elements[0]
-                        ), expr
-                        )) {
+                if (newidentifieroom) {
                     if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(expr);
                     return 0;
                 }
-            } else if (scopeaddoom) {
-                if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
-                return 0;
             }
         }
 
@@ -3748,6 +3836,7 @@ int ast_ParseExprStmt(
 
             // Parse iterator label + "in" of for loops:
             const char *iteratorname = NULL;
+            int _foridentifierindex = 0;
             if (expr->type == H64EXPRTYPE_FOR_STMT) {
                 if (i >= max_tokens_touse ||
                         tokens[i].type != H64TK_IDENTIFIER) {
@@ -3773,6 +3862,7 @@ int ast_ParseExprStmt(
                     ast_FreeExpression(expr);
                     return 0;
                 }
+                _foridentifierindex = i;
                 iteratorname = tokens[i].str_value;
                 i++;
                 if (i >= max_tokens_touse ||
@@ -3922,6 +4012,26 @@ int ast_ParseExprStmt(
             }
             scope->classandfuncnestinglevel =
                 scope->parentscope->classandfuncnestinglevel;
+
+            if (expr->type == H64EXPRTYPE_FOR_STMT) {
+                // Add the iterator label to inner scope (but make sure
+                // to test it for the OUTER one for shadowing):
+                int newidentifieroom = 0;
+                assert(_foridentifierindex >= 0);
+                if (!ast_ProcessNewScopeIdentifier(
+                        context, parsethis,
+                        expr, expr->forstmt.iterator_identifier,
+                        _foridentifierindex,
+                        scope,  // add to inner scope, not outer one
+                        &newidentifieroom
+                        )) {
+                    if (newidentifieroom) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_FreeExpression(expr);
+                        return 0;
+                    }
+                }
+            }
 
             int tlen = 0;
             int innerparsefail = 0;

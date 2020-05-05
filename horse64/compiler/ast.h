@@ -68,12 +68,14 @@ typedef struct h64expression {
     h64expressiontype type;
     union {
         struct vardef {
+            int is_deprecated;
             char *identifier;
             int is_const;
             h64expression *value;
         } vardef;
         struct funcdef {
             char *name;
+            int is_deprecated;
             int is_threadable;
             int is_getter;
             int is_setter;
@@ -136,6 +138,8 @@ typedef struct h64expression {
             h64expression *returned_expression;
         } returnstmt;
         struct classdef {
+            int is_threadable;
+            int is_deprecated;
             h64scope scope;
             char *name;
             h64expression *baseclass_ref;

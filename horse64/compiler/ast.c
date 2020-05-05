@@ -704,6 +704,15 @@ jsonvalue *ast_ExpressionToJSON(
         if (e->vardef.identifier &&
                 !json_SetDictStr(v, "name", e->vardef.identifier))
             fail = 1;
+        jsonvalue *attributes = json_List();
+        if (e->vardef.is_deprecated) {
+            if (!json_AddToListStr(attributes, "deprecated"))
+                fail = 1;
+        }
+        if (!json_SetDict(v, "attributes", attributes)) {
+            fail = 1;
+            json_Free(attributes);
+        }
         if (e->vardef.value) {
             jsonvalue *val = ast_ExpressionToJSON(e->vardef.value, fileuri);
             if (!val) {
@@ -948,6 +957,19 @@ jsonvalue *ast_ExpressionToJSON(
         if (e->classdef.name &&
                 !json_SetDictStr(v, "name", e->classdef.name))
             fail = 1;
+        jsonvalue *attributes = json_List();
+        if (e->classdef.is_threadable) {
+            if (!json_AddToListStr(attributes, "threadable"))
+                fail = 1;
+        }
+        if (e->classdef.is_deprecated) {
+            if (!json_AddToListStr(attributes, "deprecated"))
+                fail = 1;
+        }
+        if (!json_SetDict(v, "attributes", attributes)) {
+            fail = 1;
+            json_Free(attributes);
+        }
         jsonvalue *vardefs = json_List();
         int i = 0;
         while (i < e->classdef.vardef_count) {
@@ -1092,7 +1114,6 @@ jsonvalue *ast_ExpressionToJSON(
             fail = 1;
             json_Free(scopeval);
         }
-        jsonvalue *attributes = json_List();
         jsonvalue *statements = json_List();
         int i = 0;
         while (i < e->funcdef.stmt_count) {
@@ -1110,8 +1131,21 @@ jsonvalue *ast_ExpressionToJSON(
             fail = 1;
             json_Free(statements);
         }
+        jsonvalue *attributes = json_List();
         if (e->funcdef.is_threadable) {
             if (!json_AddToListStr(attributes, "threadable"))
+                fail = 1;
+        }
+        if (e->funcdef.is_getter) {
+            if (!json_AddToListStr(attributes, "getter"))
+                fail = 1;
+        }
+        if (e->funcdef.is_setter) {
+            if (!json_AddToListStr(attributes, "setter"))
+                fail = 1;
+        }
+        if (e->funcdef.is_deprecated) {
+            if (!json_AddToListStr(attributes, "deprecated"))
                 fail = 1;
         }
         if (!json_SetDict(v, "attributes", attributes)) {

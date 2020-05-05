@@ -18,7 +18,7 @@ typedef struct h64scopedef {
     int declarationexpr_count;
     h64expression **declarationexpr;
     const char *identifier;
-    int everused;
+    int everused, first_use_token_index, last_use_token_index, closureuse;
     h64scope *scope;
 } h64scopedef;
 

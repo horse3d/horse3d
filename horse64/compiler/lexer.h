@@ -46,13 +46,14 @@ typedef struct h64tokenizedfile {
 static char *h64keywords[] = {
     "threadable", "const",
     "if", "while", "func",
+    "for",
     "var", "class", "extends",
     "import", "else", "elseif",
     "break", "continue", "try",
     "catch", "finally", "error",
-    "self", "base", "new",
-    "return", "as",
+    "new", "return", "as",
     "getter", "setter", "value",
+    "deprecated", "multiarg",
     NULL
 };
 
