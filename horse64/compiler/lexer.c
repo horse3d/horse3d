@@ -1083,8 +1083,11 @@ h64tokenizedfile lexer_ParseFromFile(
             char identifierbuf[
                 H64LIMIT_IDENTIFIERLEN * 4 + 1
             ];  // multiplied by 4 since utf-8
+            int firstchar = 1;
             int ilen = 0;
-            while (i < (int)size && is_identifier_char(c)) {
+            while (i < (int)size && (is_identifier_char(c) ||
+                    (!firstchar && c >= '0' && c <= '9'))) {
+                firstchar = 0;
                 unsigned int charlen = utf8_char_len((uint8_t*)buffer + i);
                 if (charlen > size - i)
                     charlen = size - i;
