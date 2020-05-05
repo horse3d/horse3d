@@ -74,9 +74,9 @@ This is a quick guideline for experienced programmers:
 syntax appeals to you, but their extremely dynamic nature gives you
 headaches in larger projects with either deployment, or development.
 
-**You may NOT want** to use Horse 64 if low-level memory control and
-pure performance is your main concern, since Horse64 still uses bytecode
-at its heart and not low-level machine code compilation.
+**You may NOT want** to use Horse64 if low-level memory control and
+pure performance is your main concern, since Horse64 relies on bytecode
+and not on compiled machine code.
 
 
 Advanced: Build it Yourself
