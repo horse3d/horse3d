@@ -46,6 +46,6 @@ The Horse64 Logo and its files may only be used in the official, unmodified
 `https://github.com/horse64/horse64`, and via web at
 `https://horse64.org`).
 **If you distribute modified versions of Horse64, you must not use
-the Horse3d Logo and please don't use the official name "Horse64" either.**
+the Horse64 Logo and please don't use the official name "Horse64" either.**
 You may not use the Horse64 Logo in any way that suggests official
 endorsement by either Horse64 or by its creators.
