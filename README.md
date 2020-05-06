@@ -25,7 +25,7 @@ func main {
   toolchains or giant IDEs. (unless you want them)
 
 - **Ready for big projects.** Checks incorrect identifiers,
-  incorrect imports, all at at compile time.
+  incorrect imports, all at compile time.
   As such, Horse64 has compile checks often only in
   typed languages, like C# or TypeScript,
   combined with easy use of a Python or JavaScript.
