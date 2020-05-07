@@ -155,17 +155,8 @@ size_t vfs_fread(
 }
 
 VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
-    char *p = vfs_NormalizePath(path);
-    if (!p) {
-        #if !defined(_WIN32) && !defined(_WIN64)
-        errno = ENOMEM;
-        #endif
-        return 0;
-    }
-
     VFSFILE *vfile = malloc(sizeof(*vfile));
     if (!vfile) {
-        free(p);
         #if !defined(_WIN32) && !defined(_WIN64)
         errno = ENOMEM;
         #endif
@@ -174,28 +165,35 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
     memset(vfile, 0, sizeof(*vfile));
     vfile->size = -1;
 
-    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
-            PHYSFS_exists(p)) {
-        vfile->via_physfs = 1;
-        vfile->physfshandle = PHYSFS_openRead(p);
-        if (vfile->physfshandle) {
-            vfile->size = (int64_t)PHYSFS_fileLength(vfile->physfshandle);
-            free(p);
-            return vfile;
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+        char *p = vfs_NormalizePath(path);
+        if (!p) {
+            #if !defined(_WIN32) && !defined(_WIN64)
+            errno = ENOMEM;
+            #endif
+            return 0;
         }
+        if (PHYSFS_exists(p)) {
+            vfile->via_physfs = 1;
+            vfile->physfshandle = PHYSFS_openRead(p);
+            if (vfile->physfshandle) {
+                vfile->size = (int64_t)PHYSFS_fileLength(vfile->physfshandle);
+                free(p);
+                return vfile;
+            }
+        }
+        free(p);
     }
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
         vfile->via_physfs = 0;
         errno = 0;
-        vfile->diskhandle = fopen64(p, mode);
+        vfile->diskhandle = fopen64(path, mode);
         if (vfile->diskhandle) {
-            free(p);
             return vfile;
         }
         return vfile;
     }
 
-    free(p);
     free(vfile);
     #if !defined(_WIN32) && !defined(_WIN64)
     errno = ENOENT;
@@ -266,80 +264,75 @@ char *vfs_AbsolutePath(const char *path) {
 }
 
 int vfs_Exists(const char *path, int *result, int flags) {
-    char *p = vfs_NormalizePath(path);
-    if (!p)
-        return 0;
-
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+        char *p = vfs_NormalizePath(path);
+        if (!p)
+            return 0;
+
         int _result = PHYSFS_exists(p);
         if (_result) {
             free(p);
             *result = 1;
             return 1;
         }
+        free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
-        int _result = filesys_FileExists(p);
+        int _result = filesys_FileExists(path);
         if (_result) {
-            free(p);
             *result = 1;
             return 1;
         }
     }
-    free(p);
     *result = 0;
     return 1;
 }
 
 int vfs_IsDirectory(const char *path, int *result, int flags) {
-    char *p = vfs_NormalizePath(path);
-    if (!p)
-        return 0;
-
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+        char *p = vfs_NormalizePath(path);
+        if (!p)
+            return 0;
+
         PHYSFS_Stat stat;
         if (PHYSFS_stat(p, &stat)) {
             free(p);
             *result = (stat.filetype == PHYSFS_FILETYPE_DIRECTORY);
             return 1;
         }
+        free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
-        *result = filesys_IsDirectory(p);
-        if (*result) {
-            free(p);
+        *result = filesys_IsDirectory(path);
+        if (*result)
             return 1;
-        }
     }
-    free(p);
     *result = 0;
     return 1;
 }
 
 int vfs_Size(const char *path, uint64_t *result, int flags) {
-    char *p = vfs_NormalizePath(path);
-    if (!p)
-        return 0;
-
-    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
-            PHYSFS_exists(p)) {
-        PHYSFS_File *ffile = PHYSFS_openRead(p);
-        if (ffile) {
-            free(p);
-            *result = PHYSFS_fileLength(ffile);
-            PHYSFS_close(ffile);
-            return 1;
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+        char *p = vfs_NormalizePath(path);
+        if (!p)
+            return 0;
+        if (PHYSFS_exists(p)) {
+            PHYSFS_File *ffile = PHYSFS_openRead(p);
+            if (ffile) {
+                free(p);
+                *result = PHYSFS_fileLength(ffile);
+                PHYSFS_close(ffile);
+                return 1;
+            }
         }
+        free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
-            filesys_FileExists(p)) {
-        if (filesys_GetSize(p, result)) {
-            free(p);
+            filesys_FileExists(path)) {
+        if (filesys_GetSize(path, result))
             return 1;
-        }
     }
 
-    free(p);
     *result = 0;
     return 0;
 }
@@ -349,36 +342,37 @@ int vfs_GetBytes(
         uint64_t bytesamount, char *buffer,
         int flags
         ) {
-    char *p = vfs_NormalizePath(path);
-    if (!p)
-        return 0;
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+        char *p = vfs_NormalizePath(path);
+        if (!p)
+            return 0;
 
-    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
-            PHYSFS_exists(p)) {
-        PHYSFS_File *ffile = PHYSFS_openRead(p);
-        if (ffile) {
-            free(p);
-            if (offset > 0) {
-                if (!PHYSFS_seek(ffile, offset)) {
-                    PHYSFS_close(ffile);
-                    return 0;
+        if (PHYSFS_exists(p)) {
+            PHYSFS_File *ffile = PHYSFS_openRead(p);
+            if (ffile) {
+                free(p);
+                if (offset > 0) {
+                    if (!PHYSFS_seek(ffile, offset)) {
+                        PHYSFS_close(ffile);
+                        return 0;
+                    }
                 }
-            }
 
-            int64_t result = PHYSFS_readBytes(
-                ffile, buffer, bytesamount
-            );
-            PHYSFS_close(ffile);
-            if (result != (int64_t)bytesamount)
-                return 0;
-            return 1;
+                int64_t result = PHYSFS_readBytes(
+                    ffile, buffer, bytesamount
+                );
+                PHYSFS_close(ffile);
+                if (result != (int64_t)bytesamount)
+                    return 0;
+                return 1;
+            }
         }
+        free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
-            filesys_FileExists(p)) {
-        FILE *f = fopen64(p, "rb");
+            filesys_FileExists(path)) {
+        FILE *f = fopen64(path, "rb");
         if (f) {
-            free(p);
             if (fseek64(f, (int64_t)offset, SEEK_SET) != 0) {
                 fclose(f);
                 return 0;
@@ -393,7 +387,6 @@ int vfs_GetBytes(
         }
     }
 
-    free(p);
     return 0;
 }
 
@@ -429,4 +422,86 @@ void vfs_Init(const char *argv0) {
     }
     vfs_AddPak(coreapipath);
     free(coreapipath);
+}
+
+void vfs_FreeFolderList(char **list) {
+    int i = 0;
+    while (list[i]) {
+        free(list[i]);
+        i++;
+    }
+    free(list);
+}
+
+int vfs_ListFolder(
+        const char *path,
+        char ***contents,
+        int returnFullPath,
+        int flags
+        ) {
+    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
+        char *p = vfs_NormalizePath(path);
+        if (!p)
+            return 0;
+
+        if (PHYSFS_exists(p)) {
+            while (strlen(p) > 0 && p[strlen(p) - 1] == '/'
+                    #if defined(_WIN32) || defined(_WIN64)
+                    || p[strlen(p) - 1] == '\\'
+                    #endif
+                    ) {
+                p[strlen(p) - 1] = '\0';
+            }
+            char **physfs_alloc_list = PHYSFS_enumerateFiles(p);
+            if (physfs_alloc_list) {
+                free(p);
+                int count = 0;
+                const char **ptr = (const char **)physfs_alloc_list;
+                while (*ptr) {
+                    count++; ptr++;
+                }
+                char **result = malloc(sizeof(*result) * (count + 1));
+                if (!result) {
+                    PHYSFS_freeList(result);
+                    return 0;
+                }
+                int i = 0;
+                while (i < count) {
+                    if (!returnFullPath) {
+                        result[i] = strdup(physfs_alloc_list[i]);
+                    } else {
+                        result[i] = filesys_Join(
+                            path, physfs_alloc_list[i]
+                        );
+                    }
+                    if (!result[i]) {
+                        int k = 0;
+                        while (k < i) {
+                            free(result[k]);
+                            k++;
+                        }
+                        free(result);
+                        PHYSFS_freeList(result);
+                        return 0;
+                    }
+                    i++;
+                }
+                result[count] = NULL;
+                *contents = result;
+                PHYSFS_freeList(result);
+                return 1;
+            }
+        }
+        free(p);
+    }
+    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
+            filesys_FileExists(path)) {
+        if (filesys_ListFolder(
+                path, contents, returnFullPath
+                )) {
+            return 1;
+        }
+    }
+    *contents = NULL;
+    return 0;
 }

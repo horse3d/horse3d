@@ -47,4 +47,13 @@ int vfs_fgetc(VFSFILE *f);
 
 int vfs_peakc(VFSFILE *f);
 
+void vfs_FreeFolderList(char **list);
+
+int vfs_ListFolder(
+    const char *path,
+    char ***contents,
+    int returnFullPath,
+    int vfsflags
+);
+
 #endif  // HORSE3D_VFS_H_
