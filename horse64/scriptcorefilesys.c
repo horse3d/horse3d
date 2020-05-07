@@ -301,12 +301,12 @@ static int _vfs_package_require_searcher(lua_State *l) {
             lua_pushstring(l, "alloc error");
             return lua_error(l);
         }
-        if (s && strlen(s) < 2 || (s[0] != '.' && s[1] != '.' &&
-                s[2] != '\0' && s[2] != '/'
+        if (s && (strlen(s) < 2 || s[0] != '.' || s[1] != '.' ||
+                (s[2] != '\0' && s[2] != '/'
                 #if defined(_WIN32) || defined(_WIN64)
                 && s[2] != '\\'
                 #endif
-                )) {
+                ))) {
             char *s2 = filesys_Join("horse3d/scriptcore", s);
             free(s);
             s = NULL;

@@ -104,7 +104,7 @@ char *ttf_path_from_font_name(const char *name) {
     char *loweredname = strdup(name);
     if (!loweredname)
         return NULL;
-    int i = 0;
+    unsigned int i = 0;
     while (i < strlen(loweredname)) {
         loweredname[i] = tolower(loweredname[i]);
         i++;
@@ -215,7 +215,7 @@ cachedfont *get_font(const char *name, double ptsize) {
             free(cached_fonts[0]->path);
         if (cached_fonts[0]->ttfref)
             TTF_CloseFont(cached_fonts[0]->ttfref);
-        if (cached_fonts[0]->ttffile_rwops);
+        if (cached_fonts[0]->ttffile_rwops)
             SDL_RWclose(cached_fonts[0]->ttffile_rwops);
         if (cached_fonts[0]->ttffile_contents)
             free(cached_fonts[0]->ttffile_contents);

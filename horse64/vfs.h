@@ -9,9 +9,21 @@ int vfs_AddPak(const char *path);
 
 int vfs_Exists(const char *path, int *result, int flags);
 
+int vfs_ExistsEx(
+    const char *abspath, const char *relpath, int *result, int flags
+);
+
 int vfs_IsDirectory(const char *path, int *result, int flags);
 
+int vfs_IsDirectoryEx(
+    const char *abspath, const char *relpath, int *result, int flags
+);
+
 int vfs_Size(const char *path, uint64_t *result, int flags);
+
+int vfs_SizeEx(
+    const char *abspath, const char *relpath, uint64_t *result, int flags
+);
 
 char *vfs_NormalizePath(const char *path);
 
@@ -19,6 +31,13 @@ char *vfs_AbsolutePath(const char *path);
 
 int vfs_GetBytes(
     const char *path, uint64_t offset,
+    uint64_t bytesamount, char *buffer,
+    int flags
+);
+
+int vfs_GetBytesEx(
+    const char *abspath, const char *relpath,
+    uint64_t offset,
     uint64_t bytesamount, char *buffer,
     int flags
 );
@@ -54,6 +73,14 @@ int vfs_ListFolder(
     char ***contents,
     int returnFullPath,
     int vfsflags
+);
+
+int vfs_ListFolderEx(
+    const char *abspath,
+    const char *relpath,
+    char ***contents,
+    int returnFullPath,
+    int flags
 );
 
 #endif  // HORSE3D_VFS_H_

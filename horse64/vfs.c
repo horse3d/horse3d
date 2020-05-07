@@ -264,8 +264,14 @@ char *vfs_AbsolutePath(const char *path) {
 }
 
 int vfs_Exists(const char *path, int *result, int flags) {
+    return vfs_ExistsEx(path, path, result, flags);
+}
+
+int vfs_ExistsEx(
+        const char *abspath, const char *relpath, int *result, int flags
+        ) {
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(path);
+        char *p = vfs_NormalizePath(relpath);
         if (!p)
             return 0;
 
@@ -278,7 +284,7 @@ int vfs_Exists(const char *path, int *result, int flags) {
         free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
-        int _result = filesys_FileExists(path);
+        int _result = filesys_FileExists(abspath);
         if (_result) {
             *result = 1;
             return 1;
@@ -289,8 +295,14 @@ int vfs_Exists(const char *path, int *result, int flags) {
 }
 
 int vfs_IsDirectory(const char *path, int *result, int flags) {
+    return vfs_IsDirectoryEx(path, path, result, flags);
+}
+
+int vfs_IsDirectoryEx(
+        const char *abspath, const char *relpath, int *result, int flags
+        ) {
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(path);
+        char *p = vfs_NormalizePath(relpath);
         if (!p)
             return 0;
 
@@ -303,7 +315,7 @@ int vfs_IsDirectory(const char *path, int *result, int flags) {
         free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
-        *result = filesys_IsDirectory(path);
+        *result = filesys_IsDirectory(abspath);
         if (*result)
             return 1;
     }
@@ -312,8 +324,15 @@ int vfs_IsDirectory(const char *path, int *result, int flags) {
 }
 
 int vfs_Size(const char *path, uint64_t *result, int flags) {
+    return vfs_SizeEx(path, path, result, flags);
+}
+
+int vfs_SizeEx(
+        const char *abspath, const char *relpath,
+        uint64_t *result, int flags
+        ) {
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(path);
+        char *p = vfs_NormalizePath(relpath);
         if (!p)
             return 0;
         if (PHYSFS_exists(p)) {
@@ -328,8 +347,8 @@ int vfs_Size(const char *path, uint64_t *result, int flags) {
         free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
-            filesys_FileExists(path)) {
-        if (filesys_GetSize(path, result))
+            filesys_FileExists(abspath)) {
+        if (filesys_GetSize(abspath, result))
             return 1;
     }
 
@@ -342,8 +361,19 @@ int vfs_GetBytes(
         uint64_t bytesamount, char *buffer,
         int flags
         ) {
+    return vfs_GetBytesEx(
+        path, path, offset, bytesamount, buffer, flags
+    );
+}
+
+int vfs_GetBytesEx(
+        const char *abspath, const char *relpath,
+        uint64_t offset,
+        uint64_t bytesamount, char *buffer,
+        int flags
+        ) {
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(path);
+        char *p = vfs_NormalizePath(relpath);
         if (!p)
             return 0;
 
@@ -370,8 +400,8 @@ int vfs_GetBytes(
         free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
-            filesys_FileExists(path)) {
-        FILE *f = fopen64(path, "rb");
+            filesys_FileExists(abspath)) {
+        FILE *f = fopen64(abspath, "rb");
         if (f) {
             if (fseek64(f, (int64_t)offset, SEEK_SET) != 0) {
                 fclose(f);
@@ -439,8 +469,20 @@ int vfs_ListFolder(
         int returnFullPath,
         int flags
         ) {
+    return vfs_ListFolderEx(
+        path, path, contents, returnFullPath, flags
+    );
+}
+
+int vfs_ListFolderEx(
+        const char *abspath,
+        const char *relpath,
+        char ***contents,
+        int returnFullPath,
+        int flags
+        ) {
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(path);
+        char *p = vfs_NormalizePath(relpath);
         if (!p)
             return 0;
 
@@ -471,7 +513,7 @@ int vfs_ListFolder(
                         result[i] = strdup(physfs_alloc_list[i]);
                     } else {
                         result[i] = filesys_Join(
-                            path, physfs_alloc_list[i]
+                            relpath, physfs_alloc_list[i]
                         );
                     }
                     if (!result[i]) {
@@ -495,9 +537,9 @@ int vfs_ListFolder(
         free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
-            filesys_FileExists(path)) {
+            filesys_FileExists(abspath)) {
         if (filesys_ListFolder(
-                path, contents, returnFullPath
+                abspath, contents, returnFullPath
                 )) {
             return 1;
         }

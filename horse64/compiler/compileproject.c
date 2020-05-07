@@ -12,6 +12,7 @@
 #include "hash.h"
 #include "secrandom.h"
 #include "uri.h"
+#include "vfs.h"
 
 
 h64compileproject *compileproject_New(
@@ -216,7 +217,7 @@ char *compileproject_ResolveImport(
     }
     import_relpath_len += strlen(".h64");
     import_relpath = malloc(import_relpath_len + 1);
-    if (!import_relpath)
+    if (!import_relpath) {
         if (outofmemory) *outofmemory = 1;
         return NULL;
     }
@@ -238,7 +239,7 @@ char *compileproject_ResolveImport(
         }
         memcpy(p, ".h64", strlen(".h64") + 1);
     }
-    assert(import_relpath_len == strlen(import_relpath));
+    assert(import_relpath_len == (int)strlen(import_relpath));
     if (library_source) {
         // FIXME !!! IMPLEMENT PROPERLY
         if (outofmemory) *outofmemory = 1;
@@ -257,7 +258,7 @@ char *compileproject_ResolveImport(
     char *relfilepath = compileproject_ToProjectRelPath(
         pr, sourcefileuri
     );
-    if (!relfolderpath) {
+    if (!relfilepath) {
         free(projectpath);
         free(import_relpath);
         if (outofmemory) *outofmemory = 1;
@@ -268,7 +269,7 @@ char *compileproject_ResolveImport(
     relfilepath = NULL;
     if (!relfolderpath) {
         free(projectpath);
-        freee(import_relpath);
+        free(import_relpath);
         if (outofmemory) *outofmemory = 1;
         return NULL;
     }
@@ -294,7 +295,7 @@ char *compileproject_ResolveImport(
                 )) {
             if (currentcomponentlen > 0) {
                 currentcomponent[currentcomponentlen] = '\0';
-                char *s = strdup(currencomponent);
+                char *s = strdup(currentcomponent);
                 if (!s) {
                     subdircheckoom: ;
                     int k = 0;
@@ -328,7 +329,7 @@ char *compileproject_ResolveImport(
             i++;
             continue;
         }
-        if (currentcomponentlen + 1 < sizeof(currentcomponent)) {
+        if (currentcomponentlen + 1 < (int)sizeof(currentcomponent)) {
             currentcomponent[currentcomponentlen] = (
                 relfolderpath[i]
             );
@@ -351,9 +352,8 @@ char *compileproject_ResolveImport(
         char *checkpath_rel = malloc(
             subdirs_len + 1 + import_relpath_len + 1
         );
-        if (!p) {
+        if (!checkpath_rel)
             goto subdircheckoom;
-        }
         char *p = checkpath_rel;
         i = 0;
         while (i < k) {
@@ -375,39 +375,41 @@ char *compileproject_ResolveImport(
         *p = '/';
         #endif
         p++;
-        memcpy(p, import_relpath_len, import_relpath_len + 1);
-        assert(strlen(checkpath_rel) ==
+        memcpy(p, import_relpath, import_relpath_len + 1);
+        assert((int)strlen(checkpath_rel) ==
                subdirs_len + 1 + import_relpath_len + 1);
         char *checkpath_abs = filesys_Join(
             projectpath, checkpath_rel
         );
         if (!checkpath_abs)
             goto subdircheckoom;
-        free(checkpath_rel); checkpath_rel = NULL;
-        // FIXME: This relies on the CWD for the vfs. this is bad.
-        // find a better way!
         int _exists_result = 0;
-        if (!vfs_Exists(checkpath_abs, &_exists_result, 0)) {
+        if (!vfs_ExistsEx(checkpath_abs, checkpath_rel,
+                &_exists_result, 0)) {
             free(checkpath_abs);
+            free(checkpath_rel);
             goto subdircheckoom;
         }
         if (_exists_result) {
             int _directory_result = 0;
-            if (!vfs_IsDirectory(checkpath_abs, &_directory_result, 0)) {
+            if (!vfs_IsDirectoryEx(checkpath_abs, checkpath_rel,
+                    &_directory_result, 0)) {
                 free(checkpath_abs);
+                free(checkpath_rel);
                 goto subdircheckoom;
             }
             if (!_directory_result) {
                 // Match.
                 result = checkpath_abs;
+                free(checkpath_rel);
                 break;
             }
         }
         free(checkpath_abs);
-        checkpath_abs = NULL;
+        free(checkpath_rel);
         k--;
     }
-    int k = 0;
+    k = 0;
     while (k < subdir_components_count) {
         free(subdir_components[k]);
         k++;
@@ -418,14 +420,6 @@ char *compileproject_ResolveImport(
     free(import_relpath);
     if (outofmemory) *outofmemory = 0;
     return result;
-}
-
-int vfs_ListFolder(
-    const char *path,
-    char ***contents,
-    int returnFullPath,
-    int vfsflags
-)
 }
 
 char *compileproject_FolderGuess(
