@@ -190,6 +190,244 @@ void compileproject_Free(h64compileproject *pr) {
     free(pr);
 }
 
+char *compileproject_GetFileSubProjectPath(
+        h64compileproject *pr, const char *sourcefileuri
+        ) {
+    return NULL;  // FIXME  IMPLEMENT PROPERLY
+}
+
+char *compileproject_ResolveImport(
+        h64compileproject *pr,
+        const char *sourcefileuri,
+        const char **import_elements, int import_elements_count,
+        const char *library_source,
+        int *outofmemory
+        ) {
+    if (!pr || !pr->basefolder || !sourcefileuri)
+        return NULL;
+    char *import_relpath = NULL;
+    int import_relpath_len = 0;
+    int i = 0;
+    while (i < import_elements_count) {
+        if (i + 1 < import_elements_count)
+            import_relpath_len++; // dir separator
+        import_relpath_len += strlen(import_elements[i]);
+        i++;
+    }
+    import_relpath_len += strlen(".h64");
+    import_relpath = malloc(import_relpath_len + 1);
+    if (!import_relpath)
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
+    {
+        char *p = import_relpath;
+        i = 0;
+        while (i < import_elements_count) {
+            memcpy(p, import_elements[i], strlen(import_elements[i]));
+            p += strlen(import_elements[i]);
+            if (i + 1 < import_elements_count) {
+                #if defined(_WIN32) || defined(_WIN64)
+                *p = '\\';
+                #else
+                *p = '/';
+                #endif
+                p++;
+            }
+            i++;
+        }
+        memcpy(p, ".h64", strlen(".h64") + 1);
+    }
+    assert(import_relpath_len == strlen(import_relpath));
+    if (library_source) {
+        // FIXME !!! IMPLEMENT PROPERLY
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
+
+    // Not a library, do local project folder search:
+    char *projectpath = compileproject_GetFileSubProjectPath(
+        pr, sourcefileuri
+    );
+    if (!projectpath) {
+        free(import_relpath);
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
+    char *relfilepath = compileproject_ToProjectRelPath(
+        pr, sourcefileuri
+    );
+    if (!relfolderpath) {
+        free(projectpath);
+        free(import_relpath);
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
+    char *relfolderpath = filesys_Dirname(relfilepath);
+    free(relfilepath);
+    relfilepath = NULL;
+    if (!relfolderpath) {
+        free(projectpath);
+        freee(import_relpath);
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
+    while (strlen(relfolderpath) && (
+            relfolderpath[strlen(relfolderpath) - 1] == '/'
+            #if defined(_WIN32) || defined(_WIN64)
+            || relfolderpath[strlen(relfolderpath) - 1] == '\\'
+            #endif
+            )) {
+        relfolderpath[strlen(relfolderpath) - 1] = '\0';
+    }
+    char **subdir_components = NULL;
+    int subdir_components_count = 0;
+    char currentcomponent[512] = {0};
+    int currentcomponentlen = 0;
+    i = 0;
+    while (1) {
+        if (relfolderpath[i] == '\0' || (
+                relfolderpath[i] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                relfolderpath[i] == '\\'
+                #endif
+                )) {
+            if (currentcomponentlen > 0) {
+                currentcomponent[currentcomponentlen] = '\0';
+                char *s = strdup(currencomponent);
+                if (!s) {
+                    subdircheckoom: ;
+                    int k = 0;
+                    while (k < subdir_components_count) {
+                        free(subdir_components[k]);
+                        k++;
+                    }
+                    free(subdir_components);
+                    free(projectpath);
+                    free(relfolderpath);
+                    free(import_relpath);
+                    if (outofmemory) *outofmemory = 1;
+                    return NULL;
+                }
+                char **new_components = realloc(
+                    subdir_components,
+                    sizeof(*new_components) * (
+                    subdir_components_count + 1
+                    ));
+                if (!new_components) {
+                    free(s);
+                    goto subdircheckoom;
+                }
+                subdir_components = new_components;
+                subdir_components[subdir_components_count] = s;
+                subdir_components_count++;
+            }
+            if (relfolderpath[i] == '\0')
+                break;
+            currentcomponentlen = 0;
+            i++;
+            continue;
+        }
+        if (currentcomponentlen + 1 < sizeof(currentcomponent)) {
+            currentcomponent[currentcomponentlen] = (
+                relfolderpath[i]
+            );
+            currentcomponentlen++;
+        }
+        i++;
+    }
+    free(relfolderpath); relfolderpath = NULL;
+    char *result = NULL;
+    int k = subdir_components_count;
+    while (k >= 0) {
+        int subdirs_len = 0;
+        i = 0;
+        while (i < k) {
+            if (i + 1 < k)
+                subdirs_len++;  // dir sep
+            subdirs_len += strlen(subdir_components[k]);
+            i++;
+        }
+        char *checkpath_rel = malloc(
+            subdirs_len + 1 + import_relpath_len + 1
+        );
+        if (!p) {
+            goto subdircheckoom;
+        }
+        char *p = checkpath_rel;
+        i = 0;
+        while (i < k) {
+            memcpy(p, subdir_components[k],
+                   strlen(subdir_components[k]));
+            if (i + 1 < k) {
+                #if defined(_WIN32) || defined(_WIN64)
+                *p = '\\';
+                #else
+                *p = '/';
+                #endif
+                p++;
+            }
+            i++;
+        }
+        #if defined(_WIN32) || defined(_WIN64)
+        *p = '\\';
+        #else
+        *p = '/';
+        #endif
+        p++;
+        memcpy(p, import_relpath_len, import_relpath_len + 1);
+        assert(strlen(checkpath_rel) ==
+               subdirs_len + 1 + import_relpath_len + 1);
+        char *checkpath_abs = filesys_Join(
+            projectpath, checkpath_rel
+        );
+        if (!checkpath_abs)
+            goto subdircheckoom;
+        free(checkpath_rel); checkpath_rel = NULL;
+        // FIXME: This relies on the CWD for the vfs. this is bad.
+        // find a better way!
+        int _exists_result = 0;
+        if (!vfs_Exists(checkpath_abs, &_exists_result, 0)) {
+            free(checkpath_abs);
+            goto subdircheckoom;
+        }
+        if (_exists_result) {
+            int _directory_result = 0;
+            if (!vfs_IsDirectory(checkpath_abs, &_directory_result, 0)) {
+                free(checkpath_abs);
+                goto subdircheckoom;
+            }
+            if (!_directory_result) {
+                // Match.
+                result = checkpath_abs;
+                break;
+            }
+        }
+        free(checkpath_abs);
+        checkpath_abs = NULL;
+        k--;
+    }
+    int k = 0;
+    while (k < subdir_components_count) {
+        free(subdir_components[k]);
+        k++;
+    }
+    free(subdir_components);
+    free(projectpath);
+    free(relfolderpath);
+    free(import_relpath);
+    if (outofmemory) *outofmemory = 0;
+    return result;
+}
+
+int vfs_ListFolder(
+    const char *path,
+    char ***contents,
+    int returnFullPath,
+    int vfsflags
+)
+}
+
 char *compileproject_FolderGuess(
         const char *fileuri, int cwd_fallback_if_appropriate,
         char **error

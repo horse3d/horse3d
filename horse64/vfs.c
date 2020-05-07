@@ -445,11 +445,11 @@ int vfs_ListFolder(
             return 0;
 
         if (PHYSFS_exists(p)) {
-            while (strlen(p) > 0 && p[strlen(p) - 1] == '/'
+            while (strlen(p) > 0 && (p[strlen(p) - 1] == '/'
                     #if defined(_WIN32) || defined(_WIN64)
                     || p[strlen(p) - 1] == '\\'
                     #endif
-                    ) {
+                    )) {
                 p[strlen(p) - 1] = '\0';
             }
             char **physfs_alloc_list = PHYSFS_enumerateFiles(p);

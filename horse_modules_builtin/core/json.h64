@@ -1,0 +1,6 @@
+
+# This is a test file for import testing.
+
+func decode(obj) {
+    print("Got this object: " + obj.tostr())
+}
