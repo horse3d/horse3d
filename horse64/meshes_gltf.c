@@ -142,7 +142,7 @@ int _loadcgltfbuffers(
         }
 
         uint64_t buffersize = 0;
-        if (!vfs_Size(abspath, &buffersize)) {
+        if (!vfs_Size(abspath, &buffersize, 0)) {
             if (error) {
                 snprintf(
                     errbuf, sizeof(errbuf) - 1,
@@ -170,7 +170,7 @@ int _loadcgltfbuffers(
                 *error = strdup("alloc fail, out of memory?");
             goto abortandfreestuff;
         }
-        if (!vfs_GetBytes(abspath, 0, buffersize, bufferdata)) {
+        if (!vfs_GetBytes(abspath, 0, buffersize, bufferdata, 0)) {
             if (error) {
                 snprintf(
                     errbuf, sizeof(errbuf) - 1,
@@ -243,7 +243,7 @@ int _mesh_IterateCGLTFNodes(
                     return 1;
                 }
                 if (last_child_visit_index + 1 <
-                        lookat_node->children_count) {
+                        (int)lookat_node->children_count) {
                     // Go into next child:
                     int i = last_child_visit_index + 1;
                     last_child_visit_index = -1;
@@ -265,7 +265,7 @@ int _mesh_IterateCGLTFNodes(
                         lookat_node = lookat_node->parent;
                         last_child_visit_index = i;
                         if (last_child_visit_index + 1 >=
-                                lookat_node->children_count)
+                                (int)lookat_node->children_count)
                             continue;
                         i = last_child_visit_index + 1;
                         last_child_visit_index = -1;
@@ -396,7 +396,7 @@ int _cgltf_loaddata(
     cgltf_data *gltf_data = NULL;
     *out_data = NULL;
     int _existsresult = 0;
-    if (!vfs_Exists(path, &_existsresult)) {
+    if (!vfs_Exists(path, &_existsresult, 0)) {
         if (error)
             *error = strdup("vfs_Exists() failed, out of memory?");
         return 0;
@@ -407,7 +407,7 @@ int _cgltf_loaddata(
         return 0;
     }
     uint64_t filedatasize = 0;
-    if (!vfs_Size(path, &filedatasize)) {
+    if (!vfs_Size(path, &filedatasize, 0)) {
         if (error)
             *error = strdup("vfs_Size() failed, out of memory?");
         return 0;
@@ -423,7 +423,7 @@ int _cgltf_loaddata(
             *error = strdup("file alloc failed, out of memory?");
         return 0;
     }
-    if (!vfs_GetBytes(path, 0, filedatasize, filedata)) {
+    if (!vfs_GetBytes(path, 0, filedatasize, filedata, 0)) {
         if (error)
             *error = strdup(
                 "failed to read file, disk error or out of memory?"
@@ -639,7 +639,7 @@ int mesh_AddFromCGLTFMeshNode(
 
         // Extract polygon vertex positions & normal:
         int j = 0;
-        while (j < mesh_node->mesh->primitives[i].indices->count) {
+        while (j < (int)mesh_node->mesh->primitives[i].indices->count) {
             unsigned int indexes[3];
             assert(!mesh_node->mesh->primitives[i].indices->is_sparse);
             assert(mesh_node->mesh->primitives[i].indices->buffer_view->buffer->data);
@@ -676,7 +676,7 @@ int mesh_AddFromCGLTFMeshNode(
             double uv[6];
 
             int k = 0;
-            while (k < mesh_node->mesh->primitives[i].attributes_count) {
+            while (k < (int)mesh_node->mesh->primitives[i].attributes_count) {
                 cgltf_attribute meshattr = (
                     mesh_node->mesh->primitives[i].attributes[k]
                 );

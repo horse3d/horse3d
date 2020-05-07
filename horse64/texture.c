@@ -343,7 +343,7 @@ static h3dtexture *texture_LoadTextureEx(
     int n = 0;
     char *imgencodedfile = NULL;
     int32_t size = 0;
-    VFSFILE *f = vfs_fopen(path, "rb");
+    VFSFILE *f = vfs_fopen(path, "rb", 0);
     if (!f) {
         return NULL;
     }

@@ -81,7 +81,7 @@ int mesh_LocateModelReferencedFilePath(
         return 0;
     }
     int exists1 = 0;
-    if (!vfs_Exists(filepath_reltomodel_abs, &exists1))
+    if (!vfs_Exists(filepath_reltomodel_abs, &exists1, 0))
         goto existsfail;
     if (exists1) {
         free(modelfolder_path);
@@ -92,7 +92,7 @@ int mesh_LocateModelReferencedFilePath(
         return 1;
     }
     int exists2 = 0;
-    if (!vfs_Exists(filepath_reltocwd_abs, &exists2)) {
+    if (!vfs_Exists(filepath_reltocwd_abs, &exists2, 0)) {
         existsfail:
         free(filepath_reltocwd);
         free(filepath_reltocwd_abs);
@@ -177,9 +177,9 @@ h3dtexture *mesh_LocateModelReferencedTexture(
 
     h3dtexture *tex = NULL;
     int resultExists = 0;
-    vfs_Exists(texpath_reltomodel, &resultExists);
+    vfs_Exists(texpath_reltomodel, &resultExists, 0);
     int resultIsDir = 1;
-    vfs_IsDirectory(texpath_reltomodel, &resultIsDir);
+    vfs_IsDirectory(texpath_reltomodel, &resultIsDir, 0);
     if (resultExists && !resultIsDir) {
         #if defined(DEBUG_MESH_LOADER) || defined(DEBUG_MESH_TEXTURE_FINDER)
         if (!seen_before)
@@ -190,9 +190,9 @@ h3dtexture *mesh_LocateModelReferencedTexture(
         tex = texture_GetTexture(texpath_reltomodel);
     }
     resultExists = 0;
-    vfs_Exists(texpath_reltocwd, &resultExists);
+    vfs_Exists(texpath_reltocwd, &resultExists, 0);
     resultIsDir = 1;
-    vfs_IsDirectory(texpath_reltocwd, &resultIsDir);
+    vfs_IsDirectory(texpath_reltocwd, &resultIsDir, 0);
     if (!tex && resultExists && !resultIsDir) {
         #if defined(DEBUG_MESH_LOADER) || defined(DEBUG_MESH_TEXTURE_FINDER)
         if (!seen_before)

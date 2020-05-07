@@ -44,7 +44,7 @@ static TTF_Font *load_font_from_vfs_file(
         SDL_RWops **contents_rwops, char **contents, int64_t *size
         ) {
     int _existsresult = 0;
-    if (!vfs_Exists(path, &_existsresult) || !_existsresult) {
+    if (!vfs_Exists(path, &_existsresult, 0) || !_existsresult) {
         #ifdef DEBUGLOADFONT
         fprintf(
             stderr, "horse3d/uiobject.c: warning: couldn't load "
@@ -55,7 +55,7 @@ static TTF_Font *load_font_from_vfs_file(
         return NULL;
     }
     uint64_t memsize = 0;
-    if (!vfs_Size(path, &memsize) || memsize <= 0) {
+    if (!vfs_Size(path, &memsize, 0) || memsize <= 0) {
         #ifdef DEBUGLOADFONT
         fprintf(
             stderr, "horse3d/uiobject.c: warning: couldn't load "
@@ -69,7 +69,7 @@ static TTF_Font *load_font_from_vfs_file(
     *contents = malloc(memsize);
     if (!*contents)
         return NULL;
-    if (!vfs_GetBytes(path, 0, memsize, *contents)) {
+    if (!vfs_GetBytes(path, 0, memsize, *contents, 0)) {
         free(*contents);
         #ifdef DEBUGLOADFONT
         fprintf(
@@ -355,7 +355,7 @@ SDL_Surface *uiobject_GetTextRender(h3duiobject *uiobj) {
     if (!cfont)
         return NULL;
 
-    SDL_Color c = {255,255,255};
+    SDL_Color c = {255,255,255,255};
     int maxlinelen = 1024 * 1024;
     int maxlines = 1024;
     char *linebuf = malloc(maxlinelen + 1);

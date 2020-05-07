@@ -150,7 +150,7 @@ static int h3daudio_DecodeAhead(
     if (s->vfserror)
         return 0;
     if (!s->vfshandle && !s->vfserror) {
-        s->vfshandle = vfs_fopen(s->audiopath, "rb");
+        s->vfshandle = vfs_fopen(s->audiopath, "rb", 0);
         if (!s->vfshandle) {
             s->vfserror = 1;
             return 0;
@@ -183,7 +183,7 @@ static int h3daudio_DecodeAhead(
                 s->audiopath
             );
             #endif
-            if (s->_mp3decode->channels != dev->channels) {
+            if ((int)s->_mp3decode->channels != dev->channels) {
                 // FIXME: mono support
                 drmp3_uninit(s->_mp3decode);
                 free(s->_mp3decode);
@@ -240,7 +240,7 @@ static int h3daudio_DecodeAhead(
             if (!vfs_fseek(s->vfshandle, 0))
                 return 0;
         uint64_t fsize = 0;
-        if (!vfs_Size(s->audiopath, &fsize)) {
+        if (!vfs_Size(s->audiopath, &fsize, 0)) {
             s->vfserror = 1;
             return 0;
         }
@@ -248,7 +248,7 @@ static int h3daudio_DecodeAhead(
             s->vfserror = 1;
             return 0;
         }
-        int input_size = 256;
+        unsigned int input_size = 256;
         while (input_size < 1024 * 1024) {
             if (input_size > fsize)
                 input_size = fsize;
@@ -456,8 +456,8 @@ static int h3daudio_DecodeAhead(
             }
             if (!vfs_fseek(s->vfshandle, offset))
                 goto vorbisfilefail;
-            int channels_found = 0;
-            int samples_found = 0;
+            unsigned int channels_found = 0;
+            unsigned int samples_found = 0;
             float **outputs = NULL;
             stb_vorbis_get_error(s->_vorbisdecode);  // clear error
             int bytes_used = stb_vorbis_decode_frame_pushdata(
@@ -506,9 +506,9 @@ static int h3daudio_DecodeAhead(
             );
             if (!channelbuf)
                 goto vorbisfilefail;
-            int i = 0;
+            unsigned int i = 0;
             while (i < samples_found) {
-                int k = 0;
+                unsigned int k = 0;
                 while (k < s->channels) {
                     int64_t value = outputs[k][i] * 32768.0;
                     if (value > 32767)

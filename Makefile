@@ -83,15 +83,12 @@ check-submodules:
 
 datapak:
 	rm -rf ./datapak/
-	mkdir -p ./datapak/horse64/
-	cp -R ./horse64/scriptcore/ ./datapak/horse64/scriptcore/
-	mkdir -p ./demo-assets/
-	cp -R ./demo-assets/ ./datapak/demo-assets/
-	cp -R ./vendor/packaged-fonts/ ./datapak/demo-assets/packaged-fonts/
+	mkdir -p ./datapak/
+	cp -R ./horse_modules_builtin/ ./datapak/horse_modules_builtin/
 	cd datapak && find . -name "*~" -type f -delete
 	cd datapak && find . -name "*.swp" -type f -delete
-	cd datapak && zip -r -9 ./coreapi.h3dpak ./horse64/ ./demo-assets/
-	mv datapak/coreapi.h3dpak ./coreapi.h3dpak
+	cd datapak && zip -r -9 ./coreapi.h64pak ./horse_modules_builtin/
+	mv datapak/coreapi.h64pak ./coreapi.h64pak
 	rm -rf datapak
 release:
 	make clean

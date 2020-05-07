@@ -159,7 +159,7 @@ int _h3daudio_playsound(lua_State *l) {
     }
     const char *soundpath = lua_tostring(l, 1);
     int existsresult = 0;
-    if (!vfs_Exists(soundpath, &existsresult)) {
+    if (!vfs_Exists(soundpath, &existsresult, 0)) {
         lua_pushstring(l, "vfs_Exists() failed - out of memory?");
         return lua_error(l);
     }

@@ -191,7 +191,9 @@ int compiler_AddResultMessageAsJson(
 jsonvalue *compiler_TokenizeToJSON(
         const char *fileuri, h64compilewarnconfig *wconfig
         ) {
-    h64tokenizedfile tfile = lexer_ParseFromFile(fileuri, wconfig);
+    h64tokenizedfile tfile = lexer_ParseFromFile(
+        fileuri, wconfig, 0
+    );
 
     char *normalizeduri = uri_Normalize(fileuri, 1);
     if (!normalizeduri) {
@@ -412,7 +414,7 @@ jsonvalue *compiler_ParseASTToJSON(
         goto failedproject;
     }
     if (resolve_references) {
-        if (!scoperesolver_ResolveAST(&tast)) {
+        if (!scoperesolver_ResolveAST(project, &tast)) {
             compileproject_Free(project);
             project = NULL;
             goto failedproject;

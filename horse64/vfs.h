@@ -2,19 +2,16 @@
 #define HORSE3D_VFS_H_
 
 
+#define VFSFLAG_NO_REALDISK_ACCESS 1
+#define VFSFLAG_NO_VIRTUALPAK_ACCESS 2
+
 int vfs_AddPak(const char *path);
 
-int vfs_Exists(const char *path, int *result);
+int vfs_Exists(const char *path, int *result, int flags);
 
-int vfs_ExistsIgnoringCurrentDirectoryDiskAccess(
-    const char *path, int *result
-);
+int vfs_IsDirectory(const char *path, int *result, int flags);
 
-int vfs_IsDirectory(const char *path, int *result);
-
-int vfs_Size(const char *path, uint64_t *result);
-
-void vfs_EnableCurrentDirectoryDiskAccess(int enable);
+int vfs_Size(const char *path, uint64_t *result, int flags);
 
 char *vfs_NormalizePath(const char *path);
 
@@ -22,14 +19,15 @@ char *vfs_AbsolutePath(const char *path);
 
 int vfs_GetBytes(
     const char *path, uint64_t offset,
-    uint64_t bytesamount, char *buffer
+    uint64_t bytesamount, char *buffer,
+    int flags
 );
 
 void vfs_Init(const char *argv0);
 
 typedef struct VFSFILE VFSFILE;
 
-VFSFILE *vfs_fopen(const char *path, const char *mode);
+VFSFILE *vfs_fopen(const char *path, const char *mode, int flags);
 
 int vfs_feof(VFSFILE *f);
 

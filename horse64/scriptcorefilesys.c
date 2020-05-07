@@ -99,7 +99,7 @@ static int _lfs_getsize(lua_State *l) {
         return lua_error(l);
     }
     uint64_t s;
-    if (!vfs_Size(lua_tostring(l, 1), &s)) {
+    if (!vfs_Size(lua_tostring(l, 1), &s, 0)) {
         lua_pushnil(l);
         return 1;
     }
@@ -115,7 +115,7 @@ static int _lfs_exists(lua_State *l) {
         return lua_error(l);
     }
     int result = 0;
-    if (!vfs_Exists(lua_tostring(l, 1), &result)) {
+    if (!vfs_Exists(lua_tostring(l, 1), &result, 0)) {
         lua_pushstring(l, "exists failed - out of memory?");
         return lua_error(l);
     }
@@ -177,7 +177,7 @@ static int _lfs_isdir(lua_State *l) {
         return lua_error(l);
     }
     int result = 0;
-    if (!vfs_IsDirectory(lua_tostring(l, 1), &result)) {
+    if (!vfs_IsDirectory(lua_tostring(l, 1), &result, 0)) {
         lua_pushstring(l, "failure in vfs_IsDirectory - out of memory?");
         return lua_error(l);
     }
@@ -275,7 +275,7 @@ static int _vfs_package_require_searcher(lua_State *l) {
     char *path = malloc(strlen(modpath) + strlen(".lua") + 1);
     if (!path)
         return 0;
-    int i = 0;
+    unsigned int i = 0;
     while (i < strlen(modpath)) {
         if (modpath[i] == '.') {
             path[i] = '/';
@@ -288,7 +288,7 @@ static int _vfs_package_require_searcher(lua_State *l) {
 
     // See if module exists and how large the file is:
     int result = 0;
-    if (!vfs_Exists(path, &result)) {
+    if (!vfs_Exists(path, &result, 0)) {
         free(path);
         lua_pushstring(l, "unexpected failure in vfs_Exists");
         return lua_error(l);
@@ -322,7 +322,7 @@ static int _vfs_package_require_searcher(lua_State *l) {
         }
         if (!path)
             return 0;
-        if (!vfs_Exists(path, &result)) {
+        if (!vfs_Exists(path, &result, 0)) {
             free(path);
             lua_pushstring(l, "unexpected failure in vfs_Exists");
             return lua_error(l);
@@ -333,7 +333,7 @@ static int _vfs_package_require_searcher(lua_State *l) {
             return 0;
         }
     }
-    if (!vfs_IsDirectory(path, &result)) {
+    if (!vfs_IsDirectory(path, &result, 0)) {
         free(path);
         lua_pushstring(l, "unexpected failure in vfs_IsDirectory");
         return lua_error(l);
@@ -343,7 +343,7 @@ static int _vfs_package_require_searcher(lua_State *l) {
         return 0;
     }
     uint64_t contentsize = 0;
-    if (!vfs_Size(path, &contentsize)) {
+    if (!vfs_Size(path, &contentsize, 0)) {
         free(path);
         lua_pushstring(l, "unexpected failure in vfs_Size");
         return lua_error(l);
@@ -359,7 +359,7 @@ static int _vfs_package_require_searcher(lua_State *l) {
         free(path);
         return 0;
     }
-    if (!vfs_GetBytes(path, 0, contentsize, contents)) {
+    if (!vfs_GetBytes(path, 0, contentsize, contents, 0)) {
         free(path);
         lua_pushstring(l, "unexpected failure in vfs_GetBytes");
         return lua_error(l);
@@ -400,7 +400,7 @@ static int _vfs_lua_loadfile(lua_State *l) {
         return lua_error(l);
     }
     int result;
-    if (!vfs_Exists(path, &result)) {
+    if (!vfs_Exists(path, &result, 0)) {
         free(path);
         return 0;
     }
@@ -409,7 +409,7 @@ static int _vfs_lua_loadfile(lua_State *l) {
         return 0;
     }
     uint64_t contentsize = 0;
-    if (!vfs_Size(path, &contentsize)) {
+    if (!vfs_Size(path, &contentsize, 0)) {
         free(path);
         lua_pushstring(l, "unexpected failure in vfs_Size");
         return lua_error(l);
@@ -423,7 +423,7 @@ static int _vfs_lua_loadfile(lua_State *l) {
         free(path);
         return 0;
     }
-    if (!vfs_GetBytes(path, 0, contentsize, contents)) {
+    if (!vfs_GetBytes(path, 0, contentsize, contents, 0)) {
         free(path);
         lua_pushstring(l, "unexpected failure in vfs_GetBytes");
         return lua_error(l);
@@ -468,18 +468,14 @@ static int _vfs_readvfsfile(lua_State *l) {
         return lua_error(l);
     }
     int result;
-    if (!vfs_ExistsIgnoringCurrentDirectoryDiskAccess(
-            path, &result
-            )) {
-        free(path);
-        return 0;
-    }
-    if (!result || (vfs_IsDirectory(path, &result) && result)) {
+    if (!result || (vfs_IsDirectory(
+            path, &result, VFSFLAG_NO_REALDISK_ACCESS
+            ) && result)) {
         free(path);
         return 0;
     }
     uint64_t contentsize = 0;
-    if (!vfs_Size(path, &contentsize)) {
+    if (!vfs_Size(path, &contentsize, VFSFLAG_NO_REALDISK_ACCESS)) {
         free(path);
         lua_pushstring(l, "unexpected failure in vfs_Size");
         return lua_error(l);
@@ -493,7 +489,8 @@ static int _vfs_readvfsfile(lua_State *l) {
         free(path);
         return 0;
     }
-    if (!vfs_GetBytes(path, 0, contentsize, contents)) {
+    if (!vfs_GetBytes(path, 0, contentsize, contents,
+                      VFSFLAG_NO_REALDISK_ACCESS)) {
         free(path);
         lua_pushstring(l, "unexpected failure in vfs_GetBytes");
         return lua_error(l);

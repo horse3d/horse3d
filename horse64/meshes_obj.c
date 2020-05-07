@@ -96,8 +96,8 @@ static int mesh_ParseMTLLine(
         p++;
     char fnamebuf[128];
     int copylen = strlen(p);
-    if (copylen > sizeof(fnamebuf) - 1)
-        copylen = sizeof(fnamebuf) - 1;
+    if (copylen > (int)sizeof(fnamebuf) - 1)
+        copylen = (int)sizeof(fnamebuf) - 1;
     memcpy(fnamebuf, p, copylen);
     fnamebuf[copylen] = '\0';
     while (strlen(fnamebuf) > 0 &&
@@ -127,7 +127,7 @@ static int mesh_ParseMTLLine(
     if (!openpath)
         return 0;
 
-    VFSFILE *f2 = vfs_fopen(openpath, "rb");
+    VFSFILE *f2 = vfs_fopen(openpath, "rb", 0);
     free(openpath);
     if (!f2)
         return 0;
@@ -328,14 +328,14 @@ h3dmesh *mesh_LoadFromOBJEx(
     h3dmesh *builtmesh = NULL;
     h3dmesh *_result = NULL;
 
-    VFSFILE *f = vfs_fopen(path, "rb");
+    VFSFILE *f = vfs_fopen(path, "rb", 0);
     if (!f) {
         if (mtldir_path)
             free(mtldir_path);
         if (error)
             *error = NULL;
         int exists_result = 0;
-        if (vfs_Exists(path, &exists_result))
+        if (vfs_Exists(path, &exists_result, 0))
             if (!exists_result)
                 if (error)
                     *error = strdup("file not found");

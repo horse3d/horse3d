@@ -175,7 +175,7 @@ static int _scene_additemsfromquakemap(lua_State *l) {
     double scene_scale = lua_tonumber(l, 2);
 
     VFSFILE *f = NULL;
-    if (!(f = vfs_fopen(lua_tostring(l, 1), "rb"))) {
+    if (!(f = vfs_fopen(lua_tostring(l, 1), "rb", 0))) {
         lua_pushstring(l, "failed to open file");
         return lua_error(l);
     }
@@ -225,7 +225,7 @@ static int _scene_additemsfromquakemap(lua_State *l) {
         if (linebuf[0] == '"' || (
                 linebuf[0] >= 'a' && linebuf[0] <= 'z')) {
             int i = 1;
-            while (i < strlen(linebuf) &&
+            while (i < (int)strlen(linebuf) &&
                     ((linebuf[0] == '"' && (i <= 1 ||
                       linebuf[i - 1] != '"' || linebuf[i] != ' ')) ||
                      (linebuf[0] != '"' && linebuf[i] != ' ')))
@@ -395,7 +395,7 @@ int _scene_additemsandgeometryfromgltfscene(lua_State *l) {
     char *error = NULL;
 
     int exists_result = 0;
-    if (!vfs_Exists(path, &exists_result) || !exists_result) {
+    if (!vfs_Exists(path, &exists_result, 0) || !exists_result) {
         meshloadinfo_Free(loadinfo);
         lua_pushstring(l, "no such file or I/O error");
         return lua_error(l);

@@ -23,7 +23,6 @@
 
 //#define DEBUG_VFS
 
-static int vfs_includes_cwd = 1;
 
 typedef struct VFSFILE {
     int via_physfs;
@@ -155,7 +154,7 @@ size_t vfs_fread(
     return result;
 }
 
-VFSFILE *vfs_fopen(const char *path, const char *mode) {
+VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
     char *p = vfs_NormalizePath(path);
     if (!p) {
         #if !defined(_WIN32) && !defined(_WIN64)
@@ -175,53 +174,41 @@ VFSFILE *vfs_fopen(const char *path, const char *mode) {
     memset(vfile, 0, sizeof(*vfile));
     vfile->size = -1;
 
-    int _result = PHYSFS_exists(p);
-    if (!_result && !vfs_includes_cwd) {
-        free(vfile);
-        free(p);
-        #if !defined(_WIN32) && !defined(_WIN64)
-        errno = ENOENT;
-        #endif
-        return 0;
-    } else if (!_result) {
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
+            PHYSFS_exists(p)) {
+        vfile->via_physfs = 1;
+        vfile->physfshandle = PHYSFS_openRead(p);
+        if (vfile->physfshandle) {
+            vfile->size = (int64_t)PHYSFS_fileLength(vfile->physfshandle);
+            free(p);
+            return vfile;
+        }
+    }
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
         vfile->via_physfs = 0;
         errno = 0;
         vfile->diskhandle = fopen64(p, mode);
-        free(p);
-        if (!vfile->diskhandle) {
-            free(vfile);
-            #if !defined(_WIN32) && !defined(_WIN64)
-            errno = ENOENT;
-            #endif
-            return 0;
+        if (vfile->diskhandle) {
+            free(p);
+            return vfile;
         }
         return vfile;
     }
 
-    vfile->via_physfs = 1;
-    vfile->physfshandle = PHYSFS_openRead(p);
     free(p);
-    if (!vfile->physfshandle) {
-        free(vfile);
-        #if !defined(_WIN32) && !defined(_WIN64)
-        errno = ENOENT;
-        #endif
-        return 0;
-    }
-    vfile->size = (int64_t)PHYSFS_fileLength(vfile->physfshandle);
-    return vfile;
-}
-
-void vfs_EnableCurrentDirectoryDiskAccess(int enable) {
-    vfs_includes_cwd = (enable != 0);
+    free(vfile);
+    #if !defined(_WIN32) && !defined(_WIN64)
+    errno = ENOENT;
+    #endif
+    return 0;
 }
 
 int vfs_AddPak(const char *path) {
     if (!path || !filesys_FileExists(path) ||
             filesys_IsDirectory(path) ||
-            strlen(path) < strlen(".h3dpak") ||
-            memcmp(path + strlen(path) - strlen(".h3dpak"),
-                   ".h3dpak", strlen(".h3dpak")) != 0)
+            strlen(path) < strlen(".h64pak") ||
+            memcmp(path + strlen(path) - strlen(".h64pak"),
+                   ".h64pak", strlen(".h64pak")) != 0)
         return 0;
     #if defined(DEBUG_VFS) && !defined(NDEBUG)
     printf("horse64/vfs.c: debug: "
@@ -278,125 +265,136 @@ char *vfs_AbsolutePath(const char *path) {
     return result;
 }
 
-int vfs_Exists(const char *path, int *result) {
+int vfs_Exists(const char *path, int *result, int flags) {
     char *p = vfs_NormalizePath(path);
     if (!p)
         return 0;
 
-    int _result = PHYSFS_exists(p);
-    if (!_result && vfs_includes_cwd) {
-        _result = filesys_FileExists(p);
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+        int _result = PHYSFS_exists(p);
+        if (_result) {
+            free(p);
+            *result = 1;
+            return 1;
+        }
+    }
+    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
+        int _result = filesys_FileExists(p);
+        if (_result) {
+            free(p);
+            *result = 1;
+            return 1;
+        }
     }
     free(p);
-    *result = _result;
+    *result = 0;
     return 1;
 }
 
-int vfs_ExistsIgnoringCurrentDirectoryDiskAccess(
-        const char *path, int *result
-        ) {
+int vfs_IsDirectory(const char *path, int *result, int flags) {
     char *p = vfs_NormalizePath(path);
     if (!p)
         return 0;
 
-    int _result = PHYSFS_exists(p);
-    free(p);
-    *result = _result;
-    return 1;
-}
-
-int vfs_IsDirectory(const char *path, int *result) {
-    char *p = vfs_NormalizePath(path);
-    if (!p)
-        return 0;
-
-    if (!PHYSFS_exists(p) && filesys_FileExists(p) &&
-            vfs_includes_cwd) {
-        *result = filesys_IsDirectory(p);
-    } else {
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
         PHYSFS_Stat stat;
-        if (!PHYSFS_stat(p, &stat)) {
+        if (PHYSFS_stat(p, &stat)) {
             free(p);
-            return 0;
+            *result = (stat.filetype == PHYSFS_FILETYPE_DIRECTORY);
+            return 1;
         }
-        *result = (stat.filetype == PHYSFS_FILETYPE_DIRECTORY);
+    }
+    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
+        *result = filesys_IsDirectory(p);
+        if (*result) {
+            free(p);
+            return 1;
+        }
     }
     free(p);
+    *result = 0;
     return 1;
 }
 
-int vfs_Size(const char *path, uint64_t *result) {
+int vfs_Size(const char *path, uint64_t *result, int flags) {
     char *p = vfs_NormalizePath(path);
     if (!p)
         return 0;
 
-    if (!PHYSFS_exists(p) && filesys_FileExists(p) &&
-            vfs_includes_cwd) {
-        if (!filesys_GetSize(p, result)) {
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
+            PHYSFS_exists(p)) {
+        PHYSFS_File *ffile = PHYSFS_openRead(p);
+        if (ffile) {
             free(p);
-            return 0;
+            *result = PHYSFS_fileLength(ffile);
+            PHYSFS_close(ffile);
+            return 1;
         }
-        free(p);
-        return 1;
+    }
+    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
+            filesys_FileExists(p)) {
+        if (filesys_GetSize(p, result)) {
+            free(p);
+            return 1;
+        }
     }
 
-    PHYSFS_File *ffile = PHYSFS_openRead(p);
     free(p);
-    if (!ffile)
-        return 0;
-
-    *result = PHYSFS_fileLength(ffile);
-    PHYSFS_close(ffile);
-    return 1;
+    *result = 0;
+    return 0;
 }
 
 int vfs_GetBytes(
         const char *path, uint64_t offset,
-        uint64_t bytesamount, char *buffer
+        uint64_t bytesamount, char *buffer,
+        int flags
         ) {
     char *p = vfs_NormalizePath(path);
     if (!p)
         return 0;
 
-    if (!PHYSFS_exists(p) && filesys_FileExists(p) &&
-            vfs_includes_cwd) {
-        FILE *f = fopen64(p, "rb");
-        free(p);
-        if (!f) {
-            return 0;
-        }
-        if (fseek64(f, (int64_t)offset, SEEK_SET) != 0) {
-            fclose(f);
-            return 0;
-        }
-        size_t result = fread(
-            buffer, 1, bytesamount, f
-        );
-        fclose(f);
-        if (result != (size_t)bytesamount)
-            return 0;
-        return 1;
-    }
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
+            PHYSFS_exists(p)) {
+        PHYSFS_File *ffile = PHYSFS_openRead(p);
+        if (ffile) {
+            free(p);
+            if (offset > 0) {
+                if (!PHYSFS_seek(ffile, offset)) {
+                    PHYSFS_close(ffile);
+                    return 0;
+                }
+            }
 
-    PHYSFS_File *ffile = PHYSFS_openRead(p);
-    free(p);
-    if (!ffile)
-        return 0;
-
-    if (offset > 0) {
-        if (!PHYSFS_seek(ffile, offset)) {
+            int64_t result = PHYSFS_readBytes(
+                ffile, buffer, bytesamount
+            );
             PHYSFS_close(ffile);
-            return 0;
+            if (result != (int64_t)bytesamount)
+                return 0;
+            return 1;
+        }
+    }
+    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
+            filesys_FileExists(p)) {
+        FILE *f = fopen64(p, "rb");
+        if (f) {
+            free(p);
+            if (fseek64(f, (int64_t)offset, SEEK_SET) != 0) {
+                fclose(f);
+                return 0;
+            }
+            size_t result = fread(
+                buffer, 1, bytesamount, f
+            );
+            fclose(f);
+            if (result != (size_t)bytesamount)
+                return 0;
+            return 1;
         }
     }
 
-    int64_t result = PHYSFS_readBytes(
-        ffile, buffer, bytesamount
-    );
-    PHYSFS_close(ffile);
-    if (result != (int64_t)bytesamount)
-        return 0;
-    return 1;
+    free(p);
+    return 0;
 }
 
 static int _initdone = 0;
@@ -420,7 +418,7 @@ void vfs_Init(const char *argv0) {
         return;
     }
     char *coreapipath = filesys_Join(
-        execdir, "coreapi.h3dpak"
+        execdir, "coreapi.h64pak"
     );
     free(execdir);
     execdir = NULL;

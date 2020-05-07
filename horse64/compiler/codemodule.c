@@ -13,7 +13,7 @@ h64ast codemodule_GetASTUncached(
         h64compilewarnconfig *wconfig
         ) {
     // 1. Get tokens:
-    h64tokenizedfile tfile = lexer_ParseFromFile(fileuri, wconfig);
+    h64tokenizedfile tfile = lexer_ParseFromFile(fileuri, wconfig, 0);
     int haderrormessages = 0;
     int i = 0;
     while (i < tfile.resultmsg.message_count) {

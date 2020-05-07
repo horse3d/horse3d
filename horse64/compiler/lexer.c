@@ -160,7 +160,8 @@ static int is_digit(char c) {
 }
 
 h64tokenizedfile lexer_ParseFromFile(
-        const char *fileuri, h64compilewarnconfig *wconfig
+        const char *fileuri, h64compilewarnconfig *wconfig,
+        int vfsflags
         ) {
     h64tokenizedfile result;
     memset(&result, 0, sizeof(result));
@@ -187,7 +188,7 @@ h64tokenizedfile lexer_ParseFromFile(
         return result;
     }
     int _vfs_exists = 0;
-    if (!vfs_Exists(uinfo->path, &_vfs_exists)) {
+    if (!vfs_Exists(uinfo->path, &_vfs_exists, vfsflags)) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "vfs_Exists() failed, out of memory?",
@@ -218,7 +219,7 @@ h64tokenizedfile lexer_ParseFromFile(
         return result;
     }
     int _vfs_isdir = 0;
-    if (!vfs_IsDirectory(uinfo->path, &_vfs_isdir)) {
+    if (!vfs_IsDirectory(uinfo->path, &_vfs_isdir, vfsflags)) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "vfs_IsDirectory() failed, out of memory?",
@@ -238,7 +239,7 @@ h64tokenizedfile lexer_ParseFromFile(
     }
 
     uint64_t size = 0;
-    if (!vfs_Size(uinfo->path, &size)) {
+    if (!vfs_Size(uinfo->path, &size, vfsflags)) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "vfs_Size() failed, lack of permission or i/o error",
@@ -271,7 +272,7 @@ h64tokenizedfile lexer_ParseFromFile(
         uri_Free(uinfo);
         return result;
     }
-    if (!vfs_GetBytes(uinfo->path, 0, size, buffer)) {
+    if (!vfs_GetBytes(uinfo->path, 0, size, buffer, vfsflags)) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "failed to read file, lack of permission or i/o error",

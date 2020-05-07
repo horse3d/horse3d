@@ -58,7 +58,8 @@ static char *h64keywords[] = {
 };
 
 h64tokenizedfile lexer_ParseFromFile(
-    const char *fileuri, h64compilewarnconfig *wconfig
+    const char *fileuri, h64compilewarnconfig *wconfig,
+    int vfsflags
 );
 
 void lexer_ClearToken(h64token *t);
