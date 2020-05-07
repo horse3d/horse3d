@@ -15,7 +15,7 @@ func main {
 
 **Features:**
 
-- **Elegant.** Easy syntax with flexible dynamic typing,
+- **Elegant.** Very readable syntax with simple dynamic typing,
   quick to get started in.
 
 - **Cross-platform.** Supports Windows and Linux, with easy support
@@ -28,7 +28,8 @@ func main {
   incorrect imports, all at compile time.
   As such, Horse64 has compile checks often only in
   typed languages, like C# or TypeScript,
-  combined with easy use of a Python or JavaScript.
+  combined with ease use and readability of a Python or
+  JavaScript.
 
 - **Easy to ship.** Single-binary output. No need to add an interpreter
   or separate libaries, making it suitable for cloud & micro service use.
