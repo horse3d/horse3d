@@ -1,6 +1,8 @@
 #ifndef HORSE64_COMPILER_ASTPARSER_H_
 #define HORSE64_COMPILER_ASTPARSER_H_
 
+#include <string.h>
+
 #include "compiler/ast.h"
 #include "compiler/lexer.h"
 #include "compiler/operator.h"

@@ -420,6 +420,7 @@ void ast_FreeExpression(h64expression *expr) {
         }
         free(expr->importstmt.import_elements);
         free(expr->importstmt.import_as);
+        free(expr->importstmt.source_library);
         break;
     case H64EXPRTYPE_RETURN_STMT:
         free(expr->returnstmt.returned_expression);
@@ -1180,6 +1181,32 @@ jsonvalue *ast_ExpressionToJSON(
             if (!json_SetDictStr(v, "value", e->literal.str_value))
                 fail = 1;
         }
+    } else if (e->type == H64EXPRTYPE_IMPORT_STMT) {
+        jsonvalue *list = json_List();
+        int i = 0;
+        while (i < e->importstmt.import_elements_count) {
+            if (!json_AddToListStr(list,
+                    e->importstmt.import_elements[i])) {
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "import_path", list)) {
+            json_Free(list);
+            fail = 1;
+        }
+        if (e->importstmt.source_library &&
+                !json_SetDictStr(v, "source_library",
+                    e->importstmt.source_library))
+            fail = 1;
+        else if (!e->importstmt.source_library &&
+                !json_SetDictNull(v, "source_library"))
+            fail = 1;
+        if (e->importstmt.import_as &&
+                !json_SetDictStr(v, "import_as",
+                    e->importstmt.import_as))
+            fail = 1;
     } else if (e->type == H64EXPRTYPE_BINARYOP) {
         jsonvalue *value1 = ast_ExpressionToJSON(
             e->op.value1, fileuri

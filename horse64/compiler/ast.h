@@ -115,6 +115,7 @@ typedef struct h64expression {
         struct importstmt {
             int import_elements_count;
             char **import_elements;
+            char *source_library;
             char *import_as;
         } importstmt;
         struct constructorvector {

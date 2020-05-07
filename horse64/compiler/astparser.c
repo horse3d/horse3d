@@ -3651,6 +3651,42 @@ int ast_ParseExprStmt(
 
         if (i < max_tokens_touse &&
                 tokens[i].type == H64TK_KEYWORD &&
+                strcmp(tokens[i].str_value, "@lib") == 0) {
+            i++;
+            if (i >= max_tokens_touse ||
+                    tokens[i].type != H64TK_IDENTIFIER) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected identifier following \"@lib\" keyword",
+                    _describetoken(
+                        describebuf, context->tokenstreaminfo, tokens, i
+                    )
+                );
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            expr->importstmt.source_library = strdup(
+                tokens[i].str_value
+            );
+            if (!expr->importstmt.source_library) {
+                if (outofmemory) *outofmemory = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+            i++;
+        }
+
+        if (i < max_tokens_touse &&
+                tokens[i].type == H64TK_KEYWORD &&
                 strcmp(tokens[i].str_value, "as") == 0) {
             i++;
             if (i >= max_tokens_touse ||
@@ -4093,10 +4129,12 @@ int ast_ParseExprStmt(
         int i = 0;
         if (statementmode != STATEMENTMODE_INFUNC &&
                 statementmode != STATEMENTMODE_INCLASSFUNC) {
-            char buf[256];
+            char buf[256]; char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,
-                "unexpected statement starting with identifier, "
-                "this is not valid outside of functions"
+                "unexpected statement starting with identifier "
+                "\"%s\", "
+                "this is not valid outside of functions",
+                _shortenedname(describebuf, tokens[0].str_value)
             );
             if (!result_AddMessage(
                     context->resultmsg,

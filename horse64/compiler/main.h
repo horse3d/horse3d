@@ -10,7 +10,8 @@ jsonvalue *compiler_TokenizeToJSON(
 );
 
 jsonvalue *compiler_ParseASTToJSON(
-    const char *fileuri, h64compilewarnconfig *wconfig
+    const char *fileuri, h64compilewarnconfig *wconfig,
+    int resolve_references
 );
 
 int compiler_command_Compile(
@@ -18,6 +19,10 @@ int compiler_command_Compile(
 );
 
 int compiler_command_GetAST(
+    const char **argc, int argv, int argoffset
+);
+
+int compiler_command_GetResolvedAST(
     const char **argc, int argv, int argoffset
 );
 

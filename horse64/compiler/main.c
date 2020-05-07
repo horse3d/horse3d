@@ -9,6 +9,7 @@
 #include "compiler/compileproject.h"
 #include "compiler/lexer.h"
 #include "compiler/main.h"
+#include "compiler/scoperesolver.h"
 #include "json.h"
 #include "uri.h"
 
@@ -315,7 +316,32 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
         return 0;
     assert(fileuri != NULL);
 
-    jsonvalue *v = compiler_ParseASTToJSON(fileuri, &wconfig);
+    jsonvalue *v = compiler_ParseASTToJSON(fileuri, &wconfig, 0);
+    if (!v) {
+        printf("{\"errors\":[{\"message\":\"internal error, "
+               "JSON construction failed\"}]}\n");
+        return 0;
+    }
+    char *s = json_Dump(v);
+    printf("%s\n", s);
+    free(s);
+    json_Free(v);
+    return 1;
+}
+
+int compiler_command_GetResolvedAST(
+        const char **argv, int argc, int argoffset
+        ) {
+    const char *fileuri = NULL;
+    h64compilewarnconfig wconfig;
+    if (!_compileargparse(
+            "get_resolved_ast", argv, argc, argoffset,
+            &fileuri, &wconfig
+            ))
+        return 0;
+    assert(fileuri != NULL);
+
+    jsonvalue *v = compiler_ParseASTToJSON(fileuri, &wconfig, 1);
     if (!v) {
         printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
@@ -329,7 +355,8 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
 }
 
 jsonvalue *compiler_ParseASTToJSON(
-        const char *fileuri, h64compilewarnconfig *wconfig
+        const char *fileuri, h64compilewarnconfig *wconfig,
+        int resolve_references
         ) {
     char *error = NULL;
 
@@ -383,6 +410,13 @@ jsonvalue *compiler_ParseASTToJSON(
         compileproject_Free(project);
         project = NULL;
         goto failedproject;
+    }
+    if (resolve_references) {
+        if (!scoperesolver_ResolveAST(&tast)) {
+            compileproject_Free(project);
+            project = NULL;
+            goto failedproject;
+        }
     }
 
     char *normalizeduri = uri_Normalize(fileuri, 1);

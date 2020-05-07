@@ -395,18 +395,21 @@ int scriptcore_Run(int argc, const char **argv) {
                        "[...options + arguments...]\n");
                 printf("\n");
                 printf("Available actions:\n");
-                printf("  - \"compile\"     Compile .horse code "
+                printf("  - \"compile\"           Compile .horse code "
                        "and output binary.\n");
-                printf("  - \"get_ast\"     Get AST of code\n");
-                printf("  - \"get_tokens\"  Get Tokenization of code\n");
-                printf("  - \"run\"         Compile .horse code, and "
+                printf("  - \"get_ast\"           Get AST of code\n");
+                printf("  - \"get_resolved_ast\"  "
+                       "Get AST of code with resolved identifiers\n");
+                printf("  - \"get_tokens\"        Get Tokenization of code\n");
+                printf("  - \"run\"               Compile .horse code, and "
                        "run it at once in-place.\n"); 
                 return 0;
             }
-            if (!action && (strcmp(argv[i], "run") == 0 ||
-                    strcmp(argv[i], "get_tokens") == 0 ||
+            if (!action && (strcmp(argv[i], "compile") == 0 ||
                     strcmp(argv[i], "get_ast") == 0 ||
-                    strcmp(argv[i], "compile") == 0)) {
+                    strcmp(argv[i], "get_resolved_ast") == 0 ||
+                    strcmp(argv[i], "get_tokens") == 0 ||
+                    strcmp(argv[i], "run") == 0)) {
                 action = argv[i];
                 action_offset = i + 1;
                 break;
@@ -424,6 +427,8 @@ int scriptcore_Run(int argc, const char **argv) {
         return compiler_command_Compile(argv, argc, action_offset);
     } else if (strcmp(action, "get_ast") == 0) {
         return compiler_command_GetAST(argv, argc, action_offset);
+    } else if (strcmp(action, "get_resolved_ast") == 0) {
+        return compiler_command_GetResolvedAST(argv, argc, action_offset);
     } else if (strcmp(action, "get_tokens") == 0) {
         return compiler_command_GetTokens(argv, argc, action_offset);
     } else if (strcmp(action, "run") == 0) {

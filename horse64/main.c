@@ -62,7 +62,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev,
     if (execname) {
         argv[0] = strdup(execname);
     } else {
-        argv[0] = strdup("horse3d.exe");
+        argv[0] = strdup("horsec.exe");
     }
     if (!argv[0])
         return 1;
