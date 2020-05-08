@@ -194,7 +194,55 @@ void compileproject_Free(h64compileproject *pr) {
 char *compileproject_GetFileSubProjectPath(
         h64compileproject *pr, const char *sourcefileuri
         ) {
-    return NULL;  // FIXME  IMPLEMENT PROPERLY
+    uriinfo *uinfo = uri_ParseEx(sourcefileuri, "https");
+    if (!uinfo || !uinfo->path || !uinfo->protocol ||
+            strcasecmp(uinfo->protocol, "file") != 0) {
+        uri_Free(uinfo);
+        return NULL;
+    }
+    char *relfilepath = compileproject_ToProjectRelPath(
+        pr, uinfo->path
+    );
+    uri_Free(uinfo); uinfo = NULL;
+    if (!relfilepath) {
+        return NULL;
+    }
+    if (strlen(relfilepath) > strlen("horse_modules")) {
+        char buf[64];
+        memcpy(buf, relfilepath, strlen("horse_modules"));
+        buf[strlen("horse_modules")] = '\0';
+        if (
+                #if defined(__linux__) || defined(__LINUX__) || defined(__ANDROID__)
+                strcmp(relfilepath, "horse_modules") == 0
+                #else
+                strcasecmp(relfilepath, "horse_modules") == 0
+                #endif
+                && (relfilepath[strlen("horse_modules")] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                || relfilepath[strlen("horse_modules")] == '\\'
+                #endif
+                )) {
+            int k = strlen("horsemodules/");
+            while (relfilepath[k] != '/' && relfilepath[k] != '\0'
+                    #if defined(_WIN32) || defined(_WIN64)
+                    && relfilepath[k] != '\\'
+                    #endif
+                    )
+                k++;
+            if (relfilepath[k] != '\0')
+                k++;
+            char *result = filesys_ToAbsolutePath(relfilepath + k);
+            if (result) {
+                char *resold = result;
+                result = filesys_Normalize(resold);
+                free(resold);
+            }
+            free(relfilepath);
+            return result;
+        }
+    }
+    free(relfilepath);
+    return filesys_ToAbsolutePath(pr->basefolder);
 }
 
 char *compileproject_ResolveImport(

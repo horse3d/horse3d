@@ -413,12 +413,11 @@ jsonvalue *compiler_ParseASTToJSON(
         project = NULL;
         goto failedproject;
     }
-    if (resolve_references) {
-        if (!scoperesolver_ResolveAST(project, &tast)) {
-            compileproject_Free(project);
-            project = NULL;
-            goto failedproject;
-        }
+    if (resolve_references &&
+            !scoperesolver_ResolveAST(project, &tast)) {
+        compileproject_Free(project);
+        project = NULL;
+        goto failedproject;
     }
 
     char *normalizeduri = uri_Normalize(fileuri, 1);
