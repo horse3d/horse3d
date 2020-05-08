@@ -208,6 +208,8 @@ char *compileproject_GetFileSubProjectPath(
         return NULL;
     }
     if (strlen(relfilepath) > strlen("horse_modules")) {
+        // If path starts with ./horse_modules/somemodule/.../ then
+        // we want to return ./horse_modules/somemodule/ as root:
         char buf[64];
         memcpy(buf, relfilepath, strlen("horse_modules"));
         buf[strlen("horse_modules")] = '\0';
@@ -229,18 +231,21 @@ char *compileproject_GetFileSubProjectPath(
                     #endif
                     )
                 k++;
-            if (relfilepath[k] != '\0')
-                k++;
-            char *result = filesys_ToAbsolutePath(relfilepath + k);
-            if (result) {
-                char *resold = result;
-                result = filesys_Normalize(resold);
-                free(resold);
+            if (relfilepath[k] != '\0') {
+                k++;  // go past dir separator
+                char *result = filesys_ToAbsolutePath(relfilepath + k);
+                if (result) {
+                    char *resold = result;
+                    result = filesys_Normalize(resold);
+                    free(resold);
+                }
+                free(relfilepath);
+                return result;
             }
-            free(relfilepath);
-            return result;
         }
     }
+    // Not inside horse_modules module folder, so just return the
+    // regular project root:
     free(relfilepath);
     return filesys_ToAbsolutePath(pr->basefolder);
 }
