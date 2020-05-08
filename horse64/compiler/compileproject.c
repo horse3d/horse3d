@@ -329,6 +329,8 @@ char *compileproject_ResolveImport(
             )) {
         relfolderpath[strlen(relfolderpath) - 1] = '\0';
     }
+
+    // Split up the relative path in our project into components:
     char **subdir_components = NULL;
     int subdir_components_count = 0;
     char currentcomponent[512] = {0};
@@ -340,8 +342,9 @@ char *compileproject_ResolveImport(
                 #if defined(_WIN32) || defined(_WIN64)
                 relfolderpath[i] == '\\'
                 #endif
-                )) {
+                )) {  // component separator in path
             if (currentcomponentlen > 0) {
+                // Extract component:
                 currentcomponent[currentcomponentlen] = '\0';
                 char *s = strdup(currentcomponent);
                 if (!s) {
@@ -377,6 +380,7 @@ char *compileproject_ResolveImport(
             i++;
             continue;
         }
+        // Put together component path:
         if (currentcomponentlen + 1 < (int)sizeof(currentcomponent)) {
             currentcomponent[currentcomponentlen] = (
                 relfolderpath[i]
@@ -386,22 +390,28 @@ char *compileproject_ResolveImport(
         i++;
     }
     free(relfolderpath); relfolderpath = NULL;
+
+    // Gradually go up the path folder by folder to project root, and
+    // see if we can import at each level (with deeper level preferred):
     char *result = NULL;
     int k = subdir_components_count;
     while (k >= 0) {
-        int subdirs_len = 0;
+        // Compute how long the file path will be at this level:
+        int subdirspath_len = 0;
         i = 0;
         while (i < k) {
             if (i + 1 < k)
-                subdirs_len++;  // dir sep
-            subdirs_len += strlen(subdir_components[k]);
+                subdirspath_len++;  // dir sep
+            subdirspath_len += strlen(subdir_components[k]);
             i++;
         }
         char *checkpath_rel = malloc(
-            subdirs_len + 1 + import_relpath_len + 1
+            subdirspath_len + 1 + import_relpath_len + 1
         );
         if (!checkpath_rel)
             goto subdircheckoom;
+
+        // Assemble actual file path:
         char *p = checkpath_rel;
         i = 0;
         while (i < k) {
@@ -425,7 +435,9 @@ char *compileproject_ResolveImport(
         p++;
         memcpy(p, import_relpath, import_relpath_len + 1);
         assert((int)strlen(checkpath_rel) ==
-               subdirs_len + 1 + import_relpath_len + 1);
+               subdirspath_len + 1 + import_relpath_len + 1);
+
+        // Get absolute path, and check if we can actually import this path:
         char *checkpath_abs = filesys_Join(
             projectpath, checkpath_rel
         );
@@ -447,7 +459,7 @@ char *compileproject_ResolveImport(
                 goto subdircheckoom;
             }
             if (!_directory_result) {
-                // Match.
+                // Match! Import found something, return this.
                 result = checkpath_abs;
                 free(checkpath_rel);
                 break;
@@ -455,6 +467,8 @@ char *compileproject_ResolveImport(
         }
         free(checkpath_abs);
         free(checkpath_rel);
+
+        // No match, go up one folder:
         k--;
     }
     k = 0;
