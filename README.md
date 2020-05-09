@@ -31,8 +31,9 @@ func main {
   combined with ease use and readability of a Python or
   JavaScript.
 
-- **Easy to ship.** Single-binary output. No need to add an interpreter
-  or separate libaries, making it suitable for cloud & micro service use.
+- **Easy to ship.** Single-binary output with no non-system dependencies.
+  No need to add an interpreter or separate libaries, making it
+  suitable for cloud & micro service use.
 
 - **Multimedia included.** Support for 3D via OpenGL, and
   2D UIs out of the box.
