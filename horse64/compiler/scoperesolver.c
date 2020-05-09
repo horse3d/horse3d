@@ -87,9 +87,10 @@ int scoperesolver_ResolveAST(
         assert(expr->importstmt.referenced_ast == NULL);
         char *error = NULL;
         if (!compileproject_GetAST(
-                pr, unresolved_ast->fileuri,
+                pr, file_path,
                 &expr->importstmt.referenced_ast, &error
                 )) {
+            free(file_path);
             expr->importstmt.referenced_ast = NULL;
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
@@ -112,6 +113,7 @@ int scoperesolver_ResolveAST(
                 return 0;
             }
         }
+        free(file_path);
         i++;
     }
     return 1;

@@ -14,6 +14,7 @@
 #include "uri.h"
 #include "vfs.h"
 
+#define DEBUG_COMPILEPROJECT
 
 h64compileproject *compileproject_New(
         const char *basefolderuri
@@ -61,6 +62,10 @@ h64compileproject *compileproject_New(
         free(pr);
         return NULL;
     }
+
+    #ifdef DEBUG_COMPILEPROJECT
+    printf("horsec: debug: compileproject_New -> %p\n", pr);
+    #endif
 
     return pr;
 }
@@ -138,6 +143,11 @@ int compileproject_GetAST(
         *out_ast = NULL;
         return 0;
     }
+
+    #ifdef DEBUG_COMPILEPROJECT
+    printf("horsec: debug: compileproject_GetAST -> parsing %s\n",
+           absfilepath);
+    #endif
 
     h64ast result = codemodule_GetASTUncached(
         pr, absfilepath, &pr->warnconfig
