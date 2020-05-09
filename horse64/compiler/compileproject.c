@@ -97,7 +97,7 @@ char *compileproject_ToProjectRelPath(
 
 int compileproject_GetAST(
         h64compileproject *pr, const char *fileuri,
-        h64ast *out_ast, char **error
+        h64ast **out_ast, char **error
         ) {
     char *relfilepath = compileproject_ToProjectRelPath(
         pr, fileuri
@@ -106,6 +106,7 @@ int compileproject_GetAST(
         *error = strdup(
             "cannot get AST of file outside of project root"
         );
+        *out_ast = NULL;
         return 0;
     }
  
@@ -116,7 +117,8 @@ int compileproject_GetAST(
         h64ast *resultptr = (h64ast*)(uintptr_t)entry;
         if (resultptr->stmt_count > 0) {
             free(relfilepath);
-            memcpy(out_ast, resultptr, sizeof(*resultptr));
+            *out_ast = resultptr;
+            *error = NULL;
             return 1;
         }
         hash_StringMapUnset(
@@ -133,6 +135,7 @@ int compileproject_GetAST(
     if (!absfilepath) {
         free(relfilepath);
         *error = strdup("alloc fail");
+        *out_ast = NULL;
         return 0;
     }
 
@@ -145,6 +148,7 @@ int compileproject_GetAST(
         ast_FreeContents(&result);
         free(relfilepath);
         *error = strdup("alloc fail");
+        *out_ast = NULL;
         return 0;
     }
     memcpy(resultalloc, &result, sizeof(result));
@@ -156,9 +160,11 @@ int compileproject_GetAST(
         free(relfilepath);
         free(resultalloc);
         *error = strdup("alloc fail");
+        *out_ast = NULL;
         return 0;
     }
-    memcpy(out_ast, &result, sizeof(result));
+    *out_ast = resultalloc;
+    *error = NULL;
     free(relfilepath);
     return 1;
 }
@@ -294,7 +300,9 @@ char *compileproject_ResolveImport(
     }
     assert(import_relpath_len == (int)strlen(import_relpath));
     if (library_source) {
-        // Load from horse_modules library folder:
+        // Load module from horse_modules library folder:
+
+        // Allocate the path where we expect the file to be at:
         int library_sourced_path_len = (
             strlen("horse_modules") + 1 + strlen(library_source) + 1 +
             import_relpath_len + 1
@@ -307,7 +315,30 @@ char *compileproject_ResolveImport(
             if (outofmemory) *outofmemory = 1;
             return NULL;
         }
+
+        // Copy in actual path contents:
+        memcpy(library_sourced_path, "horse_modules",
+               strlen("horse_modules"));
+        #if defined(_WIN32) || defined(_WIN64)
+        library_sourced_path[strlen("horse_modules")] = '\\';
+        #else
+        library_sourced_path[strlen("horse_modules")] = '/';
+        #endif
+        memcpy(library_sourced_path + strlen("horse_modules/"),
+               library_source, strlen(library_source));
+        #if defined(_WIN32) || defined(_WIN64)
+        library_sourced_path[strlen("horse_modules") + 1 +
+            strlen(library_source)] = '\\';
+        #else
+        library_sourced_path[strlen("horse_modules") + 1 +
+            strlen(library_source)] = '/';
+        #endif
+        memcpy(library_sourced_path + strlen("horse_modules/") +
+               strlen(library_source),
+               import_relpath, import_relpath_len + 1);
         free(import_relpath); import_relpath = NULL;
+
+        // Assemble absolute disk file path:
         char *fullpath = filesys_Join(
             pr->basefolder, library_sourced_path
         );
@@ -316,6 +347,8 @@ char *compileproject_ResolveImport(
             if (outofmemory) *outofmemory = 1;
             return NULL;
         }
+
+        // Check if it exists and return result:
         int _vfs_exists = 0;
         if (!vfs_ExistsEx(
                 fullpath, library_sourced_path, &_vfs_exists, 0
@@ -341,10 +374,13 @@ char *compileproject_ResolveImport(
             return NULL;
         }
         if (_vfs_exists_nodisk) {
+            // Return relative VFS-style path (to reduce likeliness
+            // of cwd change race conditions):
             free(fullpath);
             if (outofmemory) *outofmemory = 0;
             return library_sourced_path;
         } else {
+            // Return full disk path:
             free(library_sourced_path);
             if (outofmemory) *outofmemory = 0;
             return fullpath;
@@ -525,9 +561,12 @@ char *compileproject_ResolveImport(
                     goto subdircheckoom;
                 }
                 if (_exists_result_nodisk) {
+                    // Return relative VFS-style path (to reduce likeliness
+                    // of cwd change race conditions):
                     free(checkpath_abs);
                     result = checkpath_rel;
                 } else {
+                    // Return actual full disk path:
                     free(checkpath_rel);
                     result = checkpath_abs;
                 }

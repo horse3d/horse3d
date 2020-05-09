@@ -106,7 +106,7 @@ int compiler_command_Compile(const char **argv, int argc, int argoffset) {
         fprintf(stderr, "horsec: error: compile: alloc failure\n");
         return 0;
     }
-    h64ast ast;
+    h64ast *ast = NULL;
     if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
         fprintf(stderr, "horsec: error: compile: %s\n", error);
         free(error);
@@ -116,16 +116,15 @@ int compiler_command_Compile(const char **argv, int argc, int argoffset) {
 
     int haderrormessages = 0;
     int i = 0;
-    while (i < ast.resultmsg.message_count) {
-        if (ast.resultmsg.message[i].type == H64MSG_ERROR)
+    while (i < ast->resultmsg.message_count) {
+        if (ast->resultmsg.message[i].type == H64MSG_ERROR)
             haderrormessages = 1;
-        printmsg(&ast.resultmsg, &ast.resultmsg.message[i]);
+        printmsg(&ast->resultmsg, &ast->resultmsg.message[i]);
         i++;
     }
-    compileproject_Free(project);
-    if (haderrormessages || !ast.resultmsg.success)
-        return 0;
-    return 1;
+    int resultvalue = (haderrormessages || !ast->resultmsg.success);
+    compileproject_Free(project);  // This indirectly frees 'ast'!
+    return !resultvalue;
 }
 
 int compiler_AddResultMessageAsJson(
@@ -405,7 +404,7 @@ jsonvalue *compiler_ParseASTToJSON(
         goto failedproject;
     if (wconfig)
         memcpy(&project->warnconfig, wconfig, sizeof(*wconfig));
-    h64ast tast;
+    h64ast *tast = NULL;
     if (!compileproject_GetAST(
             project, fileuri, &tast, &error
             )) {
@@ -414,7 +413,7 @@ jsonvalue *compiler_ParseASTToJSON(
         goto failedproject;
     }
     if (resolve_references &&
-            !scoperesolver_ResolveAST(project, &tast)) {
+            !scoperesolver_ResolveAST(project, tast)) {
         compileproject_Free(project);
         project = NULL;
         goto failedproject;
@@ -435,9 +434,9 @@ jsonvalue *compiler_ParseASTToJSON(
     int haderrormessages = 0;
     int failure = 0;
     int i = 0;
-    while (i < tast.stmt_count) {
+    while (i < tast->stmt_count) {
         jsonvalue *expr = ast_ExpressionToJSON(
-            tast.stmt[i], normalizeduri
+            tast->stmt[i], normalizeduri
         );
         if (!expr) {
             failure = 1;
@@ -453,22 +452,22 @@ jsonvalue *compiler_ParseASTToJSON(
     }
 
     i = 0;
-    while (i < tast.resultmsg.message_count) {
+    while (i < tast->resultmsg.message_count) {
         if (!compiler_AddResultMessageAsJson(
                 errorlist, warninglist, infolist,
-                &tast.resultmsg.message[i])) {
+                &tast->resultmsg.message[i])) {
             failure = 1;
             break;
         }
-        if (tast.resultmsg.message[i].type == H64MSG_ERROR) {
+        if (tast->resultmsg.message[i].type == H64MSG_ERROR) {
             haderrormessages = 1;
-            assert(!tast.resultmsg.success);
+            assert(!tast->resultmsg.success);
         }
         i++;
     }
 
     if (!json_SetDictBool(v, "success", !(haderrormessages ||
-            !tast.resultmsg.success))) {
+            !tast->resultmsg.success))) {
         failure = 1;
     }
     if (!json_SetDict(v, "errors", errorlist)) {
@@ -487,7 +486,7 @@ jsonvalue *compiler_ParseASTToJSON(
         failure = 1;
     }
     jsonvalue *vscope = scope_ScopeToJSON(
-        &tast.scope
+        &tast->scope
     );
     if (!json_SetDict(v, "scope", vscope)) {
         failure = 1;
@@ -497,7 +496,7 @@ jsonvalue *compiler_ParseASTToJSON(
         failure = 1;
         json_Free(exprlist);
     }
-    compileproject_Free(project);
+    compileproject_Free(project);  // indirectly frees 'tast'!
     project = NULL;
     if (failure) {
         json_Free(v);

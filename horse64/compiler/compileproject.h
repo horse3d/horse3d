@@ -26,7 +26,7 @@ char *compileproject_ToProjectRelPath(
 
 int compileproject_GetAST(
     h64compileproject *pr, const char *fileuri,
-    h64ast *out_ast, char **error
+    h64ast **out_ast, char **error
 );
 
 void compileproject_Free(h64compileproject *pr);

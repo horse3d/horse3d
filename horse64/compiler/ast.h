@@ -62,6 +62,8 @@ struct h64ifstmt {
     struct h64ifstmt *followup_clause;
 };
 
+typedef struct h64ast h64ast;
+
 typedef struct h64expression {
     int64_t line, column;
     int tokenindex;
@@ -117,6 +119,7 @@ typedef struct h64expression {
             char **import_elements;
             char *source_library;
             char *import_as;
+            h64ast *referenced_ast;
         } importstmt;
         struct constructorvector {
             int entry_count;

@@ -1,4 +1,5 @@
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -67,6 +68,7 @@ int scoperesolver_ResolveAST(
                     "couldn't resolve import, module \"%s\" not found",
                     modpath
                 );
+                unresolved_ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, buf,
@@ -83,6 +85,35 @@ int scoperesolver_ResolveAST(
                 }
                 success = 0;
             }
+        }
+        assert(expr->importstmt.referenced_ast == NULL);
+        char *error = NULL;
+        if (!compileproject_GetAST(
+                pr, unresolved_ast->fileuri,
+                &expr->importstmt.referenced_ast, &error
+                )) {
+            expr->importstmt.referenced_ast = NULL;
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected failure to process import: %s",
+                error);
+            free(error);
+            unresolved_ast->resultmsg.success = 0;
+            if (!result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, buf,
+                    unresolved_ast->fileuri,
+                    expr->line, expr->column
+                    )) {
+                result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, "out of memory",
+                    unresolved_ast->fileuri,
+                    expr->line, expr->column
+                );
+                return 0;
+            }
+            success = 0;
         }
         i++;
     }
