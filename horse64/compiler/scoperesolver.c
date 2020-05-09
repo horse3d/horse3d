@@ -8,6 +8,25 @@
 #include "compiler/compileproject.h"
 #include "compiler/scoperesolver.h"
 
+typedef struct resolveinfo {
+    h64compileproject *pr;
+    int hadoutofmemory;
+} resolveinfo;
+
+int _resolvercallback_ResolveIdentifiers_visit_out(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    resolveinfo *rinfo = (resolveinfo *)ud;
+    if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
+            (parent == NULL ||
+             parent->type != H64EXPRTYPE_BINARYOP ||
+             parent->op.value1 == expr)) {
+        printf("id %s at %d:%d\n", expr->identifierref.value,
+               (int)expr->line, (int)expr->column);
+    }
+    return 1;
+}
+
 int scoperesolver_ResolveAST(
         h64compileproject *pr, h64ast *unresolved_ast
         ) {
@@ -116,6 +135,28 @@ int scoperesolver_ResolveAST(
         free(file_path);
         assert(expr->importstmt.referenced_ast != NULL);
         i++;
+    }
+    // Now, actually resolve identifiers:
+    resolveinfo rinfo;
+    memset(&rinfo, 0, sizeof(rinfo));
+    rinfo.pr = pr;
+    int k = 0;
+    while (k < unresolved_ast->stmt_count) {
+        int result = ast_VisitExpression(
+            unresolved_ast->stmt[k], NULL,
+            NULL, &_resolvercallback_ResolveIdentifiers_visit_out,
+            &rinfo
+        );
+        if (!result || rinfo.hadoutofmemory) {
+            result_AddMessage(
+                &unresolved_ast->resultmsg,
+                H64MSG_ERROR, "out of memory",
+                unresolved_ast->fileuri,
+                -1, -1
+            );
+            return 0;
+        }
+        k++;
     }
     return 1;
 }

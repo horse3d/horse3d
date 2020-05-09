@@ -52,7 +52,8 @@ int ast_VisitExpression(
     int i = 0;
     switch (expr->type) {
     case H64EXPRTYPE_INVALID:
-        // nothing to do;
+    case H64EXPRTYPE_IDENTIFIERREF:
+    case H64EXPRTYPE_LITERAL:
         break;
     case H64EXPRTYPE_VARDEF_STMT:
         if (expr->vardef.value)
@@ -129,7 +130,6 @@ int ast_VisitExpression(
                     return 0;
                 i++;
             }
-            free(current_clause->stmt);
             current_clause = next_clause;
         }
         break;
@@ -282,6 +282,7 @@ int ast_VisitExpression(
                     expr->constructormap.value[i], expr,
                     visit_in, visit_out, ud
                     ))
+                return 0;
             i++;
         }
         break;
