@@ -618,7 +618,7 @@ char *compileproject_ResolveImport(
         #endif
         p++;
         memcpy(p, import_relpath, import_relpath_len + 1);
-        assert((int)strlen(checkpath_rel) ==
+        assert((int)(strlen(checkpath_rel) + 1) ==
                subdirspath_len + 1 + import_relpath_len + 1);
 
         // Get absolute path, and check if we can actually import this path:
