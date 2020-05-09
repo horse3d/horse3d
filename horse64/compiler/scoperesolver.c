@@ -12,7 +12,6 @@ int scoperesolver_ResolveAST(
         h64compileproject *pr, h64ast *unresolved_ast
         ) {
     // First, make sure all imports are loaded up:
-    int success = 1;
     int i = 0;
     while (i < unresolved_ast->scope.definitionref_count) {
         if (unresolved_ast->scope.definitionref[i].
@@ -53,7 +52,7 @@ int scoperesolver_ResolveAST(
                     if (i > 0 && strlen(modpath) < sizeof(modpath) - 1)
                         strncat(modpath, ".",
                                 sizeof(modpath) - strlen(modpath) - 1);
-                    if (i > 0 && strlen(modpath) < sizeof(modpath) - 1)
+                    if (strlen(modpath) < sizeof(modpath) - 1)
                         strncat(modpath, expr->importstmt.import_elements[i],
                                 sizeof(modpath) - strlen(modpath) - 1);
                     i++;
@@ -83,7 +82,6 @@ int scoperesolver_ResolveAST(
                     );
                     return 0;
                 }
-                success = 0;
             }
         }
         assert(expr->importstmt.referenced_ast == NULL);
@@ -113,9 +111,8 @@ int scoperesolver_ResolveAST(
                 );
                 return 0;
             }
-            success = 0;
         }
         i++;
     }
-    return success;
+    return 1;
 }
