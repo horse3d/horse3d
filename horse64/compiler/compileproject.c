@@ -294,9 +294,61 @@ char *compileproject_ResolveImport(
     }
     assert(import_relpath_len == (int)strlen(import_relpath));
     if (library_source) {
-        // FIXME !!! IMPLEMENT PROPERLY
-        if (outofmemory) *outofmemory = 1;
-        return NULL;
+        // Load from horse_modules library folder:
+        int library_sourced_path_len = (
+            strlen("horse_modules") + 1 + strlen(library_source) + 1 +
+            import_relpath_len + 1
+        );
+        char *library_sourced_path = malloc(
+            library_sourced_path_len
+        );
+        if (!library_sourced_path) {
+            free(import_relpath);
+            if (outofmemory) *outofmemory = 1;
+            return NULL;
+        }
+        free(import_relpath); import_relpath = NULL;
+        char *fullpath = filesys_Join(
+            pr->basefolder, library_sourced_path
+        );
+        if (!fullpath) {
+            free(library_sourced_path);
+            if (outofmemory) *outofmemory = 1;
+            return NULL;
+        }
+        int _vfs_exists = 0;
+        if (!vfs_ExistsEx(
+                fullpath, library_sourced_path, &_vfs_exists, 0
+                )) {
+            free(fullpath);
+            free(library_sourced_path);
+            if (outofmemory) *outofmemory = 1;
+            return NULL;
+        }
+        if (!_vfs_exists) {
+            free(fullpath);
+            free(library_sourced_path);
+            if (outofmemory) *outofmemory = 0;
+            return NULL;
+        }
+        int _vfs_exists_nodisk = 0;
+        if (!vfs_Exists(
+                library_sourced_path, &_vfs_exists_nodisk,
+                VFSFLAG_NO_REALDISK_ACCESS)) {
+            free(fullpath);
+            free(library_sourced_path);
+            if (outofmemory) *outofmemory = 1;
+            return NULL;
+        }
+        if (_vfs_exists_nodisk) {
+            free(fullpath);
+            if (outofmemory) *outofmemory = 0;
+            return library_sourced_path;
+        } else {
+            free(library_sourced_path);
+            if (outofmemory) *outofmemory = 0;
+            return fullpath;
+        }
     }
 
     // Not a library, do local project folder search:
@@ -465,8 +517,20 @@ char *compileproject_ResolveImport(
             }
             if (!_directory_result) {
                 // Match! Import found something, return this.
-                result = checkpath_abs;
-                free(checkpath_rel);
+                int _exists_result_nodisk = 0;
+                if (!vfs_Exists(checkpath_rel, &_exists_result_nodisk,
+                        VFSFLAG_NO_REALDISK_ACCESS)) {
+                    free(checkpath_abs);
+                    free(checkpath_rel);
+                    goto subdircheckoom;
+                }
+                if (_exists_result_nodisk) {
+                    free(checkpath_abs);
+                    result = checkpath_rel;
+                } else {
+                    free(checkpath_rel);
+                    result = checkpath_abs;
+                }
                 break;
             }
         }
