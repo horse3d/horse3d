@@ -300,11 +300,16 @@ char *compileproject_ResolveImport(
     }
     assert(import_relpath_len == (int)strlen(import_relpath));
     if (library_source) {
-        // Load module from horse_modules library folder:
+        // Load module from horse_modules library folder.
+        // We'll check the VFS-mounted horse_modules_internal first
+        // (which e.g. has the built-in "core" module matched to this
+        // compiler instance) and then the horse_modules folder which
+        // can be either on disk or in the VFS.
 
         // Allocate the path where we expect the file to be at:
         int library_sourced_path_len = (
-            strlen("horse_modules") + 1 + strlen(library_source) + 1 +
+            strlen("horse_modules_internal") + 1 +
+            strlen(library_source) + 1 +
             import_relpath_len + 1
         );
         char *library_sourced_path = malloc(
@@ -317,59 +322,95 @@ char *compileproject_ResolveImport(
         }
 
         // Copy in actual path contents:
-        memcpy(library_sourced_path, "horse_modules",
-               strlen("horse_modules"));
+        memcpy(library_sourced_path, "horse_modules_internal",
+               strlen("horse_modules_internal"));
         #if defined(_WIN32) || defined(_WIN64)
-        library_sourced_path[strlen("horse_modules")] = '\\';
+        library_sourced_path[strlen("horse_modules_internal")] = '\\';
         #else
-        library_sourced_path[strlen("horse_modules")] = '/';
+        library_sourced_path[strlen("horse_modules_internal")] = '/';
         #endif
-        memcpy(library_sourced_path + strlen("horse_modules/"),
+        memcpy(library_sourced_path + strlen("horse_modules_internal/"),
                library_source, strlen(library_source));
         #if defined(_WIN32) || defined(_WIN64)
-        library_sourced_path[strlen("horse_modules") + 1 +
+        library_sourced_path[strlen("horse_modules_internal") + 1 +
             strlen(library_source)] = '\\';
         #else
-        library_sourced_path[strlen("horse_modules") + 1 +
+        library_sourced_path[strlen("horse_modules_internal") + 1 +
             strlen(library_source)] = '/';
         #endif
-        memcpy(library_sourced_path + strlen("horse_modules/") +
+        memcpy(library_sourced_path + strlen("horse_modules_internal/") +
                strlen(library_source),
                import_relpath, import_relpath_len + 1);
         free(import_relpath); import_relpath = NULL;
 
-        // Assemble absolute disk file path:
-        char *fullpath = filesys_Join(
-            pr->basefolder, library_sourced_path
-        );
-        if (!fullpath) {
+        // Assemble horse_modules-VFS and absolute disk file path:
+        char *library_sourced_path_external = strdup(library_sourced_path);
+        if (!library_sourced_path_external) {
             free(library_sourced_path);
             if (outofmemory) *outofmemory = 1;
             return NULL;
         }
+        memmove(
+            library_sourced_path_external + strlen("horse_modules_"),
+            library_sourced_path_external + strlen("horse_modules_internal"),
+            strlen(library_sourced_path_external) + 1 -
+            strlen("horse_modules_internal")
+        );
+        char *fullpath = filesys_Join(
+            pr->basefolder, library_sourced_path_external
+        );
+        if (!fullpath) {
+            free(library_sourced_path);
+            free(library_sourced_path_external);
+            if (outofmemory) *outofmemory = 1;
+            return NULL;
+        }
 
-        // Check if it exists and return result:
+        // Check "horse_modules_internal" first:
+        {
+            int _vfs_exists_internal = 0;
+            if (!vfs_Exists(
+                    library_sourced_path, &_vfs_exists_internal,
+                    VFSFLAG_NO_REALDISK_ACCESS)) {
+                free(fullpath);
+                free(library_sourced_path);
+                free(library_sourced_path_external);
+                if (outofmemory) *outofmemory = 1;
+                return NULL;
+            }
+            if (_vfs_exists_internal) {
+                free(fullpath);
+                free(library_sourced_path_external);
+                if (outofmemory) *outofmemory = 0;
+                return library_sourced_path;
+            }
+            free(library_sourced_path);
+            library_sourced_path = NULL;
+        }
+
+        // Check if it exists in "horse_modules" and return result:
         int _vfs_exists = 0;
         if (!vfs_ExistsEx(
-                fullpath, library_sourced_path, &_vfs_exists, 0
+                fullpath, library_sourced_path_external,
+                &_vfs_exists, 0
                 )) {
             free(fullpath);
-            free(library_sourced_path);
+            free(library_sourced_path_external);
             if (outofmemory) *outofmemory = 1;
             return NULL;
         }
         if (!_vfs_exists) {
             free(fullpath);
-            free(library_sourced_path);
+            free(library_sourced_path_external);
             if (outofmemory) *outofmemory = 0;
             return NULL;
         }
         int _vfs_exists_nodisk = 0;
         if (!vfs_Exists(
-                library_sourced_path, &_vfs_exists_nodisk,
+                library_sourced_path_external, &_vfs_exists_nodisk,
                 VFSFLAG_NO_REALDISK_ACCESS)) {
             free(fullpath);
-            free(library_sourced_path);
+            free(library_sourced_path_external);
             if (outofmemory) *outofmemory = 1;
             return NULL;
         }
@@ -378,10 +419,10 @@ char *compileproject_ResolveImport(
             // of cwd change race conditions):
             free(fullpath);
             if (outofmemory) *outofmemory = 0;
-            return library_sourced_path;
+            return library_sourced_path_external;
         } else {
             // Return full disk path:
-            free(library_sourced_path);
+            free(library_sourced_path_external);
             if (outofmemory) *outofmemory = 0;
             return fullpath;
         }

@@ -4415,5 +4415,7 @@ void ast_FreeContents(h64ast *ast) {
     ast->stmt_count = 0;
     free(ast->stmt);
     ast->stmt = NULL;
+    free(ast->fileuri);
+    ast->fileuri = NULL;
     scope_FreeData(&ast->scope);
 }
