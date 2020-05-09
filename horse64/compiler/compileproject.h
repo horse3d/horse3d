@@ -5,13 +5,17 @@
 
 typedef struct hashmap hashmap;
 
+typedef struct h64result h64result;
+
 typedef struct h64compileproject {
     h64compilewarnconfig warnconfig;
 
     char hashsecret[16];
 
     char *basefolder;
-    hashmap *astfilemap; 
+    hashmap *astfilemap;
+
+    h64result *resultmsg;
 } h64compileproject;
 
 typedef struct h64ast h64ast;

@@ -63,6 +63,16 @@ h64compileproject *compileproject_New(
         return NULL;
     }
 
+    pr->resultmsg = malloc(sizeof(*pr->resultmsg));
+    if (!pr->resultmsg) {
+        free(pr->basefolder);
+        free(pr);
+        hash_FreeMap(pr->astfilemap);
+        return NULL;
+    }
+    memset(pr->resultmsg, 0, sizeof(*pr->resultmsg));
+    pr->resultmsg->success = 1;
+
     #ifdef DEBUG_COMPILEPROJECT
     printf("horsec: debug: compileproject_New -> %p\n", pr);
     #endif
@@ -163,6 +173,30 @@ int compileproject_GetAST(
     }
     memcpy(resultalloc, &result, sizeof(result));
 
+    // Add warnings & errors to collected ones in compileproject:
+    int i = 0;
+    while (i < result.resultmsg.message_count) {
+        if (!result_AddMessage(
+                pr->resultmsg, result.resultmsg.message[i].type,
+                result.resultmsg.message[i].message,
+                result.resultmsg.message[i].fileuri,
+                result.resultmsg.message[i].line,
+                result.resultmsg.message[i].column
+                )) {
+            result_FreeContents(pr->resultmsg);
+            pr->resultmsg->success = 0;
+            ast_FreeContents(&result);
+            free(relfilepath);
+            free(resultalloc);
+            *error = strdup("alloc fail");
+            *out_ast = NULL;
+            return 0;
+        }
+        if (result.resultmsg.message[i].type == H64MSG_ERROR)
+            pr->resultmsg->success = 0;
+        i++;
+    }
+
     if (!hash_StringMapSet(
             pr->astfilemap, relfilepath, (uintptr_t)resultalloc
             )) {
@@ -204,6 +238,12 @@ void compileproject_Free(h64compileproject *pr) {
         );
         hash_FreeMap(pr->astfilemap);
     }
+
+    if (pr->resultmsg) {
+        result_FreeContents(pr->resultmsg);
+        free(pr->resultmsg);
+    }
+
     free(pr);
 }
 

@@ -114,6 +114,7 @@ int scoperesolver_ResolveAST(
             }
         }
         free(file_path);
+        assert(expr->importstmt.referenced_ast != NULL);
         i++;
     }
     return 1;

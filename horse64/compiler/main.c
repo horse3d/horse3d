@@ -452,22 +452,22 @@ jsonvalue *compiler_ParseASTToJSON(
     }
 
     i = 0;
-    while (i < tast->resultmsg.message_count) {
+    while (i < project->resultmsg->message_count) {
         if (!compiler_AddResultMessageAsJson(
                 errorlist, warninglist, infolist,
-                &tast->resultmsg.message[i])) {
+                &project->resultmsg->message[i])) {
             failure = 1;
             break;
         }
-        if (tast->resultmsg.message[i].type == H64MSG_ERROR) {
+        if (project->resultmsg->message[i].type == H64MSG_ERROR) {
             haderrormessages = 1;
-            assert(!tast->resultmsg.success);
+            assert(!project->resultmsg->success);
         }
         i++;
     }
 
     if (!json_SetDictBool(v, "success", !(haderrormessages ||
-            !tast->resultmsg.success))) {
+            !project->resultmsg->success))) {
         failure = 1;
     }
     if (!json_SetDict(v, "errors", errorlist)) {
