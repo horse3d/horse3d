@@ -26,6 +26,7 @@ h64ast codemodule_GetASTUncached(
         lexer_FreeFileTokens(&tfile);
         h64ast tcode;
         memset(&tcode, 0, sizeof(tcode));
+        tcode.basic_file_access_was_successful = 0;
         memcpy(&tcode.resultmsg, &tfile.resultmsg,
                sizeof(tcode.resultmsg));
         return tcode;
@@ -35,6 +36,7 @@ h64ast codemodule_GetASTUncached(
     h64ast tcode = ast_ParseFromTokens(
         pr, fileuri, tfile.token, tfile.token_count
     );
+    tcode.basic_file_access_was_successful = 1;
     lexer_FreeFileTokens(&tfile);
     haderrormessages = 0;
     i = 0;

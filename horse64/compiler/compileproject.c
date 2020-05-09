@@ -130,7 +130,7 @@ int compileproject_GetAST(
             pr->astfilemap, relfilepath, &entry
             ) && entry > 0) {
         h64ast *resultptr = (h64ast*)(uintptr_t)entry;
-        if (resultptr->stmt_count > 0) {
+        if (resultptr->basic_file_access_was_successful) {
             free(relfilepath);
             *out_ast = resultptr;
             *error = NULL;

@@ -17,6 +17,7 @@ typedef struct h64ast {
     h64scope scope;
     int stmt_count;
     h64expression **stmt;
+    int basic_file_access_was_successful;
 } h64ast;
 
 typedef struct tsinfo {

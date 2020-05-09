@@ -4292,6 +4292,7 @@ h64ast ast_ParseFromTokens(
     memset(&result, 0, sizeof(result));
     result.resultmsg.success = 1;
     result.scope.is_global = 1;
+    result.basic_file_access_was_successful = 1;
 
     tsinfo tokenstreaminfo;
     memset(&tokenstreaminfo, 0, sizeof(tokenstreaminfo));
