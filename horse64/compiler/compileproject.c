@@ -301,14 +301,14 @@ char *compileproject_ResolveImport(
     assert(import_relpath_len == (int)strlen(import_relpath));
     if (library_source) {
         // Load module from horse_modules library folder.
-        // We'll check the VFS-mounted horse_modules_internal first
+        // We'll check the VFS-mounted horse_modules_builtin first
         // (which e.g. has the built-in "core" module matched to this
         // compiler instance) and then the horse_modules folder which
         // can be either on disk or in the VFS.
 
         // Allocate the path where we expect the file to be at:
         int library_sourced_path_len = (
-            strlen("horse_modules_internal") + 1 +
+            strlen("horse_modules_builtin") + 1 +
             strlen(library_source) + 1 +
             import_relpath_len + 1
         );
@@ -322,24 +322,24 @@ char *compileproject_ResolveImport(
         }
 
         // Copy in actual path contents:
-        memcpy(library_sourced_path, "horse_modules_internal",
-               strlen("horse_modules_internal"));
+        memcpy(library_sourced_path, "horse_modules_builtin",
+               strlen("horse_modules_builtin"));
         #if defined(_WIN32) || defined(_WIN64)
-        library_sourced_path[strlen("horse_modules_internal")] = '\\';
+        library_sourced_path[strlen("horse_modules_builtin")] = '\\';
         #else
-        library_sourced_path[strlen("horse_modules_internal")] = '/';
+        library_sourced_path[strlen("horse_modules_builtin")] = '/';
         #endif
-        memcpy(library_sourced_path + strlen("horse_modules_internal/"),
+        memcpy(library_sourced_path + strlen("horse_modules_builtin/"),
                library_source, strlen(library_source));
         #if defined(_WIN32) || defined(_WIN64)
-        library_sourced_path[strlen("horse_modules_internal") + 1 +
+        library_sourced_path[strlen("horse_modules_builtin") + 1 +
             strlen(library_source)] = '\\';
         #else
-        library_sourced_path[strlen("horse_modules_internal") + 1 +
+        library_sourced_path[strlen("horse_modules_builtin") + 1 +
             strlen(library_source)] = '/';
         #endif
-        memcpy(library_sourced_path + strlen("horse_modules_internal/") +
-               strlen(library_source),
+        memcpy(library_sourced_path + strlen("horse_modules_builtin/") +
+               strlen(library_source) + 1,
                import_relpath, import_relpath_len + 1);
         free(import_relpath); import_relpath = NULL;
 
@@ -351,10 +351,10 @@ char *compileproject_ResolveImport(
             return NULL;
         }
         memmove(
-            library_sourced_path_external + strlen("horse_modules_"),
-            library_sourced_path_external + strlen("horse_modules_internal"),
+            library_sourced_path_external + strlen("horse_modules"),
+            library_sourced_path_external + strlen("horse_modules_builtin"),
             strlen(library_sourced_path_external) + 1 -
-            strlen("horse_modules_internal")
+            strlen("horse_modules_builtin")
         );
         char *fullpath = filesys_Join(
             pr->basefolder, library_sourced_path_external
@@ -366,7 +366,7 @@ char *compileproject_ResolveImport(
             return NULL;
         }
 
-        // Check "horse_modules_internal" first:
+        // Check "horse_modules_builtin" first:
         {
             int _vfs_exists_internal = 0;
             if (!vfs_Exists(
