@@ -12,6 +12,7 @@
 typedef struct h64compileproject h64compileproject;
 
 typedef struct h64ast {
+    char *fileuri;
     h64result resultmsg;
     h64scope scope;
     int stmt_count;

@@ -36,4 +36,12 @@ char *compileproject_FolderGuess(
     char **error
 );
 
+char *compileproject_ResolveImport(
+    h64compileproject *pr,
+    const char *sourcefileuri,
+    const char **import_elements, int import_elements_count,
+    const char *library_source,
+    int *outofmemory
+);
+
 #endif  // HORSE64_COMPILER_COMPILEPROJECT_H_

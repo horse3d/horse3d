@@ -4333,12 +4333,12 @@ h64ast ast_ParseFromTokens(
                 0
                 )) {
             if (oom) {
+                ast_FreeContents(&result);
                 result_ErrorNoLoc(
                     &result.resultmsg,
                     "out of memory / alloc fail",
                     fileuri
                 );
-                ast_FreeContents(&result);
                 result.resultmsg.success = 0;
                 return result;
             }
@@ -4374,12 +4374,12 @@ h64ast ast_ParseFromTokens(
         );
         if (!new_stmt) {
             ast_FreeExpression(expr);
+            ast_FreeContents(&result);
             result_ErrorNoLoc(
                 &result.resultmsg,
                 "out of memory / alloc fail",
                 fileuri
             );
-            ast_FreeContents(&result);
             result.resultmsg.success = 0;
             return result;
         }
@@ -4390,6 +4390,17 @@ h64ast ast_ParseFromTokens(
         i += tlen;
     }
 
+    result.fileuri = strdup(fileuri);
+    if (!result.fileuri) {
+        ast_FreeContents(&result);
+        result_ErrorNoLoc(
+            &result.resultmsg,
+            "out of memory / alloc fail",
+            fileuri
+        );
+        result.resultmsg.success = 0;
+        return result;
+    }
     return result;
 }
 

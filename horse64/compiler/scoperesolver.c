@@ -1,12 +1,17 @@
 
+#include <stdio.h>
+#include <string.h>
+
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
+#include "compiler/compileproject.h"
 #include "compiler/scoperesolver.h"
 
 int scoperesolver_ResolveAST(
         h64compileproject *pr, h64ast *unresolved_ast
         ) {
     // First, make sure all imports are loaded up:
+    int success = 1;
     int i = 0;
     while (i < unresolved_ast->scope.definitionref_count) {
         if (unresolved_ast->scope.definitionref[i].
@@ -21,7 +26,65 @@ int scoperesolver_ResolveAST(
             i++;
             continue;
         }
+        int oom = 0;
+        char *file_path = compileproject_ResolveImport(
+            pr, unresolved_ast->fileuri,
+            (const char **)expr->importstmt.import_elements,
+            expr->importstmt.import_elements_count,
+            expr->importstmt.source_library,
+            &oom
+        );
+        if (!file_path) {
+            char buf[256];
+            if (oom) {
+                result_AddMessage(
+                    &unresolved_ast->resultmsg, H64MSG_ERROR,
+                    "import failed, out of memory or other fatal "
+                    "internal error",
+                    unresolved_ast->fileuri,
+                    expr->line, expr->column
+                );
+                return 0;
+            } else {
+                char modpath[128] = "";
+                int i = 0;
+                while (i < expr->importstmt.import_elements_count) {
+                    if (i > 0 && strlen(modpath) < sizeof(modpath) - 1)
+                        strncat(modpath, ".",
+                                sizeof(modpath) - strlen(modpath) - 1);
+                    if (i > 0 && strlen(modpath) < sizeof(modpath) - 1)
+                        strncat(modpath, expr->importstmt.import_elements[i],
+                                sizeof(modpath) - strlen(modpath) - 1);
+                    i++;
+                }
+                if (strlen(modpath) >= sizeof(modpath) - 1) {
+                    modpath[sizeof(modpath) - 4] = '.';
+                    modpath[sizeof(modpath) - 3] = '.';
+                    modpath[sizeof(modpath) - 2] = '.';
+                    modpath[sizeof(modpath) - 1] = '\0';
+                }
+                snprintf(buf, sizeof(buf) - 1,
+                    "couldn't resolve import, module \"%s\" not found",
+                    modpath
+                );
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, buf,
+                        unresolved_ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        unresolved_ast->fileuri,
+                        expr->line, expr->column
+                    );
+                    return 0;
+                }
+                success = 0;
+            }
+        }
         i++;
     }
-    return 1;
+    return success;
 }
