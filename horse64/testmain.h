@@ -12,7 +12,7 @@ void addtests(TCase *tc, ...) {\
         void *ptr = va_arg(vl, void*);\
         if (!ptr)\
             break;\
-        tcase_add_test(tc, (void (*)(int))ptr);\
+        tcase_add_test(tc, (const TTest *)ptr);\
     }\
     va_end(vl);\
 }\
