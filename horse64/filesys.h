@@ -56,7 +56,8 @@ char *filesys_TurnIntoPathRelativeTo(
 int filesys_PathCompare(const char *p1, const char *p2);
 
 int filesys_FolderContainsPath(
-    const char *folder_path, const char *check_path
+    const char *folder_path, const char *check_path,
+    int *result
 );
 
 #endif  // HORSE3D_FILESYS_H_

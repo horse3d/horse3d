@@ -1308,7 +1308,8 @@ __attribute__((constructor)) static void _tests() {
 }
 
 int filesys_FolderContainsPath(
-        const char *folder_path, const char *check_path
+        const char *folder_path, const char *check_path,
+        int *result
         ) {
     if (!folder_path || !check_path)
         return 0;
@@ -1317,7 +1318,7 @@ int filesys_FolderContainsPath(
     if (!fnormalized || !checknormalized) {
         free(fnormalized);
         free(checknormalized);
-        return NULL;
+        return 0;
     }
     if (strlen(fnormalized) < strlen(checknormalized) && (
             checknormalized[strlen(fnormalized)] == '/'
@@ -1327,9 +1328,11 @@ int filesys_FolderContainsPath(
             )) {
         free(fnormalized);
         free(checknormalized);
+        *result = 1;
         return 1;
     }
     free(fnormalized);
     free(checknormalized);
-    return 0;
+    *result = 0;
+    return 1;
 }

@@ -171,6 +171,7 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
             #if !defined(_WIN32) && !defined(_WIN64)
             errno = ENOMEM;
             #endif
+            free(vfile);
             return 0;
         }
         if (PHYSFS_exists(p)) {
@@ -523,14 +524,14 @@ int vfs_ListFolderEx(
                             k++;
                         }
                         free(result);
-                        PHYSFS_freeList(result);
+                        PHYSFS_freeList(physfs_alloc_list);
                         return 0;
                     }
                     i++;
                 }
                 result[count] = NULL;
                 *contents = result;
-                PHYSFS_freeList(result);
+                PHYSFS_freeList(physfs_alloc_list);
                 return 1;
             }
         }

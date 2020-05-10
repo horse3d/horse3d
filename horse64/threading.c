@@ -321,8 +321,10 @@ thread *thread_SpawnWithPriority(
     sinfo->func = func;
     sinfo->userdata = userdata;
     thread *t = malloc(sizeof(*t));
-    if (!t)
+    if (!t) {
+        free(sinfo);
         return NULL;
+    }
     memset(t, 0, sizeof(*t));
 #ifdef WINDOWS
     HANDLE h = (HANDLE)_beginthreadex(NULL, 0, spawnthread, sinfo, 0, NULL);

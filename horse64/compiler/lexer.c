@@ -212,6 +212,7 @@ h64tokenizedfile lexer_ParseFromFile(
             buffer,
             NULL
         );
+        free(buffer);
         assert(result.resultmsg.message_count == 1);
         assert(result.resultmsg.message[0].message);
         assert(strlen(result.resultmsg.message[0].message) > 0);

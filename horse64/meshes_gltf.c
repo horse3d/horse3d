@@ -681,7 +681,7 @@ int mesh_AddFromCGLTFMeshNode(
                     mesh_node->mesh->primitives[i].attributes[k]
                 );
                 if (meshattr.type == cgltf_attribute_type_position) {
-                    cgltf_float v[3];
+                    cgltf_float v[3] = {0};
                     if (!cgltf_accessor_read_float(
                             meshattr.data, indexes[0], v, sizeof(v))) {
                         if (error)
@@ -780,7 +780,6 @@ int mesh_AddFromCGLTFMeshNode(
                 );
                 memcpy(&normals[3], &normals[0], sizeof(*normals) * 3);
                 memcpy(&normals[6], &normals[0], sizeof(*normals) * 3);
-                normalset = 1;
             } else {
                 yuptozup(&normals[0]);
                 yuptozup(&normals[3]);
@@ -793,7 +792,6 @@ int mesh_AddFromCGLTFMeshNode(
                 uv[3] = 1.0;
                 uv[4] = 0.0;
                 uv[5] = 0.0;
-                uvset = 1;
             }
 
             yuptozup(&positions[0]);

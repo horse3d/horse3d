@@ -89,7 +89,9 @@ void render3d_GetOutputSize(int *w, int *h) {
     if (_in_windowed == -1) {
         if (!render3d_SetMode(1)) {
             if (!mainwindow) {
-                if (w) *w = 0; if (h) *h = 0; return;
+                if (w) *w = 0;
+                if (h) *h = 0;
+                return;
             }
         }
     }
@@ -336,7 +338,7 @@ void _render3d_StartFrame() {
 static float matrixbuf[16];
 
 static GLfloat *_matrixdbltofl(double *m) {
-    int i = 0;
+    unsigned int i = 0;
     assert(sizeof(matrixbuf) / sizeof(*matrixbuf) == 16);
     while (i < sizeof(matrixbuf) / sizeof(*matrixbuf)) {
         matrixbuf[i] = m[i];

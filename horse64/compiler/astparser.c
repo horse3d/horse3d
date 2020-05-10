@@ -367,6 +367,7 @@ int _ast_ParseFunctionArgList_Ex(
             continue;
         }
         if (!is_call && !kwarg_name) {
+            free(arg_name);
             char buf[512]; char describebuf[64];
             int bugindex = i;
             if (i >= max_tokens_touse ||
@@ -402,8 +403,11 @@ int _ast_ParseFunctionArgList_Ex(
         }
         if (!is_call && !scope_AddItem(
                 parsethis->scope, kwarg_name, funcdefexpr
-                ))
+                )) {
+            free(arg_name);
+            free(kwarg_name);
             goto oom;
+        }
 
         int inneroom = 0;
         int innerparsefail = 0;
@@ -422,7 +426,8 @@ int _ast_ParseFunctionArgList_Ex(
                         &expr, &tlen,
                         nestingdepth
                         )) {
-            if (kwarg_name) free(kwarg_name);
+            free(arg_name);
+            free(kwarg_name);
             char buf[512]; char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected %s, "
@@ -3593,6 +3598,7 @@ int ast_ParseExprStmt(
         }
         i++;
         expr->type = H64EXPRTYPE_IMPORT_STMT;
+        memset(&expr->importstmt, 0, sizeof(expr->importstmt));
 
         // Get import path:
         while (1) {
