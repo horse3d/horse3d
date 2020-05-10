@@ -14,7 +14,7 @@
 #include "uri.h"
 #include "vfs.h"
 
-#define DEBUG_COMPILEPROJECT
+// #define DEBUG_COMPILEPROJECT
 
 h64compileproject *compileproject_New(
         const char *basefolderuri

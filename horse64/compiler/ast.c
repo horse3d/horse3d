@@ -681,7 +681,8 @@ jsonvalue *ast_FuncArgsToJSON(
             fail = 1;
             break;
         }
-        if (fargs->arg_name[i] && strlen(fargs->arg_name[i]) > 0) {
+        if (fargs->arg_name &&
+                fargs->arg_name[i] && strlen(fargs->arg_name[i]) > 0) {
             if (!json_SetDictStr(arg, "name", fargs->arg_name[i])) {
                 fail = 1;
                 json_Free(arg);
@@ -694,7 +695,7 @@ jsonvalue *ast_FuncArgsToJSON(
                 break;
             }
         }
-        if (fargs->arg_value[i]) {
+        if (fargs->arg_value && fargs->arg_value[i]) {
             jsonvalue *innerv = ast_ExpressionToJSON(
                 fargs->arg_value[i], fileuri
             );
@@ -1172,28 +1173,6 @@ jsonvalue *ast_ExpressionToJSON(
         if (e->funcdef.name && e->type != H64EXPRTYPE_INLINEFUNCDEF &&
                 !json_SetDictStr(v, "name", e->funcdef.name))
             fail = 1;
-        jsonvalue *scopeval = scope_ScopeToJSON(&e->funcdef.scope);
-        if (!json_SetDict(v, "scope", scopeval)) {
-            fail = 1;
-            json_Free(scopeval);
-        }
-        jsonvalue *statements = json_List();
-        int i = 0;
-        while (i < e->funcdef.stmt_count) {
-            jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->funcdef.stmt[i], fileuri
-            );
-            if (!json_AddToList(statements, stmtjson)) {
-                json_Free(stmtjson);
-                fail = 1;
-                break;
-            }
-            i++;
-        }
-        if (!json_SetDict(v, "statements", statements)) {
-            fail = 1;
-            json_Free(statements);
-        }
         jsonvalue *attributes = json_List();
         if (e->funcdef.is_threadable) {
             if (!json_AddToListStr(attributes, "threadable"))
@@ -1216,7 +1195,7 @@ jsonvalue *ast_ExpressionToJSON(
             json_Free(attributes);
         }
         jsonvalue *value2 = ast_FuncArgsToJSON(
-            &e->inlinecall.arguments, fileuri
+            &e->funcdef.arguments, fileuri
         );
         if (!value2) {
             fail = 1;
@@ -1225,6 +1204,28 @@ jsonvalue *ast_ExpressionToJSON(
                 json_Free(value2);
                 fail = 1;
             }
+        }
+        jsonvalue *scopeval = scope_ScopeToJSON(&e->funcdef.scope);
+        if (!json_SetDict(v, "scope", scopeval)) {
+            fail = 1;
+            json_Free(scopeval);
+        }
+        jsonvalue *statements = json_List();
+        int i = 0;
+        while (i < e->funcdef.stmt_count) {
+            jsonvalue *stmtjson = ast_ExpressionToJSON(
+                e->funcdef.stmt[i], fileuri
+            );
+            if (!json_AddToList(statements, stmtjson)) {
+                json_Free(stmtjson);
+                fail = 1;
+                break;
+            }
+            i++;
+        }
+        if (!json_SetDict(v, "statements", statements)) {
+            fail = 1;
+            json_Free(statements);
         }
     } else if (e->type == H64EXPRTYPE_LITERAL) {
         if (e->literal.type == H64TK_CONSTANT_INT) {
