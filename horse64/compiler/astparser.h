@@ -28,6 +28,7 @@ typedef struct tsinfo {
 typedef struct h64parsecontext {
     h64compileproject *project;
     h64result *resultmsg;
+    h64scope *global_scope;
     const char *fileuri;
     tsinfo *tokenstreaminfo;
 } h64parsecontext;
@@ -105,7 +106,7 @@ int ast_ParseCodeBlock(
     int nestingdepth
 );
 
-h64ast ast_ParseFromTokens(
+h64ast* ast_ParseFromTokens(
     h64compileproject *project, const char *fileuri,
     h64token *tokens, int token_count
 );

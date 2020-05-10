@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "compiler/ast.h"
@@ -11,6 +12,7 @@
 int scope_Init(h64scope *scope, char hashkey[16]) {
     memcpy(scope->hashkey, hashkey,
            sizeof(*hashkey) * 16);
+    scope->magicinitnum = SCOPEMAGICINITNUM;
 
     if (!scope->name_to_declaration_map) {
         scope->name_to_declaration_map = hash_NewStringMap(32);
@@ -107,6 +109,10 @@ h64scopedef *scope_QueryItem(
     if (!hash_StringMapGet(
             scope->name_to_declaration_map, identifier_ref, &result
             )) {
+        #ifndef NDEBUG
+        if (scope->parentscope)
+            assert(scope->parentscope->magicinitnum == SCOPEMAGICINITNUM);
+        #endif
         if (bubble_up && scope->parentscope)
             return scope_QueryItem(scope->parentscope, identifier_ref, 1);
         return 0;
@@ -117,6 +123,17 @@ h64scopedef *scope_QueryItem(
         return 0;
     }
     return (h64scopedef*)(uintptr_t)result;
+}
+
+char *scope_ScopeToJSONStr(h64scope *scope) {
+    jsonvalue *v = scope_ScopeToJSON(scope);
+    if (v) {
+        char *result = json_Dump(v);
+        json_Free(v);
+        return result;
+    }
+    json_Free(v);
+    return NULL;
 }
 
 jsonvalue *scope_ScopeToJSON(

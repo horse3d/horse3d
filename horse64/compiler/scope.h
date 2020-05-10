@@ -22,9 +22,13 @@ typedef struct h64scopedef {
     h64scope *scope;
 } h64scopedef;
 
+#define SCOPEMAGICINITNUM (0xAAFF00AA)
+
 typedef struct h64scope {
     int definitionref_count, definitionref_alloc;
     h64scopedef *definitionref;
+
+    unsigned int magicinitnum;
 
     int classandfuncnestinglevel;
     h64scope *parentscope;
@@ -47,6 +51,8 @@ h64scopedef *scope_QueryItem(
 );
 
 void scope_FreeData(h64scope *scope);
+
+char *scope_ScopeToJSONStr(h64scope *scope);
 
 jsonvalue *scope_ScopeToJSON(
     h64scope *scope

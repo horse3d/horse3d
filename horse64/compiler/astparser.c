@@ -1088,6 +1088,8 @@ int ast_ParseInlineFunc(
     expr->type = H64EXPRTYPE_INLINEFUNCDEF;
     expr->line = _refline(context->tokenstreaminfo, tokens, 0);
     expr->column = _refcol(context->tokenstreaminfo, tokens, 0);
+    assert(!parsethis->scope ||
+           parsethis->scope->magicinitnum == SCOPEMAGICINITNUM);
     expr->funcdef.scope.parentscope = parsethis->scope;
     if (!scope_Init(&expr->funcdef.scope, context->project->hashsecret)) {
         if (outofmemory) *outofmemory = 1;
@@ -2736,6 +2738,8 @@ int ast_ParseExprStmt(
             strcmp(tokens[0].str_value, "func") == 0) {
         expr->type = H64EXPRTYPE_FUNCDEF_STMT;
         expr->funcdef.scope.parentscope = parsethis->scope;
+        assert(!parsethis->scope ||
+               parsethis->scope->magicinitnum == SCOPEMAGICINITNUM);
         if (!scope_Init(&expr->funcdef.scope,
                 context->project->hashsecret)) {
             if (outofmemory) *outofmemory = 1;
@@ -4297,29 +4301,31 @@ int _ast_visit_in_setparent(
     return 1;
 }
 
-h64ast ast_ParseFromTokens(
+h64ast *ast_ParseFromTokens(
         h64compileproject *project, const char *fileuri,
         h64token *tokens, int token_count
         ) {
-    h64ast result;
-    memset(&result, 0, sizeof(result));
-    result.resultmsg.success = 1;
-    result.scope.is_global = 1;
-    result.basic_file_access_was_successful = 1;
+    h64ast *result = malloc(sizeof(*result));
+    if (!result)
+        return NULL;
+    memset(result, 0, sizeof(*result));
+    result->resultmsg.success = 1;
+    result->scope.is_global = 1;
+    result->basic_file_access_was_successful = 1;
 
     tsinfo tokenstreaminfo;
     memset(&tokenstreaminfo, 0, sizeof(tokenstreaminfo));
     tokenstreaminfo.token = tokens;
     tokenstreaminfo.token_count = token_count;
 
-    if (!scope_Init(&result.scope, project->hashsecret)) {
+    if (!scope_Init(&result->scope, project->hashsecret)) {
         result_ErrorNoLoc(
-            &result.resultmsg,
+            &result->resultmsg,
             "out of memory / alloc fail",
             fileuri
         );
-        ast_FreeContents(&result);
-        result.resultmsg.success = 0;
+        ast_FreeContents(result);
+        result->resultmsg.success = 0;
         return result;
     }
 
@@ -4331,13 +4337,14 @@ h64ast ast_ParseFromTokens(
         int oom = 0;
         h64parsecontext pcontext;
         memset(&pcontext, 0, sizeof(pcontext));
+        pcontext.global_scope = &result->scope;
         pcontext.project = project;
-        pcontext.resultmsg = &result.resultmsg;
+        pcontext.resultmsg = &result->resultmsg;
         pcontext.fileuri = fileuri;
         pcontext.tokenstreaminfo = &tokenstreaminfo;
         h64parsethis pthis;
         memset(&pthis, 0, sizeof(pthis));
-        pthis.scope = &result.scope;
+        pthis.scope = &result->scope;
         pthis.tokens = &tokens[i];
         pthis.max_tokens_touse = token_count - i;
         if (!ast_ParseExprStmt(
@@ -4347,13 +4354,13 @@ h64ast ast_ParseFromTokens(
                 0
                 )) {
             if (oom) {
-                ast_FreeContents(&result);
+                ast_FreeContents(result);
                 result_ErrorNoLoc(
-                    &result.resultmsg,
+                    &result->resultmsg,
                     "out of memory / alloc fail",
                     fileuri
                 );
-                result.resultmsg.success = 0;
+                result->resultmsg.success = 0;
                 return result;
             }
             if (!parsefail) {
@@ -4365,7 +4372,7 @@ h64ast ast_ParseFromTokens(
                         &tokenstreaminfo, tokens, i)
                 );
                 if (!result_AddMessage(
-                        &result.resultmsg,
+                        &result->resultmsg,
                         H64MSG_ERROR, buf, fileuri,
                         _refline(&tokenstreaminfo, tokens, i),
                         _refcol(&tokenstreaminfo, tokens, i)
@@ -4380,56 +4387,60 @@ h64ast ast_ParseFromTokens(
                 assert(i > previ || i >= token_count);
                 continue;
             }
-            result.resultmsg.success = 0;
+            result->resultmsg.success = 0;
             return result;
         }
         h64expression **new_stmt = realloc(
-            result.stmt, sizeof(*new_stmt) * (result.stmt_count + 1)
+            result->stmt,
+            sizeof(*new_stmt) * (result->stmt_count + 1)
         );
         if (!new_stmt) {
             ast_FreeExpression(expr);
-            ast_FreeContents(&result);
+            ast_FreeContents(result);
             result_ErrorNoLoc(
-                &result.resultmsg,
+                &result->resultmsg,
                 "out of memory / alloc fail",
                 fileuri
             );
-            result.resultmsg.success = 0;
+            result->resultmsg.success = 0;
             return result;
         }
-        result.stmt = new_stmt;
-        result.stmt[result.stmt_count] = expr;
-        result.stmt_count++;
+        result->stmt = new_stmt;
+        result->stmt[result->stmt_count] = expr;
+        result->stmt_count++;
         assert(tlen > 0);
         i += tlen;
     }
 
+    assert(result->scope.magicinitnum == SCOPEMAGICINITNUM);
     i = 0;
-    while (i < result.stmt_count) {
+    while (i < result->stmt_count) {
+        assert(result->scope.magicinitnum == SCOPEMAGICINITNUM);
         if (!ast_VisitExpression(
-                result.stmt[i], NULL,
+                result->stmt[i], NULL,
                 &_ast_visit_in_setparent, NULL, NULL)) {
-            ast_FreeContents(&result);
+            ast_FreeContents(result);
             result_ErrorNoLoc(
-                &result.resultmsg,
+                &result->resultmsg,
                 "out of memory / alloc fail",
                 fileuri
             );
-            result.resultmsg.success = 0;
+            result->resultmsg.success = 0;
             return result;
         }
         i++;
     }
+    assert(result->scope.magicinitnum == SCOPEMAGICINITNUM);
 
-    result.fileuri = strdup(fileuri);
-    if (!result.fileuri) {
-        ast_FreeContents(&result);
+    result->fileuri = strdup(fileuri);
+    if (!result->fileuri) {
+        ast_FreeContents(result);
         result_ErrorNoLoc(
-            &result.resultmsg,
+            &result->resultmsg,
             "out of memory / alloc fail",
             fileuri
         );
-        result.resultmsg.success = 0;
+        result->resultmsg.success = 0;
         return result;
     }
     return result;

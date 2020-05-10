@@ -52,6 +52,12 @@ h64scope *ast_GetScope(
             i++;
         }
         i = 0;
+        while (i < expr->trystmt.exceptions_count) {
+            if (expr->trystmt.exceptions[i] == child_expr)
+                return ast_GetScope(expr, global_scope);
+            i++;
+        }
+        i = 0;
         while (i < expr->trystmt.catchstmt_count) {
             if (expr->trystmt.catchstmt[i] == child_expr)
                 return &expr->trystmt.catchscope;

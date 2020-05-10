@@ -6,7 +6,7 @@
 
 typedef struct h64compileproject h64compileproject;
 
-h64ast codemodule_GetASTUncached(
+h64ast *codemodule_GetASTUncached(
     h64compileproject *pr, const char *fileuri,
     h64compilewarnconfig *wconfig
 );

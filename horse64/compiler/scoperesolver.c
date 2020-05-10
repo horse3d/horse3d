@@ -44,14 +44,25 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
              parent->op.value1 == expr)) {
         h64scope *scope = ast_GetScope(expr, &rinfo->ast->scope);
         if (scope == NULL) {
-            result_AddMessage(
-                &rinfo->ast->resultmsg,
-                H64MSG_ERROR,
-                "internal error: failed to obtain scope, malformed AST?",
-                rinfo->ast->fileuri,
-                expr->line, expr->column
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "internal error: failed to obtain scope, "
+                "malformed AST? expr: %s, parent: %s",
+                ast_ExpressionTypeToStr(expr->type),
+                (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
+                 "none")
             );
-            return 0;
+            if (!result_AddMessage(
+                    &rinfo->ast->resultmsg,
+                    H64MSG_ERROR,
+                    buf,
+                    rinfo->ast->fileuri,
+                    expr->line, expr->column
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            return 1;
         }
         h64scopedef *def = scope_QueryItem(
             scope, expr->identifierref.value, 1
@@ -71,8 +82,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             if (!result_AddMessage(
                     &rinfo->ast->resultmsg,
                     H64MSG_ERROR,
-                    "internal error: failed to obtain scope, "
-                    "malformed AST?",
+                    buf,
                     rinfo->ast->fileuri,
                     expr->line, expr->column
                     )) {
@@ -167,7 +177,6 @@ int scoperesolver_ResolveAST(
                 pr, file_path,
                 &expr->importstmt.referenced_ast, &error
                 )) {
-            free(file_path);
             expr->importstmt.referenced_ast = NULL;
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
@@ -181,6 +190,7 @@ int scoperesolver_ResolveAST(
                     unresolved_ast->fileuri,
                     expr->line, expr->column
                     )) {
+                free(file_path);
                 result_AddMessage(
                     &unresolved_ast->resultmsg,
                     H64MSG_ERROR, "out of memory",
@@ -200,6 +210,7 @@ int scoperesolver_ResolveAST(
     memset(&rinfo, 0, sizeof(rinfo));
     rinfo.pr = pr;
     rinfo.ast = unresolved_ast;
+    int msgcount = unresolved_ast->resultmsg.message_count;
     int k = 0;
     while (k < unresolved_ast->stmt_count) {
         int result = ast_VisitExpression(
@@ -218,6 +229,24 @@ int scoperesolver_ResolveAST(
             return 0;
         }
         k++;
+    }
+    {   // Copy over new messages resulting from resolution stage:
+        k = msgcount;
+        while (k < unresolved_ast->resultmsg.message_count) {
+            if (!result_AddMessage(
+                    pr->resultmsg,
+                    unresolved_ast->resultmsg.message[k].type,
+                    unresolved_ast->resultmsg.message[k].message,
+                    unresolved_ast->resultmsg.message[k].fileuri,
+                    unresolved_ast->resultmsg.message[k].line,
+                    unresolved_ast->resultmsg.message[k].column
+                    )) {
+                return 0;
+            }
+            if (unresolved_ast->resultmsg.message[k].type == H64MSG_ERROR)
+                pr->resultmsg->success = 0;
+            k++;
+        }
     }
     return 1;
 }

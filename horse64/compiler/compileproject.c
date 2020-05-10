@@ -66,8 +66,8 @@ h64compileproject *compileproject_New(
     pr->resultmsg = malloc(sizeof(*pr->resultmsg));
     if (!pr->resultmsg) {
         free(pr->basefolder);
-        free(pr);
         hash_FreeMap(pr->astfilemap);
+        free(pr);
         return NULL;
     }
     memset(pr->resultmsg, 0, sizeof(*pr->resultmsg));
@@ -130,18 +130,10 @@ int compileproject_GetAST(
             pr->astfilemap, relfilepath, &entry
             ) && entry > 0) {
         h64ast *resultptr = (h64ast*)(uintptr_t)entry;
-        if (resultptr->basic_file_access_was_successful) {
-            free(relfilepath);
-            *out_ast = resultptr;
-            *error = NULL;
-            return 1;
-        }
-        hash_StringMapUnset(
-            pr->astfilemap, relfilepath
-        );
-        result_FreeContents(&resultptr->resultmsg);
-        ast_FreeContents(resultptr);
-        free(resultptr);
+        free(relfilepath);
+        *out_ast = resultptr;
+        *error = NULL;
+        return 1;
     }
 
     char *absfilepath = filesys_Join(
@@ -159,55 +151,52 @@ int compileproject_GetAST(
            absfilepath);
     #endif
 
-    h64ast result = codemodule_GetASTUncached(
+    h64ast *result = codemodule_GetASTUncached(
         pr, absfilepath, &pr->warnconfig
     );
     free(absfilepath); absfilepath = NULL;
-    h64ast *resultalloc = malloc(sizeof(*resultalloc));
-    if (!resultalloc) {
-        ast_FreeContents(&result);
+    if (!result) {
         free(relfilepath);
         *error = strdup("alloc fail");
         *out_ast = NULL;
         return 0;
     }
-    memcpy(resultalloc, &result, sizeof(result));
 
     // Add warnings & errors to collected ones in compileproject:
     int i = 0;
-    while (i < result.resultmsg.message_count) {
+    while (i < result->resultmsg.message_count) {
         if (!result_AddMessage(
-                pr->resultmsg, result.resultmsg.message[i].type,
-                result.resultmsg.message[i].message,
-                result.resultmsg.message[i].fileuri,
-                result.resultmsg.message[i].line,
-                result.resultmsg.message[i].column
+                pr->resultmsg, result->resultmsg.message[i].type,
+                result->resultmsg.message[i].message,
+                result->resultmsg.message[i].fileuri,
+                result->resultmsg.message[i].line,
+                result->resultmsg.message[i].column
                 )) {
             result_FreeContents(pr->resultmsg);
             pr->resultmsg->success = 0;
-            ast_FreeContents(&result);
+            ast_FreeContents(result);
             free(relfilepath);
-            free(resultalloc);
+            free(result);
             *error = strdup("alloc fail");
             *out_ast = NULL;
             return 0;
         }
-        if (result.resultmsg.message[i].type == H64MSG_ERROR)
+        if (result->resultmsg.message[i].type == H64MSG_ERROR)
             pr->resultmsg->success = 0;
         i++;
     }
 
     if (!hash_StringMapSet(
-            pr->astfilemap, relfilepath, (uintptr_t)resultalloc
+            pr->astfilemap, relfilepath, (uintptr_t)result
             )) {
-        ast_FreeContents(&result);
+        ast_FreeContents(result);
         free(relfilepath);
-        free(resultalloc);
+        free(result);
         *error = strdup("alloc fail");
         *out_ast = NULL;
         return 0;
     }
-    *out_ast = resultalloc;
+    *out_ast = result;
     *error = NULL;
     free(relfilepath);
     return 1;
@@ -586,7 +575,7 @@ char *compileproject_ResolveImport(
         while (i < k) {
             if (i + 1 < k)
                 subdirspath_len++;  // dir sep
-            subdirspath_len += strlen(subdir_components[k]);
+            subdirspath_len += strlen(subdir_components[i]);
             i++;
         }
         char *checkpath_rel = malloc(
@@ -599,8 +588,8 @@ char *compileproject_ResolveImport(
         char *p = checkpath_rel;
         i = 0;
         while (i < k) {
-            memcpy(p, subdir_components[k],
-                   strlen(subdir_components[k]));
+            memcpy(p, subdir_components[i],
+                   strlen(subdir_components[i]));
             if (i + 1 < k) {
                 #if defined(_WIN32) || defined(_WIN64)
                 *p = '\\';
@@ -625,8 +614,10 @@ char *compileproject_ResolveImport(
         char *checkpath_abs = filesys_Join(
             projectpath, checkpath_rel
         );
-        if (!checkpath_abs)
+        if (!checkpath_abs) {
+            free(checkpath_rel);
             goto subdircheckoom;
+        }
         int _exists_result = 0;
         if (!vfs_ExistsEx(checkpath_abs, checkpath_rel,
                 &_exists_result, 0)) {
@@ -779,7 +770,14 @@ char *compileproject_FolderGuess(
             *error = strdup("alloc failure");
             return NULL;
         }
-        if (filesys_FolderContainsPath(cwd, full_path)) {    
+        int _contained = 0;
+        if (!filesys_FolderContainsPath(cwd, full_path, &_contained)) {
+            free(cwd);
+            free(full_path);
+            *error = strdup("alloc failure");
+            return NULL;
+        }
+        if (_contained) {
             char *result = filesys_Normalize(cwd);
             free(full_path);
             free(cwd);
