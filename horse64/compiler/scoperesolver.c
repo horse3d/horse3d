@@ -7,11 +7,32 @@
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
 #include "compiler/scoperesolver.h"
+#include "compiler/scope.h"
 
 typedef struct resolveinfo {
     h64compileproject *pr;
+    h64ast *ast;
+    int isbuiltinmodule;
     int hadoutofmemory;
 } resolveinfo;
+
+static int identifierisbuiltin(
+        const char *identifier, int isbuiltinmodule
+        ) {
+    if (strcmp(identifier, "print") == 0 ||
+            strcmp(identifier, "instanceof") == 0 ||
+            strcmp(identifier, "Exception") == 0 ||
+            strcmp(identifier, "RuntimeException") == 0 ||
+            strcmp(identifier, "IOException") == 0 ||
+            strcmp(identifier, "OSException") == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+const char *_shortenedname(
+    char *buf, const char *name
+);
 
 int _resolvercallback_ResolveIdentifiers_visit_out(
         h64expression *expr, h64expression *parent, void *ud
@@ -21,8 +42,45 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             (parent == NULL ||
              parent->type != H64EXPRTYPE_BINARYOP ||
              parent->op.value1 == expr)) {
-        printf("id %s at %d:%d\n", expr->identifierref.value,
-               (int)expr->line, (int)expr->column);
+        h64scope *scope = ast_GetScope(expr, &rinfo->ast->scope);
+        if (scope == NULL) {
+            result_AddMessage(
+                &rinfo->ast->resultmsg,
+                H64MSG_ERROR,
+                "internal error: failed to obtain scope, malformed AST?",
+                rinfo->ast->fileuri,
+                expr->line, expr->column
+            );
+            return 0;
+        }
+        h64scopedef *def = scope_QueryItem(
+            scope, expr->identifierref.value, 1
+        );
+        if (def) {
+            expr->identifierref.resolved_to_def = def;
+        } else if (identifierisbuiltin(
+                expr->identifierref.value, rinfo->isbuiltinmodule)) {
+            expr->identifierref.resolved_to_builtin = 1;
+        } else {
+            char buf[256]; char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected unknown identifier \"%s\", variable "
+                "or module not found",
+                _shortenedname(describebuf, expr->identifierref.value)
+            );
+            if (!result_AddMessage(
+                    &rinfo->ast->resultmsg,
+                    H64MSG_ERROR,
+                    "internal error: failed to obtain scope, "
+                    "malformed AST?",
+                    rinfo->ast->fileuri,
+                    expr->line, expr->column
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            return 1;
+        }
     }
     return 1;
 }
@@ -136,15 +194,18 @@ int scoperesolver_ResolveAST(
         assert(expr->importstmt.referenced_ast != NULL);
         i++;
     }
+
     // Now, actually resolve identifiers:
     resolveinfo rinfo;
     memset(&rinfo, 0, sizeof(rinfo));
     rinfo.pr = pr;
+    rinfo.ast = unresolved_ast;
     int k = 0;
     while (k < unresolved_ast->stmt_count) {
         int result = ast_VisitExpression(
             unresolved_ast->stmt[k], NULL,
-            NULL, &_resolvercallback_ResolveIdentifiers_visit_out,
+            NULL,
+            &_resolvercallback_ResolveIdentifiers_visit_out,
             &rinfo
         );
         if (!result || rinfo.hadoutofmemory) {

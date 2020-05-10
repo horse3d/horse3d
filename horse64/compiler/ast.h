@@ -67,6 +67,7 @@ typedef struct h64ast h64ast;
 typedef struct h64expression {
     int64_t line, column;
     int tokenindex;
+    h64expression *parent;
     h64expressiontype type;
     union {
         struct vardef {
@@ -112,6 +113,8 @@ typedef struct h64expression {
             h64funcargs arguments;
         } inlinecall;
         struct identifierref {
+            h64scopedef *resolved_to_def;
+            int resolved_to_builtin;
             char *value;
         } identifierref;
         struct importstmt {
@@ -189,6 +192,8 @@ typedef struct h64expression {
 } h64expression;
 
 void ast_FreeExpression(h64expression *expr);
+
+h64scope *ast_GetScope(h64expression *expr, h64scope *global_scope);
 
 const char *ast_ExpressionTypeToStr(h64expressiontype type);
 

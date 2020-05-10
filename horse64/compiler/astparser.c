@@ -54,7 +54,7 @@ static const char *_reftokname(tsinfo *tokenstreaminfo, h64token *token, int i) 
     return lexer_TokenTypeToStr(token[i].type);
 }
 
-static const char *_shortenedname(
+const char *_shortenedname(
         char *buf, const char *name
         ) {
     int copylen = strlen(name) + 1;
@@ -4284,6 +4284,13 @@ int ast_ParseExprStmt(
     return 0;
 }
 
+int _ast_visit_in_setparent(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    expr->parent = parent;
+    return 1;
+}
+
 h64ast ast_ParseFromTokens(
         h64compileproject *project, const char *fileuri,
         h64token *tokens, int token_count
@@ -4389,6 +4396,23 @@ h64ast ast_ParseFromTokens(
         result.stmt_count++;
         assert(tlen > 0);
         i += tlen;
+    }
+
+    i = 0;
+    while (i < result.stmt_count) {
+        if (!ast_VisitExpression(
+                result.stmt[i], NULL,
+                &_ast_visit_in_setparent, NULL, NULL)) {
+            ast_FreeContents(&result);
+            result_ErrorNoLoc(
+                &result.resultmsg,
+                "out of memory / alloc fail",
+                fileuri
+            );
+            result.resultmsg.success = 0;
+            return result;
+        }
+        i++;
     }
 
     result.fileuri = strdup(fileuri);

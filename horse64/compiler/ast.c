@@ -15,6 +15,61 @@
 #include "compiler/operator.h"
 
 
+h64scope *ast_GetScope(
+        h64expression *child_expr, h64scope *global_scope
+        ) {
+    h64expression *expr = child_expr->parent;
+    if (!expr)
+        return global_scope;
+    switch (expr->type) {
+    case H64EXPRTYPE_FUNCDEF_STMT:
+    case H64EXPRTYPE_INLINEFUNCDEF:
+        return &expr->funcdef.scope;
+    case H64EXPRTYPE_CLASSDEF_STMT:
+        return &expr->classdef.scope;
+    case H64EXPRTYPE_FOR_STMT:
+        return &expr->forstmt.scope;
+    case H64EXPRTYPE_IF_STMT: ;
+        struct h64ifstmt *curr_clause = &expr->ifstmt;
+        while (curr_clause) {
+            int i = 0;
+            while (i < curr_clause->stmt_count) {
+                if (curr_clause->stmt[i] == child_expr) {
+                    return &curr_clause->scope;
+                }
+                i++;
+            }
+            curr_clause = curr_clause->followup_clause;
+        }
+        return NULL;  // shouldn't be hit on well-formed AST
+    case H64EXPRTYPE_WHILE_STMT:
+        return &expr->whilestmt.scope;
+    case H64EXPRTYPE_TRY_STMT: ;
+        int i = 0;
+        while (i < expr->trystmt.trystmt_count) {
+            if (expr->trystmt.trystmt[i] == child_expr)
+                return &expr->trystmt.tryscope;
+            i++;
+        }
+        i = 0;
+        while (i < expr->trystmt.catchstmt_count) {
+            if (expr->trystmt.catchstmt[i] == child_expr)
+                return &expr->trystmt.catchscope;
+            i++;
+        }
+        i = 0;
+        while (i < expr->trystmt.finallystmt_count) {
+            if (expr->trystmt.finallystmt[i] == child_expr)
+                return &expr->trystmt.finallyscope;
+            i++;
+        }
+        return NULL;  // shouldn't be hit on the well-formed AST
+    default:
+        break;
+    }
+    return ast_GetScope(expr, global_scope);
+}
+
 void ast_ClearFunctionArgs(h64funcargs *fargs) {
     int i = 0;
     while (i < fargs->arg_count) {
