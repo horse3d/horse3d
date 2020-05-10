@@ -681,7 +681,7 @@ int mesh_AddFromCGLTFMeshNode(
                     mesh_node->mesh->primitives[i].attributes[k]
                 );
                 if (meshattr.type == cgltf_attribute_type_position) {
-                    cgltf_float v[3] = {0};
+                    cgltf_float v[3];
                     if (!cgltf_accessor_read_float(
                             meshattr.data, indexes[0], v, sizeof(v))) {
                         if (error)
