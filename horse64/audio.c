@@ -1089,6 +1089,11 @@ h3daudiodevice *h3daudio_OpenDeviceEx(
         int backendtype, const char *soundcardname,
         char **error
         ) {
+    if (!soundcardname) {
+        if (error)
+            *error = strdup("missing sound card name");
+        return NULL;
+    }
     *error = NULL;
     if (samplerate != 44100 && samplerate != 48000 &&
             samplerate != 22050) {
