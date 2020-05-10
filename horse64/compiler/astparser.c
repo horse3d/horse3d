@@ -2258,7 +2258,7 @@ int ast_ParseCodeBlock(
             char buf[256]; char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected %s, "
-                "expected \"}\" to end "
+                "expected valid statement or \"}\" to end "
                 "code block opened with \"{\" in line %"
                 PRId64 ", column %" PRId64 " instead",
                 _describetoken(describebuf,
@@ -2274,15 +2274,28 @@ int ast_ParseCodeBlock(
                 if (outofmemory) *outofmemory = 1;
                 return 0;
             } else {
-                ast_ParseRecover_FindEndOfBlock(
+                // If this is a clear indication the block ended, exit:
+                if (tokens[i].type == H64TK_IDENTIFIER && (
+                        strcmp(tokens[i].str_value, "class") == 0 ||
+                        strcmp(tokens[i].str_value, "import") == 0))
+                    break;
+
+                // Skip to next possible statement:
+                int previ = i;
+                ast_ParseRecover_FindNextStatement(
                     context->tokenstreaminfo, tokens,
                     max_tokens_touse, &i
                 );
+                assert(i >= previ || i >= max_tokens_touse);
                 if (i < max_tokens_touse &&
                         tokens[i].type == H64TK_BRACKET &&
-                        tokens[i].char_value == '}')
+                        tokens[i].char_value == '}') {
                     i++;
-                break;
+                    break;
+                }
+                if (i >= max_tokens_touse)
+                    break;
+                continue;
             }
         }
         i++;

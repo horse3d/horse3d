@@ -201,7 +201,8 @@ int scoperesolver_ResolveAST(
             }
         }
         free(file_path);
-        assert(expr->importstmt.referenced_ast != NULL);
+        assert(expr->importstmt.referenced_ast != NULL ||
+            !unresolved_ast->resultmsg.success);
         i++;
     }
 
