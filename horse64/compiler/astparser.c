@@ -4437,7 +4437,7 @@ int ast_ParseExprStmt(
                         ast_FreeExpression(expr);
                         return 0;
                     }
-                    if (_innerparsefail) {
+                    if (!_innerparsefail) {
                         char buf[512]; char describebuf[64];
                         snprintf(buf, sizeof(buf) - 1,
                             "unexpected %s, "
