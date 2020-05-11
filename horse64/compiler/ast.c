@@ -485,7 +485,7 @@ void ast_FreeExpression(h64expression *expr) {
         free(expr->importstmt.source_library);
         break;
     case H64EXPRTYPE_RETURN_STMT:
-        free(expr->returnstmt.returned_expression);
+        ast_FreeExpression(expr->returnstmt.returned_expression);
         break;
     case H64EXPRTYPE_TRY_STMT:
         scope_FreeData(&expr->trystmt.tryscope);
@@ -595,6 +595,7 @@ static char _h64exprname_if_stmt[] = "H64EXPRTYPE_IF_STMT";
 static char _h64exprname_while_stmt[] = "H64EXPRTYPE_WHILE_STMT";
 static char _h64exprname_for_stmt[] = "H64EXPRTYPE_FOR_STMT";
 static char _h64exprname_import_stmt[] = "H64EXPRTYPE_IMPORT_STMT";
+static char _h64exprname_return_stmt[] = "H64EXPRTYPE_RETURN_STMT";
 static char _h64exprname_try_stmt[] = "H64EXPRTYPE_TRY_STMT";
 static char _h64exprname_assign_stmt[] = "H64EXPRTYPE_ASSIGN_STMT";
 static char _h64exprname_literal[] = "H64EXPRTYPE_LITERAL";
@@ -628,6 +629,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_for_stmt;
     case H64EXPRTYPE_IMPORT_STMT:
         return _h64exprname_import_stmt;
+    case H64EXPRTYPE_RETURN_STMT:
+        return _h64exprname_return_stmt;
     case H64EXPRTYPE_TRY_STMT:
         return _h64exprname_try_stmt;
     case H64EXPRTYPE_ASSIGN_STMT:
@@ -1270,6 +1273,19 @@ jsonvalue *ast_ExpressionToJSON(
                 !json_SetDictStr(v, "import_as",
                     e->importstmt.import_as))
             fail = 1;
+    } else if (e->type == H64EXPRTYPE_RETURN_STMT) {
+        if (e->returnstmt.returned_expression) {
+            jsonvalue *value = ast_ExpressionToJSON(
+                e->returnstmt.returned_expression, fileuri
+            );
+            if (!json_SetDict(v, "returned_value", value)) {
+                json_Free(value);
+                fail = 1;
+            }
+        } else {
+            if (!json_SetDictNull(v, "returned_value"))
+                fail = 1;
+        }
     } else if (e->type == H64EXPRTYPE_BINARYOP) {
         jsonvalue *value1 = ast_ExpressionToJSON(
             e->op.value1, fileuri

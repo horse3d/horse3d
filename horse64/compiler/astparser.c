@@ -541,7 +541,7 @@ int ast_ParseExprInlineOperator_Recurse(
     if (parsefail) *parsefail = 1;
     if (max_tokens_touse <= 0) {
         if (parsefail) *parsefail = 0;
-        // XXX: do NOT free lefthandside if no parse error.
+        // XXX: do NOT free original lefthandside if no parse error.
         return 0;
     }
     assert(lefthandside || lefthandsidetokenlen == 0);
@@ -1041,8 +1041,7 @@ int ast_ParseExprInlineOperator_Recurse(
         if (lefthandside &&
                 original_lefthand != lefthandside)
             ast_FreeExpression(lefthandside);
-        if (original_lefthand && original_lefthand != lefthandside)
-            ast_FreeExpression(original_lefthand);
+        // XXX: do NOT free original lefthandside if no parse error.
     }
     *out_expr = NULL;
     if (outofmemory) *outofmemory = 0;
@@ -1105,7 +1104,6 @@ int ast_ParseInlineFunc(
         if (parsefail) *parsefail = 1;
         return 0;
     }
-
     h64expression *expr = malloc(sizeof(*expr));
     if (!expr) {
         if (outofmemory) *outofmemory = 1;
@@ -1120,6 +1118,7 @@ int ast_ParseInlineFunc(
     expr->funcdef.scope.parentscope = parsethis->scope;
     if (!scope_Init(&expr->funcdef.scope, context->project->hashsecret)) {
         if (outofmemory) *outofmemory = 1;
+        if (parsefail) *parsefail = 0;
         ast_FreeExpression(expr);
         return 0;
     }
@@ -1182,14 +1181,26 @@ int ast_ParseInlineFunc(
             expr->funcdef.arguments.arg_name[0] = strdup(
                 tokens[0].str_value
             );
+        expr->funcdef.arguments.arg_value = malloc(
+            sizeof(char*) * 1
+        );
+        if (expr->funcdef.arguments.arg_value)
+            expr->funcdef.arguments.arg_value[0] = NULL;
         if (!expr->funcdef.arguments.arg_name ||
                 !expr->funcdef.arguments.arg_value ||
                 !expr->funcdef.arguments.arg_name[0]) {
+            if (expr->funcdef.arguments.arg_value &&
+                    expr->funcdef.arguments.arg_value[0])
+                free(expr->funcdef.arguments.arg_value[0]);
+            if (expr->funcdef.arguments.arg_name &&
+                    expr->funcdef.arguments.arg_name[0])
+                free(expr->funcdef.arguments.arg_name[0]);
             if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 0;
             ast_FreeExpression(expr);
             return 0;
         }
+        expr->funcdef.arguments.arg_count = 1;
         i++;
     } else {
         char buf[256];
@@ -1231,30 +1242,19 @@ int ast_ParseInlineFunc(
         return 0;
     }
     i++;
-    int tlen = 0;
-    int innerparsefail = 0;
-    int inneroom = 0;
-    h64parsethis _buf;
-    if (!ast_ParseCodeBlock(
-            context, newparsethis_newscope(
-                &_buf, parsethis, &expr->funcdef.scope,
-                tokens + i, max_tokens_touse - i
-            ),
-            STATEMENTMODE_INFUNC,
-            &expr->funcdef.stmt, &expr->funcdef.stmt_count,
-            &innerparsefail, &inneroom, &tlen, nestingdepth
-            )) {
-        if (inneroom) {
-            if (outofmemory) *outofmemory = 1;
-            if (parsefail) *parsefail = 0;
-            ast_FreeExpression(expr);
-            return 0;
-        }
+    if (i >= max_tokens_touse ||
+            tokens[i].type != H64TK_BRACKET ||
+            tokens[i].char_value != '(') {
+        char buf[256]; char dbuf[64];
+        snprintf(buf, sizeof(buf) - 1,
+            "unexpected %s, "
+            "expected \"(\" to begin inline function's returned value",
+            _describetoken(dbuf, context->tokenstreaminfo, tokens, i)
+        );
         if (outofmemory) *outofmemory = 0;
-        if (!innerparsefail && !result_AddMessage(
+        if (!result_AddMessage(
                 context->resultmsg,
-                H64MSG_ERROR, "internal error: failed to "
-                "get code block somehow", fileuri,
+                H64MSG_ERROR, buf, fileuri,
                 _refline(context->tokenstreaminfo, tokens, 0),
                 _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
@@ -1263,6 +1263,101 @@ int ast_ParseInlineFunc(
         ast_FreeExpression(expr);
         return 0;
     }
+    i++;
+    int tlen = 0;
+    int innerparsefail = 0;
+    int inneroom = 0;
+    h64expression *returnedexpr = NULL;
+    h64parsethis _buf;
+    int inlinevaluetokenid = i;
+    if (!ast_ParseExprInline(
+            context, newparsethis_newscope(
+                &_buf, parsethis, &expr->funcdef.scope,
+                tokens + i, max_tokens_touse - i
+            ),
+            INLINEMODE_GREEDY,
+            &innerparsefail, &inneroom,
+            &returnedexpr, &tlen, nestingdepth
+            )) {
+        if (inneroom) {
+            if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 0;
+            ast_FreeExpression(expr);
+            return 0;
+        }
+        if (outofmemory) *outofmemory = 0;
+        if (!innerparsefail) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected %s, "
+                "expected valid inline expression as inline function "
+                "return value",
+                _reftokname(context->tokenstreaminfo, tokens, i)
+            );
+            if (outofmemory) *outofmemory = 0;
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+        }
+        if (parsefail) *parsefail = 1;
+        ast_FreeExpression(expr);
+        return 0;
+    }
+    i += tlen;
+    if (i >= max_tokens_touse ||
+            tokens[i].type != H64TK_BRACKET ||
+            tokens[i].char_value != ')') {
+        char buf[256];
+        snprintf(buf, sizeof(buf) - 1,
+            "unexpected %s, "
+            "expected \")\" to end inline function's returned value",
+            _reftokname(context->tokenstreaminfo, tokens, i)
+        );
+        if (outofmemory) *outofmemory = 0;
+        if (!result_AddMessage(
+                context->resultmsg,
+                H64MSG_ERROR, buf, fileuri,
+                _refline(context->tokenstreaminfo, tokens, 0),
+                _refcol(context->tokenstreaminfo, tokens, 0)
+                ))
+            if (outofmemory) *outofmemory = 1;
+        if (parsefail) *parsefail = 1;
+        ast_FreeExpression(returnedexpr);
+        ast_FreeExpression(expr);
+        return 0;
+    }
+    i++;
+    h64expression *returnstmt = malloc(sizeof(*returnstmt));
+    if (!returnstmt) {
+        if (outofmemory) *outofmemory = 1;
+        if (parsefail) *parsefail = 0;
+        ast_FreeExpression(returnedexpr);
+        ast_FreeExpression(expr);
+        return 0;
+    }
+    memset(returnstmt, 0, sizeof(*returnstmt));
+    assert(!expr->funcdef.stmt);
+    expr->funcdef.stmt = malloc(sizeof(
+        *expr->funcdef.stmt
+    ) * 1);
+    if (!expr->funcdef.stmt) {
+        if (outofmemory) *outofmemory = 1;
+        if (parsefail) *parsefail = 0;
+        ast_FreeExpression(returnedexpr);
+        ast_FreeExpression(expr);
+        free(returnstmt);
+        return 0;
+    }
+    expr->funcdef.stmt_count = 1;
+    returnstmt->line = tokens[inlinevaluetokenid].line;
+    returnstmt->column = tokens[inlinevaluetokenid].column;
+    returnstmt->type = H64EXPRTYPE_RETURN_STMT;
+    returnstmt->returnstmt.returned_expression = returnedexpr;
+    expr->funcdef.stmt[0] = returnstmt;
     i += tlen;
     *out_expr = expr;
     if (out_tokenlen) *out_tokenlen = 1;
@@ -2242,6 +2337,7 @@ int ast_ParseCodeBlock(
                     &tlen, nestingdepth
                     )) {
                 if (_inneroutofmemory) {
+                    if (parsefail) *parsefail = 0;
                     if (outofmemory) *outofmemory = 1;
                     return 0;
                 }
@@ -3902,7 +3998,7 @@ int ast_ParseExprStmt(
         }
         i += tlen;
 
-        expr->returnstmt.returned_expression = expr;
+        expr->returnstmt.returned_expression = innerexpr;
         *out_expr = expr;
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 0;
@@ -4296,7 +4392,7 @@ int ast_ParseExprStmt(
 
             if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_BINOPSYMBOL &&
--                   IS_ASSIGN_OP(tokens[i].int_value)) {
+                    IS_ASSIGN_OP(tokens[i].int_value)) {
                 if (!ast_CanBeLValue(innerexpr)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
@@ -4332,7 +4428,7 @@ int ast_ParseExprStmt(
                                 &tokens[i], max_tokens_touse - i
                             ),
                             INLINEMODE_GREEDY,
-                             &_innerparsefail,
+                            &_innerparsefail,
                             &_inneroutofmemory, &innerexpr2,
                             &tlen, nestingdepth
                         )) {

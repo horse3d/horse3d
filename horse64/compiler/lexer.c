@@ -882,7 +882,7 @@ h64tokenizedfile lexer_ParseFromFile(
                         column++;
                     }
                 } else {
-                    optype = H64OP_MATH_BINSHIFTRIGHT;
+                    optype = H64OP_CMP_LARGER;
                 }
                 break;
             case '<':
@@ -1012,7 +1012,7 @@ h64tokenizedfile lexer_ParseFromFile(
         }
         // => inline func:
         if (c == '=' && i + 1 < (int)size &&
-                 buffer[i + 1] != '>') {
+                 buffer[i + 1] == '>') {
             post_identifier_is_likely_func = 0;
             result.token[result.token_count].type = H64TK_INLINEFUNC;
             result.token_count++;
@@ -1315,6 +1315,7 @@ static char _h64tkname_constant_none[] = "H64TK_CONSTANT_NULL";
 static char _h64tkname_constant_string[] = "H64TK_CONSTANT_STRING";
 static char _h64tkname_binopsymbol[] = "H64TK_BINOPSYMBOL";
 static char _h64tkname_unopsymbol[] = "H64TK_UNOPSYMBOL";
+static char _h64tkname_inlinefunc[] = "H64TK_INLINEFUNC";
 static char _h64tkname_maparrow[] = "H64TK_MAPARROW";
 
 const char *lexer_TokenTypeToStr(h64tokentype type) {
@@ -1344,6 +1345,8 @@ const char *lexer_TokenTypeToStr(h64tokentype type) {
         return _h64tkname_binopsymbol;
     } else if (type == H64TK_UNOPSYMBOL) {
         return _h64tkname_unopsymbol;
+    } else if (type == H64TK_INLINEFUNC) {
+        return _h64tkname_inlinefunc;
     } else if (type == H64TK_MAPARROW) {
         return _h64tkname_maparrow;
     }
