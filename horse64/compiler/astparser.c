@@ -1516,7 +1516,7 @@ int ast_ParseExprInline(
                     return 1;
                 }
             }
-            // Ok, not an inline func. So this must be a normal broken:
+            // Ok, not an inline func. So this must be a normal bracket:
 
             int tlen = 0;
             h64expression *innerexpr = NULL;
@@ -1528,7 +1528,7 @@ int ast_ParseExprInline(
                     context, newparsethis(
                         &_buf, parsethis, tokens + i, max_tokens_touse - i
                     ),
-                    INLINEMODE_NONGREEDY,
+                    INLINEMODE_GREEDY,
                     &innerparsefail, &inneroom,
                     &innerexpr, &tlen, nestingdepth
                     )) {
@@ -1550,12 +1550,12 @@ int ast_ParseExprInline(
             if (i >= max_tokens_touse ||
                     tokens[i].type != H64TK_BRACKET ||
                     tokens[i].char_value != ')') {
-                char buf[256];
+                char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
                     "expected ')' corresponding to opening '(' "
                     "in line %" PRId64 ", column %" PRId64 " instead",
-                    _reftokname(
+                    _describetoken(describebuf,
                         context->tokenstreaminfo, tokens, i),
                     _refline(context->tokenstreaminfo, tokens, 0),
                     _refcol(context->tokenstreaminfo, tokens, 0)
@@ -2716,6 +2716,16 @@ int ast_ParseExprStmt(
                     return 0;
                 }
             }
+        }
+
+        while (i < max_tokens_touse &&
+                tokens[i].type == H64TK_KEYWORD) {
+            if (strcmp(tokens[i].str_value, "deprecated") == 0) {
+                expr->vardef.is_deprecated = 1;
+                i++;
+                continue;
+            }
+            break;
         }
 
         char describebuf[64];
