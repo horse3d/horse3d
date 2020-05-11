@@ -95,7 +95,7 @@ static const char *_describetoken(
         snprintf(buf, maxlen - 1, "\"%s\"", operator_OpPrintedAsStr(
             token[i].int_value));
     } else if (token[i].type == H64TK_KEYWORD) {
-        snprintf(buf, maxlen - 1, "%s keyword", token[i].str_value);
+        snprintf(buf, maxlen - 1, "keyword \"%s\"", token[i].str_value);
     } else if (token[i].type == H64TK_IDENTIFIER) {
         snprintf(buf, maxlen - 1, "identifier \"%s\"", token[i].str_value);
         if (strlen(buf) > 35)
@@ -116,9 +116,7 @@ static h64scopedef *_getSameScopeShadowedDefinition(
         parsethis->scope, identifier, 0
     );
     if (duplicateuse) {
-        if (duplicateuse->declarationexpr_count == 0)
-            return NULL;
-        h64expression *expr = duplicateuse->declarationexpr[0];
+        h64expression *expr = duplicateuse->declarationexpr;
         if (expr->type == H64EXPRTYPE_INLINEFUNCDEF)
             return NULL;
         if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
@@ -148,17 +146,21 @@ static int _funcdef_has_parameter_with_name(
     }
 }
 
+#define RECOVERFLAGS_MUSTFORWARD 1
+#define RECOVERFLAGS_NORMAL 0
+
 void ast_ParseRecover_FindNextStatement(
         tsinfo *tokenstreaminfo, h64token *tokens,
-        int max_tokens_touse, int *k
+        int max_tokens_touse, int *k, int flags
         ) {
     ptrdiff_t offset = (tokens - tokenstreaminfo->token);
     assert(offset >= 0);
-    int starti = ((int64_t)offset) / (int64_t)sizeof(*tokens);
+    int offseti = ((int64_t)offset) / (int64_t)sizeof(*tokens);
     int brackets_depth = 0;
     int i = *k;
+    int initiali = i;
     while (i < max_tokens_touse &&
-            i < tokenstreaminfo->token_count - starti - 1) {
+            i < tokenstreaminfo->token_count - offseti - 1) {
         if (tokens[i].type == H64TK_BRACKET) {
             char c = tokens[i].char_value;
             if (c == '{' || c == '[' || c == '(') {
@@ -182,7 +184,9 @@ void ast_ParseRecover_FindNextStatement(
                     return;
                 }
             }
-        } else if (tokens[i].type == H64TK_KEYWORD) {
+        } else if (tokens[i].type == H64TK_KEYWORD &&
+                (i > initiali ||
+                 (flags & RECOVERFLAGS_MUSTFORWARD) == 0)) {
             char *s = tokens[i].str_value;
             if (strcmp(s, "if") == 0 ||
                     strcmp(s, "var") == 0 ||
@@ -202,7 +206,7 @@ void ast_ParseRecover_FindNextStatement(
                 tokens[i].type == H64TK_CONSTANT_NONE ||
                 tokens[i].type == H64TK_IDENTIFIER) && brackets_depth == 0) {
             int i2 = i + 1;
-            if (i2 < tokenstreaminfo->token_count - starti - 1 &&
+            if (i2 < tokenstreaminfo->token_count - offseti - 1 &&
                     i2 < max_tokens_touse &&
                     tokens[i2].type == H64TK_IDENTIFIER) {
                 *k = i2;
@@ -360,10 +364,27 @@ int _ast_ParseFunctionArgList_Ex(
             out_funcargs->arg_count++;
             i++;
             if (tokens[i].type == H64TK_COMMA) i++;
+            int scopeoom = 0;
             if (!is_call && !scope_AddItem(
-                    parsethis->scope, arg_name, funcdefexpr
-                    ))
-                goto oom;
+                    parsethis->scope, arg_name, funcdefexpr, &scopeoom
+                    )) {
+                if (scopeoom) {
+                    goto oom;
+                } else {
+                    additemfail:
+                    if (!result_AddMessage(
+                            context->resultmsg,
+                            H64MSG_ERROR, "INTERNAL ERROR, failed to "
+                            "scope-add function param", fileuri,
+                            -1, -1
+                            ))
+                        goto oom;
+                    if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 1;
+                    ast_ClearFunctionArgs(out_funcargs);
+                    return 0;
+                }
+            }
             continue;
         }
         if (!is_call && !kwarg_name) {
@@ -401,12 +422,18 @@ int _ast_ParseFunctionArgList_Ex(
             ast_ClearFunctionArgs(out_funcargs);
             return 0;
         }
+        int scopeoom = 0;
         if (!is_call && !scope_AddItem(
-                parsethis->scope, kwarg_name, funcdefexpr
+                parsethis->scope, kwarg_name, funcdefexpr,
+                &scopeoom
                 )) {
             free(arg_name);
             free(kwarg_name);
-            goto oom;
+            if (scopeoom) {
+                goto oom;
+            } else {
+                goto additemfail;
+            }
         }
 
         int inneroom = 0;
@@ -2222,10 +2249,10 @@ int ast_ParseCodeBlock(
                     // Try to recover by finding next obvious
                     // statement, or possible function end:
                     int previ = i;
-                    i++;
                     ast_ParseRecover_FindNextStatement(
                         context->tokenstreaminfo,
-                        tokens, max_tokens_touse, &i
+                        tokens, max_tokens_touse, &i,
+                        RECOVERFLAGS_MUSTFORWARD
                     );
                     assert(i > previ || i >= max_tokens_touse);
                     continue;
@@ -2284,7 +2311,8 @@ int ast_ParseCodeBlock(
                 int previ = i;
                 ast_ParseRecover_FindNextStatement(
                     context->tokenstreaminfo, tokens,
-                    max_tokens_touse, &i
+                    max_tokens_touse, &i,
+                    RECOVERFLAGS_NORMAL
                 );
                 assert(i >= previ || i >= max_tokens_touse);
                 if (i < max_tokens_touse &&
@@ -2387,10 +2415,10 @@ int ast_CanAddNameToScopeCheck(
             ", this is not allowed",
             deftype, _shortenedname(describebuf, exprname),
             _identifierdeclarationname(
-                duplicateuse->declarationexpr[0], exprname
+                duplicateuse->declarationexpr, exprname
             ),
-            duplicateuse->declarationexpr[0]->line,
-            duplicateuse->declarationexpr[0]->column
+            duplicateuse->declarationexpr->line,
+            duplicateuse->declarationexpr->column
         );
         if (!result_AddMessage(
                 context->resultmsg,
@@ -2411,14 +2439,14 @@ int ast_CanAddNameToScopeCheck(
         assert(context != NULL && context->project != NULL);
         int forbidden = 0;
         if (shadoweduse &&
-                (shadoweduse->declarationexpr[0]->type ==
+                (shadoweduse->declarationexpr->type ==
                 H64EXPRTYPE_FUNCDEF_STMT ||
-                shadoweduse->declarationexpr[0]->type ==
+                shadoweduse->declarationexpr->type ==
                 H64EXPRTYPE_INLINEFUNCDEF) &&
                 shadoweduse->scope->classandfuncnestinglevel ==
                 parsethis->scope->classandfuncnestinglevel &&
                 _funcdef_has_parameter_with_name(
-                shadoweduse->declarationexpr[0],
+                shadoweduse->declarationexpr,
                 expr->funcdef.name)) {
             forbidden = 1;
             char buf[256];
@@ -2430,8 +2458,8 @@ int ast_CanAddNameToScopeCheck(
                 "in line %" PRId64 ", column %" PRId64
                 ", this is not allowed",
                 deftype, _shortenedname(describebuf, exprname),
-                shadoweduse->declarationexpr[0]->line,
-                shadoweduse->declarationexpr[0]->column
+                shadoweduse->declarationexpr->line,
+                shadoweduse->declarationexpr->column
             );
             if (!result_AddMessage(
                     context->resultmsg,
@@ -2492,10 +2520,10 @@ int ast_CanAddNameToScopeCheck(
                 "%s",
                 deftype, _shortenedname(describebuf, exprname),
                 _identifierdeclarationname(
-                    shadoweduse->declarationexpr[0], exprname
+                    shadoweduse->declarationexpr, exprname
                 ),
-                shadoweduse->declarationexpr[0]->line,
-                shadoweduse->declarationexpr[0]->column,
+                shadoweduse->declarationexpr->line,
+                shadoweduse->declarationexpr->column,
                 warningtypetext
             );
             if (!result_AddMessage(
@@ -2553,13 +2581,15 @@ int ast_ProcessNewScopeIdentifier(
                 context, parsethis, expr, i - 1,
                 &scopeaddoom
                 )) {
+            int scopeoom = 0;
             if (!scope_AddItem(
                     (_add_to_this_scope_instead_of_default != NULL ?
                      _add_to_this_scope_instead_of_default :
                       parsethis->scope),
-                    identifier, expr
+                    identifier, expr, &scopeoom
                     )) {
-                if (outofmemory) *outofmemory = 1;
+                if (scopeoom)
+                    if (outofmemory) *outofmemory = 1;
                 return 0;
             }
             success = 1;
@@ -2708,6 +2738,9 @@ int ast_ParseExprStmt(
                     )) {
                 if (_inneroutofmemory) {
                     if (outofmemory) *outofmemory = 1;
+                    scope_RemoveItem(
+                        parsethis->scope, expr->vardef.identifier
+                    );
                     ast_FreeExpression(expr);
                     return 0;
                 }
@@ -2731,11 +2764,26 @@ int ast_ParseExprStmt(
                                 context->tokenstreaminfo, tokens, i),
                             _refcol(
                                 context->tokenstreaminfo, tokens, i)
-                            ))
+                            )) {
                         if (outofmemory) *outofmemory = 1;
+                        scope_RemoveItem(
+                            parsethis->scope, expr->vardef.identifier
+                        );
+                        if (parsefail) *parsefail = 0;
+                        return 0;
+                    }
+                    int oldi = i;
+                    ast_ParseRecover_FindNextStatement(
+                        context->tokenstreaminfo, tokens,
+                        max_tokens_touse, &i,
+                        RECOVERFLAGS_MUSTFORWARD
+                    );
+                    assert(i > oldi || i >= max_tokens_touse);
                 }
-                ast_FreeExpression(expr);
-                return 0;
+                *out_expr = expr;
+                if (out_tokenlen) *out_tokenlen = i;
+                if (parsefail) *parsefail = 0;
+                return 1;
             }
             expr->vardef.value = innerexpr;
             i += tlen;
@@ -2825,11 +2873,13 @@ int ast_ParseExprStmt(
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
+                    scope_RemoveItem(parsethis->scope, expr->funcdef.name);
                     ast_FreeExpression(expr);
                     return 0;
                 } else if (innerparsefail) {
                     if (outofmemory) *outofmemory = 0;
                     if (parsefail) *parsefail = 1;
+                    scope_RemoveItem(parsethis->scope, expr->funcdef.name);
                     ast_FreeExpression(expr);
                     return 0;
                 }
@@ -2852,6 +2902,7 @@ int ast_ParseExprStmt(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
+                scope_RemoveItem(parsethis->scope, expr->funcdef.name);
                 ast_FreeExpression(expr);
                 return 0;
             }
@@ -2905,11 +2956,13 @@ int ast_ParseExprStmt(
                     H64MSG_ERROR, buf, fileuri,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
-                    ))
+                    )) {
                 if (outofmemory) *outofmemory = 1;
-            if (parsefail) *parsefail = 1;
-            ast_FreeExpression(expr);
-            return 0;
+                if (parsefail) *parsefail = 1;
+                scope_RemoveItem(parsethis->scope, expr->funcdef.name);
+                ast_FreeExpression(expr);
+                return 0;
+            }
         }
         int tlen = 0;
         int innerparsefail = 0;
@@ -2928,6 +2981,7 @@ int ast_ParseExprStmt(
             if (inneroom) {
                 if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 0;
+                scope_RemoveItem(parsethis->scope, expr->funcdef.name);
                 ast_FreeExpression(expr);
                 return 0;
             }
@@ -2941,6 +2995,7 @@ int ast_ParseExprStmt(
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
+            scope_RemoveItem(parsethis->scope, expr->funcdef.name);
             ast_FreeExpression(expr);
             return 0;
         }
@@ -3071,12 +3126,14 @@ int ast_ParseExprStmt(
                 if (inneroutofmemory) {
                     if (parsefail) *parsefail = 0;
                     if (outofmemory) *outofmemory = 1;
+                    scope_RemoveItem(parsethis->scope, expr->classdef.name);
                     ast_FreeExpression(expr);
                     return 0;
                 }
                 if (innerparsefail) {
                     if (parsefail) *parsefail = 1;
                     if (outofmemory) *outofmemory = 0;
+                    scope_RemoveItem(parsethis->scope, expr->classdef.name);
                     ast_FreeExpression(expr);
                     return 0;
                 }
@@ -3098,6 +3155,7 @@ int ast_ParseExprStmt(
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
+                scope_RemoveItem(parsethis->scope, expr->classdef.name);
                 ast_FreeExpression(expr);
                 return 0;
             }
@@ -3162,6 +3220,7 @@ int ast_ParseExprStmt(
                 k++;
             }
             free(stmt);
+            scope_RemoveItem(parsethis->scope, expr->classdef.name);
             ast_FreeExpression(expr);
             return 0;
         }
@@ -3185,8 +3244,11 @@ int ast_ParseExprStmt(
                 sizeof(*expr->classdef.funcdef) *
                 funcdefcount
             );
-            if (!expr->classdef.funcdef)
+            if (!expr->classdef.funcdef) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
                 goto classparsefail;
+            }
             expr->classdef.funcdef_count = funcdefcount;
             int j = 0;
             k = 0;
@@ -3204,8 +3266,11 @@ int ast_ParseExprStmt(
                 sizeof(*expr->classdef.vardef) *
                 vardefcount
             );
-            if (!expr->classdef.vardef)
+            if (!expr->classdef.vardef) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
                 goto classparsefail;
+            }
             expr->classdef.vardef_count = vardefcount;
             int j = 0;
             k = 0;
@@ -4108,6 +4173,11 @@ int ast_ParseExprStmt(
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
+                    if (expr->type == H64EXPRTYPE_FOR_STMT)
+                        scope_RemoveItem(
+                            parsethis->scope,
+                            expr->forstmt.iterator_identifier
+                        );
                     ast_FreeExpression(expr);
                     return 0;
                 }
@@ -4121,12 +4191,16 @@ int ast_ParseExprStmt(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
+                if (expr->type == H64EXPRTYPE_FOR_STMT)
+                    scope_RemoveItem(
+                        parsethis->scope, expr->forstmt.iterator_identifier
+                    );
                 ast_FreeExpression(expr);
                 return 0;
             }
             i += tlen;
 
-            // Check continuation with further clauses::
+            // Check continuation with further clauses:
             if (expr->type == H64EXPRTYPE_IF_STMT &&
                     i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
@@ -4393,9 +4467,9 @@ h64ast *ast_ParseFromTokens(
                     // OOM on final error msg? Not much we can do...
                     break;
                 int previ = i;
-                i++;
                 ast_ParseRecover_FindNextStatement(
-                    &tokenstreaminfo, tokens, token_count, &i
+                    &tokenstreaminfo, tokens, token_count, &i,
+                    RECOVERFLAGS_MUSTFORWARD
                 );
                 assert(i > previ || i >= token_count);
                 continue;

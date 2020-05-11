@@ -31,36 +31,55 @@ void scope_FreeData(h64scope *scope) {
 
     if (scope->name_to_declaration_map)
         hash_FreeMap(scope->name_to_declaration_map);
-    if (scope->definitionref) {
+    free(scope->definitionref);
+    memset(scope, 0, sizeof(*scope));
+}
+
+void scope_RemoveItem(
+        h64scope *scope, const char *identifier_ref
+        ) {
+    if (!scope || !identifier_ref)
+        return;
+    assert(scope->name_to_declaration_map != NULL);
+    uint64_t value;
+    if (!hash_StringMapGet(
+            scope->name_to_declaration_map, identifier_ref,
+            &value))
+        return;
+    if (value != 0) {
+        assert(hash_StringMapUnset(
+            scope->name_to_declaration_map, identifier_ref
+        ) != 0);
         int i = 0;
         while (i < scope->definitionref_count) {
-            if (scope->definitionref[i].declarationexpr)
-                free(scope->definitionref[i].declarationexpr);
+            if (strcmp(scope->definitionref[i].identifier,
+                    identifier_ref) == 0) {
+                if (i + 1 < scope->definitionref_count) {
+                    memmove(
+                        &scope->definitionref[i],
+                        &scope->definitionref[i + 1],
+                        sizeof(*scope->definitionref) * (
+                        scope->definitionref_count - i - 1
+                        )
+                    );
+                }
+                scope->definitionref_count--;
+                continue;
+            }
             i++;
         }
-        free(scope->definitionref);
     }
-    memset(scope, 0, sizeof(*scope));
 }
 
 int scope_AddItem(
         h64scope *scope, const char *identifier_ref,
-        h64expression *expr
+        h64expression *expr, int *outofmemory
         ) {
     // Try to add to existing entry:
     h64scopedef *def = scope_QueryItem(scope, identifier_ref, 0);
     if (def) {
-        assert(strcmp(def->identifier, identifier_ref) == 0);
-        h64expression **new_exprs = realloc(
-            def->declarationexpr,
-            sizeof(*new_exprs) * (def->declarationexpr_count + 1)
-        );
-        if (!new_exprs)
-            return 0;
-        def->declarationexpr = new_exprs;
-        def->declarationexpr[def->declarationexpr_count] = expr;
-        def->declarationexpr_count++;
-        return 1;
+        if (outofmemory) *outofmemory = 0;
+        return 0;
     }
 
     // Add as new entry:
@@ -71,8 +90,10 @@ int scope_AddItem(
         h64scopedef *new_refs = realloc(
             scope->definitionref, new_alloc * sizeof(*new_refs)
         );
-        if (!new_refs)
+        if (!new_refs) {
+            if (outofmemory) *outofmemory = 1;
             return 0;
+        }
         scope->definitionref_alloc = new_alloc;
         scope->definitionref = new_refs;
     }
@@ -82,20 +103,12 @@ int scope_AddItem(
     memset(&scope->definitionref[i], 0, sizeof(*scope->definitionref));
     scope->definitionref[i].scope = scope;
     scope->definitionref[i].identifier = identifier_ref;
-    scope->definitionref[i].declarationexpr = malloc(
-        sizeof(*scope->definitionref[i].declarationexpr)
-    );
-    if (!scope->definitionref[i].declarationexpr) {
-        scope->definitionref_count--;
-        return 0;
-    }
-    scope->definitionref[i].declarationexpr_count = 1;
-    scope->definitionref[i].declarationexpr[0] = expr;
+    scope->definitionref[i].declarationexpr = expr;
     if (!hash_StringMapSet(
             scope->name_to_declaration_map, identifier_ref,
             (uintptr_t)&scope->definitionref[i])) {
-        free(scope->definitionref[i].declarationexpr);
         scope->definitionref_count--;
+        if (outofmemory) *outofmemory = 1;
         return 0;
     }
     return 1;
@@ -156,7 +169,7 @@ jsonvalue *scope_ScopeToJSON(
         }
         if (!json_SetDictStr(item, "type",
                 ast_ExpressionTypeToStr(
-                scope->definitionref[i].declarationexpr[0]->type)
+                scope->definitionref[i].declarationexpr->type)
                 )) {
             fail = 1;
             json_Free(item);

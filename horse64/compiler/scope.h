@@ -15,8 +15,7 @@ typedef struct h64scopedef h64scopedef;
 typedef struct h64scopedef {
     int classandfuncnestinglevel;
 
-    int declarationexpr_count;
-    h64expression **declarationexpr;
+    h64expression *declarationexpr;
     const char *identifier;
     int everused, first_use_token_index, last_use_token_index, closureuse;
     h64scope *scope;
@@ -43,7 +42,11 @@ int scope_Init(h64scope *scope, char hashkey[16]);
 
 int scope_AddItem(
     h64scope *scope, const char *identifier_ref,
-    h64expression *expr
+    h64expression *expr, int *outofmemory
+);
+
+void scope_RemoveItem(
+    h64scope *scope, const char *identifier_ref
 );
 
 h64scopedef *scope_QueryItem(
