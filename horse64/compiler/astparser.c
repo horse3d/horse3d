@@ -2681,6 +2681,7 @@ int ast_ParseExprStmt(
                 _describetoken(describebuf,
                     context->tokenstreaminfo, tokens, i)
             );
+            if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
@@ -2690,6 +2691,7 @@ int ast_ParseExprStmt(
                         context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 1;
             ast_FreeExpression(expr);
             return 0;
         }
@@ -4450,6 +4452,7 @@ h64ast *ast_ParseFromTokens(
                 result->resultmsg.success = 0;
                 return result;
             }
+            result->resultmsg.success = 0;
             if (!parsefail) {
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
@@ -4466,16 +4469,14 @@ h64ast *ast_ParseFromTokens(
                         ))
                     // OOM on final error msg? Not much we can do...
                     break;
-                int previ = i;
-                ast_ParseRecover_FindNextStatement(
-                    &tokenstreaminfo, tokens, token_count, &i,
-                    RECOVERFLAGS_MUSTFORWARD
-                );
-                assert(i > previ || i >= token_count);
-                continue;
             }
-            result->resultmsg.success = 0;
-            return result;
+            int previ = i;
+            ast_ParseRecover_FindNextStatement(
+                &tokenstreaminfo, tokens, token_count, &i,
+                RECOVERFLAGS_MUSTFORWARD
+            );
+            assert(i > previ || i >= token_count);
+            continue;
         }
         h64expression **new_stmt = realloc(
             result->stmt,
