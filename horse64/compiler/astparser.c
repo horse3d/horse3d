@@ -1358,9 +1358,8 @@ int ast_ParseInlineFunc(
     returnstmt->type = H64EXPRTYPE_RETURN_STMT;
     returnstmt->returnstmt.returned_expression = returnedexpr;
     expr->funcdef.stmt[0] = returnstmt;
-    i += tlen;
     *out_expr = expr;
-    if (out_tokenlen) *out_tokenlen = 1;
+    if (out_tokenlen) *out_tokenlen = i;
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 0;
     return 1;

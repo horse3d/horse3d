@@ -371,7 +371,10 @@ h64tokenizedfile lexer_ParseFromFile(
                 could_be_unary_op = 1;
             else if (prevtype == H64TK_UNOPSYMBOL ||
                     prevtype == H64TK_COMMA ||
-                    prevtype == H64TK_BINOPSYMBOL)
+                    prevtype == H64TK_BINOPSYMBOL ||
+                    prevtype == H64TK_INLINEFUNC ||
+                    prevtype == H64TK_MAPARROW ||
+                    prevtype == H64TK_COLON)
                 could_be_unary_op = 1;
         }
 
