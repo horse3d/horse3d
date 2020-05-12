@@ -19,7 +19,7 @@ TOOLRENAMEBULLET=$(shell pwd)/tools/rename-bullet-results.py
 ifeq ($(DEBUGGABLE),true)
 CFLAGS_OPTIMIZATION:=-O0 -g -msse2 -fno-omit-frame-pointer
 else
-CFLAGS_OPTIMIZATION:=-Ofast -s -msse2 -march=haswell -fomit-frame-pointer -DNDEBUG
+CFLAGS_OPTIMIZATION:=-Ofast -s -msse2 -march=haswell -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
 endif
 CXXFLAGS:=-fexceptions
 CFLAGS:= -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable -DMATHC_USE_DOUBLE_FLOATING_POINT -DMATHC_USE_FLOATING_POINT $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -L"$(LUAPATH)/" -I"$(LUAPATH)/" -L"$(FREETYPEPATH)/objs/.libs/" -L"$(FREETYPEPATH)/objs/" -I"$(SDLTTFPATH)/" -L"$(SDLTTFPATH)/.libs/" -L"$(BULLETPATH)/bin/" -I"$(BULLETPATH)/src" -I"$(SDLPATH)/include/" -I"$(PHYSFSPATH)/src/" -I"./vendor/khronos-opengles2-apis" -L"$(PHYSFSPATH)" -L"$(SDLPATH)/build/.libs/"  -Wl,-Bdynamic
