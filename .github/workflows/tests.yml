@@ -1,0 +1,16 @@
+name: Basic build and test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build_and_test:
+    runs-using: 'ubuntu'
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: run docker
+      run: python3 tools/compile-docker.py --run-tests
