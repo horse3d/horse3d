@@ -52,7 +52,7 @@ LDFLAGS+= -lm -ldl
 STRIPTOOL:=strip
 endif
 
-.PHONY: test check-submodules sdl2 sdlttf freetype datapak release debug bullet3 lua releases
+.PHONY: test check-submodules sdl2 sdlttf freetype datapak release debug bullet3 lua
 
 debug: all
 testo:
@@ -146,22 +146,6 @@ ifeq ($(PLATFORM),windows)
 endif
 endif
 
-
-releases:
-	# Clean out releases:
-	if [ -d ./releases ]; then rm -rf ./releases/*; fi
-	# Native build:
-	make veryclean release
-	mkdir -p ./releases/Horse3D-Linux/
-	cp ./"$(BINNAME)$(BINEXT)" ./releases/Horse3D-Linux/
-	cat ./3RDPARTYCREDITS.md ./LICENSE.md > ./releases/Horse3D-Linux/CREDITS.md
-	cp ./coreapi.h3dpak ./releases/Horse3D-Linux/
-	# Windows build:
-	CC=x86_64-w64-mingw32-gcc make release
-	mkdir -p ./releases/Horse3D-Windows/
-	cp ./"$(BINNAME).exe" ./releases/Horse3D-Windows/
-	cp ./coreapi.h3dpak ./releases/Horse3D-Windows/
-	cat ./3RDPARTYCREDITS.md ./LICENSE.md > ./releases/Horse3D-Windows/CREDITS.txt
 
 clean:
 	rm -f $(ALL_OBJECTS) coreapi.h3dpak $(TEST_BINARIES)
