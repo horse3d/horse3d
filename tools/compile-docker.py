@@ -51,7 +51,7 @@ if not os.path.exists("binaries"):
 subprocess.run(
     ["docker", "run", "--label", CONTAINER_LBL,
     "-e", "RUN_TESTS=" + ("yes" if RUN_TESTS else "no"),
-    "-t", "-i", "-v",
+    "-v",
     os.path.abspath("./binaries/") +
     ":/compile-tree/binaries/:rw,z", IMAGE_LBL],
     stderr=subprocess.STDOUT
