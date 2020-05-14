@@ -2,6 +2,7 @@
 #include <check.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include "compiler/lexer.h"
 #include "vfs.h"
@@ -90,9 +91,9 @@ START_TEST (test_utf8_literal)
     memset(&wconfig, 0, sizeof(wconfig));
     warningconfig_Init(&wconfig);
 
-    ck_assert(is_valid_utf8_char("\xc3\xb6", 2));
-    ck_assert(!is_valid_utf8_char("\xc3\xc3", 2));
-    ck_assert(utf8_char_len("\xc3") == 2);
+    ck_assert(is_valid_utf8_char((uint8_t*)"\xc3\xb6", 2));
+    ck_assert(!is_valid_utf8_char((uint8_t*)"\xc3\xc3", 2));
+    ck_assert(utf8_char_len((uint8_t*)"\xc3") == 2);
 
     FILE *f = fopen(".testdata.txt", "wb");
     ck_assert(f != NULL);
