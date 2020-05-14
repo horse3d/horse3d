@@ -1,6 +1,8 @@
 #ifndef HORSE64_STACK_H_
 #define HORSE64_STACK_H_
 
+#include <stdint.h>
+
 typedef struct valuecontent valuecontent;
 
 #define BLOCK_MAX_ENTRIES (1024 * 5)
@@ -25,5 +27,10 @@ int stack_ToSize(
     h64stack *st, int64_t total_entries,
     int can_use_emergency_margin
 );
+
+void stack_Free(h64stack *st);
+
+#define STACK_SIZE(stack) ((int64_t)stack->entry_total_count)
+#define STACK_ALLOC_SIZE(stack) ((int64_t)stack->alloc_total_count)
 
 #endif  // HORSE64_STACK_H_

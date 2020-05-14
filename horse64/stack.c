@@ -23,6 +23,23 @@ void stack_FreeEntry(h64stackblock *block, int slot) {
     return;
 }
 
+void stack_Free(h64stack *st) {
+    if (!st)
+        return;
+    int64_t i = 0;
+    while (i < st->block_count) {
+        int64_t k = 0;
+        while (k < st->block[i].entry_count) {
+            stack_FreeEntry(&st->block[i], k);
+            k++;
+        }
+        free(st->block[i].entry);
+        i++;
+    }
+    free(st->block);
+    free(st);
+}
+
 int stack_Shrink(h64stack *st, int64_t total_entries) {
     int i = st->block_count - 1;
     while (likely(i >= 0 && st->entry_total_count > total_entries)) {
@@ -36,6 +53,7 @@ int stack_Shrink(h64stack *st, int64_t total_entries) {
                 stack_FreeEntry(&st->block[i], k);
                 k++;
             }
+            free(st->block[i].entry);
             st->entry_total_count -= st->block[i].entry_count;
             st->alloc_total_count -= st->block[i].alloc_count;
             st->block_count--;
@@ -120,7 +138,7 @@ int stack_ToSize(
         int can_use_emergency_margin
         ) {
     int alloc_needed_margin = (
-        can_use_emergency_margin ? 0 : 6
+        can_use_emergency_margin ? 0 : ALLOC_EMERGENCY_MARGIN
     );
     if (likely(st->alloc_total_count >= total_entries +
                alloc_needed_margin)) {
