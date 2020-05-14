@@ -8,6 +8,7 @@ RUN apt update && apt install -y check automake libtool autotools-dev libfreetyp
 RUN apt update && apt install -y libsdl2-dev
 ADD ./ /compile-tree/
 RUN cd /compile-tree/ && git submodule foreach git reset --hard
+RUN cd /compile-tree/ && { make check-submodules || git submodule update --init; }
 
 VOLUME /compile-tree/binaries/
 

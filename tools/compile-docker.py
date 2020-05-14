@@ -5,8 +5,8 @@ import shutil
 import subprocess
 import sys
 
-IMAGE_LBL = "horse3d-3hg290g"
-CONTAINER_LBL = "horse3d-r0y30i4jioog"
+IMAGE_LBL = "horse64-3hg290g"
+CONTAINER_LBL = "horse64-r0y30i4jioog"
 RUN_TESTS = False
 
 if "--help" in sys.argv[1:]:
