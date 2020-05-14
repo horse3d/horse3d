@@ -1,6 +1,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,6 +16,7 @@ h64stack *stack_New() {
     h64stack *st = malloc(sizeof(*st));
     if (!st)
         return NULL;
+    memset(st, 0, sizeof(*st));
 
     return st;
 }
@@ -184,8 +186,6 @@ int stack_ToSize(
     int block_count = (int64_t)(
         total_entries / ((int64_t)BLOCK_MAX_ENTRIES)
     );
-    assert(st->entry_total_count >=
-           (int16_t)(st->block_count - 1) * (int64_t)BLOCK_MAX_ENTRIES);
     #ifndef NDEBUG
     {  // Ensure all blocks but the last one are fully filled:
         int i = 0;
@@ -262,8 +262,9 @@ int stack_ToSize(
     memset(&st->block[st->block_count], 0,
         sizeof(*st->block) * (new_blocks_needed));
     st->block_count += new_blocks_needed;
-    int k = oldcount;
-    while (k < st->block_count) {
+    lookat_block = oldcount;
+    while (lookat_block < st->block_count) {
+        assert(lookat_block >= 0);
         // Allocate in current block:
         int64_t still_needed_alloc = (
             (total_entries + alloc_needed_margin + ALLOC_OVERSHOOT) -
@@ -276,18 +277,18 @@ int stack_ToSize(
                     ))
                 return 0;
         }
-        if (likely(total_entries < st->entry_total_count)) {
+        if (likely(total_entries > st->entry_total_count)) {
             int block_new_size = total_entries - st->entry_total_count;
             if (block_new_size > BLOCK_MAX_ENTRIES)
                 block_new_size = BLOCK_MAX_ENTRIES;
             stack_GrowEntriesTo(
-                st, &st->block[k], block_new_size
+                st, &st->block[lookat_block], block_new_size
             );
         } else {
             assert(st->entry_total_count == total_entries);
             return 1;
         }
-        k++;
+        lookat_block++;
     }
     assert(st->entry_total_count == total_entries);
     return 1;
