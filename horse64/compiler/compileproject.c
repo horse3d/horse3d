@@ -513,7 +513,7 @@ char *compileproject_ResolveImport(
         if (relfolderpath[i] == '\0' || (
                 relfolderpath[i] == '/'
                 #if defined(_WIN32) || defined(_WIN64)
-                relfolderpath[i] == '\\'
+                || relfolderpath[i] == '\\'
                 #endif
                 )) {  // component separator in path
             if (currentcomponentlen > 0) {

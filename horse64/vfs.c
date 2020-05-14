@@ -243,7 +243,7 @@ char *vfs_NormalizePath(const char *path) {
         return NULL;
     p = pnew;
     #if defined(_WIN32) || defined(_WIN64)
-    int k = 0;
+    unsigned int k = 0;
     while (k < strlen(p)) {
         if (p[k] == '\\')
             p[k] = '/';
