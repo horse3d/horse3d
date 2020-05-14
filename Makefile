@@ -22,7 +22,7 @@ else
 CFLAGS_OPTIMIZATION:=-Ofast -s -msse2 -march=haswell -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
 endif
 CXXFLAGS:=-fexceptions
-CFLAGS:= -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable -DMATHC_USE_DOUBLE_FLOATING_POINT -DMATHC_USE_FLOATING_POINT $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -L"$(LUAPATH)/" -I"$(LUAPATH)/" -L"$(FREETYPEPATH)/objs/.libs/" -L"$(FREETYPEPATH)/objs/" -I"$(SDLTTFPATH)/" -L"$(SDLTTFPATH)/.libs/" -L"$(BULLETPATH)/bin/" -I"$(BULLETPATH)/src" -I"$(SDLPATH)/include/" -I"$(PHYSFSPATH)/src/" -I"./vendor/khronos-opengles2-apis" -L"$(PHYSFSPATH)" -L"$(SDLPATH)/build/.libs/"  -Wl,-Bdynamic
+CFLAGS:= -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable -DMATHC_USE_DOUBLE_FLOATING_POINT -DMATHC_USE_FLOATING_POINT $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"$(SDLPATH)/src/video/khronos/" -I"vendor/" -L"$(LUAPATH)/" -I"$(LUAPATH)/" -L"$(FREETYPEPATH)/objs/.libs/" -L"$(FREETYPEPATH)/objs/" -I"$(SDLTTFPATH)/" -L"$(SDLTTFPATH)/.libs/" -L"$(BULLETPATH)/bin/" -I"$(BULLETPATH)/src" -I"$(SDLPATH)/include/" -I"$(PHYSFSPATH)/src/" -I"./vendor/khronos-opengles2-apis" -L"$(PHYSFSPATH)" -L"$(SDLPATH)/build/.libs/"  -Wl,-Bdynamic
 LDFLAGS:= -Wl,-Bstatic -lphysfs -lBulletDynamics -lBulletCollision -lLinearMath -llua -lSDL2 -lSDL2_ttf -lfreetype -Wl,-Bdynamic
 TEST_OBJECTS:=$(patsubst %.c, %.o, $(wildcard ./horse64/test_*.c) $(wildcard ./horse64/compiler/test_*.c))
 ALL_OBJECTS:=$(patsubst %.c, %.o, $(wildcard ./horse64/*.c) $(wildcard ./horse64/compiler/*.c) $(wildcard ./horse64/collision/*.c)) $(patsubst %.cpp, %.oxx, $(wildcard ./horse64/collision/*.cpp)) vendor/mathc/mathc.o vendor/siphash.o
