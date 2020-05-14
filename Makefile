@@ -69,7 +69,7 @@ endif
 	$(CXX) $(CXXFLAGS) $(CFLAGS) -c -o $@ $<
 
 test: $(ALL_OBJECTS) $(TEST_BINARIES)
-	for x in $(TEST_BINARIES); do echo "TEST: $$x"; ./$$x || { exit 1; }; done
+	for x in $(TEST_BINARIES); do echo ">>> TEST: $$x"; CK_FORK=no valgrind --leak-check=full ./$$x || { exit 1; }; done
 	@echo "All tests were run."
 test_%.bin: test_%.c $(PROGRAM_OBJECTS_NO_MAIN)
 	$(CXX) $(CFLAGS) $(CXXFLAGS) -pthread -o ./$(basename $@).bin $(basename $<).o $(PROGRAM_OBJECTS_NO_MAIN) -lcheck -lrt -lsubunit $(LDFLAGS)
