@@ -151,7 +151,7 @@ clean:
 
 physfs:
 	CC="$(CC)" python3 tools/physfsmakefile.py > $(PHYSFSPATH)/Makefile
-	cd $(PHYSFSPATH) && make clean && make CC="$(CC)" CXX="$(CXX)"
+	cd $(PHYSFSPATH) && rm -f libphysfs.a && make clean && make CC="$(CC)" CXX="$(CXX)"
 
 sdl2:
 	rm -f "$(SDLPATH)/Makefile"
