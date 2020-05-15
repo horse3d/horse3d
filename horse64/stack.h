@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "bytecode.h"
+
 typedef struct valuecontent valuecontent;
 
 #define BLOCK_MAX_ENTRIES (1024 * 2)
@@ -47,13 +49,13 @@ static inline valuecontent *stack_GetEntrySlow(
 #define STACK_ENTRY(stack, no) (\
     ((int64_t)no >= 0) ?\
     ((stack->block_count > 0 &&\
-      no < st->block[0].entry_count) ?\
-      &st->block[0].entry[no] :\
+      no < stack->block[0].entry_count) ?\
+      &stack->block[0].entry[no] :\
       stack_GetEntrySlow(stack, no)) :\
      (stack->block_count > 0 &&\
-      -no <= st->block[st->block_count - 1].entry_count) ?\
-      &st->block[st->block_count - 1].entry[\
-          st->block[st->block_count - 1].entry_count + no\
+      -no <= stack->block[stack->block_count - 1].entry_count) ?\
+      &stack->block[stack->block_count - 1].entry[\
+          stack->block[stack->block_count - 1].entry_count + no\
       ] : stack_GetEntrySlow(stack, no)\
 )
 
