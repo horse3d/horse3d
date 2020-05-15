@@ -9,6 +9,7 @@ RECOVERED_FILES
 *.bin
 *.exe
 /horsec
+/binaries/
 /releases/
 /libwinpthread-1.dll
 /doc-output/

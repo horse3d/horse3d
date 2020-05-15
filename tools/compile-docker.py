@@ -56,10 +56,3 @@ subprocess.run(
     ":/compile-tree/binaries/:rw,z", IMAGE_LBL],
     stderr=subprocess.STDOUT
 ).check_returncode()
-
-for binaryname in os.listdir("binaries"):
-    if os.path.exists(binaryname):
-        if os.path.isdir(binaryname):
-            continue
-        os.remove(binaryname)
-    shutil.copyfile(os.path.join("binaries", binaryname), binaryname)
