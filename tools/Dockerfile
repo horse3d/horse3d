@@ -8,7 +8,7 @@ RUN apt update -y && apt upgrade -y
 RUN apt update -y && apt install -y wine-stable && dpkg --add-architecture i386 && apt-get -y update && apt-get install -y wine32
 
 # Install various tools like git, python3, and more:
-RUN apt update -y && apt install -y git zip valgrind bash python3 make vim gcc g++ g++-mingw-w64 gcc-mingw-w64 mingw-w64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+RUN apt update -y && apt install -y git zip valgrind bash python3 make sed vim gcc g++ g++-mingw-w64 gcc-mingw-w64 mingw-w64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
 # Install needed base system libraries:
 RUN apt update && apt install -y check automake libtool autotools-dev libfreetype6-dev libxft-dev libpulse-dev libasound2-dev libudev-dev libdbus-1-dev libxinerama-dev libxcb-util-dev libxext-dev libice-dev libxss-dev libxxf86dga-dev libxkbcommon-dev libgles2-mesa-dev libgl1-mesa-dev libglew-dev libwayland-dev libwayland-egl1 kwayland-integration libkf5waylandclient5 libx11-dev libxrandr-dev libxcursor-dev libreadline-dev
