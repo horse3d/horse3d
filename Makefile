@@ -40,24 +40,34 @@ CROSSCOMPILEHOST:=$(shell echo -e 'print("'$(CC)'".rpartition("-")[0])' | python
 HOSTOPTION:= --host=$(CROSSCOMPILEHOST)
 LDFLAGS+= -lwininet -lole32 -lgdi32 -lshell32 -lwinmm -luser32 -luuid -lodbc32 -loleaut32 -limm32 -lhid -lversion -lsetupapi -Wl,-Bstatic -lstdc++ -lwinpthread -Wl,-Bdynamic
 STRIPTOOL:=$(shell echo -e 'print("'$(CC)'".rpartition("-")[0])' | python3)-strip
-ifeq (,$(findstring mingw,$(CXX)))
 CXX:=$(CROSSCOMPILEHOST)-g++
-endif
+BULLETCXX:=$(CXX)
 else
 CFLAGS+= -pthread
 PLATFORM:=linux
 HOSTOPTION:=
 LDFLAGS+= -lm -ldl
 STRIPTOOL:=strip
+ifneq (,$(findstring aarch64,$(CC)))
+CROSSCOMPILEHOST:=$(shell echo -e 'print("'$(CC)'".rpartition("-")[0])' | python3)
+CXX:=$(CROSSCOMPILEHOST)-g++
+BULLETCXX:=$(shell pwd)/tools/strip-intel-cpu-options-cxx-wrapper.py
+else
+BULLETCXX:=$(CXX)
+endif
 endif
 
 .PHONY: test check-submodules sdl2 sdlttf freetype datapak release debug bullet3 lua
 
 debug: all
-testo:
-	echo "All objects: $(ALL_OBJECTS)"
-	echo "Test objects: $(TEST_OBJECTS)"
-	echo "Program objects: $(PROGRAM_OBJECTS)"
+showvariables:
+	@echo "CC: $(CC)"
+	@echo "CXX: $(CXX)"
+	@echo "BULLETCXX: $(BULLETCXX)"
+	@echo "All objects: $(ALL_OBJECTS)"
+	@echo "Test objects: $(TEST_OBJECTS)"
+	@echo "Program objects: $(PROGRAM_OBJECTS)"
+	@echo "Cross-compile host: $(CROSSCOMPILEHOST)"
 all: check-submodules datapak $(PROGRAM_OBJECTS)
 	$(CXX) $(CFLAGS) -o ./"$(BINNAME)$(BINEXT)" $(PROGRAM_OBJECTS) $(LDFLAGS)
 ifneq ($(DEBUGGABLE),true)
@@ -103,7 +113,7 @@ bullet3:
 	rm -f "$(BULLETPATH)/bin/"*
 	-cd "$(BULLETPATH)" && make clean
 ifeq ($(PLATFORM),linux)
-	cd "$(BULLETPATH)"/build3/ && ./premake4_linux64 --double --clamp-velocities gmake && cd gmake && make clean && make config=release64 BulletCollision LinearMath BulletDynamics
+	cd "$(BULLETPATH)"/build3/ && CXX="$(BULLETCXX)" WRAPPEDCXX="$(CXX)" ./premake4_linux64 --double --clamp-velocities gmake && cd gmake && WRAPPEDCXX="$(CXX)" make clean && WRAPPEDCXX="$(CXX)" make CXX="$(BULLETCXX)" config=release64 BulletCollision LinearMath BulletDynamics
 else
 ifeq ($(PLATFORM),windows)
 	cd "$(BULLETPATH)"/build3/ && wine premake4.exe --double --clamp-velocities gmake && cd gmake && make clean && make config=release64 BulletCollision LinearMath BulletDynamics
@@ -113,8 +123,13 @@ endif
 
 lua:
 	echo "Compiling lua at $(LUAPATH)"
+	echo " $(PLATFORM) -- $(CC)"
 ifeq ($(PLATFORM),linux)
+ifneq (,$(findstring aarch64,$(CC)))
+	cd "$(LUAPATH)" && rm -f *.o && make MYLIBS='' MYCFLAGS=''
+else
 	cd "$(LUAPATH)" && rm -f *.o && make MYLIBS='-ldl -lreadline' MYCFLAGS='-DLUA_USE_LINUX'
+endif
 else
 ifeq ($(PLATFORM),windows)
 	cd "$(LUAPATH)" && rm -f *.o && make MYLIBS='' MYCFLAGS='-l,--export-all-symbols'
@@ -126,7 +141,11 @@ sdlttf:
 	sed -i 's/noinst_PROGRAMS =.*//g' "$(SDLTTFPATH)/Makefile.am"
 	rm -rf "$(SDLTTFPATH)/.libs/"
 ifeq ($(PLATFORM),linux)
+ifeq ($(CROSSCOMPILEHOST),)
 	cd "$(SDLTTFPATH)" && bash ./autogen.sh && AUTOMAKE_OPTIONS=foreign autoreconf -f -i; T2_CFLAGS="-I\"$(FREETYPEPATH)/include/\"" SDL_CFLAGS="-I\"$(SDLPATH)/include/\"" ./configure --disable-sdlframework --disable-sdltest --enable-static --disable-shared --disable-freetypetest && make clean && make
+else
+	cd "$(SDLTTFPATH)" && bash ./autogen.sh && AUTOMAKE_OPTIONS=foreign autoreconf -f -i; T2_CFLAGS="-I\"$(FREETYPEPATH)/include/\"" SDL_CFLAGS="-I\"$(SDLPATH)/include/\"" ./configure --disable-sdlframework --disable-sdltest --enable-static --disable-shared --disable-freetypetest --host="$(CROSSCOMPILEHOST)" && make clean && make
+endif
 else
 ifeq ($(PLATFORM),windows)
 	cd "$(SDLTTFPATH)" && bash ./autogen.sh && AUTOMAKE_OPTIONS=foreign autoreconf -f -i; FT2_CFLAGS="-I\"$(FREETYPEPATH)/include/\"" SDL_CFLAGS="-I\"$(SDLPATH)/include/\"" ./configure $(HOSTOPTION) --disable-sdlframework --disable-sdltest --enable-static --disable-shared --disable-freetypetest && make clean && make
@@ -159,7 +178,11 @@ sdl2:
 	rm -rf "$(SDLPATH)/build/*"
 	cp "$(SDLPATH)/include/SDL_config.h" "$(SDLPATH)/include/SDL_config.h.OLD"
 ifeq ($(PLATFORM),linux)
-	cd "$(SDLPATH)" && ./configure --disable-video-opengles1 --disable-video-vulkan --enable-sse3 --disable-oss --disable-jack --enable-static --disable-video-wayland --disable-shared --enable-ssemath
+ifeq ($(CROSSCOMPILEHOST),)
+	cd "$(SDLPATH)" && ./configure --disable-video-opengles1 --disable-video-vulkan --enable-sse3 --disable-oss --disable-jack --enable-static --disable-shared --enable-ssemath
+else
+	cd "$(SDLPATH)" && ./configure --host="$(CROSSCOMPILEHOST)" --disable-video-opengles1 --disable-video-vulkan --disable-oss --disable-jack --enable-static --disable-shared
+endif
 else
 ifeq ($(PLATFORM),windows)
 	cd "$(SDLPATH)" && ./configure $(HOSTOPTION) --disable-wasapi --enable-sse3 --enable-static --disable-shared --enable-ssemath
