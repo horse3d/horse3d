@@ -5,7 +5,7 @@
 
 typedef struct valuecontent valuecontent;
 
-#define BLOCK_MAX_ENTRIES (1024 * 5)
+#define BLOCK_MAX_ENTRIES (1024 * 2)
 #define ALLOC_OVERSHOOT 32
 #define ALLOC_EMERGENCY_MARGIN 6
 
@@ -30,7 +30,31 @@ int stack_ToSize(
 
 void stack_Free(h64stack *st);
 
+static inline valuecontent *stack_GetEntrySlow(
+        h64stack *st, int64_t index
+        ) {
+    if (index < 0)
+        index = st->entry_total_count + index;
+    int k = 0;
+    while (k < st->block_count &&
+            st->block[k].offset > index)
+        k++;
+    return &st->block[k].entry[index - st->block[k].offset];
+}
+
 #define STACK_SIZE(stack) ((int64_t)stack->entry_total_count)
 #define STACK_ALLOC_SIZE(stack) ((int64_t)stack->alloc_total_count)
+#define STACK_ENTRY(stack, no) (\
+    ((int64_t)no >= 0) ?\
+    ((stack->block_count > 0 &&\
+      no < st->block[0].entry_count) ?\
+      &st->block[0].entry[no] :\
+      stack_GetEntrySlow(stack, no)) :\
+     (stack->block_count > 0 &&\
+      -no <= st->block[st->block_count - 1].entry_count) ?\
+      &st->block[st->block_count - 1].entry[\
+          st->block[st->block_count - 1].entry_count + no\
+      ] : stack_GetEntrySlow(stack, no)\
+)
 
 #endif  // HORSE64_STACK_H_
