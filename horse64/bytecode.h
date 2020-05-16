@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+typedef struct h64debugsymbols h64debugsymbols;
+
 typedef enum instructiontype {
     H64INST_INVALID = 0,
     H64INST_STACKGROW = 1,
@@ -13,7 +15,8 @@ typedef enum valuetype {
     H64VALTYPE_INVALID = 0,
     H64VALTYPE_INT64 = 1,
     H64VALTYPE_FLOAT64 = 2,
-    H64VALTYPE_CFUNCREF = 3
+    H64VALTYPE_CFUNCREF = 3,
+    H64VALTYPE_EMPTYARG = 4
 } valuetype;
 
 typedef struct valuecontent {
@@ -50,18 +53,6 @@ typedef struct h64func {
     h64instruction *instruction;
 } h64func;
 
-typedef struct h64debugsymbols {
-    int fileuri_count;
-    char **fileuri;
-
-    int func_count;
-    char **func_name;
-    int *func_to_fileuri_index;
-    int *func_instruction_count;
-    int64_t **func_instruction_to_line;
-    int64_t **func_instruction_to_column;
-} h64debugsymbols;
-
 typedef struct h64program {
     int globals_count;
     valuecontent *globals;
@@ -76,5 +67,24 @@ typedef struct h64program {
 } h64program;
 
 h64program *h64program_New();
+
+typedef struct h64vmthread h64vmthread;
+
+int h64program_RegisterCFunction(
+    const char *name,
+    int (*func)(h64vmthread *vmthread),
+    int arg_count,
+    char **arg_kwarg_name,
+    const char *module_path,
+    const char *associated_class_name
+);
+
+int h64program_AddClass(
+    const char *name,
+    int (*func)(h64vmthread *vmthread),
+    const char *module_path
+);
+
+void h64program_Free(h64program *p);
 
 #endif  // HORSE64_BYTECODE_H_
