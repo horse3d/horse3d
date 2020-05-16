@@ -34,6 +34,10 @@ typedef struct h64debugsymbols {
     h64classsymbol *classes_symbols;
 } h64debugsymbols;
 
+void h64debugsymbols_ClearFuncSymbol(
+    h64funcsymbol *fsymbol
+);
+
 void h64debugsymbols_Free(h64debugsymbols *symbols);
 
 h64debugsymbols *h64debugsymbols_New();

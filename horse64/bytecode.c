@@ -102,21 +102,9 @@ int h64program_RegisterCFunction(
         fileuri_index = fileuriindex;
     if (!p->symbols->func_symbols[p->symbols->func_count].name) {
         funcsymboloom:
-        free(p->symbols->func_symbols[p->symbols->func_count].
-             name);
-        free(p->symbols->func_symbols[p->symbols->func_count].
-             modulepath);
-        if (p->symbols->func_symbols[p->symbols->func_count].
-                arg_kwarg_name) {
-            int i = 0;
-            while (i < arg_count) {
-                free(p->symbols->func_symbols[p->symbols->func_count].
-                     arg_kwarg_name[i]);
-                i++;
-            }
-        }
-        free(p->symbols->func_symbols[p->symbols->func_count].
-             arg_kwarg_name);
+        h64debugsymbols_ClearFuncSymbol(
+            &p->symbols->func_symbols[p->symbols->func_count]
+        );
         return 0;
     }
     if (module_path) {
