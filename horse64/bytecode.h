@@ -24,6 +24,9 @@ typedef struct valuecontent {
     union {
         int64_t int_value;
         double float_value;
+        char shortstr_value[16];
+        char *str_value;
+        void *ptr_value;
     };
 } valuecontent;
 
@@ -49,8 +52,19 @@ typedef struct h64func {
 
     int stack_slots_used;
 
-    int instruction_count;
-    h64instruction *instruction;
+    int iscfunc;
+
+    int associated_class_index;
+
+    union {
+        struct {
+            int instruction_count;
+            h64instruction *instruction;
+        };
+        struct {
+            void *cfunc_ptr;
+        };
+    };
 } h64func;
 
 typedef struct h64program {
@@ -71,17 +85,22 @@ h64program *h64program_New();
 typedef struct h64vmthread h64vmthread;
 
 int h64program_RegisterCFunction(
+    h64program *p,
     const char *name,
     int (*func)(h64vmthread *vmthread),
+    const char *fileuri,
     int arg_count,
     char **arg_kwarg_name,
+    int last_is_multiarg,
     const char *module_path,
-    const char *associated_class_name
+    int associated_class_name
 );
 
 int h64program_AddClass(
+    h64program *p,
     const char *name,
     int (*func)(h64vmthread *vmthread),
+    const char *fileuri,
     const char *module_path
 );
 
