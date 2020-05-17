@@ -179,9 +179,9 @@ sdl2:
 	cp "$(SDLPATH)/include/SDL_config.h" "$(SDLPATH)/include/SDL_config.h.OLD"
 ifeq ($(PLATFORM),linux)
 ifeq ($(CROSSCOMPILEHOST),)
-	cd "$(SDLPATH)" && ./configure --disable-video-opengles1 --disable-video-vulkan --enable-sse3 --disable-oss --disable-jack --enable-static --disable-shared --enable-ssemath
+	cd "$(SDLPATH)" && ./configure --disable-video-opengles1 --disable-video-vulkan --disable-video-wayland --enable-sse3 --disable-oss --disable-jack --enable-static --disable-shared --enable-ssemath
 else
-	cd "$(SDLPATH)" && ./configure --host="$(CROSSCOMPILEHOST)" --disable-video-opengles1 --disable-video-vulkan --disable-oss --disable-jack --enable-static --disable-shared
+	cd "$(SDLPATH)" && ./configure --host="$(CROSSCOMPILEHOST)" --disable-video-opengles1 --disable-video-vulkan --disable-video-wayland --disable-oss --disable-jack --enable-static --disable-shared
 endif
 else
 ifeq ($(PLATFORM),windows)
