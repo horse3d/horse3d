@@ -3,12 +3,16 @@
 
 typedef struct h64program h64program;
 typedef struct h64instruction h64instruction;
-
+typedef struct poolalloc poolalloc;
 
 typedef struct h64vmthread {
     h64program *program;
     int can_access_globals;
     int can_call_unthreadable;
+
+    h64stack *stack;
+    poolalloc *objheap;
+    int current_func_bottom;
 
     int execution_func_id;
     int execution_instruction_id;

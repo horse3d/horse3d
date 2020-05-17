@@ -34,12 +34,13 @@ void h64program_Free(h64program *p) {
 int h64program_RegisterCFunction(
         h64program *p,
         const char *name,
-        int (*func)(h64vmthread *vmthread),
+        int (*func)(h64vmthread *vmthread, int stackbottom),
         const char *fileuri,
         int arg_count,
         char **arg_kwarg_name,
         int last_is_multiarg,
         const char *module_path,
+        int is_threadable,
         int associated_class_index
         ) {
     assert(p != NULL && p->symbols != NULL);
@@ -47,7 +48,7 @@ int h64program_RegisterCFunction(
         p->func, sizeof(*p->func) * (p->func_count + 1)
     );
     if (!new_func)
-        return 0;
+        return -1;
     p->func = new_func;
     memset(&p->func[p->func_count], 0, sizeof(*p->func));
 
@@ -55,7 +56,7 @@ int h64program_RegisterCFunction(
     if (fileuri) {
         char *normalized_uri = uri_Normalize(fileuri, 1);
         if (!normalized_uri)
-            return 0;
+            return -1;
         int foundindex = 0;
         int k = 0;
         while (k > p->symbols->fileuri_count) {
@@ -73,7 +74,7 @@ int h64program_RegisterCFunction(
             );
             if (!new_fileuri) {
                 free(normalized_uri);
-                return 0;
+                return -1;
             }
             p->symbols->fileuri[p->symbols->fileuri_count] =
                 normalized_uri;
@@ -91,7 +92,7 @@ int h64program_RegisterCFunction(
             p->symbols->func_count + 1
         ));
     if (!new_func_symbols)
-        return 0;
+        return -1;
     p->symbols->func_symbols = new_func_symbols;
     memset(&p->symbols->func_symbols[p->symbols->func_count],
         0, sizeof(*p->symbols->func_symbols));
@@ -105,7 +106,7 @@ int h64program_RegisterCFunction(
         h64debugsymbols_ClearFuncSymbol(
             &p->symbols->func_symbols[p->symbols->func_count]
         );
-        return 0;
+        return -1;
     }
     if (module_path) {
         p->symbols->func_symbols[p->symbols->func_count].modulepath = (
@@ -147,6 +148,7 @@ int h64program_RegisterCFunction(
     p->func[p->func_count].arg_count = arg_count;
     p->func[p->func_count].last_is_multiarg = last_is_multiarg;
     p->func[p->func_count].stack_slots_used = 0;
+    p->func[p->func_count].is_threadable = is_threadable;
     p->func[p->func_count].iscfunc = 1;
     p->func[p->func_count].associated_class_index = (
         associated_class_index
@@ -156,7 +158,27 @@ int h64program_RegisterCFunction(
     p->func_count++;
     p->symbols->func_count++;
 
-    return 1;
+    return p->func_count - 1;
+}
+
+int h64program_RegisterHorse64Function(
+        h64program *p,
+        const char *name,
+        const char *fileuri,
+        int arg_count,
+        char **arg_kwarg_name,
+        int last_is_multiarg,
+        const char *module_path,
+        int associated_class_name
+        ) {
+    int idx = h64program_RegisterCFunction(
+        p, name, NULL, fileuri, arg_count, arg_kwarg_name,
+        last_is_multiarg, module_path, -1, associated_class_name
+    );
+    if (idx >= 0) {
+        p->func[idx].iscfunc = 0;
+    }
+    return idx;
 }
 
 int h64program_AddClass(
@@ -170,7 +192,7 @@ int h64program_AddClass(
     if (fileuri) {
         char *normalized_uri = uri_Normalize(fileuri, 1);
         if (!normalized_uri)
-            return 0;
+            return -1;
         int foundindex = 0;
         int k = 0;
         while (k > p->symbols->fileuri_count) {
@@ -187,7 +209,7 @@ int h64program_AddClass(
             );
             if (!new_fileuri) {
                 free(normalized_uri);
-                return 0;
+                return -1;
             }
             p->symbols->fileuri[p->symbols->fileuri_count] =
                 normalized_uri;
@@ -196,5 +218,5 @@ int h64program_AddClass(
             normalized_uri = NULL;
         }
     }
-    return 0;
+    return -1;
 }

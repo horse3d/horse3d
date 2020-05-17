@@ -16,17 +16,22 @@ typedef enum valuetype {
     H64VALTYPE_INT64 = 1,
     H64VALTYPE_FLOAT64 = 2,
     H64VALTYPE_CFUNCREF = 3,
-    H64VALTYPE_EMPTYARG = 4
+    H64VALTYPE_EMPTYARG = 4,
+    H64VALTYPE_ERROR = 5,
+    H64VALTYPE_FUNCNESTRECORD = 6
 } valuetype;
 
 typedef struct valuecontent {
-    uint8_t valuetype;
+    uint8_t type;
     union {
         int64_t int_value;
         double float_value;
         char shortstr_value[16];
         char *str_value;
         void *ptr_value;
+        struct {
+            int previous_func_bottom;
+        };
     };
 } valuecontent;
 
@@ -52,7 +57,7 @@ typedef struct h64func {
 
     int stack_slots_used;
 
-    int iscfunc;
+    int iscfunc, is_threadable;
 
     int associated_class_index;
 
@@ -87,7 +92,19 @@ typedef struct h64vmthread h64vmthread;
 int h64program_RegisterCFunction(
     h64program *p,
     const char *name,
-    int (*func)(h64vmthread *vmthread),
+    int (*func)(h64vmthread *vmthread, int stackbottom),
+    const char *fileuri,
+    int arg_count,
+    char **arg_kwarg_name,
+    int last_is_multiarg,
+    const char *module_path,
+    int is_threadable,
+    int associated_class_name
+);
+
+int h64program_RegisterHorse64Function(
+    h64program *p,
+    const char *name,
     const char *fileuri,
     int arg_count,
     char **arg_kwarg_name,
