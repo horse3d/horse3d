@@ -26,14 +26,23 @@ typedef struct h64debugsymbols {
     int fileuri_count;
     char **fileuri;
 
-    hashmap *func_name_to_id;
+    hashmap *func_name_to_func_id;
     int func_count;
     h64funcsymbol *func_symbols;
 
-    hashmap *class_name_to_id;
+    hashmap *class_name_to_class_id;
     int classes_count;
     h64classsymbol *classes_symbols;
+
+    hashmap *member_name_to_global_member_id;
+    int global_member_count;
+    char **global_member_name;
 } h64debugsymbols;
+
+int h64debugsymbols_MemberNameToMemberNameId(
+    h64debugsymbols *symbols, const char *name,
+    int addifnotpresent
+);
 
 void h64debugsymbols_ClearFuncSymbol(
     h64funcsymbol *fsymbol

@@ -219,7 +219,7 @@ int h64program_AddClass(
         }
     }
 
-    // Add to the func symbols table:
+    // Add to the class symbols table:
     h64classsymbol *new_classes_symbols = realloc(
         p->symbols->classes_symbols,
         sizeof(*p->symbols->classes_symbols) * (
@@ -250,7 +250,7 @@ int h64program_AddClass(
             goto classsymboloom;
     }
 
-    // Add actual function entry:
+    // Add actual class entry:
     p->classes[p->classes_count].members_count = 0;
     p->classes[p->classes_count].methods_count = 0;
     p->classes[p->classes_count].method_func_idx = NULL;
