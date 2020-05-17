@@ -1,6 +1,8 @@
 #ifndef HORSE64_CORELIB_ERRORS_H_
 #define HORSE64_CORELIB_ERRORS_H_
 
+#include <stdlib.h>  // NULL
+
 typedef struct h64vmthread h64vmthread;
 
 int stderror(
@@ -18,5 +20,14 @@ typedef enum stderrorclassnum {
     H64STDERROR_IOERROR,
     H64STDERROR_TOTAL_COUNT
 } stderrorclassnum;
+
+const char *stderrorclassnames[] = {
+    "Error",
+    "RuntimeError",
+    "OutOfMemoryError",
+    "OSError",
+    "IOError",
+    NULL
+};
 
 #endif  // HORSE64_CORELIB_ERRORS_H_

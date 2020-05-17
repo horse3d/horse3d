@@ -12,11 +12,18 @@ typedef struct h64vmthread {
     int can_call_unthreadable;
 
     h64stack *stack;
-    poolalloc *objheap;
+    poolalloc *heap;
     int current_func_bottom;
 
     int execution_func_id;
     int execution_instruction_id;
 } h64vmthread;
+
+
+void vmthread_WipeFuncStack(h64vmthread *vmthread);
+
+h64vmthread *vmthread_New();
+
+void vmthread_Free(h64vmthread *vmthread);
 
 #endif  // HORSE64_VMEXEC_H_

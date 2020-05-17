@@ -24,6 +24,14 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
     free(symbols);
 }
 
+void h64debugsymbols_ClearClassSymbol(
+        h64classsymbol *csymbol
+        ) {
+    if (!csymbol)
+        return;
+    free(csymbol->name);
+    free(csymbol->modulepath);
+}
 void h64debugsymbols_ClearFuncSymbol(
         h64funcsymbol *fsymbol
         ) {

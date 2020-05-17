@@ -5,6 +5,7 @@
 
 #include "bytecode.h"
 #include "debugsymbols.h"
+#include "refval.h"
 #include "uri.h"
 
 h64program *h64program_New() {
@@ -27,7 +28,7 @@ void h64program_Free(h64program *p) {
 
     if (p->symbols)
         h64debugsymbols_Free(p->symbols);
-   
+
     free(p);
 }
 
@@ -184,7 +185,6 @@ int h64program_RegisterHorse64Function(
 int h64program_AddClass(
         h64program *p,
         const char *name,
-        int (*func)(h64vmthread *vmthread),
         const char *fileuri,
         const char *module_path
         ) {
@@ -218,5 +218,45 @@ int h64program_AddClass(
             normalized_uri = NULL;
         }
     }
-    return -1;
+
+    // Add to the func symbols table:
+    h64classsymbol *new_classes_symbols = realloc(
+        p->symbols->classes_symbols,
+        sizeof(*p->symbols->classes_symbols) * (
+            p->symbols->classes_count + 1
+        ));
+    if (!new_classes_symbols)
+        return -1;
+    p->symbols->classes_symbols = new_classes_symbols;
+    memset(&p->symbols->classes_symbols[p->symbols->classes_count],
+        0, sizeof(*p->symbols->classes_symbols));
+    p->symbols->classes_symbols[p->symbols->classes_count].name = (
+        strdup(name)
+    );
+    if (!p->symbols->classes_symbols[p->symbols->classes_count].name) {
+        classsymboloom:
+        h64debugsymbols_ClearClassSymbol(
+            &p->symbols->classes_symbols[p->symbols->classes_count]
+        );
+        return -1;
+    }
+    p->symbols->classes_symbols[p->symbols->classes_count].
+        fileuri_index = fileuriindex;
+    if (module_path) {
+        p->symbols->classes_symbols[p->symbols->classes_count].
+            modulepath = strdup(module_path);
+        if (!p->symbols->classes_symbols[p->symbols->classes_count].
+                modulepath)
+            goto classsymboloom;
+    }
+
+    // Add actual function entry:
+    p->classes[p->classes_count].members_count = 0;
+    p->classes[p->classes_count].methods_count = 0;
+    p->classes[p->classes_count].method_func_idx = NULL;
+
+    p->classes_count++;
+    p->symbols->classes_count++;
+
+    return p->classes_count - 1;
 }

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+typedef struct valuecontent valuecontent;
+
 typedef enum refvaluetype {
     H64REFVALTYPE_INVALID = 0,
     H64REFVALTYPE_CLASSINSTANCE = 1,
@@ -17,6 +19,7 @@ typedef struct h64refvalue {
     int heapreferencecount, stackreferencecount;
     union {
         int classid;
+        valuecontent *membervars;
     };
 } h64refvalue;
 

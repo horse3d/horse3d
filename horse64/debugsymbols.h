@@ -18,7 +18,8 @@ typedef struct h64funcsymbol {
 
 typedef struct h64classsymbol {
     char *name;
-    char *modulemath;
+    char *modulepath;
+    int fileuri_index;
 } h64classsymbol;
 
 typedef struct h64debugsymbols {
@@ -36,6 +37,10 @@ typedef struct h64debugsymbols {
 
 void h64debugsymbols_ClearFuncSymbol(
     h64funcsymbol *fsymbol
+);
+
+void h64debugsymbols_ClearClassSymbol(
+    h64classsymbol *csymbol
 );
 
 void h64debugsymbols_Free(h64debugsymbols *symbols);

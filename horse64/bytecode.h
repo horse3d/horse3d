@@ -18,7 +18,8 @@ typedef enum valuetype {
     H64VALTYPE_CFUNCREF = 3,
     H64VALTYPE_EMPTYARG = 4,
     H64VALTYPE_ERROR = 5,
-    H64VALTYPE_FUNCNESTRECORD = 6
+    H64VALTYPE_FUNCNESTRECORD = 6,
+    H64VALTYPE_REFVAL = 7
 } valuetype;
 
 typedef struct valuecontent {
@@ -48,7 +49,10 @@ typedef struct h64instruction {
 } h64instruction;
 
 typedef struct h64class {
+    int members_count;
 
+    int methods_count;
+    int *method_func_idx;
 } h64class;
 
 typedef struct h64func {
@@ -116,7 +120,6 @@ int h64program_RegisterHorse64Function(
 int h64program_AddClass(
     h64program *p,
     const char *name,
-    int (*func)(h64vmthread *vmthread),
     const char *fileuri,
     const char *module_path
 );
