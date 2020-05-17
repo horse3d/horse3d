@@ -4,6 +4,7 @@
 typedef struct h64program h64program;
 typedef struct h64instruction h64instruction;
 typedef struct poolalloc poolalloc;
+typedef struct h64stack h64stack;
 
 typedef struct h64vmthread {
     h64program *program;
