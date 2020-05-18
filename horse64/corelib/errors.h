@@ -21,7 +21,7 @@ typedef enum stderrorclassnum {
     H64STDERROR_TOTAL_COUNT
 } stderrorclassnum;
 
-const char *stderrorclassnames[] = {
+static const char *stderrorclassnames[] = {
     "Error",
     "RuntimeError",
     "OutOfMemoryError",
