@@ -199,6 +199,15 @@ int h64program_AddClass(
         const char *fileuri,
         const char *module_path
         ) {
+    assert(p != NULL && p->symbols != NULL);
+    h64class *new_classes = realloc(
+        p->classes, sizeof(*p->classes) * (p->classes_count + 1)
+    );
+    if (!new_classes)
+        return -1;
+    p->classes = new_classes;
+    memset(&p->classes[p->classes_count], 0, sizeof(*p->classes));
+
     int fileuriindex = -1;
     if (fileuri) {
         char *normalized_uri = uri_Normalize(fileuri, 1);
