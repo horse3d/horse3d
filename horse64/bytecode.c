@@ -148,9 +148,10 @@ int h64program_RegisterCFunction(
         while (i < arg_count) {
             p->symbols->func_symbols[p->symbols->func_count].
                 arg_kwarg_name[i] = (
-                arg_kwarg_name[i] ? strdup(arg_kwarg_name[i]) : NULL
+                (arg_kwarg_name && arg_kwarg_name[i]) ?
+                 strdup(arg_kwarg_name[i]) : NULL
                 );
-            if (arg_kwarg_name[i] &&
+            if (arg_kwarg_name && arg_kwarg_name[i] &&
                     p->symbols->func_symbols[p->symbols->func_count].
                     arg_kwarg_name[i] == NULL)
                 goto funcsymboloom;
@@ -183,11 +184,11 @@ int h64program_RegisterHorse64Function(
         char **arg_kwarg_name,
         int last_is_multiarg,
         const char *module_path,
-        int associated_class_name
+        int associated_class_idx
         ) {
     int idx = h64program_RegisterCFunction(
         p, name, NULL, fileuri, arg_count, arg_kwarg_name,
-        last_is_multiarg, module_path, -1, associated_class_name
+        last_is_multiarg, module_path, -1, associated_class_idx
     );
     if (idx >= 0) {
         p->func[idx].iscfunc = 0;

@@ -103,7 +103,7 @@ int h64program_RegisterCFunction(
     int last_is_multiarg,
     const char *module_path,
     int is_threadable,
-    int associated_class_name
+    int associated_class_idx
 );
 
 int h64program_RegisterHorse64Function(
