@@ -9,7 +9,10 @@
 
 int corelib_print(h64vmthread *vmthread, int stackbottom) {
     if (stackbottom >= STACK_SIZE(vmthread->stack)) {
-        
+        return stderror(
+            vmthread, H64STDERROR_ARGUMENTERROR,
+            "missing argument for print call"
+        );
     }
     return 0;
 }
