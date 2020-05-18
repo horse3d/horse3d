@@ -60,7 +60,7 @@ START_TEST (test_unicode)
     free(s);
 
     ck_assert(!is_valid_utf8_char(
-        "\xc3\xc3", 2
+        (uint8_t*)"\xc3\xc3", 2
     ));
 }
 END_TEST

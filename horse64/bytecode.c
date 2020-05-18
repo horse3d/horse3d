@@ -5,6 +5,8 @@
 
 #include "bytecode.h"
 #include "debugsymbols.h"
+#include "corelib/errors.h"
+#include "corelib/moduleless.h"
 #include "refval.h"
 #include "uri.h"
 
@@ -15,6 +17,15 @@ h64program *h64program_New() {
     memset(p, 0, sizeof(*p));
     p->symbols = h64debugsymbols_New();
     if (!p->symbols) {
+        h64program_Free(p);
+        return NULL;
+    }
+
+    if (!corelib_RegisterErrorClasses(p)) {
+        h64program_Free(p);
+        return NULL;
+    }
+    if (!corelib_RegisterFuncs(p)) {
         h64program_Free(p);
         return NULL;
     }

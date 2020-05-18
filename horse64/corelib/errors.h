@@ -30,4 +30,8 @@ static const char *stderrorclassnames[] = {
     NULL
 };
 
+int corelib_RegisterErrorClasses(
+    h64program *p
+);
+
 #endif  // HORSE64_CORELIB_ERRORS_H_
