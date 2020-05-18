@@ -17,6 +17,12 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
         i++;
     }
     free(symbols->func_symbols);
+    i = 0;
+    while (i < symbols->classes_count) {
+        h64debugsymbols_ClearClassSymbol(&symbols->classes_symbols[i]);
+        i++;
+    }
+    free(symbols->classes_symbols);
 
     if (symbols->func_name_to_func_id)
         hash_FreeMap(symbols->func_name_to_func_id);

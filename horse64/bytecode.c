@@ -39,6 +39,8 @@ void h64program_Free(h64program *p) {
 
     if (p->symbols)
         h64debugsymbols_Free(p->symbols);
+    free(p->classes);
+    free(p->func);
 
     free(p);
 }
