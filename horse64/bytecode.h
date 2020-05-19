@@ -27,8 +27,6 @@ typedef struct valuecontent {
     union {
         int64_t int_value;
         double float_value;
-        char shortstr_value[16];
-        char *str_value;
         void *ptr_value;
         struct {
             int previous_func_bottom;

@@ -213,3 +213,11 @@ unicodechar *utf8_to_utf32_ex(
     if (out_len) *out_len = k;
     return (unicodechar*)result;
 }
+
+int utf32_to_utf8(
+        const unicodechar *input, int64_t input_len,
+        char *outbuf, int64_t outbuflen,
+        int64_t *out_len
+        ) {
+    return 0;
+}

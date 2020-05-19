@@ -28,4 +28,10 @@ unicodechar *utf8_to_utf32(
     const char *input, int *out_len
 );
 
+int utf32_to_utf8(
+    const unicodechar *input, int64_t input_len,
+    char *outbuf, int64_t outbuflen,
+    int64_t *out_len
+);
+
 #endif  // HORSE3D_UNICODE_H_

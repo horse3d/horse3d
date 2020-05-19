@@ -9,6 +9,7 @@ typedef struct h64vmthread h64vmthread;
 typedef struct h64stringval {
     unicodechar *s;
     uint64_t len;
+    int refcount;
 } h64stringval;
 
 int vmstrings_Set(
