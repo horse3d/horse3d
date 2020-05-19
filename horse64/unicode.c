@@ -291,7 +291,26 @@ unicodechar *utf8_to_utf32_ex(
 int utf32_to_utf8(
         const unicodechar *input, int64_t input_len,
         char *outbuf, int64_t outbuflen,
-        int64_t *out_len
+        int64_t *out_len, int surrogateunescape
         ) {
-    return 0;
+    const unicodechar *p = input;
+    uint64_t totallen = 0;
+    int64_t i = 0;
+    while (i < input_len) {
+        int inneroutlen = 0;
+        if (!write_codepoint_as_utf8(
+                (uint64_t)*p, surrogateunescape,
+                outbuf, outbuflen, &inneroutlen
+                )) {
+            return 0;
+        }
+        assert(inneroutlen > 0);
+        p++;
+        outbuflen -= inneroutlen;
+        outbuf += inneroutlen;
+        totallen += inneroutlen;
+        i++;
+    }
+    if (out_len) *out_len = totallen;
+    return 1;
 }
