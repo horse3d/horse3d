@@ -32,11 +32,14 @@ void vmthread_Free(h64vmthread *vmthread) {
 }
 
 void vmthread_WipeFuncStack(h64vmthread *vmthread) {
-    assert(vmthread->current_func_bottom <= STACK_SIZE(vmthread->stack));
-    if (vmthread->current_func_bottom < STACK_SIZE(vmthread->stack)) {
+    assert(VMTHREAD_FUNCSTACKBOTTOM(vmthread) <=
+           STACK_SIZE(vmthread->stack));
+    if (VMTHREAD_FUNCSTACKBOTTOM(vmthread) < STACK_SIZE(vmthread->stack)
+            ) {
         int result = stack_ToSize(
             vmthread->stack,
-            vmthread->current_func_bottom, 0
+            VMTHREAD_FUNCSTACKBOTTOM(vmthread),
+            0
         );
         assert(result != 0);  // shrink should always succeed.
         return;

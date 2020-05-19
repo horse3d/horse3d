@@ -16,7 +16,7 @@ typedef enum refvaluetype {
 
 typedef struct h64refvalue {
     uint8_t type;
-    int heapreferencecount, stackreferencecount;
+    int heapreferencecount, externalreferencecount;
     union {
         int classid;
         valuecontent *membervars;

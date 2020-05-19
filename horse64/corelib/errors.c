@@ -42,7 +42,7 @@ int stderror(
         memset(rval, 0, sizeof(*rval));
         rval->type = H64REFVALTYPE_ERRORCLASSINSTANCE;
         rval->heapreferencecount = 0;
-        rval->stackreferencecount = 1;
+        rval->externalreferencecount = 1;
         rval->classid = error_class_id;
     }
     return -1;

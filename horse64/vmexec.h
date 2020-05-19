@@ -5,6 +5,21 @@ typedef struct h64program h64program;
 typedef struct h64instruction h64instruction;
 typedef struct poolalloc poolalloc;
 typedef struct h64stack h64stack;
+typedef struct h64refvalue h64refvalue;
+
+
+typedef struct h64vmfunctionframe {
+    int stack_bottom;
+    int func_id;
+} h64vmfunctionframe;
+
+typedef struct h64vmerrorcatchframe {
+    int function_frame_no;
+    int catch_instruction_offset;
+    int finally_instruction_offset;
+    int error_obj_temporary_id;
+    int in_catch, in_finally;
+} h64vmerrorcatchframe;
 
 typedef struct h64vmthread {
     h64program *program;
@@ -13,12 +28,23 @@ typedef struct h64vmthread {
 
     h64stack *stack;
     poolalloc *heap;
-    int current_func_bottom;
+    int funcframe_count, funcframe_alloc;
+    h64vmfunctionframe *funcframe;
+    int errorcatchframe_count;
+    h64vmerrorcatchframe *errorframe;
+    h64refvalue *caught_error;
 
     int execution_func_id;
     int execution_instruction_id;
 } h64vmthread;
 
+
+static inline int VMTHREAD_FUNCSTACKBOTTOM(h64vmthread *vmthread) {
+    if (vmthread->funcframe_count > 0)
+        return vmthread->funcframe[vmthread->funcframe_count - 1].
+            stack_bottom;
+    return 0;
+}
 
 void vmthread_WipeFuncStack(h64vmthread *vmthread);
 
