@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 typedef struct h64debugsymbols h64debugsymbols;
+typedef uint32_t unicodechar;
 
 typedef enum instructiontype {
     H64INST_INVALID = 0,
@@ -19,7 +20,8 @@ typedef enum valuetype {
     H64VALTYPE_EMPTYARG = 4,
     H64VALTYPE_ERROR = 5,
     H64VALTYPE_FUNCNESTRECORD = 6,
-    H64VALTYPE_REFVAL = 7
+    H64VALTYPE_REFVAL = 7,
+    H64VALTYPE_SHORTSTR = 8
 } valuetype;
 
 typedef struct valuecontent {
@@ -30,6 +32,10 @@ typedef struct valuecontent {
         void *ptr_value;
         struct {
             int previous_func_bottom;
+        };
+        struct {
+            unicodechar shortstr_value[3];
+            uint8_t shortstr_len;
         };
     };
 } valuecontent;

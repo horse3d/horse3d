@@ -50,27 +50,33 @@ int corelib_print(h64vmthread *vmthread, int stackbottom) {
                         buflen = rval->str_val->len * 4 + 1;
                     }
                     int64_t outlen = 0;
-                    utf32_to_utf8(
+                    int result = utf32_to_utf8(
                         rval->str_val->s, rval->str_val->len,
-                        buf, buflen, &outlen
+                        buf, buflen, &outlen, 1
                     );
+                    assert(result != 0);
                     if (outlen >= (int64_t)buflen)
                         outlen = buflen - 1;
                     buf[outlen] = '\0';
                     printf("%s", buf);
                 }
                 break;
-            case H64REFVALTYPE_SHORTSTR:
-                assert(buflen >= 5);
-                assert(rval->shortstr_len >= 0 &&
-                       rval->shortstr_len < 5);
-                memcpy(buf, rval->shortstr_val, rval->shortstr_len);
-                buf[rval->shortstr_len] = '\0';
-                printf("%s", buf);
-                break;
             default:
                 printf("<unhandled refvalue type=%d>\n", (int)rval->type);
             }
+            break;
+        case H64VALTYPE_SHORTSTR:
+            assert(buflen >= 25);
+            assert(c->shortstr_len >= 0 &&
+                   c->shortstr_len < 5);
+            int64_t outlen = 0;
+            int result = utf32_to_utf8(
+                c->shortstr_value, c->shortstr_len,
+                buf, 25, &outlen, 1
+            );
+            assert(result != 0 && outlen > 0 && outlen < 25);
+            buf[outlen - 1] = '\0';
+            printf("%s", buf);
             break;
         default:
             printf("<unhandled valuecontent type=%d>\n", (int)c->type);
