@@ -27,7 +27,8 @@ typedef struct h64vmthread {
     int can_call_unthreadable;
 
     h64stack *stack;
-    poolalloc *heap;
+    poolalloc *heap, *str_pile;
+
     int funcframe_count, funcframe_alloc;
     h64vmfunctionframe *funcframe;
     int errorcatchframe_count;

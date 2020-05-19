@@ -6,18 +6,19 @@
 
 #include "poolalloc.h"
 
-#define POOLAREAITEMS 256
+#define FIRSTPOOLSIZE 256
 
-typedef struct poolsubarea {
+typedef struct pool {
+    int item_count;
     char *poolarea;
     int *slotused;
     int possiblyfreeindex;
-} poolsubarea;
+} pool;
 
 typedef struct poolalloc {
     int allocsize;
-    int areas_count;
-    poolsubarea *areas;
+    int pools_count;
+    pool *pools;
     int lastusedareaindex;
 
     int64_t totalitems;
@@ -25,86 +26,97 @@ typedef struct poolalloc {
 } poolalloc;
 
 
-int poolalloc_AddArea(poolalloc *pool) {
-    poolsubarea *new_areas = realloc(
-        pool->areas, sizeof(*pool->areas) * (
-        pool->lastusedareaindex + 1));
+int poolalloc_AddArea(poolalloc *poolac) {
+    pool *new_areas = realloc(
+        poolac->pools, sizeof(*poolac->pools) * (
+        poolac->lastusedareaindex + 1));
     if (!new_areas)
         return 0;
-    pool->areas = new_areas;
-    pool->areas_count++;
-    memset(&pool->areas[pool->areas_count - 1], 0, sizeof(*pool->areas));
-    pool->areas[pool->areas_count - 1].poolarea = malloc(
-        POOLAREAITEMS * pool->allocsize
+    poolac->pools = new_areas;
+    poolac->pools_count++;
+    memset(
+        &poolac->pools[poolac->pools_count - 1], 0,
+        sizeof(*poolac->pools)
     );
-    if (!pool->areas[pool->areas_count - 1].poolarea) {
-        pool->areas_count--;
+    int pool_size = FIRSTPOOLSIZE;
+    if (poolac->pools_count > 0)
+        pool_size = poolac->pools[poolac->pools_count - 1].
+            item_count * 2;
+    poolac->pools[poolac->pools_count - 1].item_count = pool_size;
+    poolac->pools[poolac->pools_count - 1].poolarea = malloc(
+        pool_size * poolac->allocsize
+    );
+    if (!poolac->pools[poolac->pools_count - 1].poolarea) {
+        poolac->pools_count--;
         return 0;
     }
-    pool->areas[pool->areas_count - 1].slotused = malloc(
-        sizeof(*pool->areas[pool->areas_count - 1].slotused) *
-        POOLAREAITEMS
+    poolac->pools[poolac->pools_count - 1].slotused = malloc(
+        sizeof(*poolac->pools[poolac->pools_count - 1].slotused) *
+        pool_size
     );
-    if (!pool->areas[pool->areas_count - 1].slotused) {
-        free(pool->areas[pool->areas_count - 1].poolarea);
-        pool->areas_count--;
+    if (!poolac->pools[poolac->pools_count - 1].slotused) {
+        free(poolac->pools[poolac->pools_count - 1].poolarea);
+        poolac->pools_count--;
         return 0;
     }
-    memset(pool->areas[pool->areas_count - 1].slotused, 0,
-           sizeof(*pool->areas[pool->areas_count - 1].slotused));
-    pool->freeitems += POOLAREAITEMS;
-    pool->totalitems += POOLAREAITEMS;
-    pool->lastusedareaindex = pool->areas_count - 1;
+    memset(poolac->pools[poolac->pools_count - 1].slotused, 0,
+           sizeof(*poolac->pools[poolac->pools_count - 1].slotused));
+    poolac->freeitems += pool_size;
+    poolac->totalitems += pool_size;
+    poolac->lastusedareaindex = poolac->pools_count - 1;
     return 1;
 }
 
-void poolalloc_Destroy(poolalloc *pool) {
-    if (!pool)
+void poolalloc_Destroy(poolalloc *poolac) {
+    if (!poolac)
         return;
-    if (pool->areas) {
+    if (poolac->pools) {
         int i = 0;
-        while (i < pool->areas_count) {
-            free(pool->areas[i].poolarea);
-            free(pool->areas[i].slotused);
+        while (i < poolac->pools_count) {
+            free(poolac->pools[i].poolarea);
+            free(poolac->pools[i].slotused);
             i++;
         }
-        free(pool->areas);
+        free(poolac->pools);
     }
-    free(pool);
+    free(poolac);
 }
 
 poolalloc *poolalloc_New(int itemsize) {
     if (itemsize <= 0)
         return NULL;
-    poolalloc *pool = malloc(sizeof(*pool));
-    if (!pool)
+    poolalloc *poolac = malloc(sizeof(*poolac));
+    if (!poolac)
         return NULL;
-    memset(pool, 0, sizeof(*pool));
-    pool->allocsize = itemsize;
-    if (!poolalloc_AddArea(pool)) {
-        poolalloc_Destroy(pool);
+    memset(poolac, 0, sizeof(*poolac));
+    poolac->allocsize = itemsize;
+    if (!poolalloc_AddArea(poolac)) {
+        poolalloc_Destroy(poolac);
         return NULL;
     }
-    return pool;
+    return poolac;
 }
 
-void poolalloc_free(poolalloc *pool, void *ptr) {
+void poolalloc_free(poolalloc *poolac, void *ptr) {
     int j = 0;
-    while (j < pool->areas_count) {
+    while (j < poolac->pools_count) {
+        const int c = poolac->pools[j].item_count;
         int k = 0;
-        while (k < POOLAREAITEMS) {
-            if ((char*)ptr >= pool->areas[j].poolarea &&
-                    (char*)ptr < pool->areas[j].poolarea +
-                    pool->allocsize * POOLAREAITEMS) {
-                int64_t offset = ((char*)ptr - pool->areas[j].poolarea);
-                offset /= pool->allocsize;
-                assert(offset >= 0 && offset < POOLAREAITEMS);
-                assert(pool->areas[j].slotused[offset]);
-                pool->areas[j].slotused[offset] = 0;
-                pool->areas[j].possiblyfreeindex = offset;
-                pool->lastusedareaindex = j;
-                pool->freeitems++;
-                assert(pool->freeitems <= pool->totalitems);
+        while (k < c) {
+            if ((char*)ptr >= poolac->pools[j].poolarea &&
+                    (char*)ptr < poolac->pools[j].poolarea +
+                    poolac->allocsize * c) {
+                int64_t offset = (
+                    ((char*)ptr - poolac->pools[j].poolarea)
+                );
+                offset /= poolac->allocsize;
+                assert(offset >= 0 && offset < c);
+                assert(poolac->pools[j].slotused[offset]);
+                poolac->pools[j].slotused[offset] = 0;
+                poolac->pools[j].possiblyfreeindex = offset;
+                poolac->lastusedareaindex = j;
+                poolac->freeitems++;
+                assert(poolac->freeitems <= poolac->totalitems);
                 return;
             }
             k++;
@@ -114,53 +126,57 @@ void poolalloc_free(poolalloc *pool, void *ptr) {
     assert(0 && "failed to process free of poolalloc ptr");
 }
 
-void *poolalloc_malloc(poolalloc *pool, int can_use_emergency_margin) {
-    if (!can_use_emergency_margin && pool->freeitems < 10) {
-        if (!poolalloc_AddArea(pool))
+void *poolalloc_malloc(poolalloc *poolac,
+                       int can_use_emergency_margin) {
+    if (!can_use_emergency_margin && poolac->freeitems < 10) {
+        if (!poolalloc_AddArea(poolac))
             return 0;
     }
-    if (pool->freeitems <= 0)
+    if (poolac->freeitems <= 0)
         return 0;
-    if (pool->lastusedareaindex >= 0 &&
-            pool->lastusedareaindex < pool->areas_count) {
-        int k = pool->areas[pool->lastusedareaindex].possiblyfreeindex;
-        if (k >= 0 && k < POOLAREAITEMS &&
-                !pool->areas[pool->lastusedareaindex].slotused[k]) {
-            pool->freeitems--;
-            assert(pool->freeitems >= 0);
-            pool->areas[pool->lastusedareaindex].slotused[k] = 1;
-            pool->areas[pool->lastusedareaindex].possiblyfreeindex = k + 1;
-            return pool->areas[pool->lastusedareaindex].poolarea + (
-                pool->allocsize * k
+    if (poolac->lastusedareaindex >= 0 &&
+            poolac->lastusedareaindex < poolac->pools_count) {
+        const int c = poolac->pools[poolac->lastusedareaindex].item_count;
+        int k = poolac->pools[poolac->lastusedareaindex].possiblyfreeindex;
+        if (k >= 0 && k < c &&
+                !poolac->pools[poolac->lastusedareaindex].slotused[k]) {
+            poolac->freeitems--;
+            assert(poolac->freeitems >= 0);
+            poolac->pools[poolac->lastusedareaindex].slotused[k] = 1;
+            poolac->pools[poolac->lastusedareaindex].
+                possiblyfreeindex = k + 1;
+            return poolac->pools[poolac->lastusedareaindex].poolarea + (
+                poolac->allocsize * k
             );
         }
         k = 0;
-        while (k < POOLAREAITEMS) {
-            if (!pool->areas[pool->lastusedareaindex].slotused[k]) {
-                pool->freeitems--;
-                assert(pool->freeitems >= 0);
-                pool->areas[pool->lastusedareaindex].slotused[k] = 1;
-                pool->areas[pool->lastusedareaindex].
+        while (k < c) {
+            if (!poolac->pools[poolac->lastusedareaindex].slotused[k]) {
+                poolac->freeitems--;
+                assert(poolac->freeitems >= 0);
+                poolac->pools[poolac->lastusedareaindex].slotused[k] = 1;
+                poolac->pools[poolac->lastusedareaindex].
                     possiblyfreeindex = k + 1;
-                return pool->areas[pool->lastusedareaindex].poolarea + (
-                    pool->allocsize * k
+                return poolac->pools[poolac->lastusedareaindex].poolarea + (
+                    poolac->allocsize * k
                 );
             }
             k++;
         }
     }
     int j = 0;
-    while (j < pool->areas_count) {
+    while (j < poolac->pools_count) {
+        const int c = poolac->pools[j].item_count;
         int k = 0;
-        while (k < POOLAREAITEMS) {
-            if (!pool->areas[j].slotused[k]) {
-                pool->freeitems--;
-                assert(pool->freeitems >= 0);
-                pool->lastusedareaindex = j;
-                pool->areas[j].slotused[k] = 1;
-                pool->areas[j].possiblyfreeindex = k + 1;
-                return pool->areas[j].poolarea + (
-                    pool->allocsize * k
+        while (k < c) {
+            if (!poolac->pools[j].slotused[k]) {
+                poolac->freeitems--;
+                assert(poolac->freeitems >= 0);
+                poolac->lastusedareaindex = j;
+                poolac->pools[j].slotused[k] = 1;
+                poolac->pools[j].possiblyfreeindex = k + 1;
+                return poolac->pools[j].poolarea + (
+                    poolac->allocsize * k
                 );
             }
             k++;
