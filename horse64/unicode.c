@@ -143,50 +143,57 @@ int is_valid_utf8_char(
 unicodechar *utf8_to_utf32(
         const char *input,
         int64_t input_len,
-        void (*out_alloc)(uint64_t len, void *userdata),
+        void *(*out_alloc)(uint64_t len, void *userdata),
+        void *out_alloc_ud,
         int64_t *out_len
         ) {
     return utf8_to_utf32_ex(
-        input, input_len, out_alloc, out_len, 1, NULL, NULL
+        input, input_len, out_alloc, out_alloc_ud,
+        out_len, 1, NULL, NULL
     );
 }
 
 unicodechar *utf8_to_utf32_ex(
         const char *input,
         int64_t input_len,
-        void (*out_alloc)(uint64_t len, void *userdata),
+        void *(*out_alloc)(uint64_t len, void *userdata),
+        void *out_alloc_ud,
         int64_t *out_len,
         int surrogatereplaceinvalid,
         int *was_aborted_invalid,
         int *was_aborted_outofmemory
         ) {
     int free_temp_buf = 0;
-    int ilen = strlen(input);
     char *temp_buf = NULL;
-    int temp_buf_len = ilen * sizeof(unicodechar);
+    int64_t temp_buf_len = input_len * sizeof(unicodechar);
     if (temp_buf_len < 1024 * 2) {
         temp_buf = alloca(temp_buf_len);
     } else {
         free_temp_buf = 1;
         temp_buf = malloc(temp_buf_len);
         if (!temp_buf) {
-            if (was_aborted_invalid) *was_aborted_invalid = 0;
-            if (was_aborted_outofmemory) *was_aborted_outofmemory = 1;
+            if (was_aborted_invalid)
+                *was_aborted_invalid = 0;
+            if (was_aborted_outofmemory)
+                *was_aborted_outofmemory = 1;
             return NULL;
         }
     }
     int k = 0;
     int i = 0;
-    while (i < ilen) {
+    while (i < input_len) {
         unicodechar c;
         int cbytes = 0;
         if (!get_utf8_codepoint(
-                (const unsigned char*)(input + i), ilen - i, &c, &cbytes)) {
+                (const unsigned char*)(input + i),
+                input_len - i, &c, &cbytes)) {
             if (!surrogatereplaceinvalid) {
                 if (free_temp_buf)
                     free(temp_buf);
-                if (was_aborted_invalid) *was_aborted_invalid = 1;
-                if (was_aborted_outofmemory) *was_aborted_outofmemory = 0;
+                if (was_aborted_invalid)
+                    *was_aborted_invalid = 1;
+                if (was_aborted_outofmemory)
+                    *was_aborted_outofmemory = 0;
                 return NULL;
             }
             unicodechar invalidbyte = 0xDC80ULL + (
@@ -203,10 +210,18 @@ unicodechar *utf8_to_utf32_ex(
         k++;
     }
     temp_buf[k] = '\0';
-    char *result = malloc(k * sizeof(unicodechar));
-    assert(k * sizeof(unicodechar) <= ilen * sizeof(unicodechar));
+    char *result = NULL;
+    if (out_alloc) {
+        result = out_alloc(
+            (k + 1) * sizeof(unicodechar), out_alloc_ud
+        );
+    } else {
+        result = malloc((k + 1) * sizeof(unicodechar));
+    }
+    assert((k + 1) * sizeof(unicodechar) <=
+           (input_len + 1) * sizeof(unicodechar));
     if (result) {
-        memcpy(result, temp_buf, k * sizeof(unicodechar));
+        memcpy(result, temp_buf, (k + 1) * sizeof(unicodechar));
     }
     if (free_temp_buf)
         free(temp_buf);

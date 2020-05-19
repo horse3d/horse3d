@@ -19,7 +19,8 @@ int utf8_char_len(const unsigned char *p);
 unicodechar *utf8_to_utf32_ex(
     const char *input,
     int64_t input_len,
-    void (*out_alloc)(uint64_t len, void *userdata),
+    void *(*out_alloc)(uint64_t len, void *userdata),
+    void *out_alloc_ud,
     int64_t *out_len,
     int surrogatereplaceinvalid,
     int *was_aborted_invalid,
@@ -28,7 +29,8 @@ unicodechar *utf8_to_utf32_ex(
 
 unicodechar *utf8_to_utf32(
     const char *input, int64_t input_len,
-    void (*out_alloc)(uint64_t len, void *userdata),
+    void *(*out_alloc)(uint64_t len, void *userdata),
+    void *out_alloc_ud,
     int64_t *out_len
 );
 
