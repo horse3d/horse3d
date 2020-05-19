@@ -32,6 +32,58 @@ int utf8_char_len(const unsigned char *p) {
     return 1;
 }
 
+int write_codepoint_as_utf8(
+        uint64_t codepoint, int surrogateunescape,
+        char *out, int outbuflen, int *outlen
+        ) {
+    if (codepoint < 0x80ULL) {
+        if (outbuflen < 1) return 0;
+        out[0] = (int)codepoint;
+        if (outbuflen >= 2)
+            out[1] = '\0';
+        if (outlen) *outlen = 1;
+        return 1;
+    } else if (codepoint < 0x800ULL) {
+        uint64_t byte2val = (codepoint & 0x3FULL);
+        uint64_t byte1val = (codepoint & 0x7C0ULL) >> 6;
+        if (outbuflen < 2) return 0;
+        out[0] = (int)(byte1val | 0xC0);
+        out[1] = (int)(byte2val | 0x80);
+        if (outbuflen >= 3)
+            out[2] = '\0';
+        if (outlen) *outlen = 2;
+        return 1;
+    } else if (codepoint < 0x10000ULL) {
+        uint64_t byte3val = (codepoint & 0x3FULL);
+        uint64_t byte2val = (codepoint & 0xFC0ULL) >> 6;
+        uint64_t byte1val = (codepoint & 0xF000ULL) >> 12;
+        if (outbuflen < 3) return 0;
+        out[0] = (int)(byte1val | 0xC0);
+        out[1] = (int)(byte2val | 0x80);
+        out[2] = (int)(byte3val | 0x80);
+        if (outbuflen >= 4)
+            out[3] = '\0';
+        if (outlen) *outlen = 3;
+        return 1;
+    } else if (codepoint < 0x200000ULL) {
+        uint64_t byte4val = (codepoint & 0x3FULL);
+        uint64_t byte3val = (codepoint & 0xFC0ULL) >> 6;
+        uint64_t byte2val = (codepoint & 0x3F000ULL) >> 12;
+        uint64_t byte1val = (codepoint & 0x1C0000ULL) >> 18;
+        if (outbuflen < 4) return 0;
+        out[0] = (int)(byte1val | 0xC0);
+        out[1] = (int)(byte2val | 0x80);
+        out[2] = (int)(byte3val | 0x80);
+        out[3] = (int)(byte4val | 0x80);
+        if (outbuflen >= 5)
+            out[4] = '\0';
+        if (outlen) *outlen = 4;
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 int get_utf8_codepoint(
         const unsigned char *p, int size,
         unicodechar *out, int *outlen

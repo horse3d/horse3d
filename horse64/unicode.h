@@ -14,6 +14,11 @@ int get_utf8_codepoint(
     unicodechar *out, int *outlen
 );
 
+int write_codepoint_as_utf8(
+    uint64_t codepoint, int surrogateunescape,
+    char *out, int outbuflen, int *outlen
+);
+
 int utf8_char_len(const unsigned char *p);
 
 unicodechar *utf8_to_utf32_ex(
