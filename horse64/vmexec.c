@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "poolalloc.h"
-#include "refval.h"
+#include "gcvalue.h"
 #include "stack.h"
 #include "vmexec.h"
 
@@ -14,7 +14,7 @@ h64vmthread *vmthread_New() {
         return NULL;
     memset(vmthread, 0, sizeof(*vmthread));
 
-    vmthread->heap = poolalloc_New(sizeof(h64refvalue));
+    vmthread->heap = poolalloc_New(sizeof(h64gcvalue));
     if (!vmthread->heap) {
         vmthread_Free(vmthread);
         return NULL;

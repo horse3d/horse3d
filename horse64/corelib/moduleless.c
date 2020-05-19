@@ -12,7 +12,7 @@
 #include "bytecode.h"
 #include "corelib/errors.h"
 #include "corelib/moduleless.h"
-#include "refval.h"
+#include "gcvalue.h"
 #include "stack.h"
 #include "unicode.h"
 #include "vmexec.h"
@@ -35,23 +35,23 @@ int corelib_print(h64vmthread *vmthread, int stackbottom) {
         valuecontent *c = STACK_ENTRY(vmthread->stack, i);
         switch (c->type) {
         case H64VALTYPE_REFVAL: ;
-            h64refvalue *rval = c->ptr_value;
-            switch (rval->type) {
-            case H64REFVALTYPE_STRING:
-                if (buflen < rval->str_val->len * 4 + 1) {
+            h64gcvalue *gcval = c->ptr_value;
+            switch (gcval->type) {
+            case H64GCVALUETYPE_STRING:
+                if (buflen < gcval->str_val->len * 4 + 1) {
                     char *newbuf = malloc(
-                        rval->str_val->len * 4 + 1
+                        gcval->str_val->len * 4 + 1
                     );
                     buffree = 1;
                     if (newbuf) {
                         if (buffree)
                             free(buf);
                         buf = newbuf;
-                        buflen = rval->str_val->len * 4 + 1;
+                        buflen = gcval->str_val->len * 4 + 1;
                     }
                     int64_t outlen = 0;
                     int result = utf32_to_utf8(
-                        rval->str_val->s, rval->str_val->len,
+                        gcval->str_val->s, gcval->str_val->len,
                         buf, buflen, &outlen, 1
                     );
                     assert(result != 0);
@@ -62,7 +62,7 @@ int corelib_print(h64vmthread *vmthread, int stackbottom) {
                 }
                 break;
             default:
-                printf("<unhandled refvalue type=%d>\n", (int)rval->type);
+                printf("<unhandled refvalue type=%d>\n", (int)gcval->type);
             }
             break;
         case H64VALTYPE_SHORTSTR:

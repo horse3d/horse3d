@@ -7,7 +7,7 @@
 #include "debugsymbols.h"
 #include "corelib/errors.h"
 #include "corelib/moduleless.h"
-#include "refval.h"
+#include "gcvalue.h"
 #include "uri.h"
 
 h64program *h64program_New() {

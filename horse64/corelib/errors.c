@@ -8,7 +8,7 @@
 #include "bytecode.h"
 #include "corelib/errors.h"
 #include "poolalloc.h"
-#include "refval.h"
+#include "gcvalue.h"
 #include "stack.h"
 #include "vmexec.h"
 
@@ -35,15 +35,15 @@ int stderror(
         }
     }
     valuecontent *v = STACK_ENTRY(vmthread->stack, -1);
-    v->type = H64VALTYPE_REFVAL;
+    v->type = H64GCVALUETYPE_INVALID;
     v->ptr_value = poolalloc_malloc(vmthread->heap, 1);
     if (v->ptr_value) {
-        h64refvalue *rval = (h64refvalue *)v->ptr_value;
-        memset(rval, 0, sizeof(*rval));
-        rval->type = H64REFVALTYPE_ERRORCLASSINSTANCE;
-        rval->heapreferencecount = 0;
-        rval->externalreferencecount = 1;
-        rval->classid = error_class_id;
+        h64gcvalue *gcval = (h64gcvalue *)v->ptr_value;
+        memset(gcval, 0, sizeof(*gcval));
+        gcval->type = H64GCVALUETYPE_ERRORCLASSINSTANCE;
+        gcval->heapreferencecount = 0;
+        gcval->externalreferencecount = 1;
+        gcval->classid = error_class_id;
     }
     return -1;
 }
