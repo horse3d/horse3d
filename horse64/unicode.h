@@ -18,14 +18,18 @@ int utf8_char_len(const unsigned char *p);
 
 unicodechar *utf8_to_utf32_ex(
     const char *input,
-    int *out_len,
+    int64_t input_len,
+    void (*out_alloc)(uint64_t len, void *userdata),
+    int64_t *out_len,
     int surrogatereplaceinvalid,
     int *was_aborted_invalid,
     int *was_aborted_outofmemory
 );
 
 unicodechar *utf8_to_utf32(
-    const char *input, int *out_len
+    const char *input, int64_t input_len,
+    void (*out_alloc)(uint64_t len, void *userdata),
+    int64_t *out_len
 );
 
 int utf32_to_utf8(
