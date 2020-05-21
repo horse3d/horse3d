@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "bytecode.h"
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
@@ -17,15 +18,32 @@ typedef struct resolveinfo {
 } resolveinfo;
 
 static int identifierisbuiltin(
-        const char *identifier, int isbuiltinmodule
+        h64compileproject *pr,
+        const char *identifier,
+        int isbuiltinmodule  // whether to allow access to secret built-ins
         ) {
-    if (strcmp(identifier, "print") == 0 ||
-            strcmp(identifier, "instanceof") == 0 ||
-            strcmp(identifier, "Exception") == 0 ||
-            strcmp(identifier, "RuntimeException") == 0 ||
-            strcmp(identifier, "IOException") == 0 ||
-            strcmp(identifier, "OSException") == 0) {
-        return 1;
+    // FIXME: use hashmap here for higher speed
+    int i = 0;
+    while (i < pr->program->symbols->func_count) {
+        if (pr->program->symbols->func_symbols[i].modulepath == NULL &&
+                pr->program->symbols->func_symbols[i].
+                    libraryname == NULL) {
+            if (strcmp(pr->program->symbols->func_symbols[i].
+                    name, identifier) == 0)
+                return 1;
+        }
+        i++;
+    }
+    i = 0;
+    while (i < pr->program->symbols->classes_count) {
+        if (pr->program->symbols->classes_symbols[i].modulepath == NULL &&
+                pr->program->symbols->classes_symbols[i].
+                    libraryname == NULL) {
+            if (strcmp(pr->program->symbols->classes_symbols[i].
+                    name, identifier) == 0)
+                return 1;
+        }
+        i++;
     }
     return 0;
 }
@@ -70,6 +88,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         if (def) {
             expr->identifierref.resolved_to_def = def;
         } else if (identifierisbuiltin(
+                rinfo->pr,
                 expr->identifierref.value, rinfo->isbuiltinmodule)) {
             expr->identifierref.resolved_to_builtin = 1;
         } else {

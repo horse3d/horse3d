@@ -46,6 +46,7 @@ void h64debugsymbols_ClearClassSymbol(
         return;
     free(csymbol->name);
     free(csymbol->modulepath);
+    free(csymbol->libraryname);
 }
 
 void h64debugsymbols_ClearFuncSymbol(
@@ -55,6 +56,7 @@ void h64debugsymbols_ClearFuncSymbol(
         return;
     free(fsymbol->name);
     free(fsymbol->modulepath);
+    free(fsymbol->libraryname);
     if (fsymbol->arg_kwarg_name) {
         int i = 0;
         while (i < fsymbol->arg_count) {

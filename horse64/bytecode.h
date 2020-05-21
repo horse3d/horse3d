@@ -106,6 +106,7 @@ int h64program_RegisterCFunction(
     char **arg_kwarg_name,
     int last_is_multiarg,
     const char *module_path,
+    const char *library_name,
     int is_threadable,
     int associated_class_idx
 );
@@ -118,14 +119,16 @@ int h64program_RegisterHorse64Function(
     char **arg_kwarg_name,
     int last_is_multiarg,
     const char *module_path,
-    int associated_class_name
+    const char *library_name,
+    int associated_class_idx
 );
 
 int h64program_AddClass(
     h64program *p,
     const char *name,
     const char *fileuri,
-    const char *module_path
+    const char *module_path,
+    const char *library_name
 );
 
 void h64program_Free(h64program *p);

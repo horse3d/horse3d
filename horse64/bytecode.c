@@ -54,6 +54,7 @@ int h64program_RegisterCFunction(
         char **arg_kwarg_name,
         int last_is_multiarg,
         const char *module_path,
+        const char *library_name,
         int is_threadable,
         int associated_class_index
         ) {
@@ -130,6 +131,14 @@ int h64program_RegisterCFunction(
                 modulepath)
             goto funcsymboloom;
     }
+    if (library_name) {
+        p->symbols->func_symbols[p->symbols->func_count].libraryname = (
+            strdup(library_name)
+        );
+        if (!p->symbols->func_symbols[p->symbols->func_count].
+                libraryname)
+            goto funcsymboloom;
+    }
     p->symbols->func_symbols[p->symbols->func_count].arg_count = arg_count;
     if (arg_count > 0) {
         p->symbols->func_symbols[p->symbols->func_count].
@@ -184,11 +193,13 @@ int h64program_RegisterHorse64Function(
         char **arg_kwarg_name,
         int last_is_multiarg,
         const char *module_path,
+        const char *library_name,
         int associated_class_idx
         ) {
     int idx = h64program_RegisterCFunction(
         p, name, NULL, fileuri, arg_count, arg_kwarg_name,
-        last_is_multiarg, module_path, -1, associated_class_idx
+        last_is_multiarg, module_path,
+        library_name, -1, associated_class_idx
     );
     if (idx >= 0) {
         p->func[idx].iscfunc = 0;
@@ -200,7 +211,8 @@ int h64program_AddClass(
         h64program *p,
         const char *name,
         const char *fileuri,
-        const char *module_path
+        const char *module_path,
+        const char *library_name
         ) {
     assert(p != NULL && p->symbols != NULL);
     h64class *new_classes = realloc(
@@ -270,6 +282,13 @@ int h64program_AddClass(
             modulepath = strdup(module_path);
         if (!p->symbols->classes_symbols[p->symbols->classes_count].
                 modulepath)
+            goto classsymboloom;
+    }
+    if (library_name) {
+        p->symbols->classes_symbols[p->symbols->classes_count].
+            libraryname = strdup(library_name);
+        if (!p->symbols->classes_symbols[p->symbols->classes_count].
+                libraryname)
             goto classsymboloom;
     }
 

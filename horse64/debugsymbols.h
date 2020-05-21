@@ -7,7 +7,7 @@ typedef struct hashmap hashmap;
 
 typedef struct h64funcsymbol {
     char *name;
-    char *modulepath;
+    char *modulepath, *libraryname;
     int arg_count;
     char **arg_kwarg_name;
     int fileuri_index;
@@ -18,7 +18,7 @@ typedef struct h64funcsymbol {
 
 typedef struct h64classsymbol {
     char *name;
-    char *modulepath;
+    char *modulepath, *libraryname;
     int fileuri_index;
 } h64classsymbol;
 
