@@ -60,7 +60,7 @@ int corelib_RegisterErrorClasses(
     while (i < H64STDERROR_TOTAL_COUNT) {
         assert(stderrorclassnames[i] != NULL);
         int idx = h64program_AddClass(
-            p, stderrorclassnames[i], NULL, NULL
+            p, stderrorclassnames[i], NULL, NULL, NULL
         );
         if (idx >= 0) {
             assert(p->classes_count - 1 == idx);

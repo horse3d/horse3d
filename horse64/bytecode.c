@@ -8,6 +8,7 @@
 #include "corelib/errors.h"
 #include "corelib/moduleless.h"
 #include "gcvalue.h"
+#include "hash.h"
 #include "uri.h"
 
 h64program *h64program_New() {
@@ -168,6 +169,39 @@ int h64program_RegisterCFunction(
         }
     }
 
+    // Add function to lookup-by-namepath hash table:
+    char *full_path = malloc(
+        (library_name ? strlen("@") + strlen(library_name) +
+         strlen(".") : 0) +
+        (module_path ? strlen(module_path) + strlen(".") : 0) +
+        strlen(name) +
+        1  // null-terminator
+    );
+    if (!full_path)
+        goto funcsymboloom;
+    full_path[0] = '\0';
+    if (library_name) {
+        full_path[0] = '@';
+        memcpy(full_path + 1, library_name, strlen(library_name));
+        full_path[1 + strlen(library_name)] = '.';
+        full_path[1 + strlen(library_name) + 1] = '\0';
+    }
+    if (module_path) {
+        memcpy(full_path + strlen(full_path), module_path,
+               strlen(module_path) + 1);
+        full_path[strlen(full_path) + 1] = '\0';
+        full_path[strlen(full_path)] = '.';
+    }
+    memcpy(full_path + strlen(full_path), name, strlen(name) + 1);
+    uint64_t setno = p->symbols->classes_count;
+    if (!hash_StringMapSet(
+            p->symbols->func_namepath_to_func_id,
+            full_path, setno)) {
+        free(full_path);
+        goto funcsymboloom;
+    }
+    free(full_path);
+
     // Add actual function entry:
     p->func[p->func_count].arg_count = arg_count;
     p->func[p->func_count].last_is_multiarg = last_is_multiarg;
@@ -291,6 +325,39 @@ int h64program_AddClass(
                 libraryname)
             goto classsymboloom;
     }
+
+    // Add class to lookup-by-namepath hash table:
+    char *full_path = malloc(
+        (library_name ? strlen("@") + strlen(library_name) +
+         strlen(".") : 0) +
+        (module_path ? strlen(module_path) + strlen(".") : 0) +
+        strlen(name) +
+        1  // null-terminator
+    );
+    if (!full_path)
+        goto classsymboloom;
+    full_path[0] = '\0';
+    if (library_name) {
+        full_path[0] = '@';
+        memcpy(full_path + 1, library_name, strlen(library_name));
+        full_path[1 + strlen(library_name)] = '.';
+        full_path[1 + strlen(library_name) + 1] = '\0';
+    }
+    if (module_path) {
+        memcpy(full_path + strlen(full_path), module_path,
+               strlen(module_path) + 1);
+        full_path[strlen(full_path) + 1] = '\0';
+        full_path[strlen(full_path)] = '.';
+    }
+    memcpy(full_path + strlen(full_path), name, strlen(name) + 1);
+    uint64_t setno = p->symbols->classes_count;
+    if (!hash_StringMapSet(
+            p->symbols->class_namepath_to_class_id,
+            full_path, setno)) {
+        free(full_path);
+        goto classsymboloom;
+    }
+    free(full_path);
 
     // Add actual class entry:
     p->classes[p->classes_count].members_count = 0;

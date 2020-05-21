@@ -90,7 +90,7 @@ int corelib_print(h64vmthread *vmthread, int stackbottom) {
 int corelib_RegisterFuncs(h64program *p) {
     if (h64program_RegisterCFunction(
             p, "print", &corelib_print,
-            NULL, 1, NULL, 1, NULL, 1, -1
+            NULL, 1, NULL, 1, NULL, NULL, 1, -1
             ) < 0)
         return 0;
     return 1;

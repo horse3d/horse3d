@@ -30,10 +30,10 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
     }
     free(symbols->global_member_name);
 
-    if (symbols->func_name_to_func_id)
-        hash_FreeMap(symbols->func_name_to_func_id);
-    if (symbols->class_name_to_class_id)
-        hash_FreeMap(symbols->class_name_to_class_id);
+    if (symbols->func_namepath_to_func_id)
+        hash_FreeMap(symbols->func_namepath_to_func_id);
+    if (symbols->class_namepath_to_class_id)
+        hash_FreeMap(symbols->class_namepath_to_class_id);
     if (symbols->member_name_to_global_member_id)
         hash_FreeMap(symbols->member_name_to_global_member_id);
     free(symbols);
@@ -111,14 +111,14 @@ h64debugsymbols *h64debugsymbols_New() {
         return NULL;
     memset(symbols, 0, sizeof(*symbols));
 
-    symbols->func_name_to_func_id = hash_NewStringMap(1024 * 5);
-    if (!symbols->func_name_to_func_id) {
+    symbols->func_namepath_to_func_id = hash_NewStringMap(1024 * 5);
+    if (!symbols->func_namepath_to_func_id) {
         h64debugsymbols_Free(symbols);
         return NULL;
     }
 
-    symbols->class_name_to_class_id = hash_NewStringMap(1024 * 5);
-    if (!symbols->class_name_to_class_id) {
+    symbols->class_namepath_to_class_id = hash_NewStringMap(1024 * 5);
+    if (!symbols->class_namepath_to_class_id) {
         h64debugsymbols_Free(symbols);
         return NULL;
     }

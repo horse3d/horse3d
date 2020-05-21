@@ -9,6 +9,7 @@
 #include "compiler/compileproject.h"
 #include "compiler/scoperesolver.h"
 #include "compiler/scope.h"
+#include "hash.h"
 
 typedef struct resolveinfo {
     h64compileproject *pr;
@@ -22,28 +23,36 @@ static int identifierisbuiltin(
         const char *identifier,
         int isbuiltinmodule  // whether to allow access to secret built-ins
         ) {
-    // FIXME: use hashmap here for higher speed
-    int i = 0;
-    while (i < pr->program->symbols->func_count) {
-        if (pr->program->symbols->func_symbols[i].modulepath == NULL &&
-                pr->program->symbols->func_symbols[i].
-                    libraryname == NULL) {
-            if (strcmp(pr->program->symbols->func_symbols[i].
-                    name, identifier) == 0)
-                return 1;
+    assert(pr->program->symbols->func_namepath_to_func_id != NULL);
+    uint64_t number = 0;
+    if (hash_StringMapGet(
+            pr->program->symbols->func_namepath_to_func_id,
+            identifier, &number
+            )) {
+        int func_id = (int)number;
+        assert(func_id >= 0 && func_id < pr->program->symbols->func_count);
+        if (pr->program->symbols->func_symbols[func_id].
+                modulepath == NULL &&
+                pr->program->symbols->func_symbols[func_id].
+                libraryname == NULL) {
+            return 1;
         }
-        i++;
+        return 0;
     }
-    i = 0;
-    while (i < pr->program->symbols->classes_count) {
-        if (pr->program->symbols->classes_symbols[i].modulepath == NULL &&
-                pr->program->symbols->classes_symbols[i].
-                    libraryname == NULL) {
-            if (strcmp(pr->program->symbols->classes_symbols[i].
-                    name, identifier) == 0)
-                return 1;
+    assert(number == 0);
+    if (hash_StringMapGet(
+            pr->program->symbols->class_namepath_to_class_id,
+            identifier, &number
+            )) {
+        int cls_id = (int)number;
+        assert(cls_id >= 0 && cls_id < pr->program->symbols->classes_count);
+        if (pr->program->symbols->classes_symbols[cls_id].
+                modulepath == NULL &&
+                pr->program->symbols->classes_symbols[cls_id].
+                libraryname == NULL) {
+            return 1;
         }
-        i++;
+        return 0;
     }
     return 0;
 }
