@@ -59,7 +59,7 @@ void h64debugsymbols_ClearFuncSymbol(
     free(fsymbol->arg_kwarg_name);
 }
 
-int h64debugsymbols_MemberNameToMemberNameId(
+int64_t h64debugsymbols_MemberNameToMemberNameId(
         h64debugsymbols *symbols, const char *name,
         int addifnotpresent
         ) {
@@ -70,7 +70,7 @@ int h64debugsymbols_MemberNameToMemberNameId(
             symbols->member_name_to_global_member_id,
             name, &number)) {
         if (addifnotpresent) {
-            int new_id = symbols->global_member_count;
+            int64_t new_id = symbols->global_member_count;
             char **new_name_list = realloc(
                 symbols->global_member_name,
                 sizeof(*symbols->global_member_name) *

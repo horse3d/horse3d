@@ -12,6 +12,7 @@
 
 // #define H64AST_DEBUG
 
+#include "bytecode.h"
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
@@ -3336,15 +3337,38 @@ int ast_ParseExprStmt(
         // Separate actual definition types:
         int vardefcount = 0;
         int funcdefcount = 0;
+        int nameoom = 0;
         int k = 0;
         while (k < stmt_count) {
             assert(stmt[k]->type == H64EXPRTYPE_VARDEF_STMT ||
                     stmt[k]->type == H64EXPRTYPE_FUNCDEF_STMT);
-            if (stmt[k]->type == H64EXPRTYPE_VARDEF_STMT)
+            int64_t nameindex = -1;
+            if (stmt[k]->type == H64EXPRTYPE_VARDEF_STMT) {
+                if (stmt[k]->vardef.identifier != NULL) {
+                    nameindex = h64debugsymbols_MemberNameToMemberNameId(
+                        context->project->program->symbols,
+                        stmt[k]->vardef.identifier, 1
+                    );
+                    if (nameindex < 0) nameoom = 1;
+                }
                 vardefcount++;
-            else
+            } else {
+                if (stmt[k]->funcdef.name != NULL) {
+                    nameindex = h64debugsymbols_MemberNameToMemberNameId(
+                        context->project->program->symbols,
+                        stmt[k]->funcdef.name, 1
+                    );
+                    if (nameindex < 0) nameoom = 1;
+                }
                 funcdefcount++;
+            }
             k++;
+        }
+        if (nameoom) {
+            // Got out of memory trying to map member name to index:
+            if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 0;
+            goto classparsefail;
         }
         if (funcdefcount > 0) {
             expr->classdef.funcdef = malloc(

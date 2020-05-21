@@ -35,11 +35,11 @@ typedef struct h64debugsymbols {
     h64classsymbol *classes_symbols;
 
     hashmap *member_name_to_global_member_id;
-    int global_member_count;
+    int64_t global_member_count;
     char **global_member_name;
 } h64debugsymbols;
 
-int h64debugsymbols_MemberNameToMemberNameId(
+int64_t h64debugsymbols_MemberNameToMemberNameId(
     h64debugsymbols *symbols, const char *name,
     int addifnotpresent
 );

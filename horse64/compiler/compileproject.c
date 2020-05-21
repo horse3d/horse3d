@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bytecode.h"
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 #include "compiler/codemodule.h"
@@ -39,39 +40,41 @@ h64compileproject *compileproject_New(
     char *s = filesys_ToAbsolutePath(uinfo->path);
     uri_Free(uinfo); uinfo = NULL;
     if (!s) {
-        free(pr);
+        compileproject_Free(pr);
         return NULL;
     }
     pr->basefolder = filesys_Normalize(s);
     free(s);
     if (!pr->basefolder) {
-        free(pr);
+        compileproject_Free(pr);
         return NULL;
     }
 
     if (!secrandom_GetBytes(
             pr->hashsecret, sizeof(*pr->hashsecret)
             )) {
-        free(pr->basefolder);
-        free(pr);
+        compileproject_Free(pr);
         return NULL;
     }
     pr->astfilemap = hash_NewStringMap(32);
     if (!pr->astfilemap) {
-        free(pr->basefolder);
-        free(pr);
+        compileproject_Free(pr);
         return NULL;
     }
 
     pr->resultmsg = malloc(sizeof(*pr->resultmsg));
     if (!pr->resultmsg) {
-        free(pr->basefolder);
-        hash_FreeMap(pr->astfilemap);
-        free(pr);
+        compileproject_Free(pr);
         return NULL;
     }
     memset(pr->resultmsg, 0, sizeof(*pr->resultmsg));
     pr->resultmsg->success = 1;
+
+    pr->program = h64program_New();
+    if (!pr->program) {
+        compileproject_Free(pr);
+        return NULL;
+    }
 
     #ifdef DEBUG_COMPILEPROJECT
     printf("horsec: debug: compileproject_New -> %p\n", pr);
@@ -227,10 +230,12 @@ void compileproject_Free(h64compileproject *pr) {
         );
         hash_FreeMap(pr->astfilemap);
     }
-
     if (pr->resultmsg) {
         result_FreeContents(pr->resultmsg);
         free(pr->resultmsg);
+    }
+    if (pr->program) {
+        h64program_Free(pr->program);
     }
 
     free(pr);

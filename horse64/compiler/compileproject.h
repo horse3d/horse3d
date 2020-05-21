@@ -2,10 +2,12 @@
 #define HORSE64_COMPILER_COMPILEPROJECT_H_
 
 #include "compiler/warningconfig.h"
+#include "debugsymbols.h"
 
 typedef struct hashmap hashmap;
-
+typedef struct h64program h64program;
 typedef struct h64result h64result;
+
 
 typedef struct h64compileproject {
     h64compilewarnconfig warnconfig;
@@ -14,6 +16,7 @@ typedef struct h64compileproject {
 
     char *basefolder;
     hashmap *astfilemap;
+    h64program *program;
 
     h64result *resultmsg;
 } h64compileproject;
