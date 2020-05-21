@@ -23,6 +23,12 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
         i++;
     }
     free(symbols->classes_symbols);
+    i = 0;
+    while (i < symbols->global_member_count) {
+        free(symbols->global_member_name[i]);
+        i++;
+    }
+    free(symbols->global_member_name);
 
     if (symbols->func_name_to_func_id)
         hash_FreeMap(symbols->func_name_to_func_id);
