@@ -12,12 +12,15 @@ START_TEST (test_bytecode)
     h64program *p = h64program_New();
 
     ck_assert(p != NULL && p->symbols != NULL);
-    ck_assert(p->classes_count > 0 &&
-              p->classes_count == p->symbols->classes_count);
+    h64modulesymbols *msymbols = (
+        h64debugsymbols_GetBuiltinModule(p->symbols)
+    );
+    ck_assert(p->classes_count > 0 && msymbols != NULL &&
+              p->classes_count == msymbols->classes_count);
     int i = 0;
     while (i < H64STDERROR_TOTAL_COUNT) {
         ck_assert(i < p->classes_count);
-        ck_assert(strcmp(p->symbols->classes_symbols[i].name,
+        ck_assert(strcmp(msymbols->classes_symbols[i].name,
                          stderrorclassnames[i]) == 0);
         i++;
     }

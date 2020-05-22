@@ -101,106 +101,93 @@ int h64program_RegisterCFunction(
         free(normalized_uri);
     }
 
+    h64modulesymbols *msymbols = NULL;
+    if (module_path) {
+        msymbols = h64debugsymbols_GetModule(
+            p->symbols, module_path, 1
+        );
+        if (!msymbols)
+            return -1;
+    } else {
+        msymbols = h64debugsymbols_GetBuiltinModule(p->symbols);
+        assert(msymbols != NULL);
+    }
+
     // Add to the func symbols table:
     h64funcsymbol *new_func_symbols = realloc(
-        p->symbols->func_symbols,
-        sizeof(*p->symbols->func_symbols) * (
-            p->symbols->func_count + 1
+        msymbols->func_symbols,
+        sizeof(*msymbols->func_symbols) * (
+            msymbols->func_count + 1
         ));
     if (!new_func_symbols)
         return -1;
-    p->symbols->func_symbols = new_func_symbols;
-    memset(&p->symbols->func_symbols[p->symbols->func_count],
-        0, sizeof(*p->symbols->func_symbols));
-    p->symbols->func_symbols[p->symbols->func_count].name = (
+    msymbols->func_symbols = new_func_symbols;
+    memset(&msymbols->func_symbols[msymbols->func_count],
+        0, sizeof(*msymbols->func_symbols));
+    msymbols->func_symbols[msymbols->func_count].name = (
         strdup(name)
     );
-    p->symbols->func_symbols[p->symbols->func_count].
+    msymbols->func_symbols[msymbols->func_count].
         fileuri_index = fileuriindex;
-    if (!p->symbols->func_symbols[p->symbols->func_count].name) {
+    if (!msymbols->func_symbols[msymbols->func_count].name) {
         funcsymboloom:
         h64debugsymbols_ClearFuncSymbol(
-            &p->symbols->func_symbols[p->symbols->func_count]
+            &msymbols->func_symbols[msymbols->func_count]
         );
         return -1;
     }
     if (module_path) {
-        p->symbols->func_symbols[p->symbols->func_count].modulepath = (
+        msymbols->func_symbols[msymbols->func_count].modulepath = (
             strdup(module_path)
         );
-        if (!p->symbols->func_symbols[p->symbols->func_count].
+        if (!msymbols->func_symbols[msymbols->func_count].
                 modulepath)
             goto funcsymboloom;
     }
     if (library_name) {
-        p->symbols->func_symbols[p->symbols->func_count].libraryname = (
+        msymbols->func_symbols[msymbols->func_count].libraryname = (
             strdup(library_name)
         );
-        if (!p->symbols->func_symbols[p->symbols->func_count].
+        if (!msymbols->func_symbols[msymbols->func_count].
                 libraryname)
             goto funcsymboloom;
     }
-    p->symbols->func_symbols[p->symbols->func_count].arg_count = arg_count;
+    msymbols->func_symbols[msymbols->func_count].arg_count = arg_count;
     if (arg_count > 0) {
-        p->symbols->func_symbols[p->symbols->func_count].
+        msymbols->func_symbols[msymbols->func_count].
                 arg_kwarg_name = (
-            malloc(sizeof(*p->symbols->func_symbols[p->symbols->func_count].
+            malloc(sizeof(*msymbols->func_symbols[msymbols->func_count].
                 arg_kwarg_name) * arg_count));
-        if (!p->symbols->func_symbols[p->symbols->func_count].
+        if (!msymbols->func_symbols[msymbols->func_count].
                 arg_kwarg_name)
             goto funcsymboloom;
         memset(
-            p->symbols->func_symbols[p->symbols->func_count].
+            msymbols->func_symbols[msymbols->func_count].
             arg_kwarg_name, 0,
-            sizeof(*p->symbols->func_symbols[p->symbols->func_count].
+            sizeof(*msymbols->func_symbols[msymbols->func_count].
                 arg_kwarg_name) * arg_count);
         int i = 0;
         while (i < arg_count) {
-            p->symbols->func_symbols[p->symbols->func_count].
+            msymbols->func_symbols[msymbols->func_count].
                 arg_kwarg_name[i] = (
                 (arg_kwarg_name && arg_kwarg_name[i]) ?
                  strdup(arg_kwarg_name[i]) : NULL
                 );
             if (arg_kwarg_name && arg_kwarg_name[i] &&
-                    p->symbols->func_symbols[p->symbols->func_count].
+                    msymbols->func_symbols[msymbols->func_count].
                     arg_kwarg_name[i] == NULL)
                 goto funcsymboloom;
             i++;
         }
     }
 
-    // Add function to lookup-by-namepath hash table:
-    char *full_path = malloc(
-        (library_name ? strlen("@") + strlen(library_name) +
-         strlen(".") : 0) +
-        (module_path ? strlen(module_path) + strlen(".") : 0) +
-        strlen(name) +
-        1  // null-terminator
-    );
-    if (!full_path)
-        goto funcsymboloom;
-    full_path[0] = '\0';
-    if (library_name) {
-        full_path[0] = '@';
-        memcpy(full_path + 1, library_name, strlen(library_name));
-        full_path[1 + strlen(library_name)] = '.';
-        full_path[1 + strlen(library_name) + 1] = '\0';
-    }
-    if (module_path) {
-        memcpy(full_path + strlen(full_path), module_path,
-               strlen(module_path) + 1);
-        full_path[strlen(full_path) + 1] = '\0';
-        full_path[strlen(full_path)] = '.';
-    }
-    memcpy(full_path + strlen(full_path), name, strlen(name) + 1);
-    uint64_t setno = p->symbols->classes_count;
+    // Add function to lookup-by-name hash table:
+    uint64_t setno = msymbols->func_count;
     if (!hash_StringMapSet(
-            p->symbols->func_namepath_to_func_id,
-            full_path, setno)) {
-        free(full_path);
+            msymbols->func_name_to_func_id,
+            name, setno)) {
         goto funcsymboloom;
     }
-    free(full_path);
 
     // Add actual function entry:
     p->func[p->func_count].arg_count = arg_count;
@@ -214,7 +201,7 @@ int h64program_RegisterCFunction(
     p->func[p->func_count].cfunc_ptr = func;
 
     p->func_count++;
-    p->symbols->func_count++;
+    msymbols->func_count++;
 
     return p->func_count - 1;
 }
@@ -288,76 +275,63 @@ int h64program_AddClass(
         }
     }
 
+    h64modulesymbols *msymbols = NULL;
+    if (module_path) {
+        msymbols = h64debugsymbols_GetModule(
+            p->symbols, module_path, 1
+        );
+        if (!msymbols)
+            return -1;
+    } else {
+        msymbols = h64debugsymbols_GetBuiltinModule(p->symbols);
+        assert(msymbols != NULL);
+    }
+
     // Add to the class symbols table:
     h64classsymbol *new_classes_symbols = realloc(
-        p->symbols->classes_symbols,
-        sizeof(*p->symbols->classes_symbols) * (
-            p->symbols->classes_count + 1
+        msymbols->classes_symbols,
+        sizeof(*msymbols->classes_symbols) * (
+            msymbols->classes_count + 1
         ));
     if (!new_classes_symbols)
         return -1;
-    p->symbols->classes_symbols = new_classes_symbols;
-    memset(&p->symbols->classes_symbols[p->symbols->classes_count],
-        0, sizeof(*p->symbols->classes_symbols));
-    p->symbols->classes_symbols[p->symbols->classes_count].name = (
+    msymbols->classes_symbols = new_classes_symbols;
+    memset(&msymbols->classes_symbols[msymbols->classes_count],
+        0, sizeof(*msymbols->classes_symbols));
+    msymbols->classes_symbols[msymbols->classes_count].name = (
         strdup(name)
     );
-    if (!p->symbols->classes_symbols[p->symbols->classes_count].name) {
+    if (!msymbols->classes_symbols[msymbols->classes_count].name) {
         classsymboloom:
         h64debugsymbols_ClearClassSymbol(
-            &p->symbols->classes_symbols[p->symbols->classes_count]
+            &msymbols->classes_symbols[msymbols->classes_count]
         );
         return -1;
     }
-    p->symbols->classes_symbols[p->symbols->classes_count].
+    msymbols->classes_symbols[msymbols->classes_count].
         fileuri_index = fileuriindex;
     if (module_path) {
-        p->symbols->classes_symbols[p->symbols->classes_count].
+        msymbols->classes_symbols[msymbols->classes_count].
             modulepath = strdup(module_path);
-        if (!p->symbols->classes_symbols[p->symbols->classes_count].
+        if (!msymbols->classes_symbols[msymbols->classes_count].
                 modulepath)
             goto classsymboloom;
     }
     if (library_name) {
-        p->symbols->classes_symbols[p->symbols->classes_count].
+        msymbols->classes_symbols[msymbols->classes_count].
             libraryname = strdup(library_name);
-        if (!p->symbols->classes_symbols[p->symbols->classes_count].
+        if (!msymbols->classes_symbols[msymbols->classes_count].
                 libraryname)
             goto classsymboloom;
     }
 
-    // Add class to lookup-by-namepath hash table:
-    char *full_path = malloc(
-        (library_name ? strlen("@") + strlen(library_name) +
-         strlen(".") : 0) +
-        (module_path ? strlen(module_path) + strlen(".") : 0) +
-        strlen(name) +
-        1  // null-terminator
-    );
-    if (!full_path)
-        goto classsymboloom;
-    full_path[0] = '\0';
-    if (library_name) {
-        full_path[0] = '@';
-        memcpy(full_path + 1, library_name, strlen(library_name));
-        full_path[1 + strlen(library_name)] = '.';
-        full_path[1 + strlen(library_name) + 1] = '\0';
-    }
-    if (module_path) {
-        memcpy(full_path + strlen(full_path), module_path,
-               strlen(module_path) + 1);
-        full_path[strlen(full_path) + 1] = '\0';
-        full_path[strlen(full_path)] = '.';
-    }
-    memcpy(full_path + strlen(full_path), name, strlen(name) + 1);
-    uint64_t setno = p->symbols->classes_count;
+    // Add class to lookup-by-name hash table:
+    uint64_t setno = msymbols->classes_count;
     if (!hash_StringMapSet(
-            p->symbols->class_namepath_to_class_id,
-            full_path, setno)) {
-        free(full_path);
+            msymbols->class_name_to_class_id,
+            name, setno)) {
         goto classsymboloom;
     }
-    free(full_path);
 
     // Add actual class entry:
     p->classes[p->classes_count].members_count = 0;
@@ -365,7 +339,7 @@ int h64program_AddClass(
     p->classes[p->classes_count].method_func_idx = NULL;
 
     p->classes_count++;
-    p->symbols->classes_count++;
+    msymbols->classes_count++;
 
     return p->classes_count - 1;
 }

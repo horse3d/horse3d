@@ -9,10 +9,12 @@
 #include "compiler/compileproject.h"
 #include "compiler/scoperesolver.h"
 #include "compiler/scope.h"
+#include "filesys.h"
 #include "hash.h"
 
 typedef struct resolveinfo {
     h64compileproject *pr;
+    char *modulepath;
     h64ast *ast;
     int isbuiltinmodule;
     int hadoutofmemory;
@@ -23,17 +25,22 @@ static int identifierisbuiltin(
         const char *identifier,
         int isbuiltinmodule  // whether to allow access to secret built-ins
         ) {
-    assert(pr->program->symbols->func_namepath_to_func_id != NULL);
+    assert(pr->program->symbols != NULL);
+    h64modulesymbols *msymbols = h64debugsymbols_GetBuiltinModule(
+        pr->program->symbols
+    );
+    assert(msymbols != NULL);
+
     uint64_t number = 0;
     if (hash_StringMapGet(
-            pr->program->symbols->func_namepath_to_func_id,
+            msymbols->func_name_to_func_id,
             identifier, &number
             )) {
         int func_id = (int)number;
-        assert(func_id >= 0 && func_id < pr->program->symbols->func_count);
-        if (pr->program->symbols->func_symbols[func_id].
+        assert(func_id >= 0 && func_id < msymbols->func_count);
+        if (msymbols->func_symbols[func_id].
                 modulepath == NULL &&
-                pr->program->symbols->func_symbols[func_id].
+                msymbols->func_symbols[func_id].
                 libraryname == NULL) {
             return 1;
         }
@@ -41,14 +48,14 @@ static int identifierisbuiltin(
     }
     assert(number == 0);
     if (hash_StringMapGet(
-            pr->program->symbols->class_namepath_to_class_id,
+            msymbols->class_name_to_class_id,
             identifier, &number
             )) {
         int cls_id = (int)number;
-        assert(cls_id >= 0 && cls_id < pr->program->symbols->classes_count);
-        if (pr->program->symbols->classes_symbols[cls_id].
+        assert(cls_id >= 0 && cls_id < msymbols->classes_count);
+        if (msymbols->classes_symbols[cls_id].
                 modulepath == NULL &&
-                pr->program->symbols->classes_symbols[cls_id].
+                msymbols->classes_symbols[cls_id].
                 libraryname == NULL) {
             return 1;
         }
@@ -61,10 +68,42 @@ const char *_shortenedname(
     char *buf, const char *name
 );
 
-int _resolvercallback_ResolveIdentifiers_visit_out(
+int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
     resolveinfo *rinfo = (resolveinfo *)ud;
+    // Add file-global items to the project-global item lookups:
+    if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
+            expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
+            expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+        h64scope *scope = ast_GetScope(expr, &rinfo->ast->scope);
+        if (scope == NULL) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "internal error: failed to obtain scope, "
+                "malformed AST? expr: %s, parent: %s",
+                ast_ExpressionTypeToStr(expr->type),
+                (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
+                 "none")
+            );
+            if (!result_AddMessage(
+                    &rinfo->ast->resultmsg,
+                    H64MSG_ERROR,
+                    buf,
+                    rinfo->ast->fileuri,
+                    expr->line, expr->column
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            return 1;
+        }
+        if (scope->is_global) {
+
+        }
+    }
+
+    // Resolve identifiers if we can:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             (parent == NULL ||
              parent->type != H64EXPRTYPE_BINARYOP ||
@@ -126,6 +165,70 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
 int scoperesolver_ResolveAST(
         h64compileproject *pr, h64ast *unresolved_ast
         ) {
+    // Set module path if missing:
+    assert(unresolved_ast->fileuri != NULL);
+    if (!unresolved_ast->module_path) {
+        char *module_path = compileproject_ToProjectRelPath(
+            pr, unresolved_ast->fileuri
+        );
+        if (!module_path)
+            return 0;
+
+        // Strip away file extension and normalize:
+        if (strlen(module_path) > strlen(".h64") && (
+                memcmp(module_path + strlen(module_path) -
+                       strlen(".h64"), ".h64", strlen(".h64")) == 0 ||
+                memcmp(module_path + strlen(module_path) -
+                       strlen(".h64"), ".h64", strlen(".h64")) == 0)) {
+            module_path[strlen(module_path) - strlen(".h64")] = '\0';
+        }
+        char *new_module_path = filesys_Normalize(module_path);
+        free(module_path);
+        if (!new_module_path) {
+            return 0;
+        }
+        module_path = new_module_path;
+
+        // If path has dots, then abort with error:
+        unsigned int i = 0;
+        while (i < strlen(module_path)) {
+            if (module_path[i] == '.') {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "cannot integrate module with dots in file path: "
+                    "%s", module_path);
+                free(module_path);
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, buf,
+                        unresolved_ast->fileuri,
+                        -1, -1
+                    ))
+                    return 0;  // Out of memory
+                return 1;  // regular abort with failure
+            }
+            i++;
+        }
+
+        // Replace file separators with dots:
+        i = 0;
+        while (i < strlen(module_path)) {
+            if (module_path[i] == '/'
+                    #if defined(_WIN32) || defined(_WIN64)
+                    || module_path[i] == '\\'
+                    #endif
+                    ) {
+                module_path[i] = '.';
+            }
+            i++;
+        }
+
+        unresolved_ast->module_path = strdup(module_path);
+        free(module_path);
+        if (!unresolved_ast->module_path)
+            return 0;
+    }
+
     // First, make sure all imports are loaded up:
     int i = 0;
     while (i < unresolved_ast->scope.definitionref_count) {
@@ -229,7 +332,7 @@ int scoperesolver_ResolveAST(
         i++;
     }
 
-    // Now, actually resolve identifiers:
+    // Now, actually resolve identifiers and build project-wide lookups:
     resolveinfo rinfo;
     memset(&rinfo, 0, sizeof(rinfo));
     rinfo.pr = pr;
@@ -240,7 +343,7 @@ int scoperesolver_ResolveAST(
         int result = ast_VisitExpression(
             unresolved_ast->stmt[k], NULL,
             NULL,
-            &_resolvercallback_ResolveIdentifiers_visit_out,
+            &_resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out,
             &rinfo
         );
         if (!result || rinfo.hadoutofmemory) {
