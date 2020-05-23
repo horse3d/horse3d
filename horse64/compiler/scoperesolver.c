@@ -300,8 +300,9 @@ int scoperesolver_ResolveAST(
     // First, make sure all imports are loaded up:
     int i = 0;
     while (i < unresolved_ast->scope.definitionref_count) {
+        assert(unresolved_ast->scope.definitionref[i] != NULL);
         h64expression *expr = (
-            unresolved_ast->scope.definitionref[i].declarationexpr
+            unresolved_ast->scope.definitionref[i]->declarationexpr
         );
         if (expr->type != H64EXPRTYPE_IMPORT_STMT) {
             i++;

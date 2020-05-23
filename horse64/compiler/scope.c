@@ -31,6 +31,11 @@ void scope_FreeData(h64scope *scope) {
 
     if (scope->name_to_declaration_map)
         hash_FreeMap(scope->name_to_declaration_map);
+    int i = 0;
+    while (i < scope->definitionref_count) {
+        free(scope->definitionref[i]);
+        i++;
+    }
     free(scope->definitionref);
     memset(scope, 0, sizeof(*scope));
 }
@@ -52,8 +57,9 @@ void scope_RemoveItem(
         ) != 0);
         int i = 0;
         while (i < scope->definitionref_count) {
-            if (strcmp(scope->definitionref[i].identifier,
+            if (strcmp(scope->definitionref[i]->identifier,
                     identifier_ref) == 0) {
+                free(scope->definitionref[i]);
                 if (i + 1 < scope->definitionref_count) {
                     memmove(
                         &scope->definitionref[i],
@@ -87,7 +93,7 @@ int scope_AddItem(
         int new_alloc = scope->definitionref_alloc * 2;
         if (new_alloc < scope->definitionref_count + 8)
             new_alloc = scope->definitionref_count + 8;
-        h64scopedef *new_refs = realloc(
+        h64scopedef **new_refs = realloc(
             scope->definitionref, new_alloc * sizeof(*new_refs)
         );
         if (!new_refs) {
@@ -100,13 +106,20 @@ int scope_AddItem(
     int i = scope->definitionref_count;
     assert(i < scope->definitionref_alloc);
     scope->definitionref_count++;
-    memset(&scope->definitionref[i], 0, sizeof(*scope->definitionref));
-    scope->definitionref[i].scope = scope;
-    scope->definitionref[i].identifier = identifier_ref;
-    scope->definitionref[i].declarationexpr = expr;
+    scope->definitionref[i] = malloc(sizeof(**scope->definitionref));
+    if (!scope->definitionref[i]) {
+        scope->definitionref_count--;
+        if (outofmemory) *outofmemory = 1;
+        return 0;
+    }
+    memset(scope->definitionref[i], 0, sizeof(**scope->definitionref));
+    scope->definitionref[i]->scope = scope;
+    scope->definitionref[i]->identifier = identifier_ref;
+    scope->definitionref[i]->declarationexpr = expr;
     if (!hash_StringMapSet(
             scope->name_to_declaration_map, identifier_ref,
-            (uintptr_t)&scope->definitionref[i])) {
+            (uintptr_t)scope->definitionref[i])) {
+        free(scope->definitionref[i]);
         scope->definitionref_count--;
         if (outofmemory) *outofmemory = 1;
         return 0;
@@ -159,9 +172,10 @@ jsonvalue *scope_ScopeToJSON(
     int fail = 0;
     int i = 0;
     while (i < scope->definitionref_count) {
+        assert(scope->definitionref[i] != NULL);
         jsonvalue *item = json_Dict();
         if (!json_SetDictStr(item, "identifier",
-                scope->definitionref[i].identifier
+                scope->definitionref[i]->identifier
                 )) {
             fail = 1;
             json_Free(item);
@@ -169,7 +183,7 @@ jsonvalue *scope_ScopeToJSON(
         }
         if (!json_SetDictStr(item, "type",
                 ast_ExpressionTypeToStr(
-                scope->definitionref[i].declarationexpr->type)
+                scope->definitionref[i]->declarationexpr->type)
                 )) {
             fail = 1;
             json_Free(item);

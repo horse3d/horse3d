@@ -25,7 +25,7 @@ typedef struct h64scopedef {
 
 typedef struct h64scope {
     int definitionref_count, definitionref_alloc;
-    h64scopedef *definitionref;
+    h64scopedef **definitionref;
 
     unsigned int magicinitnum;
 
