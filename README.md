@@ -4,7 +4,7 @@ Horse64
 
 ![GitHub Workflow Status Badge (branch master)](https://img.shields.io/github/workflow/status/horse64/horse64/Basic%20build%20and%20test/master?label=build%20and%20tests&style=flat-square)
 
-Welcome to *Horse64*, an **elegant & comprehensive programming
+Welcome to *Horse64*, an **clean & comprehensive programming
 language** for your applications.
 
 [![logo](misc/logo-readme.png)](https://horse64.org)
@@ -38,7 +38,7 @@ func main {
   suitable for cloud & micro service use.
 
 - **Multimedia included.** Support for 3D via OpenGL, and
-  2D UIs out of the box.
+  complex User Interfaces out of the box.
 
 - **Open.** *Horse64* is, excluding its logo, all free software
   under BSD-like licensing. [Check the license here.](LICENSE.md)
