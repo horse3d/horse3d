@@ -92,6 +92,7 @@ int h64program_RegisterCFunction(
                 free(normalized_uri);
                 return -1;
             }
+            p->symbols->fileuri = new_fileuri;
             p->symbols->fileuri[p->symbols->fileuri_count] =
                 normalized_uri;
             fileuriindex = p->symbols->fileuri_count;
@@ -267,6 +268,7 @@ int h64program_AddClass(
                 free(normalized_uri);
                 return -1;
             }
+            p->symbols->fileuri = new_fileuri;
             p->symbols->fileuri[p->symbols->fileuri_count] =
                 normalized_uri;
             fileuriindex = p->symbols->fileuri_count;
