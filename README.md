@@ -46,6 +46,8 @@ func main {
 - **Reliable.** Comfortable garbage-collection gives you
   stability without manual hand-holding.
 
+- **Flexible.** Supports unicode identifiers, any indents
+  with no significant whitespace, and LSP for wide editor choices.
 
 Get Started
 -----------
