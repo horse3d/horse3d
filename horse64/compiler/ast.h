@@ -47,6 +47,7 @@ typedef struct h64scope h64scope;
 
 typedef struct h64funcargs {
     int arg_count;
+    int last_posarg_is_multiarg;
     char **arg_name;
     h64expression **arg_value;
 } h64funcargs;

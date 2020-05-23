@@ -117,7 +117,7 @@ int h64program_RegisterHorse64Function(
     const char *fileuri,
     int arg_count,
     char **arg_kwarg_name,
-    int last_is_multiarg,
+    int last_posarg_is_multiarg,
     const char *module_path,
     const char *library_name,
     int associated_class_idx

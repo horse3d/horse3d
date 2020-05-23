@@ -14,6 +14,7 @@
 
 typedef struct resolveinfo {
     h64compileproject *pr;
+    char *libraryname;
     char *modulepath;
     h64ast *ast;
     int isbuiltinmodule;
@@ -99,7 +100,74 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
             return 1;
         }
         if (scope->is_global) {
-
+            const char *name = NULL;
+            if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+                name = expr->vardef.identifier;
+                // FIXME: set globals to make them importable
+            } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
+                name = expr->classdef.name;
+                if (!h64program_AddClass(
+                        rinfo->pr->program, name, rinfo->ast->fileuri,
+                        rinfo->modulepath, rinfo->libraryname
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+                name = expr->funcdef.name;
+                char **kwarg_names = malloc(
+                    sizeof(*kwarg_names) * expr->funcdef.arguments.arg_count
+                );
+                if (!kwarg_names) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                memset(kwarg_names, 0, sizeof(*kwarg_names) *
+                       expr->funcdef.arguments.arg_count);
+                int i = 0;
+                while (i < expr->funcdef.arguments.arg_count) {
+                    if (expr->funcdef.arguments.arg_value[i]) {
+                        kwarg_names[i] = strdup(
+                            expr->funcdef.arguments.arg_name[i]
+                        );
+                        if (!kwarg_names[i]) {
+                            int k = 0;
+                            while (k < i) {
+                                free(kwarg_names[k]);
+                                k++;
+                            }
+                            free(kwarg_names);
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
+                    }
+                    i++;
+                }
+                if (!h64program_RegisterHorse64Function(
+                        rinfo->pr->program, name, rinfo->ast->fileuri,
+                        expr->funcdef.arguments.arg_count,
+                        kwarg_names,
+                        expr->funcdef.arguments.last_posarg_is_multiarg,
+                        rinfo->modulepath,
+                        rinfo->libraryname,
+                        -1
+                        )) {
+                    int k = 0;
+                    while (k < i) {
+                        free(kwarg_names[k]);
+                        k++;
+                    }
+                    free(kwarg_names);
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                int k = 0;
+                while (k < i) {
+                    free(kwarg_names[k]);
+                    k++;
+                }
+                free(kwarg_names);
+            }
         }
     }
 
