@@ -1,6 +1,7 @@
 #ifndef HORSE64_COMPILER_AST_H_
 #define HORSE64_COMPILER_AST_H_
 
+#include "bytecode.h"
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
 #include "compiler/scope.h"
@@ -65,11 +66,24 @@ struct h64ifstmt {
 
 typedef struct h64ast h64ast;
 
+#define EXPRSTORAGETYPE_UNSET 0
+#define EXPRSTORAGETYPE_STORAGEREF 1
+#define EXPRSTORAGETYPE_KNOWNINT 2
+#define EXPRSTORAGETYPE_KNOWNFLOAT 3
+
 typedef struct h64expression {
     int64_t line, column;
     int tokenindex;
     h64expression *parent;
     h64expressiontype type;
+    union storageorknownvalue {
+        int type;
+        union {
+            storageref ref;
+            int64_t knownint;
+            double knownfloat;
+        };
+    } storageorknownvalue;
     union {
         struct vardef {
             int is_deprecated;
