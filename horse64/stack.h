@@ -19,6 +19,7 @@ typedef struct h64stackblock {
 
 typedef struct h64stack {
     int64_t entry_total_count, alloc_total_count;
+    int64_t current_func_floor;
     int block_count;
     h64stackblock *block;
 } h64stack;
@@ -44,14 +45,17 @@ static inline valuecontent *stack_GetEntrySlow(
     return &st->block[k].entry[index - st->block[k].offset];
 }
 
-#define STACK_SIZE(stack) ((int64_t)stack->entry_total_count)
+#define STACK_TOTALSIZE(stack) ((int64_t)stack->entry_total_count)
+#define STACK_TOP(stack) (\
+    (int64_t)stack->entry_total_count - stack->current_func_floor\
+    )
 #define STACK_ALLOC_SIZE(stack) ((int64_t)stack->alloc_total_count)
 #define STACK_ENTRY(stack, no) (\
     ((int64_t)no >= 0) ?\
     ((stack->block_count > 0 &&\
-      no < stack->block[0].entry_count) ?\
-      &stack->block[0].entry[no] :\
-      stack_GetEntrySlow(stack, no)) :\
+      no + stack->current_func_floor < stack->block[0].entry_count) ?\
+      &stack->block[0].entry[no + stack->current_func_floor] :\
+      stack_GetEntrySlow(stack, no + stack->current_func_floor)) :\
      (stack->block_count > 0 &&\
       -no <= stack->block[stack->block_count - 1].entry_count) ?\
       &stack->block[stack->block_count - 1].entry[\

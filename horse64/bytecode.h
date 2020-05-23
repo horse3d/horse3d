@@ -14,7 +14,7 @@ typedef enum instructiontype {
 
 typedef enum storagetype {
     H64STORETYPE_INVALID = 0,
-    H64STORETYPE_LOCALSTACKID = 1,
+    H64STORETYPE_STACKSLOT = 1,
     H64STORETYPE_GLOBALFUNCSLOT,
     H64STORETYPE_GLOBALCLASSSLOT,
     H64STORETYPE_GLOBALVARSLOT,
@@ -116,7 +116,7 @@ typedef struct h64vmthread h64vmthread;
 int h64program_RegisterCFunction(
     h64program *p,
     const char *name,
-    int (*func)(h64vmthread *vmthread, int stackbottom),
+    int (*func)(h64vmthread *vmthread),
     const char *fileuri,
     int arg_count,
     char **arg_kwarg_name,

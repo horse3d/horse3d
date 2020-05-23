@@ -26,11 +26,11 @@ int stderror(
     va_end(args);
     vmthread_WipeFuncStack(vmthread);
     if (!stack_ToSize(vmthread->stack,
-                      STACK_SIZE(vmthread->stack) + 1, 0)) {
+                      STACK_TOTALSIZE(vmthread->stack) + 1, 0)) {
         error_class_id = H64STDERROR_OUTOFMEMORYERROR;
         snprintf(buf, sizeof(buf) - 1, "out of memory");
         if (!stack_ToSize(vmthread->stack,
-                          STACK_SIZE(vmthread->stack) + 1, 1)) {
+                          STACK_TOTALSIZE(vmthread->stack) + 1, 1)) {
             return -1;
         }
     }

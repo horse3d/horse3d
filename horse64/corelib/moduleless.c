@@ -18,8 +18,8 @@
 #include "vmexec.h"
 
 
-int corelib_print(h64vmthread *vmthread, int stackbottom) {
-    if (stackbottom >= STACK_SIZE(vmthread->stack)) {
+int corelib_print(h64vmthread *vmthread) {
+    if (STACK_TOP(vmthread->stack) == 0) {
         return stderror(
             vmthread, H64STDERROR_ARGUMENTERROR,
             "missing argument for print call"
@@ -28,8 +28,8 @@ int corelib_print(h64vmthread *vmthread, int stackbottom) {
     char *buf = alloca(256);
     uint64_t buflen = 256;
     int buffree = 0;
-    int i = stackbottom;
-    while (i < STACK_SIZE(vmthread->stack)) {
+    int i = 0;
+    while (i < STACK_TOP(vmthread->stack)) {
         if (i > 0)
             printf(" ");
         valuecontent *c = STACK_ENTRY(vmthread->stack, i);

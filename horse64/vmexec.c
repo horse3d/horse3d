@@ -33,8 +33,10 @@ void vmthread_Free(h64vmthread *vmthread) {
 
 void vmthread_WipeFuncStack(h64vmthread *vmthread) {
     assert(VMTHREAD_FUNCSTACKBOTTOM(vmthread) <=
-           STACK_SIZE(vmthread->stack));
-    if (VMTHREAD_FUNCSTACKBOTTOM(vmthread) < STACK_SIZE(vmthread->stack)
+           STACK_TOTALSIZE(vmthread->stack));
+    assert(VMTHREAD_FUNCSTACKBOTTOM(vmthread) ==
+           vmthread->stack->current_func_floor);
+    if (VMTHREAD_FUNCSTACKBOTTOM(vmthread) < STACK_TOTALSIZE(vmthread->stack)
             ) {
         int result = stack_ToSize(
             vmthread->stack,

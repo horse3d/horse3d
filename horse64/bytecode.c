@@ -49,7 +49,7 @@ void h64program_Free(h64program *p) {
 int h64program_RegisterCFunction(
         h64program *p,
         const char *name,
-        int (*func)(h64vmthread *vmthread, int stackbottom),
+        int (*func)(h64vmthread *vmthread),
         const char *fileuri,
         int arg_count,
         char **arg_kwarg_name,
