@@ -24,6 +24,12 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
         i++;
     }
     free(symbols->module_symbols);
+    i = 0;
+    while (i < symbols->fileuri_count) {
+        free(symbols->fileuri[i]);
+        i++;
+    }
+    free(symbols->fileuri);
 
     if (symbols->modulepath_to_modulesymbol_id)
         hash_FreeMap(symbols->modulepath_to_modulesymbol_id);
