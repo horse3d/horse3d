@@ -43,6 +43,7 @@ START_TEST (test_ast_simple)
 
     compileproject_Free(project);  // This indirectly frees 'ast'!
 }
+END_TEST
 
 START_TEST (test_ast_complex)
 {
@@ -82,6 +83,6 @@ START_TEST (test_ast_complex)
 
     compileproject_Free(project);  // This indirectly frees 'ast'!
 }
-
+END_TEST
 
 TESTS_MAIN (test_ast_simple, test_ast_complex)
