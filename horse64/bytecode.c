@@ -42,6 +42,14 @@ void h64program_Free(h64program *p) {
         h64debugsymbols_Free(p->symbols);
     free(p->classes);
     free(p->func);
+    int i = 0;
+    while (i < p->globalvar_count) {
+        h64program_ClearValueContent(
+            &p->globalvar[i].content, 0
+        );
+        i++;
+    }
+    free(p->globalvar);
 
     free(p);
 }
@@ -144,6 +152,7 @@ int h64program_AddGlobalvar(
 
     // Add globals to lookup-by-name hash table:
     uint64_t setno = msymbols->globalvar_count;
+    assert(msymbols->globalvar_name_to_entry != NULL);
     if (!hash_StringMapSet(
             msymbols->globalvar_name_to_entry,
             name, setno)) {

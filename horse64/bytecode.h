@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "gcvalue.h"
+
 typedef struct h64debugsymbols h64debugsymbols;
 typedef uint32_t unicodechar;
 
@@ -119,6 +121,18 @@ typedef struct h64program {
 h64program *h64program_New();
 
 typedef struct h64vmthread h64vmthread;
+
+static inline void h64program_ClearValueContent(
+        valuecontent *content, int referencedfromnonheap
+        ) {
+    if (content->type == H64VALTYPE_GCVAL) {
+        if (referencedfromnonheap) {
+            ((h64gcvalue *)content->ptr_value)->externalreferencecount--;
+        } else {
+            ((h64gcvalue *)content->ptr_value)->heapreferencecount--;
+        }
+    }
+}
 
 int h64program_RegisterCFunction(
     h64program *p,

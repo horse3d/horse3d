@@ -176,6 +176,13 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
             return NULL;
         }
 
+        msymbols->globalvar_name_to_entry = hash_NewStringMap(64);
+        if (!msymbols->globalvar_name_to_entry) {
+            h64debugsymbols_ClearModule(msymbols);
+            free(modlibpath);
+            return NULL;
+        }
+
         msymbols->module_path = strdup(modpath);
         if (!msymbols->module_path) {
             h64debugsymbols_ClearModule(msymbols);
