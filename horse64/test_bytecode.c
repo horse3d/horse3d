@@ -15,8 +15,9 @@ START_TEST (test_bytecode)
     h64modulesymbols *msymbols = (
         h64debugsymbols_GetBuiltinModule(p->symbols)
     );
-    ck_assert(p->classes_count > 0 && msymbols != NULL &&
-              p->classes_count == msymbols->classes_count);
+    ck_assert(p->classes_count > 0 && msymbols != NULL);
+    ck_assert(p->classes_count >= msymbols->classes_count &&
+              msymbols->classes_count > 0);
     int i = 0;
     while (i < H64STDERROR_TOTAL_COUNT) {
         ck_assert(i < p->classes_count);

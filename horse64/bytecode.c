@@ -139,6 +139,8 @@ int h64program_AddGlobalvar(
     }
     msymbols->globalvar_symbols[msymbols->globalvar_count].
         fileuri_index = fileuriindex;
+    msymbols->globalvar_symbols[msymbols->globalvar_count].
+        is_const = is_const;
 
     // Add globals to lookup-by-name hash table:
     uint64_t setno = msymbols->globalvar_count;

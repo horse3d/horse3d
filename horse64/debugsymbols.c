@@ -127,7 +127,11 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
     if (!modlibpath)
         return NULL;
     modlibpath[0] = '@';
-    memcpy(modlibpath + 1, library_name, strlen(library_name) + 1);
+    if (library_name) {
+        memcpy(modlibpath + 1, library_name, strlen(library_name) + 1);
+    } else {
+        modlibpath[1] = '\0';
+    }
     memcpy(
         modlibpath + strlen(modlibpath),
         modpath, strlen(modpath) + 1
@@ -138,17 +142,19 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
     if (!hash_StringMapGet(
             symbols->modulelibpath_to_modulesymbol_id, modlibpath,
             &number)) {
-        free(modlibpath);
-        modlibpath = NULL;
-        if (!addifnotpresent)
+        if (!addifnotpresent) {
+            free(modlibpath);
             return NULL;
+        }
 
         h64modulesymbols *new_symbols = realloc(
             symbols->module_symbols,
             sizeof(*new_symbols) * (symbols->module_count + 1)
         );
-        if (!new_symbols)
+        if (!new_symbols) {
+            free(modlibpath);
             return NULL;
+        }
         symbols->module_symbols = new_symbols;
 
         h64modulesymbols *msymbols = &(
@@ -159,28 +165,33 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
         msymbols->func_name_to_entry = hash_NewStringMap(64);
         if (!msymbols->func_name_to_entry) {
             h64debugsymbols_ClearModule(msymbols);
+            free(modlibpath);
             return NULL;
         }
 
         msymbols->class_name_to_entry = hash_NewStringMap(64);
         if (!msymbols->class_name_to_entry) {
             h64debugsymbols_ClearModule(msymbols);
+            free(modlibpath);
             return NULL;
         }
 
         msymbols->module_path = strdup(modpath);
         if (!msymbols->module_path) {
             h64debugsymbols_ClearModule(msymbols);
+            free(modlibpath);
             return NULL;
         }
 
         number = (uintptr_t)msymbols;
         if (!hash_StringMapSet(
                 symbols->modulelibpath_to_modulesymbol_id,
-                modpath, number)) {
+                modlibpath, number)) {
             h64debugsymbols_ClearModule(msymbols);
+            free(modlibpath);
             return NULL;
         }
+        free(modlibpath);
         symbols->module_count++;
         return msymbols;
     }
