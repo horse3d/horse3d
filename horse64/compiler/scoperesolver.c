@@ -34,33 +34,24 @@ static int identifierisbuiltin(
 
     uint64_t number = 0;
     if (hash_StringMapGet(
-            msymbols->func_name_to_func_id,
+            msymbols->func_name_to_entry,
             identifier, &number
             )) {
-        int func_id = (int)number;
-        assert(func_id >= 0 && func_id < msymbols->func_count);
-        if (msymbols->func_symbols[func_id].
-                modulepath == NULL &&
-                msymbols->func_symbols[func_id].
-                libraryname == NULL) {
-            return 1;
-        }
-        return 0;
+        return 1;
     }
     assert(number == 0);
     if (hash_StringMapGet(
-            msymbols->class_name_to_class_id,
+            msymbols->class_name_to_entry,
             identifier, &number
             )) {
-        int cls_id = (int)number;
-        assert(cls_id >= 0 && cls_id < msymbols->classes_count);
-        if (msymbols->classes_symbols[cls_id].
-                modulepath == NULL &&
-                msymbols->classes_symbols[cls_id].
-                libraryname == NULL) {
-            return 1;
-        }
-        return 0;
+        return 1;
+    }
+    assert(number == 0);
+    if (hash_StringMapGet(
+            msymbols->globalvar_name_to_entry,
+            identifier, &number
+            )) {
+        return 1;
     }
     return 0;
 }
@@ -103,7 +94,15 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
             const char *name = NULL;
             if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
                 name = expr->vardef.identifier;
-                // FIXME: set globals to make them importable
+                if (!h64program_AddGlobalvar(
+                        rinfo->pr->program, name,
+                        expr->vardef.is_const,
+                        rinfo->ast->fileuri,
+                        rinfo->modulepath, rinfo->libraryname
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
                 name = expr->classdef.name;
                 if (!h64program_AddClass(

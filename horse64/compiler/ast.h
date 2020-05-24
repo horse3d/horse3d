@@ -70,6 +70,7 @@ typedef struct h64ast h64ast;
 #define EXPRSTORAGETYPE_STORAGEREF 1
 #define EXPRSTORAGETYPE_KNOWNINT 2
 #define EXPRSTORAGETYPE_KNOWNFLOAT 3
+#define EXPRSTORAGETYPE_KNOWNSTR 4
 
 typedef struct h64expression {
     int64_t line, column;
@@ -82,6 +83,7 @@ typedef struct h64expression {
             storageref ref;
             int64_t knownint;
             double knownfloat;
+            char *knownstr;
         };
     } storageorknownvalue;
     union {

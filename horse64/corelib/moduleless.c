@@ -34,7 +34,7 @@ int corelib_print(h64vmthread *vmthread) {
             printf(" ");
         valuecontent *c = STACK_ENTRY(vmthread->stack, i);
         switch (c->type) {
-        case H64VALTYPE_REFVAL: ;
+        case H64VALTYPE_GCVAL: ;
             h64gcvalue *gcval = c->ptr_value;
             switch (gcval->type) {
             case H64GCVALUETYPE_STRING:

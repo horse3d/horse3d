@@ -377,6 +377,10 @@ void ast_FreeExpression(h64expression *expr) {
     if (!expr)
         return;
 
+    if (expr->storageorknownvalue.type == EXPRSTORAGETYPE_KNOWNSTR) {
+        free(expr->storageorknownvalue.knownstr);
+    }
+
     int i = 0;
     switch (expr->type) {
     case H64EXPRTYPE_INVALID:

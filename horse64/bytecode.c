@@ -46,6 +46,120 @@ void h64program_Free(h64program *p) {
     free(p);
 }
 
+static int _getfileuriindex(h64program *p, const char *fileuri) {
+    char *normalized_uri = uri_Normalize(fileuri, 1);
+    if (!normalized_uri)
+        return -1;
+    int fileuriindex = -1;
+    int foundindex = 0;
+    int k = 0;
+    while (k > p->symbols->fileuri_count) {
+        if (strcmp(p->symbols->fileuri[k], normalized_uri) == 0) {
+            fileuriindex = k;
+            break;
+        }
+        k++;
+    }
+    if (fileuriindex < 0) {
+        char **new_fileuri = realloc(
+            p->symbols->fileuri, sizeof(*new_fileuri) *
+            (p->symbols->fileuri_count + 1)
+        );
+        if (!new_fileuri) {
+            free(normalized_uri);
+            return -1;
+        }
+        p->symbols->fileuri = new_fileuri;
+        p->symbols->fileuri[p->symbols->fileuri_count] =
+            normalized_uri;
+        fileuriindex = p->symbols->fileuri_count;
+        p->symbols->fileuri_count++;
+        normalized_uri = NULL;
+    }
+    return fileuriindex;
+}
+
+int h64program_AddGlobalvar(
+        h64program *p,
+        const char *name,
+        int is_const,
+        const char *fileuri,
+        const char *module_path,
+        const char *library_name
+        ) {
+    assert(p != NULL && p->symbols != NULL);
+    h64globalvar *new_globalvar = realloc(
+        p->globalvar, sizeof(*p->globalvar) * (p->globalvar_count + 1)
+    );
+    if (!new_globalvar)
+        return -1;
+    p->globalvar = new_globalvar;
+    memset(&p->globalvar[p->globalvar_count], 0, sizeof(*p->globalvar));
+
+    int fileuriindex = -1;
+    if (fileuri) {
+        fileuriindex = _getfileuriindex(p, fileuri);
+        if (fileuriindex < 0)
+            return -1;
+    }
+
+    h64modulesymbols *msymbols = NULL;
+    if (module_path) {
+        msymbols = h64debugsymbols_GetModule(
+            p->symbols, module_path, library_name, 1
+        );
+        if (!msymbols)
+            return -1;
+    } else {
+        assert(library_name == NULL);
+        msymbols = h64debugsymbols_GetBuiltinModule(p->symbols);
+        assert(msymbols != NULL);
+    }
+
+    // Add to the globalvar symbols table:
+    h64globalvarsymbol *new_globalvar_symbols = realloc(
+        msymbols->globalvar_symbols,
+        sizeof(*msymbols->globalvar_symbols) * (
+            msymbols->globalvar_count + 1
+        ));
+    if (!new_globalvar_symbols)
+        return -1;
+    msymbols->globalvar_symbols = new_globalvar_symbols;
+    memset(&msymbols->globalvar_symbols[msymbols->globalvar_count],
+        0, sizeof(*msymbols->globalvar_symbols));
+    msymbols->globalvar_symbols[msymbols->globalvar_count].name = (
+        strdup(name)
+    );
+    if (!msymbols->globalvar_symbols[msymbols->globalvar_count].name) {
+        globalvarsymboloom:
+        h64debugsymbols_ClearGlobalvarSymbol(
+            &msymbols->globalvar_symbols[msymbols->globalvar_count]
+        );
+        return -1;
+    }
+    msymbols->globalvar_symbols[msymbols->globalvar_count].
+        fileuri_index = fileuriindex;
+
+    // Add globals to lookup-by-name hash table:
+    uint64_t setno = msymbols->globalvar_count;
+    if (!hash_StringMapSet(
+            msymbols->globalvar_name_to_entry,
+            name, setno)) {
+        goto globalvarsymboloom;
+    }
+
+    // Add actual globalvar entry:
+    memset(
+        &p->globalvar[p->globalvar_count], 0,
+        sizeof(p->globalvar[p->globalvar_count])
+    );
+
+    p->globalvar_count++;
+    msymbols->globalvar_count++;
+
+    return p->globalvar_count - 1;
+}
+
 int h64program_RegisterCFunction(
         h64program *p,
         const char *name,
@@ -70,46 +184,20 @@ int h64program_RegisterCFunction(
 
     int fileuriindex = -1;
     if (fileuri) {
-        char *normalized_uri = uri_Normalize(fileuri, 1);
-        if (!normalized_uri)
+        int fileuriindex = _getfileuriindex(p, fileuri);
+        if (fileuriindex < 0)
             return -1;
-        int foundindex = 0;
-        int k = 0;
-        while (k > p->symbols->fileuri_count) {
-            if (strcmp(p->symbols->fileuri[k], normalized_uri) == 0) {
-                fileuriindex = k;
-                foundindex = 1;
-                break;
-            }
-            k++;
-        }
-        if (!foundindex) {
-            char **new_fileuri = realloc(
-                p->symbols->fileuri, sizeof(*new_fileuri) *
-                (p->symbols->fileuri_count + 1)
-            );
-            if (!new_fileuri) {
-                free(normalized_uri);
-                return -1;
-            }
-            p->symbols->fileuri = new_fileuri;
-            p->symbols->fileuri[p->symbols->fileuri_count] =
-                normalized_uri;
-            fileuriindex = p->symbols->fileuri_count;
-            p->symbols->fileuri_count++;
-            normalized_uri = NULL;
-        }
-        free(normalized_uri);
     }
 
     h64modulesymbols *msymbols = NULL;
     if (module_path) {
         msymbols = h64debugsymbols_GetModule(
-            p->symbols, module_path, 1
+            p->symbols, module_path, library_name, 1
         );
         if (!msymbols)
             return -1;
     } else {
+        assert(library_name == NULL);
         msymbols = h64debugsymbols_GetBuiltinModule(p->symbols);
         assert(msymbols != NULL);
     }
@@ -136,22 +224,6 @@ int h64program_RegisterCFunction(
             &msymbols->func_symbols[msymbols->func_count]
         );
         return -1;
-    }
-    if (module_path) {
-        msymbols->func_symbols[msymbols->func_count].modulepath = (
-            strdup(module_path)
-        );
-        if (!msymbols->func_symbols[msymbols->func_count].
-                modulepath)
-            goto funcsymboloom;
-    }
-    if (library_name) {
-        msymbols->func_symbols[msymbols->func_count].libraryname = (
-            strdup(library_name)
-        );
-        if (!msymbols->func_symbols[msymbols->func_count].
-                libraryname)
-            goto funcsymboloom;
     }
     msymbols->func_symbols[msymbols->func_count].arg_count = arg_count;
     if (arg_count > 0) {
@@ -185,7 +257,7 @@ int h64program_RegisterCFunction(
     // Add function to lookup-by-name hash table:
     uint64_t setno = msymbols->func_count;
     if (!hash_StringMapSet(
-            msymbols->func_name_to_func_id,
+            msymbols->func_name_to_entry,
             name, setno)) {
         goto funcsymboloom;
     }
@@ -200,6 +272,7 @@ int h64program_RegisterCFunction(
         associated_class_index
     );
     p->func[p->func_count].cfunc_ptr = func;
+    msymbols->func_symbols[msymbols->func_count].global_id = p->func_count;
 
     p->func_count++;
     msymbols->func_count++;
@@ -247,44 +320,20 @@ int h64program_AddClass(
 
     int fileuriindex = -1;
     if (fileuri) {
-        char *normalized_uri = uri_Normalize(fileuri, 1);
-        if (!normalized_uri)
+        int fileuriindex = _getfileuriindex(p, fileuri);
+        if (fileuriindex < 0)
             return -1;
-        int foundindex = 0;
-        int k = 0;
-        while (k > p->symbols->fileuri_count) {
-            if (strcmp(p->symbols->fileuri[k], normalized_uri) == 0) {
-                fileuriindex = k;
-                break;
-            }
-            k++;
-        }
-        if (fileuriindex < 0) {
-            char **new_fileuri = realloc(
-                p->symbols->fileuri, sizeof(*new_fileuri) *
-                (p->symbols->fileuri_count + 1)
-            );
-            if (!new_fileuri) {
-                free(normalized_uri);
-                return -1;
-            }
-            p->symbols->fileuri = new_fileuri;
-            p->symbols->fileuri[p->symbols->fileuri_count] =
-                normalized_uri;
-            fileuriindex = p->symbols->fileuri_count;
-            p->symbols->fileuri_count++;
-            normalized_uri = NULL;
-        }
     }
 
     h64modulesymbols *msymbols = NULL;
     if (module_path) {
         msymbols = h64debugsymbols_GetModule(
-            p->symbols, module_path, 1
+            p->symbols, module_path, library_name, 1
         );
         if (!msymbols)
             return -1;
     } else {
+        assert(library_name == NULL);
         msymbols = h64debugsymbols_GetBuiltinModule(p->symbols);
         assert(msymbols != NULL);
     }
@@ -312,25 +361,11 @@ int h64program_AddClass(
     }
     msymbols->classes_symbols[msymbols->classes_count].
         fileuri_index = fileuriindex;
-    if (module_path) {
-        msymbols->classes_symbols[msymbols->classes_count].
-            modulepath = strdup(module_path);
-        if (!msymbols->classes_symbols[msymbols->classes_count].
-                modulepath)
-            goto classsymboloom;
-    }
-    if (library_name) {
-        msymbols->classes_symbols[msymbols->classes_count].
-            libraryname = strdup(library_name);
-        if (!msymbols->classes_symbols[msymbols->classes_count].
-                libraryname)
-            goto classsymboloom;
-    }
 
     // Add class to lookup-by-name hash table:
     uint64_t setno = msymbols->classes_count;
     if (!hash_StringMapSet(
-            msymbols->class_name_to_class_id,
+            msymbols->class_name_to_entry,
             name, setno)) {
         goto classsymboloom;
     }

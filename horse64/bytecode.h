@@ -36,7 +36,7 @@ typedef enum valuetype {
     H64VALTYPE_EMPTYARG,
     H64VALTYPE_ERROR,
     H64VALTYPE_FUNCNESTRECORD,
-    H64VALTYPE_REFVAL,
+    H64VALTYPE_GCVAL,
     H64VALTYPE_SHORTSTR
 } valuetype;
 
@@ -96,6 +96,10 @@ typedef struct h64func {
     };
 } h64func;
 
+typedef struct h64globalvar {
+    valuecontent content;
+} h64globalvar;
+
 typedef struct h64program {
     int globals_count;
     valuecontent *globals;
@@ -105,6 +109,9 @@ typedef struct h64program {
 
     int func_count;
     h64func *func;
+
+    int globalvar_count;
+    h64globalvar *globalvar;
 
     h64debugsymbols *symbols;
 } h64program;
@@ -142,6 +149,15 @@ int h64program_RegisterHorse64Function(
 int h64program_AddClass(
     h64program *p,
     const char *name,
+    const char *fileuri,
+    const char *module_path,
+    const char *library_name
+);
+
+int h64program_AddGlobalvar(
+    h64program *p,
+    const char *name,
+    int is_const,
     const char *fileuri,
     const char *module_path,
     const char *library_name
