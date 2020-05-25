@@ -377,8 +377,8 @@ void ast_FreeExpression(h64expression *expr) {
     if (!expr)
         return;
 
-    if (expr->storageorknownvalue.type == EXPRSTORAGETYPE_KNOWNSTR) {
-        free(expr->storageorknownvalue.knownstr);
+    if (expr->knownvalue.type == KNOWNVALUETYPE_KNOWNSTR) {
+        free(expr->knownvalue.knownstr);
     }
 
     int i = 0;

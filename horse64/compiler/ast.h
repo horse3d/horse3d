@@ -66,26 +66,29 @@ struct h64ifstmt {
 
 typedef struct h64ast h64ast;
 
-#define EXPRSTORAGETYPE_UNSET 0
-#define EXPRSTORAGETYPE_STORAGEREF 1
-#define EXPRSTORAGETYPE_KNOWNINT 2
-#define EXPRSTORAGETYPE_KNOWNFLOAT 3
-#define EXPRSTORAGETYPE_KNOWNSTR 4
+#define KNOWNVALUETYPE_KNOWNINT 2
+#define KNOWNVALUETYPE_KNOWNFLOAT 3
+#define KNOWNVALUETYPE_KNOWNSTR 4
 
 typedef struct h64expression {
     int64_t line, column;
     int tokenindex;
     h64expression *parent;
     h64expressiontype type;
-    union storageorknownvalue {
-        int type;
+    struct storage {
+        int set;
         union {
             storageref ref;
+        };
+    } storage;
+    struct knownvalue {
+        int type;
+        union {
             int64_t knownint;
             double knownfloat;
             char *knownstr;
         };
-    } storageorknownvalue;
+    } knownvalue;
     union {
         struct vardef {
             int is_deprecated;

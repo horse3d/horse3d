@@ -22,13 +22,13 @@ typedef struct resolveinfo {
 } resolveinfo;
 
 static int identifierisbuiltin(
-        h64compileproject *pr,
+        h64program *program,
         const char *identifier,
-        int isbuiltinmodule  // whether to allow access to secret built-ins
+        storageref *storageref
         ) {
-    assert(pr->program->symbols != NULL);
+    assert(program->symbols != NULL);
     h64modulesymbols *msymbols = h64debugsymbols_GetBuiltinModule(
-        pr->program->symbols
+        program->symbols
     );
     assert(msymbols != NULL);
 
@@ -37,6 +37,10 @@ static int identifierisbuiltin(
             msymbols->func_name_to_entry,
             identifier, &number
             )) {
+        if (storageref) {
+            storageref->type = H64STORETYPE_GLOBALFUNCSLOT;
+            storageref->id = number;
+        }
         return 1;
     }
     assert(number == 0);
@@ -44,6 +48,10 @@ static int identifierisbuiltin(
             msymbols->class_name_to_entry,
             identifier, &number
             )) {
+        if (storageref) {
+            storageref->type = H64STORETYPE_GLOBALCLASSSLOT;
+            storageref->id = number;
+        }
         return 1;
     }
     assert(number == 0);
@@ -51,6 +59,10 @@ static int identifierisbuiltin(
             msymbols->globalvar_name_to_entry,
             identifier, &number
             )) {
+        if (storageref) {
+            storageref->type = H64STORETYPE_GLOBALVARSLOT;
+            storageref->id = number;
+        }
         return 1;
     }
     return 0;
@@ -59,6 +71,109 @@ static int identifierisbuiltin(
 const char *_shortenedname(
     char *buf, const char *name
 );
+
+static int scoperesolver_ComputeItemStorage(
+        h64expression *expr, h64program *program, h64ast *ast,
+        int *outofmemory
+        ) {
+    h64scope *scope = ast_GetScope(expr, &ast->scope);
+    assert(scope != NULL);
+    if (scope->is_global) {
+        const char *name = NULL;
+        if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+            name = expr->vardef.identifier;
+            int64_t global_id = -1;
+            if ((global_id = h64program_AddGlobalvar(
+                    program, name,
+                    expr->vardef.is_const,
+                    ast->fileuri,
+                    ast->module_path, ast->library_name
+                    )) < 0) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+            assert(global_id >= 0);
+            expr->storage.set = 1;
+            expr->storage.ref.type = H64STORETYPE_GLOBALVARSLOT;
+            expr->storage.ref.id = global_id;
+        } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
+            name = expr->classdef.name;
+            int64_t global_id = -1;
+            if ((global_id = h64program_AddClass(
+                    program, name, ast->fileuri,
+                    ast->module_path, ast->library_name
+                    )) < 0) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+            assert(global_id >= 0);
+            expr->storage.set = 1;
+            expr->storage.ref.type = H64STORETYPE_GLOBALCLASSSLOT;
+            expr->storage.ref.id = global_id;
+        } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+            name = expr->funcdef.name;
+            char **kwarg_names = malloc(
+                sizeof(*kwarg_names) * expr->funcdef.arguments.arg_count
+            );
+            if (!kwarg_names) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+            memset(kwarg_names, 0, sizeof(*kwarg_names) *
+                   expr->funcdef.arguments.arg_count);
+            int i = 0;
+            while (i < expr->funcdef.arguments.arg_count) {
+                if (expr->funcdef.arguments.arg_value[i]) {
+                    kwarg_names[i] = strdup(
+                        expr->funcdef.arguments.arg_name[i]
+                    );
+                    if (!kwarg_names[i]) {
+                        int k = 0;
+                        while (k < i) {
+                            free(kwarg_names[k]);
+                            k++;
+                        }
+                        free(kwarg_names);
+                        if (outofmemory) *outofmemory = 1;
+                        return 0;
+                    }
+                }
+                i++;
+            }
+            int64_t global_id = -1;
+            if ((global_id = h64program_RegisterHorse64Function(
+                    program, name, ast->fileuri,
+                    expr->funcdef.arguments.arg_count,
+                    kwarg_names,
+                    expr->funcdef.arguments.last_posarg_is_multiarg,
+                    ast->module_path,
+                    ast->library_name,
+                    -1
+                    )) < 0) {
+                int k = 0;
+                while (k < i) {
+                    free(kwarg_names[k]);
+                    k++;
+                }
+                free(kwarg_names);
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+            int k = 0;
+            while (k < i) {
+                free(kwarg_names[k]);
+                k++;
+            }
+            free(kwarg_names);
+            assert(global_id >= 0);
+            assert(global_id >= 0);
+            expr->storage.set = 1;
+            expr->storage.ref.type = H64STORETYPE_GLOBALFUNCSLOT;
+            expr->storage.ref.id = global_id;
+        }
+    }
+    return 1;
+}
 
 int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
         h64expression *expr, h64expression *parent, void *ud
@@ -90,87 +205,20 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
             }
             return 1;
         }
-        if (scope->is_global) {
-            const char *name = NULL;
-            if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
-                name = expr->vardef.identifier;
-                if (!h64program_AddGlobalvar(
-                        rinfo->pr->program, name,
-                        expr->vardef.is_const,
-                        rinfo->ast->fileuri,
-                        rinfo->modulepath, rinfo->libraryname
-                        )) {
+        if (scope->is_global &&
+                expr->storage.set == 0) {
+            int outofmemory = 0;
+            if (!scoperesolver_ComputeItemStorage(
+                    expr, rinfo->pr->program, rinfo->ast, &outofmemory)) {
+                if (outofmemory) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
-            } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
-                name = expr->classdef.name;
-                if (!h64program_AddClass(
-                        rinfo->pr->program, name, rinfo->ast->fileuri,
-                        rinfo->modulepath, rinfo->libraryname
-                        )) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-            } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
-                name = expr->funcdef.name;
-                char **kwarg_names = malloc(
-                    sizeof(*kwarg_names) * expr->funcdef.arguments.arg_count
-                );
-                if (!kwarg_names) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-                memset(kwarg_names, 0, sizeof(*kwarg_names) *
-                       expr->funcdef.arguments.arg_count);
-                int i = 0;
-                while (i < expr->funcdef.arguments.arg_count) {
-                    if (expr->funcdef.arguments.arg_value[i]) {
-                        kwarg_names[i] = strdup(
-                            expr->funcdef.arguments.arg_name[i]
-                        );
-                        if (!kwarg_names[i]) {
-                            int k = 0;
-                            while (k < i) {
-                                free(kwarg_names[k]);
-                                k++;
-                            }
-                            free(kwarg_names);
-                            rinfo->hadoutofmemory = 1;
-                            return 0;
-                        }
-                    }
-                    i++;
-                }
-                if (!h64program_RegisterHorse64Function(
-                        rinfo->pr->program, name, rinfo->ast->fileuri,
-                        expr->funcdef.arguments.arg_count,
-                        kwarg_names,
-                        expr->funcdef.arguments.last_posarg_is_multiarg,
-                        rinfo->modulepath,
-                        rinfo->libraryname,
-                        -1
-                        )) {
-                    int k = 0;
-                    while (k < i) {
-                        free(kwarg_names[k]);
-                        k++;
-                    }
-                    free(kwarg_names);
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-                int k = 0;
-                while (k < i) {
-                    free(kwarg_names[k]);
-                    k++;
-                }
-                free(kwarg_names);
             }
         }
     }
 
-    // Resolve identifiers if we can:
+    // Resolve most inner identifiers:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             (parent == NULL ||
              parent->type != H64EXPRTYPE_BINARYOP ||
@@ -202,9 +250,54 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
         );
         if (def) {
             expr->identifierref.resolved_to_def = def;
+            if (def->declarationexpr->type ==
+                    H64EXPRTYPE_VARDEF_STMT ||
+                    def->declarationexpr->type ==
+                    H64EXPRTYPE_FUNCDEF_STMT ||
+                    def->declarationexpr->type ==
+                    H64EXPRTYPE_CLASSDEF_STMT) {
+                if (!def->declarationexpr->storage.set) {
+                    int outofmemory = 0;
+                    if (!scoperesolver_ComputeItemStorage(
+                            def->declarationexpr, rinfo->pr->program,
+                            rinfo->ast, &outofmemory)) {
+                        if (outofmemory) {
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
+                    }
+                }
+                if (def->declarationexpr->storage.set) {
+                    memcpy(
+                        &expr->storage, &def->declarationexpr->storage,
+                        sizeof(expr->storage)
+                    );
+                }
+            } else if (def->declarationexpr->type ==
+                    H64EXPRTYPE_IMPORT_STMT) {
+                // Nothing to do
+            } else {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "internal error: identifier ref to unknown "
+                    "expr type %d",
+                    (int)def->declarationexpr->type
+                );
+                if (!result_AddMessage(
+                        &rinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        rinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                return 1;
+            }
         } else if (identifierisbuiltin(
-                rinfo->pr,
-                expr->identifierref.value, rinfo->isbuiltinmodule)) {
+                rinfo->pr->program, expr->identifierref.value,
+                &expr->storage.ref)) {
             expr->identifierref.resolved_to_builtin = 1;
         } else {
             char buf[256]; char describebuf[64];
@@ -235,11 +328,38 @@ int scoperesolver_ResolveAST(
     // Set module path if missing:
     assert(unresolved_ast->fileuri != NULL);
     if (!unresolved_ast->module_path) {
-        char *module_path = compileproject_ToProjectRelPath(
-            pr, unresolved_ast->fileuri
+        char *library_source = NULL;
+        int pathoom = 0;
+        char *project_path = compileproject_GetFileSubProjectPath(
+            pr, unresolved_ast->fileuri, &library_source, &pathoom
         );
-        if (!module_path)
+        if (!project_path) {
+            assert(library_source == NULL);
+            if (!pathoom) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected failure to locate file's project base: "
+                    "%s", unresolved_ast->fileuri);
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, buf,
+                        unresolved_ast->fileuri,
+                        -1, -1
+                    ))
+                    return 0;  // Out of memory
+                return 1;  // regular abort with failure
+            }
             return 0;
+        }
+        char *module_path = compileproject_URIRelPath(
+            project_path, unresolved_ast->fileuri
+        );
+        free(project_path);
+        project_path = NULL;
+        if (!module_path) {
+            free(library_source);
+            return 0;
+        }
 
         // Strip away file extension and normalize:
         if (strlen(module_path) > strlen(".h64") && (
@@ -252,6 +372,7 @@ int scoperesolver_ResolveAST(
         char *new_module_path = filesys_Normalize(module_path);
         free(module_path);
         if (!new_module_path) {
+            free(library_source);
             return 0;
         }
         module_path = new_module_path;
@@ -260,6 +381,7 @@ int scoperesolver_ResolveAST(
         unsigned int i = 0;
         while (i < strlen(module_path)) {
             if (module_path[i] == '.') {
+                free(library_source);
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
                     "cannot integrate module with dots in file path: "
@@ -291,9 +413,13 @@ int scoperesolver_ResolveAST(
         }
 
         unresolved_ast->module_path = strdup(module_path);
+        unresolved_ast->library_name = library_source;
         free(module_path);
-        if (!unresolved_ast->module_path)
+        if (!unresolved_ast->module_path) {
+            free(unresolved_ast->library_name);
+            unresolved_ast->library_name = NULL;
             return 0;
+        }
     }
 
     // First, make sure all imports are loaded up:

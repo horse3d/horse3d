@@ -27,6 +27,10 @@ h64compileproject *compileproject_New(
     const char *basefolderuri
 );
 
+char *compileproject_URIRelPath(
+    const char *basepath, const char *fileuri
+);
+
 char *compileproject_ToProjectRelPath(
     h64compileproject *pr, const char *fileuri
 );
@@ -41,6 +45,11 @@ void compileproject_Free(h64compileproject *pr);
 char *compileproject_FolderGuess(
     const char *fileuri, int cwd_fallback_if_appropriate,
     char **error
+);
+
+char *compileproject_GetFileSubProjectPath(
+    h64compileproject *pr, const char *sourcefileuri,
+    char **subproject_name, int *outofmemory
 );
 
 char *compileproject_ResolveImport(

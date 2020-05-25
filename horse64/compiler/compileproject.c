@@ -83,10 +83,10 @@ h64compileproject *compileproject_New(
     return pr;
 }
 
-char *compileproject_ToProjectRelPath(
-        h64compileproject *pr, const char *fileuri
+char *compileproject_URIRelPath(
+        const char *basepath, const char *fileuri
         ) {
-    if (!fileuri || !pr || !pr->basefolder)
+    if (!fileuri || !basepath)
         return NULL;
 
     uriinfo *uinfo = uri_ParseEx(fileuri, "https");
@@ -101,7 +101,7 @@ char *compileproject_ToProjectRelPath(
     if (!s) return NULL;
 
     char *result = filesys_TurnIntoPathRelativeTo(
-        s, pr->basefolder
+        s, basepath
     );
     free(s); s = NULL;
     if (!result) return NULL;
@@ -111,6 +111,14 @@ char *compileproject_ToProjectRelPath(
     if (!resultnormalized) return NULL;
 
     return resultnormalized;
+}
+
+char *compileproject_ToProjectRelPath(
+        h64compileproject *pr, const char *fileuri
+        ) {
+    if (!fileuri || !pr || !pr->basefolder)
+        return NULL;
+    return compileproject_URIRelPath(pr->basefolder, fileuri);
 }
 
 int compileproject_GetAST(
@@ -242,11 +250,14 @@ void compileproject_Free(h64compileproject *pr) {
 }
 
 char *compileproject_GetFileSubProjectPath(
-        h64compileproject *pr, const char *sourcefileuri
+        h64compileproject *pr, const char *sourcefileuri,
+        char **subproject_name, int *outofmemory
         ) {
     uriinfo *uinfo = uri_ParseEx(sourcefileuri, "https");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             strcasecmp(uinfo->protocol, "file") != 0) {
+        if (outofmemory && !uinfo) *outofmemory = 1;
+        if (outofmemory && uinfo) *outofmemory = 0;
         uri_Free(uinfo);
         return NULL;
     }
@@ -255,6 +266,16 @@ char *compileproject_GetFileSubProjectPath(
     );
     uri_Free(uinfo); uinfo = NULL;
     if (!relfilepath) {
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
+    if (strlen(relfilepath) > strlen("../") &&
+            (memcmp(relfilepath, "../", 3) == 0
+            #if defined(_WIN32) || defined(_WIN64)
+            || memcmp(relfilepath, "..\\", 3) == 0
+            #endif
+            )) {
+        if (outofmemory) *outofmemory = 0;
         return NULL;
     }
     if (strlen(relfilepath) > strlen("horse_modules")) {
@@ -283,13 +304,43 @@ char *compileproject_GetFileSubProjectPath(
                 k++;
             if (relfilepath[k] != '\0') {
                 k++;  // go past dir separator
+                char *project_name = strdup(relfilepath + k);
+                if (!project_name) {
+                    free(relfilepath);
+                    if (outofmemory) *outofmemory = 1;
+                    return NULL;
+                } else {
+                    // Trim down to first path component:
+                    int j = strlen(project_name);
+                    while (j >= 0) {
+                        if (project_name[j] == '/'
+                                #if defined(_WIN32) || defined(_WIN64)
+                                || project_name[j] == '\\'
+                                #endif
+                                ) {
+                            project_name[j] = '\0';
+                        }
+                        j++;
+                    }
+                }
+                if (strlen(project_name) == 0) {
+                    free(project_name);
+                    free(relfilepath);
+                    if (outofmemory) *outofmemory = 0;
+                    return NULL;
+                }
                 char *result = filesys_ToAbsolutePath(relfilepath + k);
                 if (result) {
-                    char *resold = result;
-                    result = filesys_Normalize(resold);
-                    free(resold);
+                    char *resultold = result;
+                    result = filesys_Normalize(resultold);
+                    free(resultold);
                 }
                 free(relfilepath);
+                if (result) {
+                    if (subproject_name) *subproject_name = project_name;
+                } else {
+                    if (outofmemory) *outofmemory = 1;
+                }
                 return result;
             }
         }
@@ -297,6 +348,13 @@ char *compileproject_GetFileSubProjectPath(
     // Not inside horse_modules module folder, so just return the
     // regular project root:
     free(relfilepath);
+    if (subproject_name) {
+        *subproject_name = strdup("");
+        if (!*subproject_name) {
+            if (outofmemory) *outofmemory = 1;
+            return NULL;
+        }
+    }
     return filesys_ToAbsolutePath(pr->basefolder);
 }
 
@@ -473,12 +531,13 @@ char *compileproject_ResolveImport(
     }
 
     // Not a library, do local project folder search:
+    int projectpathoom = 0;
     char *projectpath = compileproject_GetFileSubProjectPath(
-        pr, sourcefileuri
+        pr, sourcefileuri, NULL, &projectpathoom
     );
     if (!projectpath) {
         free(import_relpath);
-        if (outofmemory) *outofmemory = 1;
+        if (outofmemory) *outofmemory = projectpathoom;
         return NULL;
     }
     char *relfilepath = compileproject_ToProjectRelPath(
