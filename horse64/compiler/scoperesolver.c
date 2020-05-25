@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -18,7 +19,7 @@ typedef struct resolveinfo {
     char *modulepath;
     h64ast *ast;
     int isbuiltinmodule;
-    int hadoutofmemory;
+    int hadoutofmemory, failedstorageassign;
 } resolveinfo;
 
 static int identifierisbuiltin(
@@ -268,8 +269,10 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
             expr->identifierref.resolved_to_def = def;
             if (def->declarationexpr->type ==
                     H64EXPRTYPE_VARDEF_STMT ||
-                    def->declarationexpr->type ==
-                    H64EXPRTYPE_FUNCDEF_STMT ||
+                    (def->declarationexpr->type ==
+                     H64EXPRTYPE_FUNCDEF_STMT &&
+                     strcmp(def->declarationexpr->funcdef.name,
+                            expr->identifierref.value)) ||
                     def->declarationexpr->type ==
                     H64EXPRTYPE_CLASSDEF_STMT) {
                 if (!def->declarationexpr->storage.set) {
@@ -281,6 +284,7 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                             rinfo->hadoutofmemory = 1;
                             return 0;
                         }
+                        rinfo->failedstorageassign = 1;
                     }
                 }
                 if (def->declarationexpr->storage.set) {
@@ -295,9 +299,12 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
             } else {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
-                    "internal error: identifier ref to unknown "
-                    "expr type %d",
-                    (int)def->declarationexpr->type
+                    "internal error: identifier ref '%s' to unknown "
+                    "expr type %d at line %" PRId64 ", column %" PRId64,
+                    expr->identifierref.value,
+                    (int)def->declarationexpr->type,
+                    def->declarationexpr->line,
+                    def->declarationexpr->column
                 );
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,
@@ -315,6 +322,7 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                 rinfo->pr->program, expr->identifierref.value,
                 &expr->storage.ref)) {
             expr->identifierref.resolved_to_builtin = 1;
+            assert(expr->storage.ref.type != 0);
             expr->storage.set = 1;
         } else {
             char buf[256]; char describebuf[64];
@@ -584,6 +592,26 @@ int scoperesolver_ResolveAST(
             if (unresolved_ast->resultmsg.message[k].type == H64MSG_ERROR)
                 pr->resultmsg->success = 0;
             k++;
+        }
+    }
+    if (rinfo.failedstorageassign) {
+        // Make sure an error is returned:
+        int haderrormsg = 0;
+        k = 0;
+        while (k < pr->resultmsg->message_count) {
+            if (pr->resultmsg->message[k].type == H64MSG_ERROR)
+                haderrormsg = 1;
+            k++;
+        }
+        if (!haderrormsg) {
+            result_AddMessage(
+                pr->resultmsg,
+                H64MSG_ERROR, "internal error: failed to assign "
+                "storage to all items",
+                unresolved_ast->fileuri,
+                -1, -1
+            );
+            pr->resultmsg->success = 0;
         }
     }
     return 1;
