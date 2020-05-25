@@ -214,6 +214,22 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "internal error: failed to compute storage for "
+                    "expr: %s",
+                    ast_ExpressionTypeToStr(expr->type)
+                );
+                if (!result_AddMessage(
+                        &rinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        rinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
         }
     }
@@ -299,6 +315,7 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                 rinfo->pr->program, expr->identifierref.value,
                 &expr->storage.ref)) {
             expr->identifierref.resolved_to_builtin = 1;
+            expr->storage.set = 1;
         } else {
             char buf[256]; char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,

@@ -54,7 +54,7 @@ typedef struct h64debugsymbols {
 
     hashmap *modulelibpath_to_modulesymbol_id;
     int module_count;
-    h64modulesymbols *module_symbols;
+    h64modulesymbols **module_symbols;
 
     hashmap *member_name_to_global_member_id;
     int64_t global_member_count;

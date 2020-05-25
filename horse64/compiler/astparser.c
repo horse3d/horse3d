@@ -4678,5 +4678,7 @@ void ast_FreeContents(h64ast *ast) {
     ast->fileuri = NULL;
     free(ast->module_path);
     ast->module_path = NULL;
+    free(ast->library_name);
+    ast->library_name = NULL;
     scope_FreeData(&ast->scope);
 }

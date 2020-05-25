@@ -20,7 +20,8 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
     free(symbols->global_member_name);
     i = 0;
     while (i < symbols->module_count) {
-        h64debugsymbols_ClearModule(&symbols->module_symbols[i]);
+        h64debugsymbols_ClearModule(symbols->module_symbols[i]);
+        free(symbols->module_symbols[i]);
         i++;
     }
     free(symbols->module_symbols);
@@ -147,7 +148,7 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
             return NULL;
         }
 
-        h64modulesymbols *new_symbols = realloc(
+        h64modulesymbols **new_symbols = realloc(
             symbols->module_symbols,
             sizeof(*new_symbols) * (symbols->module_count + 1)
         );
@@ -156,8 +157,15 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
             return NULL;
         }
         symbols->module_symbols = new_symbols;
+        symbols->module_symbols[symbols->module_count] = malloc(
+            sizeof(**new_symbols)
+        );
+        if (!symbols->module_symbols[symbols->module_count]) {
+            free(modlibpath);
+            return NULL;
+        }
 
-        h64modulesymbols *msymbols = &(
+        h64modulesymbols *msymbols = (
             symbols->module_symbols[symbols->module_count]
         );
         memset(msymbols, 0, sizeof(*msymbols));
@@ -165,6 +173,7 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
         msymbols->func_name_to_entry = hash_NewStringMap(64);
         if (!msymbols->func_name_to_entry) {
             h64debugsymbols_ClearModule(msymbols);
+            free(msymbols);
             free(modlibpath);
             return NULL;
         }
@@ -172,6 +181,7 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
         msymbols->class_name_to_entry = hash_NewStringMap(64);
         if (!msymbols->class_name_to_entry) {
             h64debugsymbols_ClearModule(msymbols);
+            free(msymbols);
             free(modlibpath);
             return NULL;
         }
@@ -179,6 +189,7 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
         msymbols->globalvar_name_to_entry = hash_NewStringMap(64);
         if (!msymbols->globalvar_name_to_entry) {
             h64debugsymbols_ClearModule(msymbols);
+            free(msymbols);
             free(modlibpath);
             return NULL;
         }
@@ -186,6 +197,7 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
         msymbols->module_path = strdup(modpath);
         if (!msymbols->module_path) {
             h64debugsymbols_ClearModule(msymbols);
+            free(msymbols);
             free(modlibpath);
             return NULL;
         }
@@ -195,6 +207,7 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
                 symbols->modulelibpath_to_modulesymbol_id,
                 modlibpath, number)) {
             h64debugsymbols_ClearModule(msymbols);
+            free(msymbols);
             free(modlibpath);
             return NULL;
         }
@@ -258,6 +271,7 @@ void h64debugsymbols_ClearModule(h64modulesymbols *msymbols) {
         hash_FreeMap(msymbols->globalvar_name_to_entry);
 
     free(msymbols->module_path);
+    free(msymbols->library_name);
 }
 
 h64debugsymbols *h64debugsymbols_New() {
