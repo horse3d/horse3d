@@ -1135,16 +1135,18 @@ char *filesys_GetCurrentDirectory() {
         if (!s)
             return NULL;
         char *result = getcwd(s, allocsize - 1);
-        if (!result) {
+        if (result == NULL) {
             free(s);
-            continue;
+            if (errno == ERANGE) {
+                continue;
+            }
+            return NULL;
         }
         s[allocsize - 1] = '\0';
         return s;
     }
     #endif
 }
-
 
 char *filesys_TurnIntoPathRelativeTo(
         const char *path, const char *makerelativetopath
