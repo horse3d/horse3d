@@ -299,8 +299,9 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
             } else {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
-                    "internal error: identifier ref '%s' to unknown "
-                    "expr type %d at line %" PRId64 ", column %" PRId64,
+                    "internal error: identifier ref '%s' points "
+                    "to unhandled expr type %d at line %" PRId64 ", "
+                    "column %" PRId64,
                     expr->identifierref.value,
                     (int)def->declarationexpr->type,
                     def->declarationexpr->line,
