@@ -103,20 +103,30 @@ int filesys_RemoveFolder(const char *path, int recursive) {
         int k = 0;
         while (contents[k]) {
             int islink = 0;
-            if (!filesys_IsSymlink(contents[k], &islink))
+            if (!filesys_IsSymlink(contents[k], &islink)) {
+                filesys_FreeFolderList(contents);
                 return 0;
+            }
             if (islink) {
                 int result = remove(contents[k]);
-                if (result < 0)
+                if (result < 0) {
+                    filesys_FreeFolderList(contents);
                     return 0;
+                }
             } else if (filesys_IsDirectory(contents[k])) {
-                if (!filesys_RemoveFolder(contents[k], 1))
+                if (!filesys_RemoveFolder(contents[k], 1)) {
+                    filesys_FreeFolderList(contents);
                     return 0;
+                }
             } else {
-                if (!filesys_RemoveFile(contents[k]))
+                if (!filesys_RemoveFile(contents[k])) {
+                    filesys_FreeFolderList(contents);
                     return 0;
+                }
             }
+            k++;
         }
+        filesys_FreeFolderList(contents);
         return filesys_RemoveFolder(path, 0);
     } else {
         return (rmdir(path) == 0);
@@ -413,7 +423,7 @@ const char *_filesys_DocumentsBasePath() {
         }
     }
     #elif defined(_WIN32) || defined(_WIN64)
-    TCHAR szPath[MAX_PATH];
+    TCHAR szPath[MAX_PATH + 1];
     if (SUCCEEDED(SHGetFolderPath(NULL,
             CSIDL_MYDOCUMENTS|CSIDL_FLAG_CREATE, NULL, 0, szPath
             )))
@@ -628,6 +638,9 @@ int filesys_ListFolder(const char *path,
         if (!entry)
             break;
         const char *entryName = entry->d_name;
+        if (strcmp(entryName, ".") == 0 || strcmp(entryName, "..") == 0) {
+            continue;
+        }
         #endif
         char **nlist = realloc(list, sizeof(char*) * (entriesSoFar + 2));
         if (!nlist) {
