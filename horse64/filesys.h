@@ -5,6 +5,10 @@ int filesys_FileExists(const char *path);
 
 int filesys_IsDirectory(const char *path);
 
+int filesys_RemoveFolder(const char *path, int recursive);
+
+int filesys_RemoveFile(const char *path);
+
 const char *filesys_AppDataSubFolder(
     const char *appname
 );
@@ -12,6 +16,8 @@ const char *filesys_AppDataSubFolder(
 const char *filesys_DocumentsSubFolder(
     const char *subfolder
 );
+
+int filesys_IsSymlink(const char *path, int *result);
 
 void filesys_FreeFolderList(char **list);
 

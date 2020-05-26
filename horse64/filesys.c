@@ -61,6 +61,75 @@ int filesys_GetComponentCount(const char *path) {
     return component_count;
 }
 
+int filesys_IsSymlink(const char *path, int *result) {
+    #if defined(_WIN32) || defined(_WIN64)
+    *result = 0;
+    return 1;
+    #else
+    struct stat buf;
+    int statresult = lstat(path, &buf);
+    if (statresult < 0)
+        return 0;
+    if (result)
+        *result = S_ISLNK(buf.st_mode);
+    return 1;
+    #endif
+}
+
+int filesys_RemoveFolder(const char *path, int recursive) {
+    #if defined(_WIN32) || defined(_WIN64)
+    if (recursive) {
+        SHFILEOPSTRUCT shfo = {
+            NULL, FO_DELETE, path, NULL,
+            FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION,
+            FALSE, NULL, NULL
+        };
+        SHFileOperation(&shfo);
+        return (shfo.fAnyOperationsAborted == 0);
+    } else {
+        return (RemoveDirectoryA(path) != 0);
+    }
+    #else
+    if (recursive) {
+        char **contents = NULL;
+        int listingworked = filesys_ListFolder(
+            path, &contents, 1
+        );
+        if (!listingworked) {
+            assert(contents == NULL);
+            return 0;
+        }
+        int k = 0;
+        while (contents[k]) {
+            int islink = 0;
+            if (!filesys_IsSymlink(contents[k], &islink))
+                return 0;
+            if (islink) {
+                int result = remove(contents[k]);
+                if (result < 0)
+                    return 0;
+            } else if (filesys_IsDirectory(contents[k])) {
+                if (!filesys_RemoveFolder(contents[k], 1))
+                    return 0;
+            } else {
+                if (!filesys_RemoveFile(contents[k]))
+                    return 0;
+            }
+        }
+        return filesys_RemoveFolder(path, 0);
+    } else {
+        return (rmdir(path) == 0);
+    }
+    #endif
+}
+
+int filesys_RemoveFile(const char *path) {
+    int result = remove(path);
+    if (result < 0)
+        return 0;
+    return 1;
+}
+
 char *filesys_RemoveDoubleSlashes(const char *path) {
     if (!path)
         return NULL;
