@@ -8,6 +8,7 @@
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
 #include "filesys.h"
+#include "compiler/scoperesolver.h"
 #include "vfs.h"
 
 #include "../testmain.h"
@@ -23,14 +24,14 @@ START_TEST (test_scope_import_complex)
     char *cwd = filesys_GetCurrentDirectory();
     assert(cwd != NULL);
     char *testfolder_path = filesys_Join(cwd, ".testdata-prj");
-    assert(tesfolder_path != NULL);
+    assert(testfolder_path != NULL);
 
-    if (filesys_Exists(testfolder_path)) {
-        ck_assert(filesys_IsDirectory(testfolder_path)) {
+    if (filesys_FileExists(testfolder_path)) {
+        ck_assert(filesys_IsDirectory(testfolder_path));
         int result = filesys_RemoveFolder(testfolder_path, 1);
         assert(result != 0);
     }
-    assert(filesys_Exists(testfolder_path) == 0);
+    assert(filesys_FileExists(testfolder_path) == 0);
     int createresult = filesys_CreateDirectory(testfolder_path);
     ck_assert(createresult);
     createresult = filesys_CreateDirectory(".testdata-prj/horse_modules");
@@ -96,10 +97,11 @@ START_TEST (test_scope_import_complex)
 
     char *error = NULL;
     h64ast *ast = NULL;
-    ck_assert(compileproject_GetResolvedAST(
+    ck_assert(compileproject_GetAST(
         project, ".testdata/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
+    ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
 
     compileproject_Free(project);  // This indirectly frees 'ast'!
 }
