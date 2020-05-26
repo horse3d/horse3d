@@ -377,13 +377,26 @@ int scoperesolver_ResolveAST(
             }
             return 0;
         }
+        int modpathoom = 0;
         char *module_path = compileproject_URIRelPath(
-            project_path, unresolved_ast->fileuri
+            project_path, unresolved_ast->fileuri, &modpathoom
         );
         free(project_path);
         project_path = NULL;
         if (!module_path) {
             free(library_source);
+            if (!modpathoom) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "failed to locate this file path inside project: "
+                    "%s", unresolved_ast->fileuri);
+                result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, buf,
+                    unresolved_ast->fileuri,
+                    -1, -1
+                );
+            }
             return 0;
         }
 

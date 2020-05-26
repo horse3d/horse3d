@@ -28,11 +28,13 @@ h64compileproject *compileproject_New(
 );
 
 char *compileproject_URIRelPath(
-    const char *basepath, const char *fileuri
+    const char *basepath, const char *fileuri,
+    int *outofmemory
 );
 
 char *compileproject_ToProjectRelPath(
-    h64compileproject *pr, const char *fileuri
+    h64compileproject *pr, const char *fileuri,
+    int *outofmemory
 );
 
 int compileproject_GetAST(

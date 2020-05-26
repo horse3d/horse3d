@@ -84,51 +84,88 @@ h64compileproject *compileproject_New(
 }
 
 char *compileproject_URIRelPath(
-        const char *basepath, const char *fileuri
+        const char *basepath, const char *fileuri,
+        int *outofmemory
         ) {
-    if (!fileuri || !basepath)
+    if (!fileuri || !basepath) {
+        if (outofmemory) *outofmemory = 1;
         return NULL;
+    }
 
     uriinfo *uinfo = uri_ParseEx(fileuri, "https");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             strcasecmp(uinfo->protocol, "file") != 0) {
         uri_Free(uinfo);
+        if (outofmemory) *outofmemory = 1;
         return NULL;
     }
 
     char *s = filesys_ToAbsolutePath(uinfo->path);
-    uri_Free(uinfo); uinfo = NULL;
-    if (!s) return NULL;
+    uri_Free(uinfo);
+    uinfo = NULL;
+    if (!s) {
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
 
     char *result = filesys_TurnIntoPathRelativeTo(
         s, basepath
     );
     free(s); s = NULL;
-    if (!result) return NULL;
+    if (!result) {
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
 
     char *resultnormalized = filesys_Normalize(result);
     free(result);
-    if (!resultnormalized) return NULL;
+    if (!resultnormalized) {
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
 
+    if (strlen(resultnormalized) > strlen("../") &&
+            (memcmp(resultnormalized, "../", 3) == 0
+            #if defined(_WIN32) || defined(_WIN64)
+            || memcmp(resultnormalized, "..\\", 3) == 0
+            #endif
+            )) {
+        if (outofmemory) *outofmemory = 0;
+        free(resultnormalized);
+        return NULL;
+    }
+
+    if (outofmemory) *outofmemory = 0;
     return resultnormalized;
 }
 
 char *compileproject_ToProjectRelPath(
-        h64compileproject *pr, const char *fileuri
+        h64compileproject *pr, const char *fileuri,
+        int *outofmemory
         ) {
-    if (!fileuri || !pr || !pr->basefolder)
+    if (!fileuri || !pr || !pr->basefolder) {
+        if (outofmemory) *outofmemory = 0;
         return NULL;
-    return compileproject_URIRelPath(pr->basefolder, fileuri);
+    }
+    return compileproject_URIRelPath(
+        pr->basefolder, fileuri, outofmemory
+    );
 }
 
 int compileproject_GetAST(
         h64compileproject *pr, const char *fileuri,
         h64ast **out_ast, char **error
         ) {
+    int relfileoom = 0;
     char *relfilepath = compileproject_ToProjectRelPath(
-        pr, fileuri
+        pr, fileuri, &relfileoom
     );
     if (!relfilepath) {
+        if (relfileoom) {
+            *error = strdup("out of memory");
+            *out_ast = NULL;
+            return 0;
+        }
         *error = strdup(
             "cannot get AST of file outside of project root"
         );
@@ -261,21 +298,14 @@ char *compileproject_GetFileSubProjectPath(
         uri_Free(uinfo);
         return NULL;
     }
+    int relfilepathoom = 0;
     char *relfilepath = compileproject_ToProjectRelPath(
-        pr, uinfo->path
+        pr, uinfo->path, &relfilepathoom
     );
     uri_Free(uinfo); uinfo = NULL;
     if (!relfilepath) {
-        if (outofmemory) *outofmemory = 1;
-        return NULL;
-    }
-    if (strlen(relfilepath) > strlen("../") &&
-            (memcmp(relfilepath, "../", 3) == 0
-            #if defined(_WIN32) || defined(_WIN64)
-            || memcmp(relfilepath, "..\\", 3) == 0
-            #endif
-            )) {
-        if (outofmemory) *outofmemory = 0;
+        if (outofmemory && relfilepathoom) *outofmemory = 1;
+        if (outofmemory && !relfilepathoom) *outofmemory = 0;
         return NULL;
     }
     if (strlen(relfilepath) > strlen("horse_modules")) {
@@ -338,6 +368,7 @@ char *compileproject_GetFileSubProjectPath(
                 free(relfilepath);
                 if (result) {
                     if (subproject_name) *subproject_name = project_name;
+                    if (outofmemory) *outofmemory = 0;
                 } else {
                     if (outofmemory) *outofmemory = 1;
                 }
@@ -355,7 +386,13 @@ char *compileproject_GetFileSubProjectPath(
             return NULL;
         }
     }
-    return filesys_ToAbsolutePath(pr->basefolder);
+    char *result = filesys_ToAbsolutePath(pr->basefolder);
+    if (!result) {
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
+    if (outofmemory) *outofmemory = 0;
+    return result;
 }
 
 char *compileproject_ResolveImport(
@@ -540,13 +577,14 @@ char *compileproject_ResolveImport(
         if (outofmemory) *outofmemory = projectpathoom;
         return NULL;
     }
+    int relfilepathoom = 0;
     char *relfilepath = compileproject_ToProjectRelPath(
-        pr, sourcefileuri
+        pr, sourcefileuri, &relfilepathoom
     );
     if (!relfilepath) {
         free(projectpath);
         free(import_relpath);
-        if (outofmemory) *outofmemory = 1;
+        if (relfilepathoom && outofmemory) *outofmemory = 1;
         return NULL;
     }
     char *relfolderpath = filesys_Dirname(relfilepath);
