@@ -25,6 +25,8 @@ START_TEST (test_scope_import_complex)
     assert(cwd != NULL);
     char *testfolder_path = filesys_Join(cwd, ".testdata-prj");
     assert(testfolder_path != NULL);
+    free(cwd);
+    cwd = NULL;
 
     if (filesys_FileExists(testfolder_path)) {
         ck_assert(filesys_IsDirectory(testfolder_path));
@@ -94,11 +96,13 @@ START_TEST (test_scope_import_complex)
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
     }
+    free(testfolder_path);
+    testfolder_path = NULL;
 
     char *error = NULL;
     h64ast *ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, ".testdata/mainfile.h64", &ast, &error
+        project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
