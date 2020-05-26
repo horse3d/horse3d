@@ -84,7 +84,8 @@ int filesys_RemoveFolder(const char *path, int recursive) {
             FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION,
             FALSE, NULL, NULL
         };
-        SHFileOperation(&shfo);
+        if (SHFileOperation(&shfo) != 0)
+            return 0;
         return (shfo.fAnyOperationsAborted == 0);
     } else {
         return (RemoveDirectoryA(path) != 0);
