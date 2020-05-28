@@ -16,6 +16,9 @@ typedef struct h64scopedef {
     int classandfuncnestinglevel;
 
     h64expression *declarationexpr;
+    int additionaldecl_count;
+    h64expression **additionaldecl;
+
     const char *identifier;
     int everused, first_use_token_index, last_use_token_index, closureuse;
     h64scope *scope;
@@ -26,9 +29,6 @@ typedef struct h64scopedef {
 typedef struct h64scope {
     int definitionref_count, definitionref_alloc;
     h64scopedef **definitionref;
-
-    int additionaldef_count;
-    h64scopedef *additionaldef;
 
     unsigned int magicinitnum;
 

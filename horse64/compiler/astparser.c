@@ -2466,11 +2466,30 @@ const char *_identifierdeclarationname(
     return deftype;
 }
 
+static int _importstmts_have_duplicate_path(
+        h64expression *expr1, h64expression *expr2
+        ) {
+    if (expr1->importstmt.import_elements_count !=
+            expr2->importstmt.import_elements_count)
+        return 0;
+    int i = 0;
+    while (i < expr1->importstmt.import_elements_count) {
+        if (strcasecmp(
+                expr1->importstmt.import_elements[i],
+                expr2->importstmt.import_elements[i]) != 0) {
+            return 0;
+        }
+        i++;
+    }
+    return 1;
+}
+
 int ast_CanAddNameToScopeCheck(
         h64parsecontext *context,
         h64parsethis *parsethis,
         h64expression *expr,
         int identifiertokenindex,
+        h64scopedef **appends_to_sdef,
         int *outofmemory
         ) {
     h64scope *scope = parsethis->scope;
@@ -2502,31 +2521,61 @@ int ast_CanAddNameToScopeCheck(
     if ((duplicateuse = _getSameScopeShadowedDefinition(
             parsethis, exprname
             )) != NULL) {
-        char buf[256];
-        char describebuf[64];
-        snprintf(buf, sizeof(buf) - 1,
-            "unexpected duplicate %s \"%s\", "
-            "already defined as %s in same scope "
-            "in line %" PRId64 ", column %" PRId64
-            ", this is not allowed",
-            deftype, _shortenedname(describebuf, exprname),
-            _identifierdeclarationname(
-                duplicateuse->declarationexpr, exprname
-            ),
-            duplicateuse->declarationexpr->line,
-            duplicateuse->declarationexpr->column
-        );
-        if (!result_AddMessage(
-                context->resultmsg,
-                H64MSG_ERROR, buf, context->fileuri,
-                _refline(
-                    context->tokenstreaminfo, parsethis->tokens, i),
-                _refcol(
-                    context->tokenstreaminfo, parsethis->tokens, i)
-                )) {
-            if (outofmemory) *outofmemory = 1;
+        h64expression *conflictingexpr = duplicateuse->declarationexpr;
+        int validimportstacking = 0;
+        if (duplicateuse->declarationexpr->type ==
+                H64EXPRTYPE_IMPORT_STMT &&
+                expr->type == H64EXPRTYPE_IMPORT_STMT) {
+            validimportstacking = 1;
+            if (_importstmts_have_duplicate_path(
+                    duplicateuse->declarationexpr, expr)) {
+                validimportstacking = 0;
+            }
+            int i = 0;
+            while (i < duplicateuse->additionaldecl_count) {
+                assert(duplicateuse->additionaldecl[i]->type ==
+                       H64EXPRTYPE_IMPORT_STMT);
+                if (_importstmts_have_duplicate_path(
+                        duplicateuse->additionaldecl[i], expr)) {
+                    validimportstacking = 0;
+                    break;
+                }
+                i++;
+            }
+        }
+        if (!validimportstacking) {
+            char buf[256];
+            char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected duplicate %s \"%s\", "
+                "already defined as %s in same scope "
+                "in line %" PRId64 ", column %" PRId64
+                ", this is not allowed",
+                deftype, _shortenedname(describebuf, exprname),
+                _identifierdeclarationname(
+                    duplicateuse->declarationexpr, exprname
+                ),
+                duplicateuse->declarationexpr->line,
+                duplicateuse->declarationexpr->column
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, context->fileuri,
+                    _refline(
+                        context->tokenstreaminfo, parsethis->tokens, i),
+                    _refcol(
+                        context->tokenstreaminfo, parsethis->tokens, i)
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+            if (outofmemory) *outofmemory = 0;
             return 0;
         }
+        if (outofmemory) *outofmemory = 0;
+        if (appends_to_sdef)
+            *appends_to_sdef = duplicateuse;
+        return 1;
     } else {
         h64scopedef *shadoweduse = scope_QueryItem(
             parsethis->scope, exprname, 1
@@ -2637,6 +2686,7 @@ int ast_CanAddNameToScopeCheck(
             }
         }
         if (!forbidden) {
+            if (appends_to_sdef) *appends_to_sdef = NULL;
             return 1;
         }
     }
@@ -2673,20 +2723,39 @@ int ast_ProcessNewScopeIdentifier(
         }
     } else {
         int scopeaddoom = 0;
+        h64scopedef *appends_to_sdef = NULL;
         if (ast_CanAddNameToScopeCheck(
                 context, parsethis, expr, i - 1,
-                &scopeaddoom
+                &appends_to_sdef, &scopeaddoom
                 )) {
-            int scopeoom = 0;
-            if (!scope_AddItem(
-                    (_add_to_this_scope_instead_of_default != NULL ?
-                     _add_to_this_scope_instead_of_default :
-                      parsethis->scope),
-                    identifier, expr, &scopeoom
-                    )) {
-                if (scopeoom)
+            if (appends_to_sdef == NULL) {
+                int scopeoom = 0;
+                if (!scope_AddItem(
+                        (_add_to_this_scope_instead_of_default != NULL ?
+                         _add_to_this_scope_instead_of_default :
+                          parsethis->scope),
+                        identifier, expr, &scopeoom
+                        )) {
+                    if (scopeoom)
+                        if (outofmemory) *outofmemory = 1;
+                    return 0;
+                }
+            } else {
+                h64expression **additionaldeclnew = realloc(
+                    appends_to_sdef->additionaldecl,
+                    sizeof(*appends_to_sdef->additionaldecl) * (
+                    appends_to_sdef->additionaldecl_count + 1
+                    )
+                );
+                if (!additionaldeclnew) {
                     if (outofmemory) *outofmemory = 1;
-                return 0;
+                    return 0;
+                }
+                appends_to_sdef->additionaldecl = additionaldeclnew;
+                appends_to_sdef->additionaldecl[
+                    appends_to_sdef->additionaldecl_count
+                ] = expr;
+                appends_to_sdef->additionaldecl_count++;
             }
             success = 1;
         } else {

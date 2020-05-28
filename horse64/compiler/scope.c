@@ -33,6 +33,9 @@ void scope_FreeData(h64scope *scope) {
         hash_FreeMap(scope->name_to_declaration_map);
     int i = 0;
     while (i < scope->definitionref_count) {
+        if (scope->definitionref[i]) {
+            free(scope->definitionref[i]->additionaldecl);
+        }
         free(scope->definitionref[i]);
         i++;
     }
