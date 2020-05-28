@@ -27,6 +27,9 @@ typedef struct h64scope {
     int definitionref_count, definitionref_alloc;
     h64scopedef **definitionref;
 
+    int additionaldef_count;
+    h64scopedef *additionaldef;
+
     unsigned int magicinitnum;
 
     int classandfuncnestinglevel;

@@ -106,6 +106,18 @@ START_TEST (test_scope_import_complex)
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
+    if (ast->resultmsg.message_count > 0) {
+        int i = 0;
+        while (i < ast->resultmsg.message_count) {
+            if (ast->resultmsg.message[i].type == H64MSG_ERROR) {
+                fprintf(stderr, "TEST UNEXPECTED FAIL: %s\n",
+                        ast->resultmsg.message[i].message);
+            }
+            ck_assert(ast->resultmsg.message[i].type != H64MSG_ERROR);
+            i++;
+        }
+    }
+    ck_assert(ast->resultmsg.success);
 
     compileproject_Free(project);  // This indirectly frees 'ast'!
 }
