@@ -133,6 +133,7 @@ int scope_AddItem(
 h64scopedef *scope_QueryItem(
         h64scope *scope, const char *identifier_ref, int bubble_up
         ) {
+    assert(identifier_ref != NULL);
     uint64_t result = 0;
     assert(scope->name_to_declaration_map != NULL);
     if (!hash_StringMapGet(

@@ -1502,8 +1502,10 @@ int ast_ParseExprInline(
             return 1;
         } else if (tokens[0].type == H64TK_IDENTIFIER) {
             expr->type = H64EXPRTYPE_IDENTIFIERREF;
+            assert(tokens[0].str_value != NULL);
             expr->identifierref.value = strdup(tokens[0].str_value);
             if (!expr->identifierref.value) {
+                expr->type = H64EXPRTYPE_INVALID;
                 if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 0;
                 ast_FreeExpression(expr);

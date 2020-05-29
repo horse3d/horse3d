@@ -241,6 +241,7 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
             (parent == NULL ||
              parent->type != H64EXPRTYPE_BINARYOP ||
              parent->op.value1 == expr)) {
+        assert(expr->identifierref.value != NULL);
         h64scope *scope = ast_GetScope(expr, &rinfo->ast->scope);
         if (scope == NULL) {
             char buf[256];
