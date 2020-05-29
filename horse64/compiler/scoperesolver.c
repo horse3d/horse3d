@@ -329,7 +329,7 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                     if (accessed_elements_count >= accessed_elements_alloc) {
                         char buf[256];
                         snprintf(buf, sizeof(buf) - 1,
-                            "internal error: referring to import chain "
+                            "unexpected import chain "
                             "exceeding maximum nesting of %d",
                             (int)H64LIMIT_IMPORTCHAINLEN
                         );
@@ -403,10 +403,9 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                     }
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
-                        "internal error: identifier ref '%s' points "
-                        "to import module, but failed to match up "
-                        "full import path: %s",
-                        expr->identifierref.value,
+                        "unexpected import path %s,"
+                        "not found among the import statements "
+                        "in this file",
                         full_imp_path
                     );
                     if (!result_AddMessage(
