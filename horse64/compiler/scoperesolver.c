@@ -8,6 +8,7 @@
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
+#include "compiler/globallimits.h"
 #include "compiler/scoperesolver.h"
 #include "compiler/scope.h"
 #include "filesys.h"
@@ -267,6 +268,7 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
         );
         if (def) {
             expr->identifierref.resolved_to_def = def;
+            expr->identifierref.resolved_to_expr = def->declarationexpr;
             if (def->declarationexpr->type ==
                     H64EXPRTYPE_VARDEF_STMT ||
                     (def->declarationexpr->type ==
@@ -295,7 +297,132 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                 }
             } else if (def->declarationexpr->type ==
                     H64EXPRTYPE_IMPORT_STMT) {
-                // Nothing to do
+                // We are accessing an import. We need to actually get the
+                // full import path accessed to get the right statement:
+                int accessed_elements_count = 1;
+                int accessed_elements_alloc = H64LIMIT_IMPORTCHAINLEN + 1;
+                char **accessed_elements = alloca(
+                    sizeof(*accessed_elements) * (
+                    accessed_elements_alloc)
+                );
+                accessed_elements[0] = expr->identifierref.value;
+                h64expression *pexpr = def->declarationexpr;
+                while (pexpr->parent &&
+                        pexpr->parent->type == H64EXPRTYPE_BINARYOP &&
+                        pexpr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+                        pexpr->parent->op.value1 == pexpr &&
+                        pexpr->parent->op.value2 != NULL &&
+                        pexpr->parent->op.value2->type ==
+                            H64EXPRTYPE_IDENTIFIERREF &&
+                        pexpr->parent->parent &&
+                        pexpr->parent->parent->op.optype ==
+                            H64OP_MEMBERBYIDENTIFIER &&
+                        pexpr->parent->parent->op.value1 == pexpr->parent &&
+                        pexpr->parent->parent->op.value2 != NULL &&
+                        pexpr->parent->parent->op.value2->type ==
+                            H64EXPRTYPE_IDENTIFIERREF) {
+                    pexpr = pexpr->parent;
+                    accessed_elements[accessed_elements_count] =
+                        pexpr->identifierref.value;
+                    accessed_elements_count++;
+                    if (accessed_elements_count >= accessed_elements_alloc) {
+                        char buf[256];
+                        snprintf(buf, sizeof(buf) - 1,
+                            "internal error: referring to import chain "
+                            "exceeding maximum nesting of %d",
+                            (int)H64LIMIT_IMPORTCHAINLEN
+                        );
+                        if (!result_AddMessage(
+                                &rinfo->ast->resultmsg,
+                                H64MSG_ERROR,
+                                buf,
+                                rinfo->ast->fileuri,
+                                expr->line, expr->column
+                                )) {
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
+                        return 1;
+                    }
+                }
+
+                // See what exact import statement that maps to:
+                h64expression *_mapto = NULL;
+                int j = -1;
+                while (j < def->additionaldecl_count) {
+                    h64expression *val = def->declarationexpr;
+                    if (j >= 0)
+                        val = def->additionaldecl[j];
+                    if (val->type == H64EXPRTYPE_IMPORT_STMT &&
+                            val->importstmt.import_elements_count ==
+                            accessed_elements_count) {
+                        int mismatch = 0;
+                        int k = 0;
+                        while (k < accessed_elements_count) {
+                            if (strcmp(
+                                    accessed_elements[k],
+                                    val->importstmt.import_elements[k]
+                                    ) != 0) {
+                                mismatch = 1;
+                                break;
+                            }
+                            k++;
+                        }
+                        if (!mismatch) _mapto = val;
+                    }
+                    j++;
+                }
+
+                // Abort if we found no exact match:
+                if (_mapto == NULL) {
+                    size_t full_imp_path_len = 0;
+                    int k = 0;
+                    while (k < accessed_elements_count) {
+                        if (k > 0)
+                            full_imp_path_len++;
+                        full_imp_path_len += strlen(accessed_elements[k]);
+                        k++;
+                    }
+                    char *full_imp_path = malloc(full_imp_path_len + 1);
+                    if (!full_imp_path) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                    full_imp_path[0] = '\0';
+                    k = 0;
+                    while (k < accessed_elements_count) {
+                        if (k > 0) {
+                            full_imp_path[strlen(full_imp_path) + 1] = '\0';
+                            full_imp_path[strlen(full_imp_path) + 1] = '.';
+                        }
+                        memcpy(full_imp_path + strlen(full_imp_path),
+                               accessed_elements[k],
+                               strlen(accessed_elements[k]) + 1);
+                        k++;
+                    }
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "internal error: identifier ref '%s' points "
+                        "to import module, but failed to match up "
+                        "full import path: %s",
+                        expr->identifierref.value,
+                        full_imp_path
+                    );
+                    if (!result_AddMessage(
+                            &rinfo->ast->resultmsg,
+                            H64MSG_ERROR,
+                            buf,
+                            rinfo->ast->fileuri,
+                            expr->line, expr->column
+                            )) {
+                        free(full_imp_path);
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                    free(full_imp_path);
+                    return 1;
+                }
+                expr->identifierref.resolved_to_expr = _mapto;
             } else {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,

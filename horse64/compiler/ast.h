@@ -134,6 +134,7 @@ typedef struct h64expression {
         } inlinecall;
         struct identifierref {
             h64scopedef *resolved_to_def;
+            h64expression *resolved_to_expr;
             int resolved_to_builtin;
             char *value;
         } identifierref;
