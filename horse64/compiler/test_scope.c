@@ -56,13 +56,14 @@ START_TEST (test_scope_import_complex)
         FILE *f = fopen(".testdata-prj/mainfile.h64", "wb");
         ck_assert(f != NULL);
         char s[] = (
+            "# PERMITTED almost-duplicate import that diverges:\n"
             "import mymodule.test1 @lib mylib\n"
             "import mymodule.test2 @lib mylib\n"
             "class TestClass {"
             "    var v = 1.5 + 0xA + 0b10"
             "}"
             "func main {"
-            "    var obj = TestClass()"
+            "    var obj = new TestClass()"
             "}"
         );
         ck_assert(fwrite(s, 1, strlen(s), f));
@@ -75,7 +76,7 @@ START_TEST (test_scope_import_complex)
         );
         ck_assert(f != NULL);
         char s[] = (
-            "func test {"
+            "func test1_blobb {"
             "    print(\"test\")"
             "}"
         );
@@ -89,7 +90,7 @@ START_TEST (test_scope_import_complex)
         );
         ck_assert(f != NULL);
         char s[] = (
-            "func test {"
+            "func test2_thing {"
             "    print(\"test\")"
             "}"
         );
@@ -122,13 +123,14 @@ START_TEST (test_scope_import_complex)
         FILE *f = fopen(".testdata-prj/mainfile.h64", "wb");
         ck_assert(f != NULL);
         char s[] = (
+            "# INVALID duplicate import that should fail:\n"
             "import mymodule.test1 @lib mylib\n"
             "import mymodule.test1 @lib mylib\n"
             "class TestClass {"
             "    var v = 1.5 + 0xA + 0b10"
             "}"
             "func main {"
-            "    var obj = TestClass()"
+            "    var obj = new TestClass()"
             "}"
         );
         ck_assert(fwrite(s, 1, strlen(s), f));
@@ -153,6 +155,90 @@ START_TEST (test_scope_import_complex)
                 founderror = 1;
                 ck_assert(strstr(
                     ast->resultmsg.message[i].message, "duplicate"
+                ));
+                ck_assert(!strstr(
+                    ast->resultmsg.message[i].message, "randomnonsenseword"
+                ));
+            }
+            i++;
+        }
+        ck_assert(founderror);
+    }
+    ck_assert(!ast->resultmsg.success);
+    compileproject_Free(project);  // This indirectly frees 'ast'
+
+    {
+        FILE *f = fopen(".testdata-prj/mainfile.h64", "wb");
+        ck_assert(f != NULL);
+        char s[] = (
+            "# VALID use of imported element:\n"
+            "import mymodule.test1 @lib mylib\n"
+            "func main {"
+            "    var obj = mymodule.test1.test1_blobb()"
+            "}"
+        );
+        ck_assert(fwrite(s, 1, strlen(s), f));
+        fclose(f);
+    }
+    project = compileproject_New(
+        testfolder_path
+    );
+    error = NULL;
+    ast = NULL;
+    ck_assert(compileproject_GetAST(
+        project, ".testdata-prj/mainfile.h64", &ast, &error
+    ) != 0);
+    ck_assert(error == NULL);
+    ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
+    if (ast->resultmsg.message_count > 0) {
+        int i = 0;
+        while (i < ast->resultmsg.message_count) {
+            if (ast->resultmsg.message[i].type == H64MSG_ERROR) {
+                fprintf(stderr, "TEST UNEXPECTED FAIL: %s\n",
+                        ast->resultmsg.message[i].message);
+            }
+            ck_assert(ast->resultmsg.message[i].type != H64MSG_ERROR);
+            i++;
+        }
+    }
+    ck_assert(ast->resultmsg.success);
+    compileproject_Free(project);  // This indirectly frees 'ast'
+
+    {
+        FILE *f = fopen(".testdata-prj/mainfile.h64", "wb");
+        ck_assert(f != NULL);
+        char s[] = (
+            "# INVALID use of function that is not in imported module:\n"
+            "import mymodule.test1 @lib mylib\n"
+            "func main {"
+            "    var obj = mymodule.test1.no_such_function_invalid()"
+            "}"
+        );
+        ck_assert(fwrite(s, 1, strlen(s), f));
+        fclose(f);
+    }
+    project = compileproject_New(
+        testfolder_path
+    );
+    error = NULL;
+    ast = NULL;
+    ck_assert(compileproject_GetAST(
+        project, ".testdata-prj/mainfile.h64", &ast, &error
+    ) != 0);
+    ck_assert(error == NULL);
+    ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
+    founderror = 0;
+    ck_assert(ast->resultmsg.message_count > 0);
+    {
+        int i = 0;
+        while (i < ast->resultmsg.message_count) {
+            if (ast->resultmsg.message[i].type == H64MSG_ERROR) {
+                founderror = 1;
+                ck_assert(strstr(
+                    ast->resultmsg.message[i].message, "unknown"
+                ));
+                ck_assert(!strstr(
+                    ast->resultmsg.message[i].message, "randomnonsenseword"
                 ));
             }
             i++;

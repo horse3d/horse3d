@@ -403,9 +403,8 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                     }
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
-                        "unexpected import path %s,"
-                        "not found among the import statements "
-                        "in this file",
+                        "unexpected reference to module path '%s', "
+                        "not found among this file's imports",
                         full_imp_path
                     );
                     if (!result_AddMessage(
