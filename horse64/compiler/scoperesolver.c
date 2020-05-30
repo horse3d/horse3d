@@ -486,7 +486,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                             refitemname, &number) || number == 0) {
                         char buf[256];
                         snprintf(buf, sizeof(buf) - 1,
-                            "unexpected identifier %s "
+                            "unexpected unknown identifier %s "
                             "not found in module %s",
                             refitemname,
                             full_imp_path
@@ -833,8 +833,10 @@ int scoperesolver_BuildASTGlobalStorage(
                     )) {
                 return 0;
             }
-            if (unresolved_ast->resultmsg.message[k].type == H64MSG_ERROR)
+            if (unresolved_ast->resultmsg.message[k].type == H64MSG_ERROR) {
                 pr->resultmsg->success = 0;
+                unresolved_ast->resultmsg.success = 0;
+            }
             k++;
         }
     }
@@ -890,6 +892,7 @@ int scoperesolver_BuildASTGlobalStorage(
 int scoperesolver_ResolveAST(
         h64compileproject *pr, h64ast *unresolved_ast
         ) {
+    assert(unresolved_ast != NULL);
     if (unresolved_ast->identifiers_resolved)
         return 1;
 
@@ -909,6 +912,8 @@ int scoperesolver_ResolveAST(
     int msgcount = unresolved_ast->resultmsg.message_count;
     int k = 0;
     while (k < unresolved_ast->stmt_count) {
+        assert(unresolved_ast->stmt != NULL &&
+            unresolved_ast->stmt[k] != NULL);
         int result = ast_VisitExpression(
             unresolved_ast->stmt[k], NULL,
             NULL,
@@ -939,8 +944,10 @@ int scoperesolver_ResolveAST(
                     )) {
                 return 0;
             }
-            if (unresolved_ast->resultmsg.message[k].type == H64MSG_ERROR)
+            if (unresolved_ast->resultmsg.message[k].type == H64MSG_ERROR) {
                 pr->resultmsg->success = 0;
+                unresolved_ast->resultmsg.success = 0;
+            }
             k++;
         }
     }
