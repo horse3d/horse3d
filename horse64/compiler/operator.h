@@ -1,5 +1,5 @@
-#ifndef HORSE3D_COMPILER_OPERATOR_H_
-#define HORSE3D_COMPILER_OPERATOR_H_
+#ifndef HORSE64_COMPILER_OPERATOR_H_
+#define HORSE64_COMPILER_OPERATOR_H_
 
 #include <stdint.h>
 #include <stdlib.h>  // for NULL
@@ -99,4 +99,4 @@ const char *operator_OpPrintedAsStr(h64optype type);
 const char *operator_OpTypeToStr(h64optype type);
 
 
-#endif  // HORSE3D_COMPILER_OPERATOR_H_
+#endif  // HORSE64_COMPILER_OPERATOR_H_

@@ -177,7 +177,7 @@ static int scoperesolver_ComputeItemStorage(
     return 1;
 }
 
-int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
+int _resolvercallback_BuildGlobalStorage_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
     resolveinfo *rinfo = (resolveinfo *)ud;
@@ -235,7 +235,13 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
             }
         }
     }
+    return 1;
+}
 
+int _resolvercallback_ResolveIdentifiers_visit_out(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    resolveinfo *rinfo = (resolveinfo *)ud;
     // Resolve most inner identifiers:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             (parent == NULL ||
@@ -278,23 +284,13 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                             expr->identifierref.value)) ||
                     def->declarationexpr->type ==
                     H64EXPRTYPE_CLASSDEF_STMT) {
-                if (!def->declarationexpr->storage.set) {
-                    int outofmemory = 0;
-                    if (!scoperesolver_ComputeItemStorage(
-                            def->declarationexpr, rinfo->pr->program,
-                            rinfo->ast, &outofmemory)) {
-                        if (outofmemory) {
-                            rinfo->hadoutofmemory = 1;
-                            return 0;
-                        }
-                        rinfo->failedstorageassign = 1;
-                    }
-                }
                 if (def->declarationexpr->storage.set) {
                     memcpy(
                         &expr->storage, &def->declarationexpr->storage,
                         sizeof(expr->storage)
                     );
+                } else {
+                    rinfo->failedstorageassign = 1;
                 }
             } else if (def->declarationexpr->type ==
                     H64EXPRTYPE_IMPORT_STMT) {
@@ -374,9 +370,11 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                     j++;
                 }
 
-                // Abort if we found no exact match:
-                if (_mapto == NULL) {
-                    size_t full_imp_path_len = 0;
+                // Put together path for error messages:
+                size_t full_imp_path_len = 0;
+                char *full_imp_path = NULL;
+                {
+                    full_imp_path_len = 0;
                     int k = 0;
                     while (k < accessed_elements_count) {
                         if (k > 0)
@@ -384,7 +382,7 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                         full_imp_path_len += strlen(accessed_elements[k]);
                         k++;
                     }
-                    char *full_imp_path = malloc(full_imp_path_len + 1);
+                    full_imp_path = malloc(full_imp_path_len + 1);
                     if (!full_imp_path) {
                         rinfo->hadoutofmemory = 1;
                         return 0;
@@ -403,12 +401,18 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                         );
                         k++;
                     }
+                }
+
+                // Abort if we found no exact match:
+                if (_mapto == NULL) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
-                        "unexpected reference to module path '%s', "
+                        "unexpected reference to module path %s, "
                         "not found among this file's imports",
                         full_imp_path
                     );
+                    free(full_imp_path);
+                    full_imp_path = NULL;
                     if (!result_AddMessage(
                             &rinfo->ast->resultmsg,
                             H64MSG_ERROR,
@@ -416,14 +420,109 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                             rinfo->ast->fileuri,
                             expr->line, expr->column
                             )) {
-                        free(full_imp_path);
                         rinfo->hadoutofmemory = 1;
                         return 0;
                     }
-                    free(full_imp_path);
                     return 1;
                 }
                 expr->identifierref.resolved_to_expr = _mapto;
+
+                // Resolve the member access that is done on top of this
+                // module path (or error if  there is none):
+                assert(_mapto != NULL && pexpr != NULL);
+                if (pexpr->parent == NULL ||
+                        pexpr->parent->type != H64EXPRTYPE_BINARYOP ||
+                        pexpr->parent->op.optype !=
+                            H64OP_MEMBERBYIDENTIFIER ||
+                        pexpr->parent->op.value1 != pexpr ||
+                        pexpr->parent->op.value2 == NULL ||
+                        pexpr->parent->op.value2->type !=
+                            H64EXPRTYPE_IDENTIFIERREF) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected %s of module %s, "
+                        "instead of accessing any element from "
+                        "the module via \".\"",
+                        (pexpr->parent == NULL ? "standalone use" : (
+                         pexpr->parent->type != H64EXPRTYPE_BINARYOP ?
+                         ast_ExpressionTypeToStr(pexpr->parent->type) :
+                         operator_OpTypeToStr(pexpr->parent->op.optype))),
+                        full_imp_path
+                    );
+                    free(full_imp_path);
+                    full_imp_path = NULL;
+                    if (!result_AddMessage(
+                            &rinfo->ast->resultmsg,
+                            H64MSG_ERROR,
+                            buf,
+                            rinfo->ast->fileuri,
+                            expr->line, expr->column
+                            )) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                    return 1;
+                }
+                const char *refitemname = (
+                    pexpr->parent->op.value2->identifierref.value
+                );
+                if (!refitemname) {
+                    // This should have yielded an error already in a
+                    // previous stage, but make sure we spit one out if that
+                    // wasn't the case:
+                    rinfo->failedstorageassign = 1;
+                    free(full_imp_path);
+                    full_imp_path = NULL;
+                    return 1;
+                } else {
+                    assert(_mapto->type == H64EXPRTYPE_IMPORT_STMT &&
+                        _mapto->importstmt.referenced_ast != NULL &&
+                        _mapto->importstmt.referenced_ast->scope.
+                                name_to_declaration_map != NULL);
+                    uint64_t number = 0;
+                    if (!hash_StringMapGet(
+                            _mapto->importstmt.referenced_ast->scope.
+                            name_to_declaration_map,
+                            refitemname, &number) || number == 0) {
+                        char buf[256];
+                        snprintf(buf, sizeof(buf) - 1,
+                            "unexpected identifier %s "
+                            "not found in module %s",
+                            refitemname,
+                            full_imp_path
+                        );
+                        free(full_imp_path);
+                        full_imp_path = NULL;
+                        if (!result_AddMessage(
+                                &rinfo->ast->resultmsg,
+                                H64MSG_ERROR,
+                                buf,
+                                rinfo->ast->fileuri,
+                                expr->line, expr->column
+                                )) {
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
+                        return 1;
+                    }
+                    h64scopedef *targetitem = (
+                        (h64scopedef*)(uintptr_t)number
+                    );
+                    assert(targetitem != NULL &&
+                        targetitem->declarationexpr != NULL);
+                    if (targetitem->declarationexpr->storage.set) {
+                        memcpy(
+                            &expr->storage.ref,
+                            &targetitem->declarationexpr->storage.ref,
+                            sizeof(expr->storage.ref)
+                        );
+                        expr->storage.set = 1;
+                    } else {
+                        assert(!expr->storage.set);
+                    }
+                    free(full_imp_path);
+                    full_imp_path = NULL;
+                }
             } else {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
@@ -476,9 +575,12 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
     return 1;
 }
 
-int scoperesolver_ResolveAST(
-        h64compileproject *pr, h64ast *unresolved_ast
+int scoperesolver_BuildASTGlobalStorage(
+        h64compileproject *pr, h64ast *unresolved_ast, int recursive
         ) {
+    if (unresolved_ast->global_storage_built)
+        return 1;
+
     // Set module path if missing:
     assert(unresolved_ast->fileuri != NULL);
     if (!unresolved_ast->module_path) {
@@ -693,7 +795,7 @@ int scoperesolver_ResolveAST(
         i++;
     }
 
-    // Now, actually resolve identifiers and build project-wide lookups:
+    // Build global storage:
     resolveinfo rinfo;
     memset(&rinfo, 0, sizeof(rinfo));
     rinfo.pr = pr;
@@ -704,7 +806,113 @@ int scoperesolver_ResolveAST(
         int result = ast_VisitExpression(
             unresolved_ast->stmt[k], NULL,
             NULL,
-            &_resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out,
+            &_resolvercallback_BuildGlobalStorage_visit_out,
+            &rinfo
+        );
+        if (!result || rinfo.hadoutofmemory) {
+            result_AddMessage(
+                &unresolved_ast->resultmsg,
+                H64MSG_ERROR, "out of memory",
+                unresolved_ast->fileuri,
+                -1, -1
+            );
+            return 0;
+        }
+        k++;
+    }
+    {   // Copy over new messages resulting from storage assign:
+        k = msgcount;
+        while (k < unresolved_ast->resultmsg.message_count) {
+            if (!result_AddMessage(
+                    pr->resultmsg,
+                    unresolved_ast->resultmsg.message[k].type,
+                    unresolved_ast->resultmsg.message[k].message,
+                    unresolved_ast->resultmsg.message[k].fileuri,
+                    unresolved_ast->resultmsg.message[k].line,
+                    unresolved_ast->resultmsg.message[k].column
+                    )) {
+                return 0;
+            }
+            if (unresolved_ast->resultmsg.message[k].type == H64MSG_ERROR)
+                pr->resultmsg->success = 0;
+            k++;
+        }
+    }
+    if (rinfo.failedstorageassign) {
+        // Make sure an error is returned:
+        int haderrormsg = 0;
+        k = 0;
+        while (k < pr->resultmsg->message_count) {
+            if (pr->resultmsg->message[k].type == H64MSG_ERROR)
+                haderrormsg = 1;
+            k++;
+        }
+        if (!haderrormsg) {
+            result_AddMessage(
+                pr->resultmsg,
+                H64MSG_ERROR, "internal error: failed to assign "
+                "storage to all items (global storage phase)",
+                unresolved_ast->fileuri,
+                -1, -1
+            );
+            pr->resultmsg->success = 0;
+        }
+    }
+
+    // Do recursive handling if asked for:
+    if (recursive) {
+        // First, make sure all imports are loaded up:
+        int i = 0;
+        while (i < unresolved_ast->scope.definitionref_count) {
+            assert(unresolved_ast->scope.definitionref[i] != NULL);
+            h64expression *expr = (
+                unresolved_ast->scope.definitionref[i]->declarationexpr
+            );
+            if (expr->type != H64EXPRTYPE_IMPORT_STMT) {
+                i++;
+                continue;
+            }
+            if (expr->importstmt.referenced_ast != NULL) {
+                if (!scoperesolver_BuildASTGlobalStorage(
+                        pr, expr->importstmt.referenced_ast, 0
+                        )) {
+                    return 0;
+                }
+            }
+            i++;
+        }
+    }
+
+    unresolved_ast->global_storage_built = 1;
+    return 1;
+}
+
+int scoperesolver_ResolveAST(
+        h64compileproject *pr, h64ast *unresolved_ast
+        ) {
+    if (unresolved_ast->identifiers_resolved)
+        return 1;
+
+    // Make sure global storage was assigned on this AST and all
+    // referenced ones:
+    if (!scoperesolver_BuildASTGlobalStorage(
+            pr, unresolved_ast, 0
+            )) {
+        return 0;
+    }
+
+    // Resolve identifiers:
+    resolveinfo rinfo;
+    memset(&rinfo, 0, sizeof(rinfo));
+    rinfo.pr = pr;
+    rinfo.ast = unresolved_ast;
+    int msgcount = unresolved_ast->resultmsg.message_count;
+    int k = 0;
+    while (k < unresolved_ast->stmt_count) {
+        int result = ast_VisitExpression(
+            unresolved_ast->stmt[k], NULL,
+            NULL,
+            &_resolvercallback_ResolveIdentifiers_visit_out,
             &rinfo
         );
         if (!result || rinfo.hadoutofmemory) {
@@ -748,13 +956,14 @@ int scoperesolver_ResolveAST(
         if (!haderrormsg) {
             result_AddMessage(
                 pr->resultmsg,
-                H64MSG_ERROR, "internal error: failed to assign "
-                "storage to all items",
+                H64MSG_ERROR, "internal error: failed to get"
+                "storage for all items (identifier resolution stage)",
                 unresolved_ast->fileuri,
                 -1, -1
             );
             pr->resultmsg->success = 0;
         }
     }
+    unresolved_ast->identifiers_resolved = 1;
     return 1;
 }
