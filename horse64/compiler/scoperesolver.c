@@ -307,7 +307,7 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                     accessed_elements_alloc)
                 );
                 accessed_elements[0] = expr->identifierref.value;
-                h64expression *pexpr = def->declarationexpr;
+                h64expression *pexpr = expr;
                 while (pexpr->parent &&
                         pexpr->parent->type == H64EXPRTYPE_BINARYOP &&
                         pexpr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
@@ -324,7 +324,7 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                             H64EXPRTYPE_IDENTIFIERREF) {
                     pexpr = pexpr->parent;
                     accessed_elements[accessed_elements_count] =
-                        pexpr->identifierref.value;
+                        pexpr->op.value2->identifierref.value;
                     accessed_elements_count++;
                     if (accessed_elements_count >= accessed_elements_alloc) {
                         char buf[256];
@@ -396,9 +396,11 @@ int _resolvercallback_ResolveIdentifiersBuildSymbolLookup_visit_out(
                             full_imp_path[strlen(full_imp_path) + 1] = '\0';
                             full_imp_path[strlen(full_imp_path) + 1] = '.';
                         }
-                        memcpy(full_imp_path + strlen(full_imp_path),
-                               accessed_elements[k],
-                               strlen(accessed_elements[k]) + 1);
+                        memcpy(
+                            full_imp_path + strlen(full_imp_path),
+                            accessed_elements[k],
+                            strlen(accessed_elements[k]) + 1
+                        );
                         k++;
                     }
                     char buf[256];
