@@ -238,6 +238,17 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
     return 1;
 }
 
+static int isexprchildof(
+        h64expression *expr, h64expression *checkparent
+        ) {
+    while (expr->parent) {
+        expr = expr->parent;
+        if (expr == checkparent)
+            return 1;
+    }
+    return 0;
+}
+
 static int isinsideclosure(h64expression *expr) {
     int surroundingfuncscount = 0;
     while (expr->parent) {
@@ -250,6 +261,18 @@ static int isinsideclosure(h64expression *expr) {
     return (surroundingfuncscount > 1);
 }
 
+static int funchasparamwithname(h64expression *expr, const char *param) {
+    assert(expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+           expr->type == H64EXPRTYPE_INLINEFUNCDEF);
+    int i = 0;
+    while (i < expr->funcdef.arguments.arg_count) {
+        if (expr->funcdef.arguments.arg_name[i] &&
+                strcmp(expr->funcdef.arguments.arg_name[i], param) == 0)
+            return 1;
+        i++;
+    }
+    return 0;
+}
 
 int _resolvercallback_AssignNonglobalStorage_visit_out(
         h64expression *expr, h64expression *parent, void *ud
@@ -301,20 +324,30 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     (def->declarationexpr->type ==
                      H64EXPRTYPE_FUNCDEF_STMT &&
                      strcmp(def->declarationexpr->funcdef.name,
-                            expr->identifierref.value)) ||
+                            expr->identifierref.value) == 0) ||
                     def->declarationexpr->type ==
-                    H64EXPRTYPE_CLASSDEF_STMT) {
-                def->everused = 1;
-                if ((def->first_use_token_index < 0 ||
-                        def->first_use_token_index < expr->tokenindex) &&
-                        expr->tokenindex >= 0)
-                    def->first_use_token_index = expr->tokenindex;
-                if ((def->last_use_token_index < 0 ||
-                        def->last_use_token_index > expr->tokenindex) &&
-                        expr->tokenindex >= 0)
-                    def->last_use_token_index = expr->tokenindex;
-                if (isinsideclosure(expr))
-                    def->closureuse = 1;
+                    H64EXPRTYPE_CLASSDEF_STMT ||
+                    ((def->declarationexpr->type ==
+                      H64EXPRTYPE_FUNCDEF_STMT ||
+                      def->declarationexpr->type ==
+                      H64EXPRTYPE_INLINEFUNCDEF) &&
+                    funchasparamwithname(def->declarationexpr,
+                        expr->identifierref.value
+                    ))) {  // functions, classes, and variable definitions
+                           // (also includes function parameters)
+                if (!isexprchildof(expr, def->declarationexpr)) {
+                    def->everused = 1;
+                    if ((def->first_use_token_index < 0 ||
+                            def->first_use_token_index < expr->tokenindex) &&
+                            expr->tokenindex >= 0)
+                        def->first_use_token_index = expr->tokenindex;
+                    if ((def->last_use_token_index < 0 ||
+                            def->last_use_token_index > expr->tokenindex) &&
+                            expr->tokenindex >= 0)
+                        def->last_use_token_index = expr->tokenindex;
+                    if (isinsideclosure(expr))
+                        def->closureuse = 1;
+                }
 
                 if (def->declarationexpr->storage.set) {
                     memcpy(
@@ -326,6 +359,23 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     // so this shouldn't happen. Log as error:
                     rinfo->failedstorageassign = 1;
                 }
+            } else if (def->declarationexpr->type ==
+                    H64EXPRTYPE_FOR_STMT) {  // loop label of for statement
+                assert(
+                   strcmp(def->declarationexpr->forstmt.iterator_identifier,
+                   expr->identifierref.value) == 0
+                );
+                def->everused = 1;
+                if ((def->first_use_token_index < 0 ||
+                        def->first_use_token_index < expr->tokenindex) &&
+                        expr->tokenindex >= 0)
+                    def->first_use_token_index = expr->tokenindex;
+                if ((def->last_use_token_index < 0 ||
+                        def->last_use_token_index > expr->tokenindex) &&
+                        expr->tokenindex >= 0)
+                    def->last_use_token_index = expr->tokenindex;
+                if (isinsideclosure(expr))
+                    def->closureuse = 1;
             } else if (def->declarationexpr->type ==
                     H64EXPRTYPE_IMPORT_STMT) {
                 // We are accessing an import. We need to actually get the

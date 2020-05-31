@@ -195,6 +195,12 @@ jsonvalue *scope_ScopeToJSON(
             json_Free(item);
             break;
         }
+        if (!json_SetDictBool(item, "everused",
+                scope->definitionref[i]->everused)) {
+            fail = 1;
+            json_Free(item);
+            break;
+        }
         if (!json_AddToList(itemslist, item)) {
             fail = 1;
             json_Free(item);
