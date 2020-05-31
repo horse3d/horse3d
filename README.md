@@ -26,7 +26,7 @@ func main {
 - **Self-contained tooling.** Single-binary compiler, no complex
   toolchains or giant IDEs. (unless you want them)
 
-- **Very maintainble.** Brings some order with static
+- **Very maintainable.** Brings some order with static
   imports and identifier checks, while keeping lean dynamic typing.
   Ideal for maintainable large code bases despite its ease of use.
 
