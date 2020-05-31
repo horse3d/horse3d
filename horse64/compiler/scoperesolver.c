@@ -238,6 +238,26 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
     return 1;
 }
 
+static int isinsideclosure(h64expression *expr) {
+    int surroundingfuncscount = 0;
+    while (expr->parent) {
+        expr = expr->parent;
+        if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
+            surroundingfuncscount++;
+        }
+    }
+    return (surroundingfuncscount > 1);
+}
+
+
+int _resolvercallback_AssignNonglobalStorage_visit_out(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    resolveinfo *rinfo = (resolveinfo *)ud;
+    return 1;
+}
+
 int _resolvercallback_ResolveIdentifiers_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
@@ -284,12 +304,26 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                             expr->identifierref.value)) ||
                     def->declarationexpr->type ==
                     H64EXPRTYPE_CLASSDEF_STMT) {
+                def->everused = 1;
+                if ((def->first_use_token_index < 0 ||
+                        def->first_use_token_index < expr->tokenindex) &&
+                        expr->tokenindex >= 0)
+                    def->first_use_token_index = expr->tokenindex;
+                if ((def->last_use_token_index < 0 ||
+                        def->last_use_token_index > expr->tokenindex) &&
+                        expr->tokenindex >= 0)
+                    def->last_use_token_index = expr->tokenindex;
+                if (isinsideclosure(expr))
+                    def->closureuse = 1;
+
                 if (def->declarationexpr->storage.set) {
                     memcpy(
                         &expr->storage, &def->declarationexpr->storage,
                         sizeof(expr->storage)
                     );
                 } else if (def->scope->is_global) {
+                    // Global storage should have been determined already,
+                    // so this shouldn't happen. Log as error:
                     rinfo->failedstorageassign = 1;
                 }
             } else if (def->declarationexpr->type ==
@@ -523,6 +557,17 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     free(full_imp_path);
                     full_imp_path = NULL;
                 }
+                def->everused = 1;
+                if ((def->first_use_token_index < 0 ||
+                        def->first_use_token_index < expr->tokenindex) &&
+                        expr->tokenindex >= 0)
+                    def->first_use_token_index = expr->tokenindex;
+                if ((def->last_use_token_index < 0 ||
+                        def->last_use_token_index > expr->tokenindex) &&
+                        expr->tokenindex >= 0)
+                    def->last_use_token_index = expr->tokenindex;
+                if (isinsideclosure(expr))
+                    def->closureuse = 1;
             } else {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,

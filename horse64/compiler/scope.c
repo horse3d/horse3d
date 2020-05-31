@@ -116,6 +116,8 @@ int scope_AddItem(
         return 0;
     }
     memset(scope->definitionref[i], 0, sizeof(**scope->definitionref));
+    scope->definitionref[i]->first_use_token_index = -1;
+    scope->definitionref[i]->last_use_token_index = -1;
     scope->definitionref[i]->scope = scope;
     scope->definitionref[i]->identifier = identifier_ref;
     scope->definitionref[i]->declarationexpr = expr;
