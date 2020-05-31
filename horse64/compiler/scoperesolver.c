@@ -289,7 +289,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         &expr->storage, &def->declarationexpr->storage,
                         sizeof(expr->storage)
                     );
-                } else {
+                } else if (def->scope->is_global) {
                     rinfo->failedstorageassign = 1;
                 }
             } else if (def->declarationexpr->type ==
