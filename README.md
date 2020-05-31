@@ -26,12 +26,9 @@ func main {
 - **Self-contained tooling.** Single-binary compiler, no complex
   toolchains or giant IDEs. (unless you want them)
 
-- **Ready for big projects.** Checks incorrect identifiers,
-  incorrect imports, all at compile time.
-  As such, Horse64 has compile checks often only in
-  typed languages, like C# or TypeScript,
-  combined with ease use and readability of a Python or
-  JavaScript.
+- **Very maintainble.** Brings some order with static
+  imports and identifier checks, while keeping lean dynamic typing.
+  Ideal for maintainable large code bases despite its ease of use.
 
 - **Easy to ship.** Single-binary output with no non-system dependencies.
   No need to add an interpreter or separate libaries, making it
