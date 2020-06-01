@@ -248,6 +248,43 @@ START_TEST (test_scope_import_complex)
     ck_assert(!ast->resultmsg.success);
     compileproject_Free(project);  // This indirectly frees 'ast'
 
+    {
+        FILE *f = fopen(".testdata-prj/mainfile.h64", "wb");
+        ck_assert(f != NULL);
+        char s[] = (
+            "# VALID x parameter reference that broke in the past,\n"
+            "# due to scope being wrong:\n"
+            "func main {"
+            "    var v = x => (x + 1)"
+            "}"
+        );
+        ck_assert(fwrite(s, 1, strlen(s), f));
+        fclose(f);
+    }
+    project = compileproject_New(
+        testfolder_path
+    );
+    error = NULL;
+    ast = NULL;
+    ck_assert(compileproject_GetAST(
+        project, ".testdata-prj/mainfile.h64", &ast, &error
+    ) != 0);
+    ck_assert(error == NULL);
+    ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
+    if (ast->resultmsg.message_count > 0) {
+        int i = 0;
+        while (i < ast->resultmsg.message_count) {
+            if (ast->resultmsg.message[i].type == H64MSG_ERROR) {
+                fprintf(stderr, "TEST UNEXPECTED FAIL: %s\n",
+                        ast->resultmsg.message[i].message);
+            }
+            ck_assert(ast->resultmsg.message[i].type != H64MSG_ERROR);
+            i++;
+        }
+    }
+    ck_assert(ast->resultmsg.success);
+    compileproject_Free(project);  // This indirectly frees 'ast'
+
     free(testfolder_path);
     testfolder_path = NULL;
 }
