@@ -328,7 +328,9 @@ int _ast_ParseFunctionArgList_Ex(
             oom:
             if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 0;
-            ast_ClearFunctionArgs(out_funcargs);
+            ast_ClearFunctionArgsWithoutFunc(
+                out_funcargs, parsethis->scope
+            );
             return 0;
         }
         out_funcargs->arg_name = new_arg_names;
@@ -382,7 +384,9 @@ int _ast_ParseFunctionArgList_Ex(
                         goto oom;
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 1;
-                    ast_ClearFunctionArgs(out_funcargs);
+                    ast_ClearFunctionArgsWithoutFunc(
+                        out_funcargs, parsethis->scope
+                    );
                     return 0;
                 }
             }
@@ -420,7 +424,9 @@ int _ast_ParseFunctionArgList_Ex(
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
-            ast_ClearFunctionArgs(out_funcargs);
+            ast_ClearFunctionArgsWithoutFunc(
+                out_funcargs, parsethis->scope
+            );
             return 0;
         }
         int scopeoom = 0;
@@ -472,7 +478,9 @@ int _ast_ParseFunctionArgList_Ex(
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
-            ast_ClearFunctionArgs(out_funcargs);
+            ast_ClearFunctionArgsWithoutFunc(
+                out_funcargs, parsethis->scope
+            );
             return 0;
         }
         assert(tlen > 0 && expr != NULL);
@@ -1202,6 +1210,32 @@ int ast_ParseInlineFunc(
             return 0;
         }
         expr->funcdef.arguments.arg_count = 1;
+        int scopeoom = 0;
+        if (!scope_AddItem(
+                &expr->funcdef.scope,
+                expr->funcdef.arguments.arg_name[0], expr,
+                &scopeoom
+                )) {
+            if (scopeoom) {
+                scopeaddoom:
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
+                ast_FreeExpression(expr);
+                return 0;
+            } else {
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, "INTERNAL ERROR, failed to "
+                        "scope-add function param", fileuri,
+                        -1, -1
+                        ))
+                    goto scopeaddoom;
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 1;
+                ast_FreeExpression(expr);
+                return 0;
+            }
+        }
         i++;
     } else {
         char buf[256];

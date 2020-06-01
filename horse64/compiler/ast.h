@@ -226,7 +226,11 @@ jsonvalue *ast_ExpressionToJSON(
     h64expression *e, const char *fileuri
 );
 
-void ast_ClearFunctionArgs(h64funcargs *fargs);
+void ast_ClearFunctionArgs(h64funcargs *fargs, h64expression *func);
+
+void ast_ClearFunctionArgsWithoutFunc(
+    h64funcargs *fargs, h64scope *scope
+);
 
 int ast_VisitExpression(
     h64expression *expr, h64expression *parent,

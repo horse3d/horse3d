@@ -76,11 +76,22 @@ h64scope *ast_GetScope(
     return ast_GetScope(expr, global_scope);
 }
 
-void ast_ClearFunctionArgs(h64funcargs *fargs) {
+void ast_ClearFunctionArgsWithoutFunc(
+        h64funcargs *fargs, h64scope *scope
+        ) {
     int i = 0;
     while (i < fargs->arg_count) {
-        if (fargs->arg_name[i])
+        if (fargs->arg_name[i]) {
+            if (scope &&
+                    // check scope wasn't already cleared:
+                    scope->name_to_declaration_map
+                    ) {
+                scope_RemoveItem(
+                    scope, fargs->arg_name[i]
+                );
+            }
             free(fargs->arg_name[i]);
+        }
         if (fargs->arg_value[i])
             ast_FreeExpression(fargs->arg_value[i]);
         i++;
@@ -90,6 +101,23 @@ void ast_ClearFunctionArgs(h64funcargs *fargs) {
     free(fargs->arg_value);
     fargs->arg_value = NULL;
     fargs->arg_count = 0;
+}
+
+void ast_ClearFunctionArgs(
+        h64funcargs *fargs, h64expression *func
+        ) {
+    assert(!func ||
+        func->type == H64EXPRTYPE_FUNCDEF_STMT ||
+        func->type == H64EXPRTYPE_INLINEFUNCDEF ||
+        func->type == H64EXPRTYPE_CALL ||
+        func->type == H64EXPRTYPE_CALL_STMT);
+    if (func && func->type != H64EXPRTYPE_CALL &&
+                    func->type != H64EXPRTYPE_CALL_STMT) {
+        return ast_ClearFunctionArgsWithoutFunc(
+            fargs, &func->funcdef.scope
+        );
+    }
+    return ast_ClearFunctionArgsWithoutFunc(fargs, NULL);
 }
 
 int ast_VisitExpression(
@@ -397,14 +425,14 @@ void ast_FreeExpression(h64expression *expr) {
         scope_FreeData(&expr->funcdef.scope);
         if (expr->funcdef.name)
             free(expr->funcdef.name);
-        ast_ClearFunctionArgs(&expr->funcdef.arguments);
+        ast_ClearFunctionArgs(&expr->funcdef.arguments, expr);
         int i = 0;
         while (i < expr->funcdef.stmt_count) {
             ast_FreeExpression(expr->funcdef.stmt[i]);
             i++;
         }
         if (expr->funcdef.stmt) free(expr->funcdef.stmt);
-        ast_ClearFunctionArgs(&expr->funcdef.arguments);
+        ast_ClearFunctionArgs(&expr->funcdef.arguments, expr);
         break;
     case H64EXPRTYPE_CALL_STMT:
         if (expr->callstmt.call) {
@@ -413,7 +441,7 @@ void ast_FreeExpression(h64expression *expr) {
                     expr->callstmt.call->inlinecall.value
                 );
             ast_ClearFunctionArgs(
-                &expr->callstmt.call->inlinecall.arguments
+                &expr->callstmt.call->inlinecall.arguments, expr
             );
             free(expr->callstmt.call);
         }
@@ -541,7 +569,7 @@ void ast_FreeExpression(h64expression *expr) {
         break;
     case H64EXPRTYPE_CALL:
         ast_FreeExpression(expr->inlinecall.value);
-        ast_ClearFunctionArgs(&expr->inlinecall.arguments);
+        ast_ClearFunctionArgs(&expr->inlinecall.arguments, expr);
         break;
     case H64EXPRTYPE_LIST:
         i = 0;
