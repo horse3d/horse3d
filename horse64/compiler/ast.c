@@ -84,7 +84,7 @@ void ast_ClearFunctionArgsWithoutFunc(
         if (fargs->arg_name[i]) {
             if (scope &&
                     // check scope wasn't already cleared:
-                    scope->name_to_declaration_map
+                    scope->name_to_declaration_map != NULL
                     ) {
                 scope_RemoveItem(
                     scope, fargs->arg_name[i]
