@@ -9,9 +9,7 @@
 #include "json.h"
 
 
-int scope_Init(h64scope *scope, char hashkey[16]) {
-    memcpy(scope->hashkey, hashkey,
-           sizeof(*hashkey) * 16);
+int scope_Init(h64scope *scope) {
     scope->magicinitnum = SCOPEMAGICINITNUM;
 
     if (!scope->name_to_declaration_map) {
@@ -19,9 +17,6 @@ int scope_Init(h64scope *scope, char hashkey[16]) {
         if (!scope->name_to_declaration_map)
             return 0;
     }
-    hashmap_SetFixedHashSecret(
-        scope->name_to_declaration_map, (uint8_t*)hashkey
-    );
     return 1;
 }
 

@@ -12,8 +12,6 @@ typedef struct h64result h64result;
 typedef struct h64compileproject {
     h64compilewarnconfig warnconfig;
 
-    char hashsecret[16];
-
     char *basefolder;
     hashmap *astfilemap;
     h64program *program;

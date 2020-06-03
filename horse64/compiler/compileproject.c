@@ -50,12 +50,6 @@ h64compileproject *compileproject_New(
         return NULL;
     }
 
-    if (!secrandom_GetBytes(
-            pr->hashsecret, sizeof(*pr->hashsecret)
-            )) {
-        compileproject_Free(pr);
-        return NULL;
-    }
     pr->astfilemap = hash_NewStringMap(32);
     if (!pr->astfilemap) {
         compileproject_Free(pr);

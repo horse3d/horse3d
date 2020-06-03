@@ -1125,7 +1125,7 @@ int ast_ParseInlineFunc(
     assert(!parsethis->scope ||
            parsethis->scope->magicinitnum == SCOPEMAGICINITNUM);
     expr->funcdef.scope.parentscope = parsethis->scope;
-    if (!scope_Init(&expr->funcdef.scope, context->project->hashsecret)) {
+    if (!scope_Init(&expr->funcdef.scope)) {
         if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 0;
         ast_FreeExpression(expr);
@@ -3014,8 +3014,7 @@ int ast_ParseExprStmt(
         expr->funcdef.scope.parentscope = parsethis->scope;
         assert(!parsethis->scope ||
                parsethis->scope->magicinitnum == SCOPEMAGICINITNUM);
-        if (!scope_Init(&expr->funcdef.scope,
-                context->project->hashsecret)) {
+        if (!scope_Init(&expr->funcdef.scope)) {
             if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
             return 0;
@@ -3241,8 +3240,7 @@ int ast_ParseExprStmt(
         }
         expr->type = H64EXPRTYPE_CLASSDEF_STMT;
         expr->classdef.scope.parentscope = parsethis->scope;
-        if (!scope_Init(&expr->classdef.scope,
-                        context->project->hashsecret)) {
+        if (!scope_Init(&expr->classdef.scope)) {
             if (outofmemory) *outofmemory = 1;
             ast_FreeExpression(expr);
             return 0;
@@ -3564,8 +3562,7 @@ int ast_ParseExprStmt(
         // Get code block in try { ... }
         {
             expr->trystmt.tryscope.parentscope = parsethis->scope;
-            if (!scope_Init(&expr->trystmt.tryscope,
-                            context->project->hashsecret)) {
+            if (!scope_Init(&expr->trystmt.tryscope)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
                 return 0;
@@ -3638,8 +3635,7 @@ int ast_ParseExprStmt(
 
         if (strcmp(tokens[i].str_value, "catch") == 0) {
             expr->trystmt.catchscope.parentscope = parsethis->scope;
-            if (!scope_Init(&expr->trystmt.catchscope,
-                            context->project->hashsecret)) {
+            if (!scope_Init(&expr->trystmt.catchscope)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
                 return 0;
@@ -3844,8 +3840,7 @@ int ast_ParseExprStmt(
             int inneroom = 0;
             h64parsethis _buf;
             expr->trystmt.finallyscope.parentscope = parsethis->scope;
-            if (!scope_Init(&expr->trystmt.finallyscope,
-                            context->project->hashsecret)) {
+            if (!scope_Init(&expr->trystmt.finallyscope)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
                 return 0;
@@ -4365,7 +4360,7 @@ int ast_ParseExprStmt(
                 scope = &current_clause->scope;
             }
             scope->parentscope = parsethis->scope;
-            if (!scope_Init(scope, context->project->hashsecret)) {
+            if (!scope_Init(scope)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_FreeExpression(expr);
                 return 0;
@@ -4641,7 +4636,7 @@ h64ast *ast_ParseFromTokens(
     tokenstreaminfo.token = tokens;
     tokenstreaminfo.token_count = token_count;
 
-    if (!scope_Init(&result->scope, project->hashsecret)) {
+    if (!scope_Init(&result->scope)) {
         result_ErrorNoLoc(
             &result->resultmsg,
             "out of memory / alloc fail",

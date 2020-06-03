@@ -36,12 +36,11 @@ typedef struct h64scope {
     h64scope *parentscope;
     int is_global;
 
-    char hashkey[16];
     hashmap *name_to_declaration_map;
 } h64scope;
 
 
-int scope_Init(h64scope *scope, char hashkey[16]);
+int scope_Init(h64scope *scope);
 
 int scope_AddItem(
     h64scope *scope, const char *identifier_ref,
