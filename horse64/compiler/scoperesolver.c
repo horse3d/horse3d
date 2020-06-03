@@ -333,6 +333,10 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         if (def) {
             expr->identifierref.resolved_to_def = def;
             expr->identifierref.resolved_to_expr = def->declarationexpr;
+            // Check if it's a file-local thing referenced in a way we know:
+            // (we know of file-local funcs by name, surrounding funcs'
+            // parameters, file-local variables and classes, and
+            // surrounding for loops' iterators)
             if (def->declarationexpr->type ==
                     H64EXPRTYPE_VARDEF_STMT ||
                     def->declarationexpr->type ==
@@ -349,9 +353,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                       H64EXPRTYPE_INLINEFUNCDEF) &&
                     funchasparamwithname(def->declarationexpr,
                         expr->identifierref.value
-                    ))) {  // functions, classes, variable definitions,
-                           // and for loop lables
-                           // (also includes function parameters)
+                    ))) {  // A known file-local thing
                 if (!isexprchildof(expr, def->declarationexpr) ||
                         def->declarationexpr->type ==
                         H64EXPRTYPE_FOR_STMT) {
@@ -399,8 +401,10 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 }
             } else if (def->declarationexpr->type ==
                     H64EXPRTYPE_IMPORT_STMT) {
-                // We are accessing an import. We need to actually get the
-                // full import path accessed to get the right statement:
+                // Not a file-local, but instead an imported thing.
+                // Figure out what we're referencing and from what module:
+
+                // First, follow the tree to the full import path with dots:
                 int accessed_elements_count = 1;
                 int accessed_elements_alloc = H64LIMIT_IMPORTCHAINLEN + 1;
                 char **accessed_elements = alloca(
@@ -475,7 +479,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     j++;
                 }
 
-                // Put together path for error messages:
+                // Put together path for error messages later:
                 size_t full_imp_path_len = 0;
                 char *full_imp_path = NULL;
                 {
@@ -508,7 +512,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     }
                 }
 
-                // Abort if we found no exact match:
+                // Abort if we found no exact match for import:
                 if (_mapto == NULL) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
@@ -533,7 +537,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 expr->identifierref.resolved_to_expr = _mapto;
 
                 // Resolve the member access that is done on top of this
-                // module path (or error if  there is none):
+                // module path (or error if there is none which is invalid,
+                // modules cannot be referenced in any other way):
                 assert(_mapto != NULL && pexpr != NULL);
                 if (pexpr->parent == NULL ||
                         pexpr->parent->type != H64EXPRTYPE_BINARYOP ||
@@ -572,62 +577,65 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     pexpr->parent->op.value2->identifierref.value
                 );
                 if (!refitemname) {
-                    // This should have yielded an error already in a
-                    // previous stage, but make sure we spit one out if that
-                    // wasn't the case:
+                    // Oops, the accessed member on the module is NULL.
+                    // Likely an error in a previous stage (e.g. parser).
+                    // Mark as error in any case, to make sure we return
+                    // an error message always:
                     rinfo->failedstorageassign = 1;
                     free(full_imp_path);
                     full_imp_path = NULL;
                     return 1;
-                } else {
-                    assert(_mapto->type == H64EXPRTYPE_IMPORT_STMT &&
-                        _mapto->importstmt.referenced_ast != NULL &&
+                }
+                // Get the actual module item by name:
+                assert(_mapto->type == H64EXPRTYPE_IMPORT_STMT &&
+                    _mapto->importstmt.referenced_ast != NULL &&
+                    _mapto->importstmt.referenced_ast->scope.
+                            name_to_declaration_map != NULL);
+                uint64_t number = 0;
+                if (!hash_StringMapGet(
                         _mapto->importstmt.referenced_ast->scope.
-                                name_to_declaration_map != NULL);
-                    uint64_t number = 0;
-                    if (!hash_StringMapGet(
-                            _mapto->importstmt.referenced_ast->scope.
-                            name_to_declaration_map,
-                            refitemname, &number) || number == 0) {
-                        char buf[256];
-                        snprintf(buf, sizeof(buf) - 1,
-                            "unexpected unknown identifier %s "
-                            "not found in module %s",
-                            refitemname,
-                            full_imp_path
-                        );
-                        free(full_imp_path);
-                        full_imp_path = NULL;
-                        if (!result_AddMessage(
-                                &rinfo->ast->resultmsg,
-                                H64MSG_ERROR,
-                                buf,
-                                rinfo->ast->fileuri,
-                                expr->line, expr->column
-                                )) {
-                            rinfo->hadoutofmemory = 1;
-                            return 0;
-                        }
-                        return 1;
-                    }
-                    h64scopedef *targetitem = (
-                        (h64scopedef*)(uintptr_t)number
+                        name_to_declaration_map,
+                        refitemname, &number) || number == 0) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected unknown identifier %s "
+                        "not found in module %s",
+                        refitemname,
+                        full_imp_path
                     );
-                    assert(targetitem != NULL &&
-                        targetitem->declarationexpr != NULL);
-                    if (targetitem->declarationexpr->storage.set) {
-                        memcpy(
-                            &expr->storage.ref,
-                            &targetitem->declarationexpr->storage.ref,
-                            sizeof(expr->storage.ref)
-                        );
-                        expr->storage.set = 1;
-                    } else {
-                        assert(!expr->storage.set);
-                    }
                     free(full_imp_path);
                     full_imp_path = NULL;
+                    if (!result_AddMessage(
+                            &rinfo->ast->resultmsg,
+                            H64MSG_ERROR,
+                            buf,
+                            rinfo->ast->fileuri,
+                            expr->line, expr->column
+                            )) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                    return 1;
                 }
+
+                // We found the item. Mark as used & copy storage:
+                h64scopedef *targetitem = (
+                    (h64scopedef*)(uintptr_t)number
+                );
+                assert(targetitem != NULL &&
+                    targetitem->declarationexpr != NULL);
+                if (targetitem->declarationexpr->storage.set) {
+                    memcpy(
+                        &expr->storage.ref,
+                        &targetitem->declarationexpr->storage.ref,
+                        sizeof(expr->storage.ref)
+                    );
+                    expr->storage.set = 1;
+                } else {
+                    assert(!expr->storage.set);
+                }
+                free(full_imp_path);
+                full_imp_path = NULL;
                 def->everused = 1;
                 if ((def->first_use_token_index < 0 ||
                         def->first_use_token_index < expr->tokenindex) &&
