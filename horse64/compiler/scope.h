@@ -20,7 +20,7 @@ typedef struct h64scopedef {
     h64expression **additionaldecl;
 
     const char *identifier;
-    int everused, first_use_token_index, last_use_token_index, closureuse;
+    int everused, first_use_token_index, last_use_token_index, closurebound;
     h64scope *scope;
 } h64scopedef;
 
