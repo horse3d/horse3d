@@ -382,8 +382,25 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         // All nested closures up to the scope of to the
                         // variable definition need to bind it:
                         while (closure && closure != localvarfunc) {
-
-                            closure = closure->parent;
+                            assert(
+                                closure->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                                closure->type == H64EXPRTYPE_INLINEFUNCDEF
+                            );
+                            h64scopedef **newboundvars = realloc(
+                                closure->funcdef.closureboundvars,
+                                sizeof(*newboundvars) *
+                                (closure->funcdef.closureboundvars_count + 1)
+                            );
+                            if (!newboundvars) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                            closure->funcdef.closureboundvars = newboundvars;
+                            closure->funcdef.closureboundvars[
+                                closure->funcdef.closureboundvars_count
+                            ] = def;
+                            closure->funcdef.closureboundvars_count++;
+                            closure = surroundingfunc(closure);
                         }
                         assert(closure == localvarfunc);
                     }

@@ -45,6 +45,7 @@ typedef enum h64literaltype {
 
 typedef struct h64expression h64expression;
 typedef struct h64scope h64scope;
+typedef struct h64scopedef h64scopedef;
 
 typedef struct h64funcargs {
     int arg_count;
@@ -106,6 +107,8 @@ typedef struct h64expression {
             h64expression **stmt;
             h64scope scope;
             h64funcargs arguments;
+            int closureboundvars_count;
+            h64scopedef **closureboundvars;
         } funcdef;
         struct assignstmt {
             h64expression *lvalue;

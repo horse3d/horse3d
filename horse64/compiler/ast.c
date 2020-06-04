@@ -433,6 +433,7 @@ void ast_FreeExpression(h64expression *expr) {
         }
         if (expr->funcdef.stmt) free(expr->funcdef.stmt);
         ast_ClearFunctionArgs(&expr->funcdef.arguments, expr);
+        free(expr->funcdef.closureboundvars);
         break;
     case H64EXPRTYPE_CALL_STMT:
         if (expr->callstmt.call) {
