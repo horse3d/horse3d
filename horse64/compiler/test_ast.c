@@ -12,8 +12,10 @@
 
 #include "../testmain.h"
 
-START_TEST (test_ast_simple)
-{
+#define PARSETEST_EXPECTOK 1
+#define PARSETEST_EXPECTFAIL 0
+
+void _parsetest_do(const char *testcode, int expectOK) {
     vfs_Init(NULL);
 
     h64compilewarnconfig wconfig;
@@ -30,8 +32,7 @@ START_TEST (test_ast_simple)
 
     FILE *f = fopen(".testdata.txt", "wb");
     ck_assert(f != NULL);
-    char s[] = "var v = 1.5 + 0xA + 0b10";
-    ck_assert(fwrite(s, 1, strlen(s), f));
+    ck_assert(fwrite(testcode, 1, strlen(testcode), f) == strlen(testcode));
     fclose(f);
 
     char *error = NULL;
@@ -40,29 +41,39 @@ START_TEST (test_ast_simple)
         project, ".testdata.txt", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
+    if (expectOK) {
+        ck_assert(project->resultmsg->success && "expected parse success");
+        ck_assert(ast->resultmsg.success && "expected parse success");
+        int i = 0;
+        while (i < ast->resultmsg.message_count) {
+            ck_assert(ast->resultmsg.message[i].type != H64MSG_ERROR);
+            i++;
+        }
+    } else {
+        ck_assert(!ast->resultmsg.success);
+        int founderror;
+        int i = 0;
+        while (i < ast->resultmsg.message_count) {
+            if (ast->resultmsg.message[i].type == H64MSG_ERROR)
+                founderror = 1;
+            i++;
+        }
+        assert(founderror);
+    }
 
     compileproject_Free(project);  // This indirectly frees 'ast'!
+}
+
+
+START_TEST (test_ast_simple)
+{
+    char s[] = "var v = 1.5 + 0xA + 0b10";
+    _parsetest_do(s, PARSETEST_EXPECTOK);
 }
 END_TEST
 
 START_TEST (test_ast_complex)
 {
-    vfs_Init(NULL);
-
-    h64compilewarnconfig wconfig;
-    memset(&wconfig, 0, sizeof(wconfig));
-    warningconfig_Init(&wconfig);
-
-    char *cwd = filesys_GetCurrentDirectory();
-    assert(cwd != NULL);
-    h64compileproject *project = compileproject_New(
-        cwd
-    );
-    free(cwd);
-    assert(project != NULL);
-
-    FILE *f = fopen(".testdata.txt", "wb");
-    ck_assert(f != NULL);
     char s[] = (
         "class TestClass {"
         "    var v = 1.5 + 0xA + 0b10"
@@ -71,18 +82,23 @@ START_TEST (test_ast_complex)
         "    var obj = TestClass()"
         "}"
     );
-    ck_assert(fwrite(s, 1, strlen(s), f));
-    fclose(f);
-
-    char *error = NULL;
-    h64ast *ast = NULL;
-    ck_assert(compileproject_GetAST(
-        project, ".testdata.txt", &ast, &error
-    ) != 0);
-    ck_assert(error == NULL);
-
-    compileproject_Free(project);  // This indirectly frees 'ast'!
+    _parsetest_do(s, PARSETEST_EXPECTOK);
 }
 END_TEST
 
-TESTS_MAIN (test_ast_simple, test_ast_complex)
+START_TEST (test_ast_bracketnesting)
+{
+    char s[] = (
+        "func testfunc {"
+        "    return (5)"
+        "}"
+        "func main {"
+        "    var v = (testfunc())"
+        "}"
+    );
+    _parsetest_do(s, PARSETEST_EXPECTOK);
+}
+END_TEST
+
+
+TESTS_MAIN (test_ast_simple, test_ast_complex, test_ast_bracketnesting)
