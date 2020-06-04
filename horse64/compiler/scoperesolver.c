@@ -13,6 +13,7 @@
 #include "compiler/optimizer.h"
 #include "compiler/scoperesolver.h"
 #include "compiler/scope.h"
+#include "compiler/varstorage.h"
 #include "filesys.h"
 #include "hash.h"
 
@@ -379,38 +380,48 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                                 closure->type == H64EXPRTYPE_FUNCDEF_STMT ||
                                 closure->type == H64EXPRTYPE_INLINEFUNCDEF
                             );
+                            h64storageextrainfo *einfo = (
+                                closure->funcdef._storageinfo
+                            );
+                            if (!einfo) {
+                                einfo = malloc(sizeof(*einfo));
+                                if (!einfo) {
+                                    rinfo->hadoutofmemory = 1;
+                                    return 0;
+                                }
+                                memset(einfo, 0, sizeof(*einfo));
+                                closure->funcdef._storageinfo = einfo;
+                            }
+
                             h64scopedef **newboundvars = realloc(
-                                closure->funcdef.closureboundvars,
+                                einfo->closureboundvars,
                                 sizeof(*newboundvars) *
-                                (closure->funcdef.closureboundvars_count + 1)
+                                (einfo->closureboundvars_count + 1)
                             );
                             if (!newboundvars) {
                                 rinfo->hadoutofmemory = 1;
                                 return 0;
                             }
-                            closure->funcdef.closureboundvars = newboundvars;
+                            einfo->closureboundvars = newboundvars;
                             int *newvaluetempids = realloc(
-                                closure->funcdef.
-                                    externalclosurevar_valuetempid,
+                                einfo->externalclosurevar_valuetempid,
                                 sizeof(*newvaluetempids) *
-                                (closure->funcdef.closureboundvars_count + 1)
+                                (einfo->closureboundvars_count + 1)
                             );
                             if (!newvaluetempids) {
                                 rinfo->hadoutofmemory = 1;
                                 return 0;
                             }
-                            closure->funcdef.
-                                    externalclosurevar_valuetempid = (
+                            einfo->externalclosurevar_valuetempid = (
                                 newvaluetempids
                             );
-                            closure->funcdef.
-                                    externalclosurevar_valuetempid[
-                                closure->funcdef.closureboundvars_count
+                            einfo->externalclosurevar_valuetempid[
+                                einfo->closureboundvars_count
                             ] = -1;
-                            closure->funcdef.closureboundvars[
-                                closure->funcdef.closureboundvars_count
+                            einfo->closureboundvars[
+                                einfo->closureboundvars_count
                             ] = def;
-                            closure->funcdef.closureboundvars_count++;
+                            einfo->closureboundvars_count++;
                             closure = surroundingfunc(closure);
                         }
                         assert(closure == localvarfunc);

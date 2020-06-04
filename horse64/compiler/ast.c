@@ -13,6 +13,7 @@
 #include "compiler/globallimits.h"
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
+#include "compiler/varstorage.h"
 
 
 h64scope *ast_GetScope(
@@ -433,8 +434,7 @@ void ast_FreeExpression(h64expression *expr) {
         }
         if (expr->funcdef.stmt) free(expr->funcdef.stmt);
         ast_ClearFunctionArgs(&expr->funcdef.arguments, expr);
-        free(expr->funcdef.closureboundvars);
-        free(expr->funcdef.externalclosurevar_valuetempid);
+        varstorage_FreeExtraInfo(expr->funcdef._storageinfo);
         break;
     case H64EXPRTYPE_CALL_STMT:
         if (expr->callstmt.call) {

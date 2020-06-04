@@ -34,6 +34,8 @@ typedef enum h64expressiontype {
 
 #define IS_STMT(x) (x <= H64EXPRTYPE_ASSIGN_STMT)
 
+typedef struct h64storageextrainfo h64storageextrainfo;
+
 typedef enum h64literaltype {
     H64LITERAL_INVALID = 0,
     H64LITERAL_INTEGER = 1,
@@ -107,11 +109,8 @@ typedef struct h64expression {
             h64expression **stmt;
             h64scope scope;
             h64funcargs arguments;
-            int temps_for_locals_startindex;
 
-            int closureboundvars_count;
-            h64scopedef **closureboundvars;
-            int *externalclosurevar_valuetempid;
+            h64storageextrainfo *_storageinfo;
         } funcdef;
         struct assignstmt {
             h64expression *lvalue;
