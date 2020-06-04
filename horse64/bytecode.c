@@ -224,9 +224,11 @@ int h64program_RegisterCFunction(
     msymbols->func_symbols = new_func_symbols;
     memset(&msymbols->func_symbols[msymbols->func_count],
         0, sizeof(*msymbols->func_symbols));
-    msymbols->func_symbols[msymbols->func_count].name = (
-        strdup(name)
-    );
+    if (name) {
+        msymbols->func_symbols[msymbols->func_count].name = (
+            strdup(name)
+        );
+    }
     msymbols->func_symbols[msymbols->func_count].
         fileuri_index = fileuriindex;
     if (!msymbols->func_symbols[msymbols->func_count].name) {
@@ -267,7 +269,7 @@ int h64program_RegisterCFunction(
 
     // Add function to lookup-by-name hash table:
     uint64_t setno = msymbols->func_count;
-    if (!hash_StringMapSet(
+    if (name && !hash_StringMapSet(
             msymbols->func_name_to_entry,
             name, setno)) {
         goto funcsymboloom;

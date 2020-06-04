@@ -109,6 +109,7 @@ typedef struct h64expression {
             h64expression **stmt;
             h64scope scope;
             h64funcargs arguments;
+            int bytecode_func_id;
 
             h64storageextrainfo *_storageinfo;
         } funcdef;

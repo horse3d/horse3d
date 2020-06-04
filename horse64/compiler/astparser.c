@@ -1120,6 +1120,7 @@ int ast_ParseInlineFunc(
     }
     memset(expr, 0, sizeof(*expr));
     expr->type = H64EXPRTYPE_INLINEFUNCDEF;
+    expr->funcdef.bytecode_func_id = -1;
     expr->line = _refline(context->tokenstreaminfo, tokens, 0);
     expr->column = _refcol(context->tokenstreaminfo, tokens, 0);
     assert(!parsethis->scope ||
@@ -1658,7 +1659,7 @@ int ast_ParseExprInline(
             if (!ast_ParseExprInline(
                     context, newparsethis(
                         &_buf, parsethis, tokens + i, max_tokens_touse - i
-                    ),
+                    ),  // get value inside brackets
                     INLINEMODE_GREEDY,
                     &innerparsefail, &inneroom,
                     &innerexpr, &tlen, nestingdepth
@@ -1673,6 +1674,23 @@ int ast_ParseExprInline(
                     ast_FreeExpression(expr);
                     return 0;
                 }
+                // Nothing was inside the brackets, this is invalid:
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected '(' followed immediately by ')',"
+                    "expected '(' <inlinevalue> ')' or some other inline "
+                    "value instead"
+                );
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo, tokens, i - 1),
+                        _refcol(context->tokenstreaminfo, tokens, i - 1)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 1;
+                ast_FreeExpression(expr);
+                return 0;
             }
             assert(innerexpr != NULL);
             ast_FreeExpression(expr);
@@ -3011,6 +3029,7 @@ int ast_ParseExprStmt(
     if (tokens[0].type == H64TK_KEYWORD &&
             strcmp(tokens[0].str_value, "func") == 0) {
         expr->type = H64EXPRTYPE_FUNCDEF_STMT;
+        expr->funcdef.bytecode_func_id = -1;
         expr->funcdef.scope.parentscope = parsethis->scope;
         assert(!parsethis->scope ||
                parsethis->scope->magicinitnum == SCOPEMAGICINITNUM);

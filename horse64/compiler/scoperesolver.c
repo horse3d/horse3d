@@ -173,6 +173,7 @@ static int scoperesolver_ComputeItemStorage(
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALFUNCSLOT;
             expr->storage.ref.id = global_id;
+            expr->funcdef.bytecode_func_id = global_id;
         }
     }
     return 1;
