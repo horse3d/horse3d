@@ -107,6 +107,7 @@ typedef struct h64expression {
             h64expression **stmt;
             h64scope scope;
             h64funcargs arguments;
+            int temps_for_locals_startindex;
 
             int closureboundvars_count;
             h64scopedef **closureboundvars;
