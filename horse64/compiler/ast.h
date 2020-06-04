@@ -78,9 +78,9 @@ typedef struct h64expression {
     h64expressiontype type;
     struct storage {
         int set;
-        union {
-            storageref ref;
-        };
+        storageref ref;
+        int closureprovided_withvarbox;
+        storageref varboxref;
     } storage;
     struct knownvalue {
         int type;
@@ -107,8 +107,10 @@ typedef struct h64expression {
             h64expression **stmt;
             h64scope scope;
             h64funcargs arguments;
+
             int closureboundvars_count;
             h64scopedef **closureboundvars;
+            int *externalclosurevar_valuetempid;
         } funcdef;
         struct assignstmt {
             h64expression *lvalue;

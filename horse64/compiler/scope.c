@@ -196,6 +196,24 @@ jsonvalue *scope_ScopeToJSON(
             json_Free(item);
             break;
         }
+        if (!json_SetDictInt(item, "first_use_token_index",
+                scope->definitionref[i]->first_use_token_index)) {
+            fail = 1;
+            json_Free(item);
+            break;
+        }
+        if (!json_SetDictInt(item, "last_use_token_index",
+                scope->definitionref[i]->last_use_token_index)) {
+            fail = 1;
+            json_Free(item);
+            break;
+        }
+        if (!json_SetDictBool(item, "closurebound",
+                scope->definitionref[i]->closurebound)) {
+            fail = 1;
+            json_Free(item);
+            break;
+        }
         if (!json_AddToList(itemslist, item)) {
             fail = 1;
             json_Free(item);

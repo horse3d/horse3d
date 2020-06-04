@@ -7,8 +7,10 @@
 #include "bytecode.h"
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
+#include "compiler/asttransform.h"
 #include "compiler/compileproject.h"
 #include "compiler/globallimits.h"
+#include "compiler/optimizer.h"
 #include "compiler/scoperesolver.h"
 #include "compiler/scope.h"
 #include "filesys.h"
@@ -16,11 +18,9 @@
 
 typedef struct resolveinfo {
     h64compileproject *pr;
-    char *libraryname;
-    char *modulepath;
     h64ast *ast;
     int isbuiltinmodule;
-    int hadoutofmemory, failedstorageassign;
+    int hadoutofmemory, hadunexpectederror;
 } resolveinfo;
 
 static int identifierisbuiltin(
@@ -180,7 +180,7 @@ static int scoperesolver_ComputeItemStorage(
 int _resolvercallback_BuildGlobalStorage_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
-    resolveinfo *rinfo = (resolveinfo *)ud;
+    asttransforminfo *rinfo = (asttransforminfo *)ud;
     // Add file-global items to the project-global item lookups:
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
@@ -288,17 +288,10 @@ static int funchasparamwithname(h64expression *expr, const char *param) {
     return 0;
 }
 
-int _resolvercallback_AssignNonglobalStorage_visit_out(
-        h64expression *expr, h64expression *parent, void *ud
-        ) {
-    resolveinfo *rinfo = (resolveinfo *)ud;
-    return 1;
-}
-
 int _resolvercallback_ResolveIdentifiers_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
-    resolveinfo *rinfo = (resolveinfo *)ud;
+    asttransforminfo *rinfo = (asttransforminfo *)ud;
     // Resolve most inner identifiers:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             (parent == NULL ||
@@ -396,6 +389,24 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                                 return 0;
                             }
                             closure->funcdef.closureboundvars = newboundvars;
+                            int *newvaluetempids = realloc(
+                                closure->funcdef.
+                                    externalclosurevar_valuetempid,
+                                sizeof(*newvaluetempids) *
+                                (closure->funcdef.closureboundvars_count + 1)
+                            );
+                            if (!newvaluetempids) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                            closure->funcdef.
+                                    externalclosurevar_valuetempid = (
+                                newvaluetempids
+                            );
+                            closure->funcdef.
+                                    externalclosurevar_valuetempid[
+                                closure->funcdef.closureboundvars_count
+                            ] = -1;
                             closure->funcdef.closureboundvars[
                                 closure->funcdef.closureboundvars_count
                             ] = def;
@@ -414,7 +425,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 } else if (def->scope->is_global) {
                     // Global storage should have been determined already,
                     // so this shouldn't happen. Log as error:
-                    rinfo->failedstorageassign = 1;
+                    rinfo->hadunexpectederror = 1;
                 }
             } else if (def->declarationexpr->type ==
                     H64EXPRTYPE_IMPORT_STMT) {
@@ -598,7 +609,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     // Likely an error in a previous stage (e.g. parser).
                     // Mark as error in any case, to make sure we return
                     // an error message always:
-                    rinfo->failedstorageassign = 1;
+                    rinfo->hadunexpectederror = 1;
                     free(full_imp_path);
                     full_imp_path = NULL;
                     return 1;
@@ -935,70 +946,13 @@ int scoperesolver_BuildASTGlobalStorage(
     }
 
     // Build global storage:
-    resolveinfo rinfo;
-    memset(&rinfo, 0, sizeof(rinfo));
-    rinfo.pr = pr;
-    rinfo.ast = unresolved_ast;
-    int msgcount = unresolved_ast->resultmsg.message_count;
-    int k = 0;
-    while (k < unresolved_ast->stmt_count) {
-        int result = ast_VisitExpression(
-            unresolved_ast->stmt[k], NULL,
-            NULL,
-            &_resolvercallback_BuildGlobalStorage_visit_out,
-            &rinfo
-        );
-        if (!result || rinfo.hadoutofmemory) {
-            result_AddMessage(
-                &unresolved_ast->resultmsg,
-                H64MSG_ERROR, "out of memory",
-                unresolved_ast->fileuri,
-                -1, -1
-            );
-            return 0;
-        }
-        k++;
-    }
-    {   // Copy over new messages resulting from storage assign:
-        k = msgcount;
-        while (k < unresolved_ast->resultmsg.message_count) {
-            if (!result_AddMessage(
-                    pr->resultmsg,
-                    unresolved_ast->resultmsg.message[k].type,
-                    unresolved_ast->resultmsg.message[k].message,
-                    unresolved_ast->resultmsg.message[k].fileuri,
-                    unresolved_ast->resultmsg.message[k].line,
-                    unresolved_ast->resultmsg.message[k].column
-                    )) {
-                return 0;
-            }
-            if (unresolved_ast->resultmsg.message[k].type == H64MSG_ERROR) {
-                pr->resultmsg->success = 0;
-                unresolved_ast->resultmsg.success = 0;
-            }
-            k++;
-        }
-    }
-    if (rinfo.failedstorageassign) {
-        // Make sure an error is returned:
-        int haderrormsg = 0;
-        k = 0;
-        while (k < pr->resultmsg->message_count) {
-            if (pr->resultmsg->message[k].type == H64MSG_ERROR)
-                haderrormsg = 1;
-            k++;
-        }
-        if (!haderrormsg) {
-            result_AddMessage(
-                pr->resultmsg,
-                H64MSG_ERROR, "internal error: failed to assign "
-                "storage to all items (global storage phase)",
-                unresolved_ast->fileuri,
-                -1, -1
-            );
-            pr->resultmsg->success = 0;
-        }
-    }
+    int buildstorageresult = asttransform_Apply(
+        pr, unresolved_ast, NULL,
+        &_resolvercallback_BuildGlobalStorage_visit_out,
+        NULL
+    );
+    if (!buildstorageresult)
+        return 0;
 
     // Do recursive handling if asked for:
     if (recursive) {
@@ -1040,143 +994,33 @@ int scoperesolver_ResolveAST(
     if (!scoperesolver_BuildASTGlobalStorage(
             pr, unresolved_ast, 0
             )) {
+        pr->resultmsg->success = 0;
+        unresolved_ast->resultmsg.success = 0;
         return 0;
     }
 
     // Resolve identifiers:
-    resolveinfo rinfo;
-    memset(&rinfo, 0, sizeof(rinfo));
-    rinfo.pr = pr;
-    rinfo.ast = unresolved_ast;
-    int msgcount = unresolved_ast->resultmsg.message_count;
-    int k = 0;
-    while (k < unresolved_ast->stmt_count) {
-        assert(unresolved_ast->stmt != NULL &&
-            unresolved_ast->stmt[k] != NULL);
-        int result = ast_VisitExpression(
-            unresolved_ast->stmt[k], NULL,
-            NULL,
-            &_resolvercallback_ResolveIdentifiers_visit_out,
-            &rinfo
-        );
-        if (!result || rinfo.hadoutofmemory) {
-            result_AddMessage(
-                &unresolved_ast->resultmsg,
-                H64MSG_ERROR, "out of memory",
-                unresolved_ast->fileuri,
-                -1, -1
-            );
-            return 0;
-        }
-        k++;
-    }
-    {   // Copy over new messages resulting from resolution stage:
-        k = msgcount;
-        while (k < unresolved_ast->resultmsg.message_count) {
-            if (!result_AddMessage(
-                    pr->resultmsg,
-                    unresolved_ast->resultmsg.message[k].type,
-                    unresolved_ast->resultmsg.message[k].message,
-                    unresolved_ast->resultmsg.message[k].fileuri,
-                    unresolved_ast->resultmsg.message[k].line,
-                    unresolved_ast->resultmsg.message[k].column
-                    )) {
-                return 0;
-            }
-            if (unresolved_ast->resultmsg.message[k].type == H64MSG_ERROR) {
-                pr->resultmsg->success = 0;
-                unresolved_ast->resultmsg.success = 0;
-            }
-            k++;
-        }
-    }
-    if (rinfo.failedstorageassign) {
-        // Make sure an error is returned:
-        int haderrormsg = 0;
-        k = 0;
-        while (k < pr->resultmsg->message_count) {
-            if (pr->resultmsg->message[k].type == H64MSG_ERROR)
-                haderrormsg = 1;
-            k++;
-        }
-        if (!haderrormsg) {
-            result_AddMessage(
-                pr->resultmsg,
-                H64MSG_ERROR, "internal error: failed to get"
-                "storage for all items (identifier resolution stage)",
-                unresolved_ast->fileuri,
-                -1, -1
-            );
-            pr->resultmsg->success = 0;
-        }
-    } else if (pr->resultmsg->success &&
+    int transformresult = asttransform_Apply(
+        pr, unresolved_ast, NULL,
+        &_resolvercallback_ResolveIdentifiers_visit_out,
+        NULL
+    );
+    if (!transformresult)
+        return 0;
+
+    // If so far we didn't have an error, optimize and do local storage:
+    if (pr->resultmsg->success &&
             unresolved_ast->resultmsg.success) {
-        // Assign storage for all local variables and parameters:
-        memset(&rinfo, 0, sizeof(rinfo));
-        rinfo.pr = pr;
-        rinfo.ast = unresolved_ast;
-        int msgcount = unresolved_ast->resultmsg.message_count;
-        int k = 0;
-        while (k < unresolved_ast->stmt_count) {
-            assert(unresolved_ast->stmt != NULL &&
-                unresolved_ast->stmt[k] != NULL);
-            int result = ast_VisitExpression(
-                unresolved_ast->stmt[k], NULL,
-                NULL,
-                &_resolvercallback_AssignNonglobalStorage_visit_out,
-                &rinfo
-            );
-            if (!result || rinfo.hadoutofmemory) {
-                result_AddMessage(
-                    &unresolved_ast->resultmsg,
-                    H64MSG_ERROR, "out of memory",
-                    unresolved_ast->fileuri,
-                    -1, -1
-                );
+        // Optimize variable definition locations:
+        transformresult = optimizer_MoveVardefs(pr, unresolved_ast);\
+        if (!transformresult)
+            return 0;
+        if (pr->resultmsg->success &&
+                unresolved_ast->resultmsg.success) {
+            if (!varstorage_AssignLocalStorage(
+                    pr, unresolved_ast
+                    ))
                 return 0;
-            }
-            k++;
-        }
-        {   // Copy over new messages resulting from local storage assign:
-            k = msgcount;
-            while (k < unresolved_ast->resultmsg.message_count) {
-                if (!result_AddMessage(
-                        pr->resultmsg,
-                        unresolved_ast->resultmsg.message[k].type,
-                        unresolved_ast->resultmsg.message[k].message,
-                        unresolved_ast->resultmsg.message[k].fileuri,
-                        unresolved_ast->resultmsg.message[k].line,
-                        unresolved_ast->resultmsg.message[k].column
-                        )) {
-                    return 0;
-                }
-                if (unresolved_ast->resultmsg.message[k].type ==
-                        H64MSG_ERROR) {
-                    pr->resultmsg->success = 0;
-                    unresolved_ast->resultmsg.success = 0;
-                }
-                k++;
-            }
-        }
-        if (rinfo.failedstorageassign) {
-            // Make sure an error is returned:
-            int haderrormsg = 0;
-            k = 0;
-            while (k < pr->resultmsg->message_count) {
-                if (pr->resultmsg->message[k].type == H64MSG_ERROR)
-                    haderrormsg = 1;
-                k++;
-            }
-            if (!haderrormsg) {
-                result_AddMessage(
-                    pr->resultmsg,
-                    H64MSG_ERROR, "internal error: failed to get"
-                    "storage for all items (local storage assign stage)",
-                    unresolved_ast->fileuri,
-                    -1, -1
-                );
-                pr->resultmsg->success = 0;
-            }
         }
     }
     unresolved_ast->identifiers_resolved = 1;
