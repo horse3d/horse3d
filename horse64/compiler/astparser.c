@@ -2204,11 +2204,11 @@ int ast_ParseExprInline(
         return 0;
     }
 
-    #ifdef H64AST_DEBUG
+    #if defined(H64AST_DEBUG)
     char describebuf[64];
     printf("horsec: debug: GREEDY PARSE FROM %d %s\n", 0,
          _describetoken(describebuf,
-             tokenstreaminfo, tokens, 0));
+             context->tokenstreaminfo, tokens, 0));
     #endif
 
     // Try to greedily parse as full operator expression:
