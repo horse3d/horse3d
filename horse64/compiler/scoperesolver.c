@@ -113,68 +113,72 @@ static int scoperesolver_ComputeItemStorage(
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALCLASSSLOT;
             expr->storage.ref.id = global_id;
-        } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
-            name = expr->funcdef.name;
-            char **kwarg_names = malloc(
-                sizeof(*kwarg_names) * expr->funcdef.arguments.arg_count
-            );
-            if (!kwarg_names) {
-                if (outofmemory) *outofmemory = 1;
-                return 0;
-            }
-            memset(kwarg_names, 0, sizeof(*kwarg_names) *
-                   expr->funcdef.arguments.arg_count);
-            int i = 0;
-            while (i < expr->funcdef.arguments.arg_count) {
-                if (expr->funcdef.arguments.arg_value[i]) {
-                    kwarg_names[i] = strdup(
-                        expr->funcdef.arguments.arg_name[i]
-                    );
-                    if (!kwarg_names[i]) {
-                        int k = 0;
-                        while (k < i) {
-                            free(kwarg_names[k]);
-                            k++;
-                        }
-                        free(kwarg_names);
-                        if (outofmemory) *outofmemory = 1;
-                        return 0;
+        }
+    }
+    if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+            expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
+        const char *name = expr->funcdef.name;
+        char **kwarg_names = malloc(
+            sizeof(*kwarg_names) * expr->funcdef.arguments.arg_count
+        );
+        if (!kwarg_names) {
+            if (outofmemory) *outofmemory = 1;
+            return 0;
+        }
+        memset(kwarg_names, 0, sizeof(*kwarg_names) *
+               expr->funcdef.arguments.arg_count);
+        int i = 0;
+        while (i < expr->funcdef.arguments.arg_count) {
+            if (expr->funcdef.arguments.arg_value[i]) {
+                kwarg_names[i] = strdup(
+                    expr->funcdef.arguments.arg_name[i]
+                );
+                if (!kwarg_names[i]) {
+                    int k = 0;
+                    while (k < i) {
+                        free(kwarg_names[k]);
+                        k++;
                     }
+                    free(kwarg_names);
+                    if (outofmemory) *outofmemory = 1;
+                    return 0;
                 }
-                i++;
             }
-            int64_t global_id = -1;
-            if ((global_id = h64program_RegisterHorse64Function(
-                    program, name, ast->fileuri,
-                    expr->funcdef.arguments.arg_count,
-                    kwarg_names,
-                    expr->funcdef.arguments.last_posarg_is_multiarg,
-                    ast->module_path,
-                    ast->library_name,
-                    -1
-                    )) < 0) {
-                int k = 0;
-                while (k < i) {
-                    free(kwarg_names[k]);
-                    k++;
-                }
-                free(kwarg_names);
-                if (outofmemory) *outofmemory = 1;
-                return 0;
-            }
+            i++;
+        }
+        assert(name != NULL || expr->type == H64EXPRTYPE_INLINEFUNCDEF);
+        int64_t bytecode_func_id = -1;
+        if ((bytecode_func_id = h64program_RegisterHorse64Function(
+                program, name, ast->fileuri,
+                expr->funcdef.arguments.arg_count,
+                kwarg_names,
+                expr->funcdef.arguments.last_posarg_is_multiarg,
+                ast->module_path,
+                ast->library_name,
+                -1
+                )) < 0) {
             int k = 0;
             while (k < i) {
                 free(kwarg_names[k]);
                 k++;
             }
             free(kwarg_names);
-            assert(global_id >= 0);
-            assert(global_id >= 0);
+            if (outofmemory) *outofmemory = 1;
+            return 0;
+        }
+        int k = 0;
+        while (k < i) {
+            free(kwarg_names[k]);
+            k++;
+        }
+        free(kwarg_names);
+        assert(bytecode_func_id >= 0);
+        if (scope->is_global) {
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALFUNCSLOT;
-            expr->storage.ref.id = global_id;
-            expr->funcdef.bytecode_func_id = global_id;
+            expr->storage.ref.id = bytecode_func_id;
         }
+        expr->funcdef.bytecode_func_id = bytecode_func_id;
     }
     return 1;
 }
