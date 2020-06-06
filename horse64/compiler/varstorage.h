@@ -3,6 +3,7 @@
 
 typedef struct h64compileproject h64compileproject;
 typedef struct h64ast h64ast;
+typedef struct jsonvalue jsonvalue;
 
 int varstorage_AssignLocalStorage(
     h64compileproject *pr, h64ast *ast
@@ -29,6 +30,10 @@ typedef struct h64storageextrainfo {
 } h64storageextrainfo;
 
 void varstorage_FreeExtraInfo(
+    h64storageextrainfo *einfo
+);
+
+jsonvalue *varstorage_ExtraInfoToJSON(
     h64storageextrainfo *einfo
 );
 

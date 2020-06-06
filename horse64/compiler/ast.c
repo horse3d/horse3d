@@ -774,6 +774,8 @@ jsonvalue *ast_ExpressionToJSON(
         return NULL;
     int fail = 0;
     jsonvalue *v = json_Dict();
+    if (!v)
+        return NULL;
     const char *typestrconst = ast_ExpressionTypeToStr(e->type);
     char *typestr = typestrconst ? strdup(typestrconst) : NULL;
     if (typestr) {
@@ -1259,6 +1261,15 @@ jsonvalue *ast_ExpressionToJSON(
                 break;
             }
             i++;
+        }
+        if (e->funcdef._storageinfo) {
+            jsonvalue *sinfoval = varstorage_ExtraInfoToJSON(
+                e->funcdef._storageinfo
+            );
+            if (!json_SetDict(v, "storageinfo", sinfoval)) {
+                fail = 1;
+                json_Free(sinfoval);
+            }
         }
         if (!json_SetDict(v, "statements", statements)) {
             fail = 1;

@@ -249,3 +249,71 @@ void varstorage_FreeExtraInfo(
     free(einfo->closureboundvars);
     free(einfo);
 }
+
+jsonvalue *varstorage_ExtraInfoToJSON(
+        h64storageextrainfo *einfo
+        ) {
+    if (!einfo)
+        return NULL;
+
+    int fail = 0;
+    jsonvalue *v = json_Dict();
+    if (!v)
+        return NULL;
+
+    {
+        jsonvalue *assignlist = json_List();
+
+        int k = 0;
+        while (k < einfo->lstoreassign_count) {
+            jsonvalue *item = json_Dict();
+            const char *name = NULL;
+            if (einfo->lstoreassign[k].vardef->
+                    declarationexpr->type == H64EXPRTYPE_VARDEF_STMT) {
+                name = (einfo->lstoreassign[k].vardef->
+                    declarationexpr->vardef.identifier);
+            } else if (einfo->lstoreassign[k].vardef->
+                    declarationexpr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+                name = (einfo->lstoreassign[k].vardef->
+                    declarationexpr->funcdef.name);
+            }
+            if ((name && !json_SetDictStr(item, "name", name)) ||
+                    (!name && !json_SetDictNull(item, "name"))) {
+                fail = 1;
+                json_Free(item);
+                break;
+            }
+            if (!json_SetDictInt(item, "value-temporary-id",
+                    einfo->lstoreassign[k].valuetemporaryid)) {
+                fail = 1;
+                json_Free(item);
+                break;
+            }
+            if (!json_SetDictInt(item, "valuebox-temporary-id",
+                    einfo->lstoreassign[k].valueboxtemporaryid)) {
+                fail = 1;
+                json_Free(item);
+                break;
+            }
+            if (!json_AddToList(assignlist, item)) {
+                fail = 1;
+                json_Free(item);
+                break;
+            }
+            k++;
+        }
+        if (fail) {
+            json_Free(assignlist);
+        } else if (!json_SetDict(v, "local-storage-assignments",
+                assignlist)) {
+            fail = 1;
+            json_Free(assignlist);
+        }
+    }
+
+    if (fail) {
+        json_Free(v);
+        return NULL;
+    }
+    return v;
+}
