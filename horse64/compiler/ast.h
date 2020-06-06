@@ -98,6 +98,7 @@ typedef struct h64expression {
             char *identifier;
             int is_const;
             h64expression *value;
+            h64scope *foundinscope;
         } vardef;
         struct funcdef {
             char *name;
@@ -108,6 +109,7 @@ typedef struct h64expression {
             int stmt_count;
             h64expression **stmt;
             h64scope scope;
+            h64scope *foundinscope;
             h64funcargs arguments;
             int bytecode_func_id;
 
@@ -120,6 +122,7 @@ typedef struct h64expression {
         } assignstmt;
         struct callstmt {
             h64expression *call;
+            h64scope *foundinscope;
         } callstmt;
         struct literal {
             h64tokentype type;
@@ -150,6 +153,7 @@ typedef struct h64expression {
             char *source_library;
             char *import_as;
             h64ast *referenced_ast;
+            h64scope *foundinscope;
         } importstmt;
         struct constructorvector {
             int entry_count;
@@ -181,6 +185,7 @@ typedef struct h64expression {
             h64expression **vardef;
             int funcdef_count;
             h64expression **funcdef;
+            h64scope *foundinscope;
         } classdef;
         struct forstmt {
             char *iterator_identifier;

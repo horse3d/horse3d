@@ -408,21 +408,6 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                                 return 0;
                             }
                             einfo->closureboundvars = newboundvars;
-                            int *newvaluetempids = realloc(
-                                einfo->externalclosurevar_valuetempid,
-                                sizeof(*newvaluetempids) *
-                                (einfo->closureboundvars_count + 1)
-                            );
-                            if (!newvaluetempids) {
-                                rinfo->hadoutofmemory = 1;
-                                return 0;
-                            }
-                            einfo->externalclosurevar_valuetempid = (
-                                newvaluetempids
-                            );
-                            einfo->externalclosurevar_valuetempid[
-                                einfo->closureboundvars_count
-                            ] = -1;
                             einfo->closureboundvars[
                                 einfo->closureboundvars_count
                             ] = def;
@@ -1027,8 +1012,8 @@ int scoperesolver_ResolveAST(
     // If so far we didn't have an error, optimize and do local storage:
     if (pr->resultmsg->success &&
             unresolved_ast->resultmsg.success) {
-        // Optimize variable definition locations:
-        transformresult = optimizer_MoveVardefs(pr, unresolved_ast);\
+        // Optimize constants away:
+        transformresult = optimizer_PreevaluateConstants(pr, unresolved_ast);
         if (!transformresult)
             return 0;
         if (pr->resultmsg->success &&

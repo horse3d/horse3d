@@ -4,7 +4,7 @@
 typedef struct h64compileproject h64compileproject;
 typedef struct h64ast h64ast;
 
-int optimizer_MoveVardefs(
+int optimizer_PreevaluateConstants(
     h64compileproject *pr, h64ast *ast
 );
 

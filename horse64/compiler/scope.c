@@ -57,6 +57,26 @@ void scope_RemoveItem(
         while (i < scope->definitionref_count) {
             if (strcmp(scope->definitionref[i]->identifier,
                     identifier_ref) == 0) {
+                if (scope->definitionref[i]->declarationexpr) {
+                    h64expression *e = (
+                        scope->definitionref[i]->declarationexpr
+                    );
+                    if (e->type == H64EXPRTYPE_FUNCDEF_STMT) {
+                        assert(e->funcdef.foundinscope == scope);
+                        e->funcdef.foundinscope = NULL;
+                    } else if (e->type == H64EXPRTYPE_VARDEF_STMT) {
+                        assert(e->vardef.foundinscope == scope);
+                        e->vardef.foundinscope = NULL;
+                    } else if (e->type == H64EXPRTYPE_CLASSDEF_STMT) {
+                        assert(e->classdef.foundinscope == scope);
+                        e->classdef.foundinscope = NULL;
+                    } else if (e->type == H64EXPRTYPE_IMPORT_STMT) {
+                        assert(e->importstmt.foundinscope == scope);
+                        e->importstmt.foundinscope = NULL;
+                    } else {
+                        assert(0 && "this should be unreachable");
+                    }
+                }
                 free(scope->definitionref[i]);
                 if (i + 1 < scope->definitionref_count) {
                     memmove(
@@ -122,6 +142,24 @@ int scope_AddItem(
         free(scope->definitionref[i]);
         scope->definitionref_count--;
         if (outofmemory) *outofmemory = 1;
+        return 0;
+    }
+    if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+        expr->vardef.foundinscope = scope;
+    } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
+        expr->classdef.foundinscope = scope;
+    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+        expr->funcdef.foundinscope = scope;
+    } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
+        expr->importstmt.foundinscope = scope;
+    } else {
+        // Invalid item to add...?
+        assert(hash_StringMapUnset(
+            scope->name_to_declaration_map, identifier_ref
+        ) != 0);
+        free(scope->definitionref[i]);
+        scope->definitionref_count--;
+        if (outofmemory) *outofmemory = 0;
         return 0;
     }
     return 1;

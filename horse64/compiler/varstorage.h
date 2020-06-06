@@ -8,12 +8,24 @@ int varstorage_AssignLocalStorage(
     h64compileproject *pr, h64ast *ast
 );
 
+typedef struct h64localstorageassign {
+    int valuetemporaryid;
+    int valueboxtemporaryid;
+    h64scopedef *vardef;
+    int closurevarparameter;
+
+    int use_start_token_index, use_end_token_index;
+} h64localstorageassign;
+
 typedef struct h64storageextrainfo {
     int temps_for_locals_startindex;
+    int lowest_guaranteed_free_temp;
 
     int closureboundvars_count;
     h64scopedef **closureboundvars;
-    int *externalclosurevar_valuetempid;
+
+    int lstoreassign_count;
+    h64localstorageassign *lstoreassign;
 } h64storageextrainfo;
 
 void varstorage_FreeExtraInfo(
