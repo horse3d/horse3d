@@ -61,18 +61,21 @@ void scope_RemoveItem(
                     h64expression *e = (
                         scope->definitionref[i]->declarationexpr
                     );
-                    if (e->type == H64EXPRTYPE_FUNCDEF_STMT) {
-                        assert(e->funcdef.foundinscope == scope);
-                        e->funcdef.foundinscope = NULL;
+                    if (e->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                            e->type == H64EXPRTYPE_INLINEFUNCDEF) {
+                        if (e->funcdef.foundinscope == scope)
+                            e->funcdef.foundinscope = NULL;
                     } else if (e->type == H64EXPRTYPE_VARDEF_STMT) {
-                        assert(e->vardef.foundinscope == scope);
-                        e->vardef.foundinscope = NULL;
+                        if (e->vardef.foundinscope == scope)
+                            e->vardef.foundinscope = NULL;
                     } else if (e->type == H64EXPRTYPE_CLASSDEF_STMT) {
-                        assert(e->classdef.foundinscope == scope);
-                        e->classdef.foundinscope = NULL;
+                        if (e->classdef.foundinscope == scope)
+                            e->classdef.foundinscope = NULL;
                     } else if (e->type == H64EXPRTYPE_IMPORT_STMT) {
-                        assert(e->importstmt.foundinscope == scope);
-                        e->importstmt.foundinscope = NULL;
+                        if (e->importstmt.foundinscope == scope)
+                            e->importstmt.foundinscope = NULL;
+                    } else if (e->type == H64EXPRTYPE_FOR_STMT) {
+                        // nothing to do
                     } else {
                         assert(0 && "this should be unreachable");
                     }
@@ -149,7 +152,9 @@ int scope_AddItem(
         (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
          expr->type == H64EXPRTYPE_INLINEFUNCDEF) ?
         &expr->funcdef.scope == scope :
-        0
+        ((expr->type == H64EXPRTYPE_FOR_STMT ?
+          &expr->forstmt.scope == scope :
+          0))
     );
     if (!addedtoself) {
         if (expr->type == H64EXPRTYPE_VARDEF_STMT) {

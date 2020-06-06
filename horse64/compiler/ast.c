@@ -1212,6 +1212,11 @@ jsonvalue *ast_ExpressionToJSON(
         if (e->funcdef.name && e->type != H64EXPRTYPE_INLINEFUNCDEF &&
                 !json_SetDictStr(v, "name", e->funcdef.name))
             fail = 1;
+        if (e->funcdef.bytecode_func_id >= 0) {
+            if (!json_SetDictInt(v, "bytecode-func-id",
+                    e->funcdef.bytecode_func_id))
+                fail = 1;
+        }
         jsonvalue *attributes = json_List();
         if (e->funcdef.is_threadable) {
             if (!json_AddToListStr(attributes, "threadable"))
@@ -1262,13 +1267,45 @@ jsonvalue *ast_ExpressionToJSON(
             }
             i++;
         }
+        jsonvalue *sinfoval = NULL;
         if (e->funcdef._storageinfo) {
-            jsonvalue *sinfoval = varstorage_ExtraInfoToJSON(
+            sinfoval = varstorage_ExtraInfoToJSON(
                 e->funcdef._storageinfo
             );
-            if (!json_SetDict(v, "storageinfo", sinfoval)) {
+        } else if (e->storage.set) {
+            sinfoval = json_Dict();
+        }
+        if (!sinfoval) {
+            fail = 1;
+        } else {
+            if (e->storage.set) {
+                if (e->storage.ref.type ==
+                        H64STORETYPE_GLOBALFUNCSLOT) {
+                    if (!json_SetDictInt(sinfoval, "stored-in-global",
+                            -1)) {  // -1 since not a regular mutable global
+                        fail = 1;
+                        json_Free(sinfoval);
+                        sinfoval = NULL;
+                    }
+                } else if (e->storage.ref.type ==
+                        H64STORETYPE_STACKSLOT) {
+                    if (!json_SetDictInt(sinfoval, "stored-in-local",
+                            e->storage.ref.id)) {
+                        fail = 1;
+                        json_Free(sinfoval);
+                        sinfoval = NULL;
+                    }
+                } else {
+                    fprintf(stderr,
+                        "horsec: warning: bad storage type for func: "
+                        "type %d\n", e->storage.ref.type);
+                    assert(0 && "bad storage type for func, wrong ast??");
+                }
+            }
+            if (!json_SetDict(v, "storage", sinfoval)) {
                 fail = 1;
                 json_Free(sinfoval);
+                sinfoval = NULL;
             }
         }
         if (!json_SetDict(v, "statements", statements)) {
