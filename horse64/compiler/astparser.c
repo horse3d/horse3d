@@ -19,6 +19,7 @@
 #include "compiler/globallimits.h"
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
+#include "uri.h"
 
 
 static int64_t _refline(tsinfo *tokenstreaminfo, h64token *token, int i) {
@@ -1231,7 +1232,7 @@ int ast_ParseInlineFunc(
                         -1, -1
                         ))
                     goto scopeaddoom;
-                if (outofmemory) *outofmemory = 1;
+                if (outofmemory) *outofmemory = 0;
                 if (parsefail) *parsefail = 1;
                 ast_FreeExpression(expr);
                 return 0;
@@ -4768,7 +4769,7 @@ h64ast *ast_ParseFromTokens(
     }
     assert(result->scope.magicinitnum == SCOPEMAGICINITNUM);
 
-    result->fileuri = strdup(fileuri);
+    result->fileuri = uri_Normalize(fileuri, 1);
     if (!result->fileuri) {
         ast_FreeContents(result);
         result_ErrorNoLoc(

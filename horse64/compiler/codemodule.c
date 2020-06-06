@@ -1,4 +1,5 @@
 
+#include <assert.h>
 #include <string.h>
 
 #include "compiler/ast.h"
@@ -7,6 +8,7 @@
 #include "compiler/compileproject.h"
 #include "compiler/lexer.h"
 #include "compiler/warningconfig.h"
+#include "uri.h"
 
 h64ast *codemodule_GetASTUncached(
         h64compileproject *pr, const char *fileuri,
@@ -26,6 +28,7 @@ h64ast *codemodule_GetASTUncached(
         lexer_FreeFileTokens(&tfile);
         h64ast *tcode = malloc(sizeof(*tcode));
         if (!tcode) {
+            lexer_FreeFileTokens(&tfile);
             result_FreeContents(&tfile.resultmsg);
             return NULL;
         }
@@ -33,6 +36,15 @@ h64ast *codemodule_GetASTUncached(
         tcode->basic_file_access_was_successful = 0;
         memcpy(&tcode->resultmsg, &tfile.resultmsg,
                sizeof(tcode->resultmsg));
+        if (fileuri) {
+            tcode->fileuri = uri_Normalize(fileuri, 1);
+            if (!tcode->fileuri) {
+                free(tcode);
+                lexer_FreeFileTokens(&tfile);
+                result_FreeContents(&tfile.resultmsg);
+                return NULL;
+            }
+        }
         return tcode;
     }
 
@@ -63,15 +75,27 @@ h64ast *codemodule_GetASTUncached(
                 tfile.resultmsg.message[i].line,
                 tfile.resultmsg.message[i].column
                 )) {
+            lexer_FreeFileTokens(&tfile);
+            result_FreeContents(&tfile.resultmsg);
             result_FreeContents(&tcode->resultmsg);
-            tcode->resultmsg.success = 0;
-            return tcode;
+            ast_FreeContents(tcode);
+            free(tcode);
+            return NULL;
         }
         if (tfile.resultmsg.message[i].type == H64MSG_ERROR)
             haderrormessages = 1;
         i++;
     }
     result_FreeContents(&tfile.resultmsg);
+    if (fileuri && !tcode->fileuri) {
+        // Can happen with out of memory.
+        lexer_FreeFileTokens(&tfile);
+        result_FreeContents(&tfile.resultmsg);
+        result_FreeContents(&tcode->resultmsg);
+        ast_FreeContents(tcode);
+        free(tcode);
+        return NULL;
+    }
     if (haderrormessages || !tfile.resultmsg.success) {
         tcode->resultmsg.success = 0;
         return tcode;

@@ -196,6 +196,7 @@ int compileproject_GetAST(
     h64ast *result = codemodule_GetASTUncached(
         pr, absfilepath, &pr->warnconfig
     );
+    assert(!fileuri || !result || result->fileuri);
     free(absfilepath); absfilepath = NULL;
     if (!result) {
         free(relfilepath);

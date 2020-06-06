@@ -68,6 +68,8 @@ void lexer_FreeFileTokens(h64tokenizedfile *tfile);
 
 const char *lexer_TokenTypeToStr(h64tokentype type);
 
+char *lexer_TokenToJSONStr(h64token *t, const char *fileuri);
+
 jsonvalue *lexer_TokenToJSON(h64token *t, const char *fileuri);
 
 int is_valid_utf8_char(

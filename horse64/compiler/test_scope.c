@@ -270,6 +270,7 @@ START_TEST (test_scope_import_complex)
         project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
+    ck_assert(ast->fileuri != NULL);
     ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
     if (ast->resultmsg.message_count > 0) {
         int i = 0;

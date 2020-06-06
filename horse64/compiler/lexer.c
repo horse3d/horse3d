@@ -1364,6 +1364,16 @@ const char *lexer_TokenTypeToStr(h64tokentype type) {
     return NULL;
 }
 
+char *lexer_TokenToJSONStr(h64token *t, const char *fileuri) {
+    jsonvalue *v = lexer_TokenToJSON(t, fileuri);
+    if (!v)
+        return NULL;
+
+    char *result = json_Dump(v);
+    json_Free(v);
+    return result;
+}
+
 jsonvalue *lexer_TokenToJSON(h64token *t, const char *fileuri) {
     int fail = 0;
     jsonvalue *v = json_Dict();

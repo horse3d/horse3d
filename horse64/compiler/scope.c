@@ -144,23 +144,36 @@ int scope_AddItem(
         if (outofmemory) *outofmemory = 1;
         return 0;
     }
-    if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
-        expr->vardef.foundinscope = scope;
-    } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
-        expr->classdef.foundinscope = scope;
-    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
-        expr->funcdef.foundinscope = scope;
-    } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
-        expr->importstmt.foundinscope = scope;
-    } else {
-        // Invalid item to add...?
-        assert(hash_StringMapUnset(
-            scope->name_to_declaration_map, identifier_ref
-        ) != 0);
-        free(scope->definitionref[i]);
-        scope->definitionref_count--;
-        if (outofmemory) *outofmemory = 0;
-        return 0;
+
+    int addedtoself = (
+        (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+         expr->type == H64EXPRTYPE_INLINEFUNCDEF) ?
+        &expr->funcdef.scope == scope :
+        0
+    );
+    if (!addedtoself) {
+        if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+            expr->vardef.foundinscope = scope;
+        } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
+            expr->classdef.foundinscope = scope;
+        } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+            expr->funcdef.foundinscope = scope;
+        } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
+            expr->importstmt.foundinscope = scope;
+        } else {
+            fprintf(stderr, "horsecc: warning: "
+                "unexpected add to scope of expr type %d\n",
+                expr->type);
+            assert(0 && "abort for invalid item to add");
+            // In release mode, avoid crashing:
+            hash_StringMapUnset(
+                scope->name_to_declaration_map, identifier_ref
+            );
+            free(scope->definitionref[i]);
+            scope->definitionref_count--;
+            if (outofmemory) *outofmemory = 0;
+            return 0;
+        }
     }
     return 1;
 }
