@@ -48,9 +48,6 @@ typedef struct valuecontent {
         double float_value;
         void *ptr_value;
         struct {
-            int previous_func_bottom;
-        };
-        struct {
             unicodechar shortstr_value[3];
             uint8_t shortstr_len;
         };
