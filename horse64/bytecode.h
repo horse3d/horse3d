@@ -54,21 +54,21 @@ typedef struct valuecontent {
     };
 } valuecontent;
 
- __attribute__ ((packed)) typedef struct h64instructionany {
+typedef struct h64instructionany {
     uint8_t type;
-} h64instructionany;
+} __attribute__((packed))h64instructionany;
 
-__attribute__ ((packed)) typedef struct h64instruction_stacksetconst {
+typedef struct h64instruction_stacksetconst {
     uint8_t type;
     int64_t slot;
     valuecontent content;
-} stacksetconst;
+} __attribute__((packed)) stacksetconst;
 
-__attribute__ ((packed)) typedef struct h64instruction_globalsetconst {
+typedef struct h64instruction_globalsetconst {
     uint8_t type;
     int64_t slot;
     valuecontent content;
-} h64instruction_globalsetconst;
+} __attribute__((packed)) h64instruction_globalsetconst;
 
 typedef struct h64class {
     int members_count;
