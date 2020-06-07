@@ -19,7 +19,6 @@ typedef struct h64localstorageassign {
 } h64localstorageassign;
 
 typedef struct h64storageextrainfo {
-    int temps_for_locals_startindex;
     int lowest_guaranteed_free_temp;
 
     int closureboundvars_count;

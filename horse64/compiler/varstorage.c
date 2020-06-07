@@ -113,10 +113,9 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
                 freetemp++;
                 i++;
             }
-            einfo->temps_for_locals_startindex = freetemp;
-            einfo->lowest_guaranteed_free_temp = freetemp - 1;
+            einfo->lowest_guaranteed_free_temp = freetemp;
         } else {
-            einfo->temps_for_locals_startindex = (
+            einfo->lowest_guaranteed_free_temp = (
                 einfo->closureboundvars_count +
                 expr->funcdef.arguments.arg_count
             );
