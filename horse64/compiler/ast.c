@@ -1268,7 +1268,7 @@ jsonvalue *ast_ExpressionToJSON(
             i++;
         }
         jsonvalue *sinfoval = NULL;
-        if (e->funcdef._storageinfo) {
+        if (e->funcdef._storageinfo != NULL) {
             sinfoval = varstorage_ExtraInfoToJSON(
                 e->funcdef._storageinfo
             );
@@ -1276,7 +1276,8 @@ jsonvalue *ast_ExpressionToJSON(
             sinfoval = json_Dict();
         }
         if (!sinfoval) {
-            fail = 1;
+            if (e->storage.set)
+                fail = 1;
         } else {
             if (e->storage.set) {
                 if (e->storage.ref.type ==
