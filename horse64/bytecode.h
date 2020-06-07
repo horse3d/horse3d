@@ -10,8 +10,8 @@ typedef uint32_t unicodechar;
 
 typedef enum instructiontype {
     H64INST_INVALID = 0,
-    H64INST_STACKGROW = 1,
-    H64INST_STACKSETCONST
+    H64INST_STACKSETCONST = 1,
+    H64INST_GLOBALSETCONST
 } instructiontype;
 
 typedef enum storagetype {
@@ -54,17 +54,21 @@ typedef struct valuecontent {
     };
 } valuecontent;
 
-typedef struct h64instruction {
-    uint16_t type;
-    union {
-        struct stackgrow {
-            int size;
-        } stackgrow;
-        struct stacksetconst {
-            valuecontent content;
-        } stacksetconst;
-    };
-} h64instruction;
+ __attribute__ ((packed)) typedef struct h64instructionany {
+    uint8_t type;
+} h64instructionany;
+
+__attribute__ ((packed)) typedef struct h64instruction_stacksetconst {
+    uint8_t type;
+    int64_t slot;
+    valuecontent content;
+} stacksetconst;
+
+__attribute__ ((packed)) typedef struct h64instruction_globalsetconst {
+    uint8_t type;
+    int64_t slot;
+    valuecontent content;
+} h64instruction_globalsetconst;
 
 typedef struct h64class {
     int members_count;
@@ -85,8 +89,8 @@ typedef struct h64func {
 
     union {
         struct {
-            int instruction_count;
-            h64instruction *instruction;
+            int instructions_bytes;
+            h64instructionany *instructions;
         };
         struct {
             void *cfunc_ptr;
