@@ -2490,6 +2490,7 @@ static const char _defnamefunc[] = "function";
 static const char _defnamefuncparam[] = "function parameter";
 static const char _defnameclass[] = "class";
 static const char _defnameforloop[] = "for loop iterator";
+static const char _defnamecatch[] = "caught exception";
 
 const char *_identifierdeclarationname(
         h64expression *expr, const char *identifier
@@ -2513,6 +2514,8 @@ const char *_identifierdeclarationname(
         deftype = _defnameimport;
     } else if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
         deftype = _defnamevar;
+    } else if (expr->type == H64EXPRTYPE_TRY_STMT) {
+        deftype = _defnamecatch;
     } else {
         fprintf(stderr, "horsec: error: internal error: "
             "what is this type: %d\n", expr->type);
@@ -2558,6 +2561,8 @@ int ast_CanAddNameToScopeCheck(
         exprname = expr->classdef.name;
     } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
         exprname = expr->forstmt.iterator_identifier;
+    } else if (expr->type == H64EXPRTYPE_TRY_STMT) {
+        exprname = expr->trystmt.exception_name;
     } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
         if (expr->importstmt.import_as != NULL) {
             exprname = expr->importstmt.import_as;
@@ -3811,6 +3816,21 @@ int ast_ParseExprStmt(
                     ast_FreeExpression(expr);
                     return 0;
                 }
+                {
+                    int newidentifieroom = 0;
+                    if (!ast_ProcessNewScopeIdentifier(
+                            context, parsethis, expr,
+                            expr->trystmt.exception_name, i - 1,
+                            &expr->trystmt.catchscope,
+                            &newidentifieroom
+                            )) {
+                        if (newidentifieroom) {
+                            if (outofmemory) *outofmemory = 1;
+                            ast_FreeExpression(expr);
+                            return 0;
+                        }
+                    }
+                }
                 i++;
             }
 
@@ -4424,11 +4444,6 @@ int ast_ParseExprStmt(
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
-                    if (expr->type == H64EXPRTYPE_FOR_STMT)
-                        scope_RemoveItem(
-                            parsethis->scope,
-                            expr->forstmt.iterator_identifier
-                        );
                     ast_FreeExpression(expr);
                     return 0;
                 }
@@ -4442,10 +4457,6 @@ int ast_ParseExprStmt(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
-                if (expr->type == H64EXPRTYPE_FOR_STMT)
-                    scope_RemoveItem(
-                        parsethis->scope, expr->forstmt.iterator_identifier
-                    );
                 ast_FreeExpression(expr);
                 return 0;
             }

@@ -153,8 +153,10 @@ int scope_AddItem(
          expr->type == H64EXPRTYPE_INLINEFUNCDEF) ?
         &expr->funcdef.scope == scope :
         ((expr->type == H64EXPRTYPE_FOR_STMT ?
-          &expr->forstmt.scope == scope :
-          0))
+          &expr->forstmt.scope == scope : (
+          expr->type == H64EXPRTYPE_TRY_STMT ?
+          &expr->trystmt.catchscope == scope :
+          0)))
     );
     if (!addedtoself) {
         if (expr->type == H64EXPRTYPE_VARDEF_STMT) {

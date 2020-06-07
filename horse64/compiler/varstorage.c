@@ -131,7 +131,9 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
 
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
-            expr->type == H64EXPRTYPE_FOR_STMT) {
+            expr->type == H64EXPRTYPE_FOR_STMT ||
+            (expr->type == H64EXPRTYPE_TRY_STMT &&
+             expr->trystmt.exception_name != NULL)) {
         h64expression *func = surroundingfunc(expr);
         if (!func)
             return 1;  // global, we don't care about that
@@ -143,25 +145,41 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
         // Get scope, and figure out relevant usage range:
         h64scope *scope = (
             (expr->type == H64EXPRTYPE_VARDEF_STMT ?
-             expr->vardef.foundinscope : (
-             expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
-             expr->funcdef.foundinscope : &expr->forstmt.scope))
+             expr->vardef.foundinscope :
+             (expr->type == H64EXPRTYPE_TRY_STMT ?
+              &expr->trystmt.catchscope :
+              (expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
+               expr->funcdef.foundinscope : &expr->forstmt.scope)))
         );
         h64scopedef *scopedef = scope_QueryItem(
             scope,
             (expr->type == H64EXPRTYPE_VARDEF_STMT ?
              expr->vardef.identifier : (
              expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
-             expr->funcdef.name : expr->forstmt.iterator_identifier)),
+             expr->funcdef.name : (
+             (expr->type == H64EXPRTYPE_TRY_STMT ?
+              expr->trystmt.exception_name :
+              expr->forstmt.iterator_identifier)))),
             0
         );
         assert(scopedef != NULL);
+        int unused_catch_exception = 0;
         int own_token_start = scopedef->first_use_token_index;
         int own_token_end = scopedef->first_use_token_index;
-        if ((expr->type == H64EXPRTYPE_FOR_STMT ||
-                !nosideeffectsdef(expr)) &&
-                expr->tokenindex < own_token_start) {
-            own_token_start = expr->tokenindex;
+        if (expr->type == H64EXPRTYPE_FOR_STMT ||
+                expr->type == H64EXPRTYPE_TRY_STMT ||
+                !nosideeffectsdef(expr)) {
+            int definitionindex = expr->tokenindex;
+            if (expr->type == H64EXPRTYPE_TRY_STMT) {
+                if (expr->trystmt.catchstmt_count > 0) {
+                    definitionindex =
+                        expr->trystmt.catchstmt[0]->tokenindex;
+                } else {
+                    unused_catch_exception = 1;
+                }
+            }
+            if (definitionindex < own_token_start)
+                own_token_start = definitionindex;
         }
 
         // Determine temporary slot to be used:
@@ -169,10 +187,11 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
         int besttemp = -1;
         int besttemp_score = -1;
         int valueboxid = -1;
-        if (scopedef->everused ||
+        if (!unused_catch_exception && (
+                scopedef->everused ||
                 expr->type == H64EXPRTYPE_FOR_STMT ||
                 !nosideeffectsdef(
-                scopedef->declarationexpr)) {
+                scopedef->declarationexpr))) {
             int k = 0;
             while (k < einfo->lstoreassign_count) {
                 int score = -1;
@@ -294,6 +313,10 @@ jsonvalue *varstorage_ExtraInfoToJSON(
                     declarationexpr->type == H64EXPRTYPE_FOR_STMT) {
                 name = (einfo->lstoreassign[k].vardef->
                     declarationexpr->forstmt.iterator_identifier);
+            } else if (einfo->lstoreassign[k].vardef->
+                    declarationexpr->type == H64EXPRTYPE_TRY_STMT) {
+                name = (einfo->lstoreassign[k].vardef->
+                    declarationexpr->trystmt.exception_name);
             }
             if ((name && !json_SetDictStr(item, "name", name)) ||
                     (!name && !json_SetDictNull(item, "name"))) {
