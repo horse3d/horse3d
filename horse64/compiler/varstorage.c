@@ -130,7 +130,8 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
     asttransforminfo *rinfo = (asttransforminfo *)ud;
 
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
-            expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+            expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+            expr->type == H64EXPRTYPE_FOR_STMT) {
         h64expression *func = surroundingfunc(expr);
         if (!func)
             return 1;  // global, we don't care about that
@@ -141,19 +142,25 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
 
         // Get scope, and figure out relevant usage range:
         h64scope *scope = (
-            expr->type == H64EXPRTYPE_VARDEF_STMT ?
-            expr->vardef.foundinscope : expr->funcdef.foundinscope
+            (expr->type == H64EXPRTYPE_VARDEF_STMT ?
+             expr->vardef.foundinscope : (
+             expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
+             expr->funcdef.foundinscope : &expr->forstmt.scope))
         );
         h64scopedef *scopedef = scope_QueryItem(
             scope,
             (expr->type == H64EXPRTYPE_VARDEF_STMT ?
-             expr->vardef.identifier : expr->funcdef.name),
+             expr->vardef.identifier : (
+             expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
+             expr->funcdef.name : expr->forstmt.iterator_identifier)),
             0
         );
         assert(scopedef != NULL);
         int own_token_start = scopedef->first_use_token_index;
         int own_token_end = scopedef->first_use_token_index;
-        if (!nosideeffectsdef(expr) && expr->tokenindex < own_token_start) {
+        if ((expr->type == H64EXPRTYPE_FOR_STMT ||
+                !nosideeffectsdef(expr)) &&
+                expr->tokenindex < own_token_start) {
             own_token_start = expr->tokenindex;
         }
 
@@ -162,7 +169,9 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
         int besttemp = -1;
         int besttemp_score = -1;
         int valueboxid = -1;
-        if (scopedef->everused || nosideeffectsdef(
+        if (scopedef->everused ||
+                expr->type == H64EXPRTYPE_FOR_STMT ||
+                !nosideeffectsdef(
                 scopedef->declarationexpr)) {
             int k = 0;
             while (k < einfo->lstoreassign_count) {
@@ -281,6 +290,10 @@ jsonvalue *varstorage_ExtraInfoToJSON(
                     declarationexpr->type == H64EXPRTYPE_FUNCDEF_STMT) {
                 name = (einfo->lstoreassign[k].vardef->
                     declarationexpr->funcdef.name);
+            } else if (einfo->lstoreassign[k].vardef->
+                    declarationexpr->type == H64EXPRTYPE_FOR_STMT) {
+                name = (einfo->lstoreassign[k].vardef->
+                    declarationexpr->forstmt.iterator_identifier);
             }
             if ((name && !json_SetDictStr(item, "name", name)) ||
                     (!name && !json_SetDictNull(item, "name"))) {
