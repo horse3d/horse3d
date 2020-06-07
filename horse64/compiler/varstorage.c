@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <stdio.h>
 
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
@@ -18,7 +19,7 @@ static h64expression *surroundingfunc(h64expression *expr) {
     return NULL;
 }
 
-static int movableassignvalue(h64expression *expr) {
+static int nosideffectsvalue(h64expression *expr) {
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
         return 1;
     } else if (expr->type == H64EXPRTYPE_LITERAL) {
@@ -27,11 +28,11 @@ static int movableassignvalue(h64expression *expr) {
     return 0;
 }
 
-static int movabledef(h64expression *expr) {
+static int nosideeffectsdef(h64expression *expr) {
     if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
         if (expr->vardef.value == NULL)
             return 1;
-        if (movableassignvalue(expr->vardef.value))
+        if (nosideffectsvalue(expr->vardef.value))
             return 1;
     }
     return 0;
@@ -91,7 +92,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
                     use_start_token_index = (
                     einfo->closureboundvars[i]->first_use_token_index
                     );
-                if (!movabledef(einfo->closureboundvars[i]->
+                if (!nosideeffectsdef(einfo->closureboundvars[i]->
                                 declarationexpr)) {
                     if (einfo->closureboundvars[i]->declarationexpr->
                             tokenindex <
@@ -108,6 +109,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
                     use_end_token_index = (
                     einfo->closureboundvars[i]->last_use_token_index
                     );
+                einfo->lstoreassign_count++;
                 freetemp++;
                 i++;
             }
@@ -152,47 +154,50 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
         assert(scopedef != NULL);
         int own_token_start = scopedef->first_use_token_index;
         int own_token_end = scopedef->first_use_token_index;
-        if (!movabledef(expr) && expr->tokenindex < own_token_start) {
+        if (!nosideeffectsdef(expr) && expr->tokenindex < own_token_start) {
             own_token_start = expr->tokenindex;
         }
 
         // Determine temporary slot to be used:
         h64storageextrainfo *einfo = func->funcdef._storageinfo;
-        int bestreusabletemp = -1;
-        int bestreusebletemp_score = -1;
-        int k = 0;
-        while (k < einfo->lstoreassign_count) {
-            int score = -1;
-            if (einfo->lstoreassign[k].use_end_token_index <
-                    own_token_start) {
-                score = INT_MAX - (
-                    own_token_start -
-                    einfo->lstoreassign[k].use_end_token_index
-                );
-            } else if (einfo->lstoreassign[k].use_start_token_index >
-                    own_token_end) {
-                score = INT_MAX - (
-                    own_token_end -
-                    einfo->lstoreassign[k].use_start_token_index
-                );
-            }
-            if (score > 0 && (
-                    score < bestreusebletemp_score ||
-                    bestreusabletemp < 0)) {
-                bestreusabletemp = einfo->lstoreassign[k].valuetemporaryid;
-                bestreusebletemp_score = score;
-            }
-            k++;
-        }
-        if (bestreusabletemp < 0) {
-            bestreusabletemp = einfo->lowest_guaranteed_free_temp;
-            einfo->lowest_guaranteed_free_temp++;
-        }
-        assert(bestreusabletemp >= 0);
+        int besttemp = -1;
+        int besttemp_score = -1;
         int valueboxid = -1;
-        if (scopedef->closurebound) {
-            valueboxid = einfo->lowest_guaranteed_free_temp;
-            einfo->lowest_guaranteed_free_temp++;
+        if (scopedef->everused || nosideeffectsdef(
+                scopedef->declarationexpr)) {
+            int k = 0;
+            while (k < einfo->lstoreassign_count) {
+                int score = -1;
+                if (einfo->lstoreassign[k].use_end_token_index <
+                        own_token_start) {
+                    score = INT_MAX - (
+                        own_token_start -
+                        einfo->lstoreassign[k].use_end_token_index
+                    );
+                } else if (einfo->lstoreassign[k].use_start_token_index >
+                        own_token_end) {
+                    score = INT_MAX - (
+                        own_token_end -
+                        einfo->lstoreassign[k].use_start_token_index
+                    );
+                }
+                if (score > 0 && (
+                        score < besttemp_score ||
+                        besttemp < 0)) {
+                    besttemp = einfo->lstoreassign[k].valuetemporaryid;
+                    besttemp_score = score;
+                }
+                k++;
+            }
+            if (besttemp < 0) {
+                besttemp = einfo->lowest_guaranteed_free_temp;
+                einfo->lowest_guaranteed_free_temp++;
+            }
+            assert(besttemp >= 0);
+            if (scopedef->closurebound) {
+                valueboxid = einfo->lowest_guaranteed_free_temp;
+                einfo->lowest_guaranteed_free_temp++;
+            }
         }
 
         // Insert actual temporary assignment:
@@ -211,7 +216,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             sizeof(*newlstoreassign)
         );
         einfo->lstoreassign[einfo->lstoreassign_count].
-            valuetemporaryid = bestreusabletemp;
+            valuetemporaryid = besttemp;
         einfo->lstoreassign[einfo->lstoreassign_count].
             valueboxtemporaryid = valueboxid;
         einfo->lstoreassign[einfo->lstoreassign_count].
@@ -220,6 +225,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             use_start_token_index = own_token_start;
         einfo->lstoreassign[einfo->lstoreassign_count].
             use_end_token_index = own_token_end;
+        einfo->lstoreassign_count++;
     }
     return 1;
 }
