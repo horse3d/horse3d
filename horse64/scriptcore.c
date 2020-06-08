@@ -395,17 +395,20 @@ int scriptcore_Run(int argc, const char **argv) {
                        "[...options + arguments...]\n");
                 printf("\n");
                 printf("Available actions:\n");
-                printf("  - \"compile\"           Compile .horse code "
-                       "and output binary.\n");
+                printf("  - \"check\"             Check if code compiles, "
+                       "but don't produce executable.");
+                printf("  - \"compile\"           Compile .h64 code "
+                       "and output executable.\n");
                 printf("  - \"get_ast\"           Get AST of code\n");
                 printf("  - \"get_resolved_ast\"  "
                        "Get AST of code with resolved identifiers\n");
                 printf("  - \"get_tokens\"        Get Tokenization of code\n");
-                printf("  - \"run\"               Compile .horse code, and "
-                       "run it at once in-place.\n"); 
+                printf("  - \"run\"               Compile .h64 code, and "
+                       "run it immediately.\n");
                 return 0;
             }
-            if (!action && (strcmp(argv[i], "compile") == 0 ||
+            if (!action && (strcmp(argv[i], "check") == 0 ||
+                    strcmp(argv[i], "compile") == 0 ||
                     strcmp(argv[i], "get_ast") == 0 ||
                     strcmp(argv[i], "get_resolved_ast") == 0 ||
                     strcmp(argv[i], "get_tokens") == 0 ||
@@ -423,7 +426,9 @@ int scriptcore_Run(int argc, const char **argv) {
         return 1;
     }
 
-    if (strcmp(action, "compile") == 0) {
+    if (strcmp(action, "check") == 0) {
+        return compiler_command_Check(argv, argc, action_offset);
+    } else if (strcmp(action, "compile") == 0) {
         return compiler_command_Compile(argv, argc, action_offset);
     } else if (strcmp(action, "get_ast") == 0) {
         return compiler_command_GetAST(argv, argc, action_offset);

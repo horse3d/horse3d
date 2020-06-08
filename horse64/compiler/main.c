@@ -81,13 +81,24 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
     fprintf(output_fd, "%s\n", msg->message);
 }
 
+#define COMPILEEX_MODE_COMPILE 1
+#define COMPILEEX_MODE_RUN 2
+#define COMPILEEX_MODE_CHECK 3
+
 int compiler_command_CompileEx(
-        int isruncmd, const char **argv, int argc, int argoffset
+        int mode, const char **argv, int argc, int argoffset
         ) {
     const char *fileuri = NULL;
+    const char *_name_mode_compile = "mode";
+    const char *_name_mode_run = "run";
+    const char *_name_mode_check = "check";
+    const char *command = (
+        mode == COMPILEEX_MODE_COMPILE ? _name_mode_compile : (
+        mode == COMPILEEX_MODE_RUN ? _name_mode_run : _name_mode_check
+        ));
     h64compilewarnconfig wconfig;
     if (!_compileargparse(
-            (isruncmd ? "run" : "compile"), argv, argc,
+            command, argv, argc,
             argoffset, &fileuri, &wconfig
             ))
         return 0;
@@ -98,7 +109,7 @@ int compiler_command_CompileEx(
     );
     if (!project_folder_uri) {
         fprintf(stderr, "horsec: error: %s: %s\n",
-            (isruncmd ? "run" : "compile"), error);
+                command, error);
         free(error);
         return 0;
     }
@@ -107,20 +118,20 @@ int compiler_command_CompileEx(
     project_folder_uri = NULL;
     if (!project) {
         fprintf(stderr, "horsec: error: %s: alloc failure\n",
-            (isruncmd ? "run" : "compile"));
+                command);
         return 0;
     }
     h64ast *ast = NULL;
     if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
         fprintf(stderr, "horsec: error: %s: %s\n",
-            (isruncmd ? "run" : "compile"), error);
+                command, error);
         free(error);
         compileproject_Free(project);
         return 0;
     }
     if (!compileproject_CompileAllToBytecode(project, &error)) {
         fprintf(stderr, "horsec: error: %s: %s\n",
-            (isruncmd ? "run" : "compile"), error);
+                command, error);
         free(error);
         compileproject_Free(project);
         return 0;
@@ -142,7 +153,9 @@ int compiler_command_CompileEx(
 int compiler_command_Compile(
         const char **argv, int argc, int argoffset
         ) {
-    return compiler_command_CompileEx(0, argv, argc, argoffset);
+    return compiler_command_CompileEx(
+        COMPILEEX_MODE_COMPILE, argv, argc, argoffset
+    );
 }
 
 int compiler_AddResultMessageAsJson(
@@ -526,5 +539,13 @@ jsonvalue *compiler_ParseASTToJSON(
 }
 
 int compiler_command_Run(const char **argv, int argc, int argoffset) {
-    return compiler_command_CompileEx(1, argv, argc, argoffset);
+    return compiler_command_CompileEx(
+        COMPILEEX_MODE_RUN, argv, argc, argoffset
+    );
+}
+
+int compiler_command_Check(const char **argv, int argc, int argoffset) {
+    return compiler_command_CompileEx(
+        COMPILEEX_MODE_CHECK, argv, argc, argoffset
+    );
 }
