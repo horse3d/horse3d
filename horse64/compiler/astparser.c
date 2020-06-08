@@ -3251,7 +3251,7 @@ int ast_ParseExprStmt(
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected \"class\", "
-                "this is not valid outside of functions"
+                "this is not valid anywhere but at the top level"
             );
             if (!result_AddMessage(
                     context->resultmsg,
