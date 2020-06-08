@@ -144,7 +144,6 @@ static int scoperesolver_ComputeItemStorage(
                 return 0;
             }
         }
-        #ifndef NDEBUG
         int owningclassindex = -1;
         if (owningclass) {
             assert(owningclass->storage.set &&
@@ -154,7 +153,6 @@ static int scoperesolver_ComputeItemStorage(
                    owningclass->storage.ref.id < program->classes_count);
             owningclassindex = owningclass->storage.ref.id;
         }
-        #endif
 
         // Assemble names and parameter info for the function:
         const char *name = expr->funcdef.name;
