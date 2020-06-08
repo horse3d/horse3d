@@ -81,11 +81,13 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
     fprintf(output_fd, "%s\n", msg->message);
 }
 
-int compiler_command_Compile(const char **argv, int argc, int argoffset) {
+int compiler_command_CompileEx(
+        int isruncmd, const char **argv, int argc, int argoffset
+        ) {
     const char *fileuri = NULL;
     h64compilewarnconfig wconfig;
     if (!_compileargparse(
-            "compile", argv, argc,
+            (isruncmd ? "run" : "compile"), argv, argc,
             argoffset, &fileuri, &wconfig
             ))
         return 0;
@@ -95,7 +97,8 @@ int compiler_command_Compile(const char **argv, int argc, int argoffset) {
         fileuri, 1, &error
     );
     if (!project_folder_uri) {
-        fprintf(stderr, "horsec: error: compile: %s\n", error);
+        fprintf(stderr, "horsec: error: %s: %s\n",
+            (isruncmd ? "run" : "compile"), error);
         free(error);
         return 0;
     }
@@ -103,12 +106,21 @@ int compiler_command_Compile(const char **argv, int argc, int argoffset) {
     free(project_folder_uri);
     project_folder_uri = NULL;
     if (!project) {
-        fprintf(stderr, "horsec: error: compile: alloc failure\n");
+        fprintf(stderr, "horsec: error: %s: alloc failure\n",
+            (isruncmd ? "run" : "compile"));
         return 0;
     }
     h64ast *ast = NULL;
     if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
-        fprintf(stderr, "horsec: error: compile: %s\n", error);
+        fprintf(stderr, "horsec: error: %s: %s\n",
+            (isruncmd ? "run" : "compile"), error);
+        free(error);
+        compileproject_Free(project);
+        return 0;
+    }
+    if (!compileproject_CompileAllToBytecode(project, &error)) {
+        fprintf(stderr, "horsec: error: %s: %s\n",
+            (isruncmd ? "run" : "compile"), error);
         free(error);
         compileproject_Free(project);
         return 0;
@@ -125,6 +137,12 @@ int compiler_command_Compile(const char **argv, int argc, int argoffset) {
     int resultvalue = (haderrormessages || !ast->resultmsg.success);
     compileproject_Free(project);  // This indirectly frees 'ast'!
     return !resultvalue;
+}
+
+int compiler_command_Compile(
+        const char **argv, int argc, int argoffset
+        ) {
+    return compiler_command_CompileEx(0, argv, argc, argoffset);
 }
 
 int compiler_AddResultMessageAsJson(
@@ -508,14 +526,5 @@ jsonvalue *compiler_ParseASTToJSON(
 }
 
 int compiler_command_Run(const char **argv, int argc, int argoffset) {
-    const char *fileuri = NULL;
-    h64compilewarnconfig wconfig;
-    if (!_compileargparse(
-            "run", argv, argc, argoffset,
-            &fileuri, &wconfig
-            ))
-        return 0;
-
-    //return compiler_TestCompileWithConsoleResult(fileuri);
-    return 0;
+    return compiler_command_CompileEx(1, argv, argc, argoffset);
 }

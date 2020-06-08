@@ -81,7 +81,10 @@ static int scoperesolver_ComputeItemStorage(
         ) {
     h64scope *scope = ast_GetScope(expr, &ast->scope);
     assert(scope != NULL);
-    if (scope->is_global) {
+    if (scope->is_global ||
+            expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
+        if (expr->storage.set)
+            return 1;
         const char *name = NULL;
         if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
             name = expr->vardef.identifier;
@@ -113,10 +116,47 @@ static int scoperesolver_ComputeItemStorage(
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALCLASSSLOT;
             expr->storage.ref.id = global_id;
+            return 1;
         }
     }
     if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
+        // Get the class owning this func, if any:
+        h64expression *owningclass = expr->parent;
+        while (owningclass) {
+            if (owningclass->type == H64EXPRTYPE_CLASSDEF_STMT)
+                break;
+            if (owningclass->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                    owningclass->type == H64EXPRTYPE_INLINEFUNCDEF) {
+                owningclass = NULL;
+                break;
+            }
+            owningclass = owningclass->parent;
+        }
+        if (owningclass && !owningclass->storage.set) {
+            int inneroom = 0;
+            int innerresult = scoperesolver_ComputeItemStorage(
+                owningclass, program, ast, &inneroom
+            );
+            if (!innerresult) {
+                if (inneroom && outofmemory) *outofmemory = 1;
+                if (!inneroom && outofmemory) *outofmemory = 0;
+                return 0;
+            }
+        }
+        #ifndef NDEBUG
+        int owningclassindex = -1;
+        if (owningclass) {
+            assert(owningclass->storage.set &&
+                   owningclass->storage.ref.type ==
+                       H64STORETYPE_GLOBALCLASSSLOT &&
+                   owningclass->storage.ref.id >= 0 &&
+                   owningclass->storage.ref.id < program->classes_count);
+            owningclassindex = owningclass->storage.ref.id;
+        }
+        #endif
+
+        // Assemble names and parameter info for the function:
         const char *name = expr->funcdef.name;
         char **kwarg_names = malloc(
             sizeof(*kwarg_names) * expr->funcdef.arguments.arg_count
@@ -147,6 +187,8 @@ static int scoperesolver_ComputeItemStorage(
             i++;
         }
         assert(name != NULL || expr->type == H64EXPRTYPE_INLINEFUNCDEF);
+
+        // Register actual bytecode program entry for function:
         int64_t bytecode_func_id = -1;
         if ((bytecode_func_id = h64program_RegisterHorse64Function(
                 program, name, ast->fileuri,
@@ -155,7 +197,7 @@ static int scoperesolver_ComputeItemStorage(
                 expr->funcdef.arguments.last_posarg_is_multiarg,
                 ast->module_path,
                 ast->library_name,
-                -1
+                owningclassindex
                 )) < 0) {
             int k = 0;
             while (k < i) {

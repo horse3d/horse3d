@@ -7,8 +7,10 @@
 #include "bytecode.h"
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
+#include "compiler/codegen.h"
 #include "compiler/codemodule.h"
 #include "compiler/compileproject.h"
+#include "compiler/scoperesolver.h"
 #include "filesys.h"
 #include "hash.h"
 #include "secrandom.h"
@@ -888,4 +890,61 @@ char *compileproject_FolderGuess(
     free(full_path);
     *error = strdup("failed to find project folder");
     return NULL;
+}
+
+int _resolveallcb(
+        hashmap *map, const char *key, uint64_t number,
+        void *userdata
+        ) {
+    if (!key || number == 0)
+        return 0;
+    h64ast *ast = (h64ast *)(uintptr_t)number;
+    h64compileproject *pr = (h64compileproject *)userdata;
+    if (!scoperesolver_ResolveAST(pr, ast))
+        return 0;
+    return 1;
+}
+
+int _codegenallcb(
+        hashmap *map, const char *key, uint64_t number,
+        void *userdata
+        ) {
+    if (!key || number == 0)
+        return 0;
+    h64ast *ast = (h64ast *)(uintptr_t)number;
+    h64compileproject *pr = (h64compileproject *)userdata;
+    if (!codegen_GenerateBytecodeForFile(pr, ast))
+        return 0;
+    return 1;
+}
+
+int compileproject_CompileAllToBytecode(
+        h64compileproject *project, char **error
+        ) {
+    if (!project) {
+        if (error)
+            *error = strdup("project pointer is NULL");
+        return 0;
+    }
+    if (!hash_StringMapIterate(
+            project->astfilemap, &_resolveallcb,
+            project)) {
+        if (error)
+            *error = strdup(
+                "unexpected resolve callback failure, "
+                "out of memory?"
+            );
+        return 0;
+    }
+    if (!hash_StringMapIterate(
+            project->astfilemap, &_codegenallcb,
+            project)) {
+        if (error)
+            *error = strdup(
+                "unexpected resolve callback failure, "
+                "out of memory?"
+            );
+        return 0;
+    }
+    return 1;
 }

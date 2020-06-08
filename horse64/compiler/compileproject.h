@@ -60,4 +60,8 @@ char *compileproject_ResolveImport(
     int *outofmemory
 );
 
+int compileproject_CompileAllToBytecode(
+    h64compileproject *project, char **error
+);
+
 #endif  // HORSE64_COMPILER_COMPILEPROJECT_H_
