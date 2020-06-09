@@ -395,8 +395,8 @@ int scriptcore_Run(int argc, const char **argv) {
                        "[...options + arguments...]\n");
                 printf("\n");
                 printf("Available actions:\n");
-                printf("  - \"check\"             Check if code compiles, "
-                       "but don't produce executable.");
+                printf("  - \"codeinfo\"          Compile .h64 code and show "
+                       "describe resulting bytecode.\n");
                 printf("  - \"compile\"           Compile .h64 code "
                        "and output executable.\n");
                 printf("  - \"get_ast\"           Get AST of code\n");
@@ -407,7 +407,7 @@ int scriptcore_Run(int argc, const char **argv) {
                        "run it immediately.\n");
                 return 0;
             }
-            if (!action && (strcmp(argv[i], "check") == 0 ||
+            if (!action && (strcmp(argv[i], "codeinfo") == 0 ||
                     strcmp(argv[i], "compile") == 0 ||
                     strcmp(argv[i], "get_ast") == 0 ||
                     strcmp(argv[i], "get_resolved_ast") == 0 ||
@@ -426,8 +426,8 @@ int scriptcore_Run(int argc, const char **argv) {
         return 1;
     }
 
-    if (strcmp(action, "check") == 0) {
-        return compiler_command_Check(argv, argc, action_offset);
+    if (strcmp(action, "codeinfo") == 0) {
+        return compiler_command_CodeInfo(argv, argc, action_offset);
     } else if (strcmp(action, "compile") == 0) {
         return compiler_command_Compile(argv, argc, action_offset);
     } else if (strcmp(action, "get_ast") == 0) {

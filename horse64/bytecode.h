@@ -179,4 +179,6 @@ int h64program_AddGlobalvar(
 
 void h64program_Free(h64program *p);
 
+void h64program_PrintBytecodeStats(h64program *p);
+
 #endif  // HORSE64_BYTECODE_H_

@@ -33,6 +33,7 @@ typedef struct h64globalvarsymbol {
 } h64globalvarsymbol;
 
 typedef struct h64modulesymbols {
+    int index;
     char *module_path, *library_name;
 
     hashmap *func_name_to_entry;
@@ -59,6 +60,9 @@ typedef struct h64debugsymbols {
     hashmap *member_name_to_global_member_id;
     int64_t global_member_count;
     char **global_member_name;
+
+    hashmap *func_id_to_module_symbols_index;
+    hashmap *func_id_to_module_symbols_func_subindex;
 } h64debugsymbols;
 
 int64_t h64debugsymbols_MemberNameToMemberNameId(
@@ -94,5 +98,8 @@ void h64debugsymbols_Free(h64debugsymbols *symbols);
 
 h64debugsymbols *h64debugsymbols_New();
 
+h64funcsymbol *h64debugsymbols_GetFuncSymbolById(
+    h64debugsymbols *symbols, int funcid
+);
 
 #endif  // HORSE64_DEBUGSYMBOLS_H_

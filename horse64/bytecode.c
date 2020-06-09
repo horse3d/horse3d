@@ -1,5 +1,7 @@
 
 #include <assert.h>
+#include <inttypes.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -32,6 +34,34 @@ h64program *h64program_New() {
     }
 
     return p;
+}
+
+void h64program_PrintBytecodeStats(h64program *p) {
+    char _prefix[] = "horsec: info:";
+    printf("%s bytecode func count: %" PRId64 "\n",
+           _prefix, (int64_t)p->func_count);
+    printf("%s bytecode global vars count: %" PRId64 "\n",
+           _prefix, (int64_t)p->globals_count);
+    printf("%s bytecode class count: %" PRId64 "\n",
+           _prefix, (int64_t)p->classes_count);
+    int i = 0;
+    while (i < p->func_count) {
+        const char _noname[] = "(unnamed)";
+        const char *name = "(no symbols)";
+        if (p->symbols) {
+            h64funcsymbol *fsymbol = h64debugsymbols_GetFuncSymbolById(
+                p->symbols, i
+            );
+            assert(fsymbol != NULL);
+            name = fsymbol->name;
+            if (!name) name = _noname;
+        }
+        printf(
+            "%s bytecode func id=%" PRId64 " name: \"%s\" cfunction: %d\n",
+            _prefix, (int64_t)i, name, p->func[i].iscfunc
+        );
+        i++;
+    }
 }
 
 void h64program_Free(h64program *p) {
@@ -233,6 +263,20 @@ int h64program_RegisterCFunction(
         fileuri_index = fileuriindex;
     if (!msymbols->func_symbols[msymbols->func_count].name) {
         funcsymboloom:
+        if (name)
+            hash_StringMapUnset(
+                msymbols->func_name_to_entry, name
+            );
+        if (p->symbols) {
+            hash_IntMapUnset(
+                p->symbols->func_id_to_module_symbols_index,
+                p->func_count
+            );
+            hash_IntMapUnset(
+                p->symbols->func_id_to_module_symbols_func_subindex,
+                p->func_count
+            );
+        }
         h64debugsymbols_ClearFuncSymbol(
             &msymbols->func_symbols[msymbols->func_count]
         );
@@ -272,6 +316,19 @@ int h64program_RegisterCFunction(
     if (name && !hash_StringMapSet(
             msymbols->func_name_to_entry,
             name, setno)) {
+        goto funcsymboloom;
+    }
+
+    // Add function to lookups from func id to debug symbols:
+    if (p->symbols && !hash_IntMapSet(
+            p->symbols->func_id_to_module_symbols_index, p->func_count,
+            (uint64_t)msymbols->index)) {
+        goto funcsymboloom;
+    }
+    if (p->symbols && !hash_IntMapSet(
+            p->symbols->func_id_to_module_symbols_func_subindex,
+            p->func_count,
+            (uint64_t)msymbols->func_count)) {
         goto funcsymboloom;
     }
 

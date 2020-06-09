@@ -34,7 +34,7 @@ int compiler_command_Run(
     const char **argc, int argv, int argoffset
 );
 
-int compiler_command_Check(
+int compiler_command_CodeInfo(
     const char **argc, int argv, int argoffset
 );
 

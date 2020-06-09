@@ -32,6 +32,10 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
     }
     free(symbols->fileuri);
 
+    if (symbols->func_id_to_module_symbols_index)
+        hash_FreeMap(symbols->func_id_to_module_symbols_index);
+    if (symbols->func_id_to_module_symbols_func_subindex)
+        hash_FreeMap(symbols->func_id_to_module_symbols_func_subindex);
     if (symbols->modulelibpath_to_modulesymbol_id)
         hash_FreeMap(symbols->modulelibpath_to_modulesymbol_id);
     if (symbols->member_name_to_global_member_id)
@@ -169,6 +173,7 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
             symbols->module_symbols[symbols->module_count]
         );
         memset(msymbols, 0, sizeof(*msymbols));
+        msymbols->index = symbols->module_count;
 
         msymbols->func_name_to_entry = hash_NewStringMap(64);
         if (!msymbols->func_name_to_entry) {
@@ -298,5 +303,48 @@ h64debugsymbols *h64debugsymbols_New() {
         return NULL;
     }
 
+    symbols->func_id_to_module_symbols_index = hash_NewIntMap(
+        1024 * 5
+    );
+    if (!symbols->func_id_to_module_symbols_index) {
+        h64debugsymbols_Free(symbols);
+        return NULL;
+    }
+
+    symbols->func_id_to_module_symbols_func_subindex = hash_NewIntMap(
+        1024 * 5
+    );
+    if (!symbols->func_id_to_module_symbols_func_subindex) {
+        h64debugsymbols_Free(symbols);
+        return NULL;
+    }
+
     return symbols;
+}
+
+h64funcsymbol *h64debugsymbols_GetFuncSymbolById(
+        h64debugsymbols *symbols, int funcid
+        ) {
+    uint64_t msymbols_index = 0;
+    if (!hash_IntMapGet(
+            symbols->func_id_to_module_symbols_index,
+            funcid, &msymbols_index)) {
+        return NULL;
+    }
+    assert(msymbols_index >= 0 && msymbols_index < symbols->module_count);
+    uint64_t msymbols_funcindex = 0;
+    if (!hash_IntMapGet(
+            symbols->func_id_to_module_symbols_func_subindex,
+            funcid, &msymbols_funcindex)) {
+        return NULL;
+    }
+    assert(
+        msymbols_funcindex >= 0 &&
+        msymbols_funcindex < symbols->module_symbols[
+            msymbols_index
+        ]->func_count
+    );
+    return &symbols->module_symbols[
+        msymbols_index
+    ]->func_symbols[msymbols_funcindex];
 }

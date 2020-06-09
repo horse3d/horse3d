@@ -83,7 +83,7 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
 
 #define COMPILEEX_MODE_COMPILE 1
 #define COMPILEEX_MODE_RUN 2
-#define COMPILEEX_MODE_CHECK 3
+#define COMPILEEX_MODE_CODEINFO 3
 
 int compiler_command_CompileEx(
         int mode, const char **argv, int argc, int argoffset
@@ -91,10 +91,10 @@ int compiler_command_CompileEx(
     const char *fileuri = NULL;
     const char *_name_mode_compile = "mode";
     const char *_name_mode_run = "run";
-    const char *_name_mode_check = "check";
+    const char *_name_mode_cinfo = "codeinfo";
     const char *command = (
         mode == COMPILEEX_MODE_COMPILE ? _name_mode_compile : (
-        mode == COMPILEEX_MODE_RUN ? _name_mode_run : _name_mode_check
+        mode == COMPILEEX_MODE_RUN ? _name_mode_run : _name_mode_cinfo
         ));
     h64compilewarnconfig wconfig;
     if (!_compileargparse(
@@ -146,6 +146,9 @@ int compiler_command_CompileEx(
         i++;
     }
     int resultvalue = (haderrormessages || !ast->resultmsg.success);
+    if (mode == COMPILEEX_MODE_CODEINFO) {
+        h64program_PrintBytecodeStats(project->program);
+    }
     compileproject_Free(project);  // This indirectly frees 'ast'!
     return !resultvalue;
 }
@@ -544,8 +547,8 @@ int compiler_command_Run(const char **argv, int argc, int argoffset) {
     );
 }
 
-int compiler_command_Check(const char **argv, int argc, int argoffset) {
+int compiler_command_CodeInfo(const char **argv, int argc, int argoffset) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_CHECK, argv, argc, argoffset
+        COMPILEEX_MODE_CODEINFO, argv, argc, argoffset
     );
 }
