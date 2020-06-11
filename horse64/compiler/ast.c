@@ -429,6 +429,7 @@ void ast_FreeExpression(h64expression *expr) {
         ast_ClearFunctionArgs(&expr->funcdef.arguments, expr);
         int i = 0;
         while (i < expr->funcdef.stmt_count) {
+            assert(expr->funcdef.stmt != NULL);
             ast_FreeExpression(expr->funcdef.stmt[i]);
             i++;
         }

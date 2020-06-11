@@ -129,7 +129,9 @@ int compiler_command_CompileEx(
         compileproject_Free(project);
         return 0;
     }
-    if (!compileproject_CompileAllToBytecode(project, &error)) {
+    if (!compileproject_CompileAllToBytecode(
+            project, fileuri, &error
+            )) {
         fprintf(stderr, "horsec: error: %s: %s\n",
                 command, error);
         free(error);
@@ -147,7 +149,8 @@ int compiler_command_CompileEx(
     }
     int resultvalue = (haderrormessages || !ast->resultmsg.success);
     if (mode == COMPILEEX_MODE_CODEINFO) {
-        h64program_PrintBytecodeStats(project->program);
+        if (!haderrormessages)
+            h64program_PrintBytecodeStats(project->program);
     }
     compileproject_Free(project);  // This indirectly frees 'ast'!
     return !resultvalue;
@@ -447,7 +450,7 @@ jsonvalue *compiler_ParseASTToJSON(
         goto failedproject;
     }
     if (resolve_references &&
-            !scoperesolver_ResolveAST(project, tast)) {
+            !scoperesolver_ResolveAST(project, tast, 0)) {
         compileproject_Free(project);
         project = NULL;
         goto failedproject;

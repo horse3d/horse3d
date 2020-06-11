@@ -892,6 +892,12 @@ char *compileproject_FolderGuess(
     return NULL;
 }
 
+typedef struct compileallinfo {
+    const char *mainfileuri;
+    int mainfileseen;
+    h64compileproject *pr;
+} compileallinfo;
+
 int _resolveallcb(
         hashmap *map, const char *key, uint64_t number,
         void *userdata
@@ -899,8 +905,38 @@ int _resolveallcb(
     if (!key || number == 0)
         return 0;
     h64ast *ast = (h64ast *)(uintptr_t)number;
-    h64compileproject *pr = (h64compileproject *)userdata;
-    if (!scoperesolver_ResolveAST(pr, ast))
+    compileallinfo *cinfo = (compileallinfo *)userdata;
+    h64compileproject *pr = cinfo->pr;
+
+    // Determine if this is the file that should have "main":
+    int fileismain = 0;
+    assert(cinfo->mainfileuri != NULL && ast->fileuri != NULL);
+    int relfileoom = 0;
+    char *relfilepath_main = compileproject_ToProjectRelPath(
+        pr, cinfo->mainfileuri, &relfileoom
+    );
+    if (!relfilepath_main)
+        return 0;
+    relfileoom = 0;
+    char *relfilepath_ast = compileproject_ToProjectRelPath(
+        pr, ast->fileuri, &relfileoom
+    );
+    if (!relfilepath_ast) {
+        free(relfilepath_main);
+        return 0;
+    }
+    #if defined(_WIN32) || defined(_WIN64)
+    fileismain = (strcasecmp(relfilepath_ast, relfilepath_main) == 0);
+    #else
+    fileismain = (strcmp(relfilepath_ast, relfilepath_main) == 0);
+    #endif
+    free(relfilepath_main);
+    free(relfilepath_ast);
+    assert(!fileismain || !cinfo->mainfileseen);
+    if (fileismain)
+        cinfo->mainfileseen = 1;
+
+    if (!scoperesolver_ResolveAST(pr, ast, fileismain))
         return 0;
     return 1;
 }
@@ -912,23 +948,30 @@ int _codegenallcb(
     if (!key || number == 0)
         return 0;
     h64ast *ast = (h64ast *)(uintptr_t)number;
-    h64compileproject *pr = (h64compileproject *)userdata;
+    compileallinfo *cinfo = (compileallinfo *)userdata;
+    h64compileproject *pr = cinfo->pr;
     if (!codegen_GenerateBytecodeForFile(pr, ast))
         return 0;
     return 1;
 }
 
 int compileproject_CompileAllToBytecode(
-        h64compileproject *project, char **error
+        h64compileproject *project, const char *mainfileuri,
+        char **error
         ) {
+    assert(mainfileuri != NULL);
     if (!project) {
         if (error)
             *error = strdup("project pointer is NULL");
         return 0;
     }
+    compileallinfo cinfo;
+    memset(&cinfo, 0, sizeof(cinfo));
+    cinfo.pr = project;
+    cinfo.mainfileuri = mainfileuri;
     if (!hash_StringMapIterate(
             project->astfilemap, &_resolveallcb,
-            project)) {
+            &cinfo)) {
         if (error)
             *error = strdup(
                 "unexpected resolve callback failure, "
@@ -936,9 +979,34 @@ int compileproject_CompileAllToBytecode(
             );
         return 0;
     }
+    if (!cinfo.mainfileseen) {
+        if (error) {
+            char buf[512];
+            snprintf(buf, sizeof(buf) - 1,
+                "internal error, somehow failed to visit main file "
+                "during pre-codegen resolution with main file uri: %s",
+                mainfileuri
+            );
+            *error = strdup(buf);
+        }
+        return 0;
+    }
+    int hadprojecterror = 0;
+    if (cinfo.pr->resultmsg->message_count > 0) {
+        int i = 0;
+        while (i < cinfo.pr->resultmsg->message_count) {
+            if (cinfo.pr->resultmsg->message[i].type == H64MSG_ERROR)
+                hadprojecterror = 1;
+            i++;
+        }
+    }
+    if (hadprojecterror) {
+        // Stop here, we can't safely codegen if there was an error.
+        return 1;
+    }
     if (!hash_StringMapIterate(
             project->astfilemap, &_codegenallcb,
-            project)) {
+            &cinfo)) {
         if (error)
             *error = strdup(
                 "unexpected resolve callback failure, "

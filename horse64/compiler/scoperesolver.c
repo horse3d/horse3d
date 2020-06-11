@@ -18,10 +18,8 @@
 #include "hash.h"
 
 typedef struct resolveinfo {
-    h64compileproject *pr;
-    h64ast *ast;
-    int isbuiltinmodule;
-    int hadoutofmemory, hadunexpectederror;
+    int extract_main;
+    int main_was_found;
 } resolveinfo;
 
 static int identifierisbuiltin(
@@ -77,6 +75,7 @@ const char *_shortenedname(
 
 static int scoperesolver_ComputeItemStorage(
         h64expression *expr, h64program *program, h64ast *ast,
+        int extract_main,
         int *outofmemory
         ) {
     h64scope *scope = ast_GetScope(expr, &ast->scope);
@@ -136,7 +135,7 @@ static int scoperesolver_ComputeItemStorage(
         if (owningclass && !owningclass->storage.set) {
             int inneroom = 0;
             int innerresult = scoperesolver_ComputeItemStorage(
-                owningclass, program, ast, &inneroom
+                owningclass, program, ast, extract_main, &inneroom
             );
             if (!innerresult) {
                 if (inneroom && outofmemory) *outofmemory = 1;
@@ -217,6 +216,26 @@ static int scoperesolver_ComputeItemStorage(
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALFUNCSLOT;
             expr->storage.ref.id = bytecode_func_id;
+            if (name != NULL && strcmp(name, "main") == 0 &&
+                    extract_main) {
+                if (program->main_func_index >= 0) {
+                    expr->importstmt.referenced_ast = NULL;
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected duplicate main func found");
+                    if (!result_AddMessage(
+                            &ast->resultmsg,
+                            H64MSG_ERROR, buf,
+                            ast->fileuri,
+                            expr->line, expr->column
+                            )) {
+                        if (outofmemory) *outofmemory = 1;
+                        return 0;
+                    }
+                } else {
+                    program->main_func_index = bytecode_func_id;
+                }
+            }
         }
         expr->funcdef.bytecode_func_id = bytecode_func_id;
     }
@@ -226,12 +245,15 @@ static int scoperesolver_ComputeItemStorage(
 int _resolvercallback_BuildGlobalStorage_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
-    asttransforminfo *rinfo = (asttransforminfo *)ud;
+    asttransforminfo *atinfo = (asttransforminfo *)ud;
+    resolveinfo *rinfo = (resolveinfo*)atinfo->userdata;
+    assert(rinfo != NULL);
+
     // Add file-global items to the project-global item lookups:
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
-        h64scope *scope = ast_GetScope(expr, &rinfo->ast->scope);
+        h64scope *scope = ast_GetScope(expr, &atinfo->ast->scope);
         if (scope == NULL) {
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
@@ -242,13 +264,13 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                  "none")
             );
             if (!result_AddMessage(
-                    &rinfo->ast->resultmsg,
+                    &atinfo->ast->resultmsg,
                     H64MSG_ERROR,
                     buf,
-                    rinfo->ast->fileuri,
+                    atinfo->ast->fileuri,
                     expr->line, expr->column
                     )) {
-                rinfo->hadoutofmemory = 1;
+                atinfo->hadoutofmemory = 1;
                 return 0;
             }
             return 1;
@@ -257,9 +279,11 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                 expr->storage.set == 0) {
             int outofmemory = 0;
             if (!scoperesolver_ComputeItemStorage(
-                    expr, rinfo->pr->program, rinfo->ast, &outofmemory)) {
+                    expr, atinfo->pr->program, atinfo->ast,
+                    rinfo->extract_main,
+                    &outofmemory)) {
                 if (outofmemory) {
-                    rinfo->hadoutofmemory = 1;
+                    atinfo->hadoutofmemory = 1;
                     return 0;
                 }
                 char buf[256];
@@ -269,13 +293,13 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                     ast_ExpressionTypeToStr(expr->type)
                 );
                 if (!result_AddMessage(
-                        &rinfo->ast->resultmsg,
+                        &atinfo->ast->resultmsg,
                         H64MSG_ERROR,
                         buf,
-                        rinfo->ast->fileuri,
+                        atinfo->ast->fileuri,
                         expr->line, expr->column
                         )) {
-                    rinfo->hadoutofmemory = 1;
+                    atinfo->hadoutofmemory = 1;
                     return 0;
                 }
             }
@@ -337,14 +361,14 @@ static int funchasparamwithname(h64expression *expr, const char *param) {
 int _resolvercallback_ResolveIdentifiers_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
-    asttransforminfo *rinfo = (asttransforminfo *)ud;
+    asttransforminfo *atinfo = (asttransforminfo *)ud;
     // Resolve most inner identifiers:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             (parent == NULL ||
              parent->type != H64EXPRTYPE_BINARYOP ||
              parent->op.value1 == expr)) {
         assert(expr->identifierref.value != NULL);
-        h64scope *scope = ast_GetScope(expr, &rinfo->ast->scope);
+        h64scope *scope = ast_GetScope(expr, &atinfo->ast->scope);
         if (scope == NULL) {
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
@@ -355,13 +379,13 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                  "none")
             );
             if (!result_AddMessage(
-                    &rinfo->ast->resultmsg,
+                    &atinfo->ast->resultmsg,
                     H64MSG_ERROR,
                     buf,
-                    rinfo->ast->fileuri,
+                    atinfo->ast->fileuri,
                     expr->line, expr->column
                     )) {
-                rinfo->hadoutofmemory = 1;
+                atinfo->hadoutofmemory = 1;
                 return 0;
             }
             return 1;
@@ -431,7 +455,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                             if (!einfo) {
                                 einfo = malloc(sizeof(*einfo));
                                 if (!einfo) {
-                                    rinfo->hadoutofmemory = 1;
+                                    atinfo->hadoutofmemory = 1;
                                     return 0;
                                 }
                                 memset(einfo, 0, sizeof(*einfo));
@@ -444,7 +468,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                                 (einfo->closureboundvars_count + 1)
                             );
                             if (!newboundvars) {
-                                rinfo->hadoutofmemory = 1;
+                                atinfo->hadoutofmemory = 1;
                                 return 0;
                             }
                             einfo->closureboundvars = newboundvars;
@@ -466,7 +490,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 } else if (def->scope->is_global) {
                     // Global storage should have been determined already,
                     // so this shouldn't happen. Log as error:
-                    rinfo->hadunexpectederror = 1;
+                    atinfo->hadunexpectederror = 1;
                 }
             } else if (def->declarationexpr->type ==
                     H64EXPRTYPE_IMPORT_STMT) {
@@ -508,13 +532,13 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                             (int)H64LIMIT_IMPORTCHAINLEN
                         );
                         if (!result_AddMessage(
-                                &rinfo->ast->resultmsg,
+                                &atinfo->ast->resultmsg,
                                 H64MSG_ERROR,
                                 buf,
-                                rinfo->ast->fileuri,
+                                atinfo->ast->fileuri,
                                 expr->line, expr->column
                                 )) {
-                            rinfo->hadoutofmemory = 1;
+                            atinfo->hadoutofmemory = 1;
                             return 0;
                         }
                         return 1;
@@ -562,7 +586,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     }
                     full_imp_path = malloc(full_imp_path_len + 1);
                     if (!full_imp_path) {
-                        rinfo->hadoutofmemory = 1;
+                        atinfo->hadoutofmemory = 1;
                         return 0;
                     }
                     full_imp_path[0] = '\0';
@@ -592,13 +616,13 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     free(full_imp_path);
                     full_imp_path = NULL;
                     if (!result_AddMessage(
-                            &rinfo->ast->resultmsg,
+                            &atinfo->ast->resultmsg,
                             H64MSG_ERROR,
                             buf,
-                            rinfo->ast->fileuri,
+                            atinfo->ast->fileuri,
                             expr->line, expr->column
                             )) {
-                        rinfo->hadoutofmemory = 1;
+                        atinfo->hadoutofmemory = 1;
                         return 0;
                     }
                     return 1;
@@ -631,13 +655,13 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     free(full_imp_path);
                     full_imp_path = NULL;
                     if (!result_AddMessage(
-                            &rinfo->ast->resultmsg,
+                            &atinfo->ast->resultmsg,
                             H64MSG_ERROR,
                             buf,
-                            rinfo->ast->fileuri,
+                            atinfo->ast->fileuri,
                             expr->line, expr->column
                             )) {
-                        rinfo->hadoutofmemory = 1;
+                        atinfo->hadoutofmemory = 1;
                         return 0;
                     }
                     return 1;
@@ -650,7 +674,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     // Likely an error in a previous stage (e.g. parser).
                     // Mark as error in any case, to make sure we return
                     // an error message always:
-                    rinfo->hadunexpectederror = 1;
+                    atinfo->hadunexpectederror = 1;
                     free(full_imp_path);
                     full_imp_path = NULL;
                     return 1;
@@ -675,13 +699,13 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     free(full_imp_path);
                     full_imp_path = NULL;
                     if (!result_AddMessage(
-                            &rinfo->ast->resultmsg,
+                            &atinfo->ast->resultmsg,
                             H64MSG_ERROR,
                             buf,
-                            rinfo->ast->fileuri,
+                            atinfo->ast->fileuri,
                             expr->line, expr->column
                             )) {
-                        rinfo->hadoutofmemory = 1;
+                        atinfo->hadoutofmemory = 1;
                         return 0;
                     }
                     return 1;
@@ -726,19 +750,19 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     def->declarationexpr->column
                 );
                 if (!result_AddMessage(
-                        &rinfo->ast->resultmsg,
+                        &atinfo->ast->resultmsg,
                         H64MSG_ERROR,
                         buf,
-                        rinfo->ast->fileuri,
+                        atinfo->ast->fileuri,
                         expr->line, expr->column
                         )) {
-                    rinfo->hadoutofmemory = 1;
+                    atinfo->hadoutofmemory = 1;
                     return 0;
                 }
                 return 1;
             }
         } else if (identifierisbuiltin(
-                rinfo->pr->program, expr->identifierref.value,
+                atinfo->pr->program, expr->identifierref.value,
                 &expr->storage.ref)) {
             expr->identifierref.resolved_to_builtin = 1;
             assert(expr->storage.ref.type != 0);
@@ -751,13 +775,13 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 _shortenedname(describebuf, expr->identifierref.value)
             );
             if (!result_AddMessage(
-                    &rinfo->ast->resultmsg,
+                    &atinfo->ast->resultmsg,
                     H64MSG_ERROR,
                     buf,
-                    rinfo->ast->fileuri,
+                    atinfo->ast->fileuri,
                     expr->line, expr->column
                     )) {
-                rinfo->hadoutofmemory = 1;
+                atinfo->hadoutofmemory = 1;
                 return 0;
             }
             return 1;
@@ -767,7 +791,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
 }
 
 int scoperesolver_BuildASTGlobalStorage(
-        h64compileproject *pr, h64ast *unresolved_ast, int recursive
+        h64compileproject *pr, h64ast *unresolved_ast, int recursive,
+        resolveinfo *rinfo
         ) {
     if (unresolved_ast->global_storage_built)
         return 1;
@@ -990,7 +1015,7 @@ int scoperesolver_BuildASTGlobalStorage(
     int buildstorageresult = asttransform_Apply(
         pr, unresolved_ast, NULL,
         &_resolvercallback_BuildGlobalStorage_visit_out,
-        NULL
+        rinfo
     );
     if (!buildstorageresult)
         return 0;
@@ -1010,7 +1035,7 @@ int scoperesolver_BuildASTGlobalStorage(
             }
             if (expr->importstmt.referenced_ast != NULL) {
                 if (!scoperesolver_BuildASTGlobalStorage(
-                        pr, expr->importstmt.referenced_ast, 0
+                        pr, expr->importstmt.referenced_ast, 0, rinfo
                         )) {
                     return 0;
                 }
@@ -1024,27 +1049,57 @@ int scoperesolver_BuildASTGlobalStorage(
 }
 
 int scoperesolver_ResolveAST(
-        h64compileproject *pr, h64ast *unresolved_ast
+        h64compileproject *pr, h64ast *unresolved_ast,
+        int extract_program_main
         ) {
+    assert(pr->program->main_func_index < 0 || !extract_program_main);
     assert(unresolved_ast != NULL);
     if (unresolved_ast->identifiers_resolved)
         return 1;
 
+    resolveinfo rinfo;
+    memset(&rinfo, 0, sizeof(rinfo));
+    rinfo.extract_main = (extract_program_main != 0);
+
     // Make sure global storage was assigned on this AST and all
     // referenced ones:
     if (!scoperesolver_BuildASTGlobalStorage(
-            pr, unresolved_ast, 0
+            pr, unresolved_ast, 1, &rinfo
             )) {
         pr->resultmsg->success = 0;
         unresolved_ast->resultmsg.success = 0;
         return 0;
     }
 
+    // Add error message if we looked for "main" and didn't find it:
+    if (extract_program_main && pr->program->main_func_index < 0) {
+        pr->resultmsg->success = 0;
+        unresolved_ast->resultmsg.success = 0;
+        char buf[256];
+        snprintf(buf, sizeof(buf) - 1,
+            "unexpected lack of \"main\" func, expected "
+            "to find it as a program starting point in this file");
+        if (!result_AddMessage(
+                &unresolved_ast->resultmsg,
+                H64MSG_ERROR, buf,
+                unresolved_ast->fileuri,
+                -1, -1
+                )) {
+            result_AddMessage(
+                &unresolved_ast->resultmsg,
+                H64MSG_ERROR, "out of memory",
+                unresolved_ast->fileuri,
+                -1, -1
+            );
+            return 0;
+        }
+    }
+
     // Resolve identifiers:
     int transformresult = asttransform_Apply(
         pr, unresolved_ast, NULL,
         &_resolvercallback_ResolveIdentifiers_visit_out,
-        NULL
+        &rinfo
     );
     if (!transformresult)
         return 0;

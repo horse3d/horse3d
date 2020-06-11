@@ -18,6 +18,8 @@ h64program *h64program_New() {
     if (!p)
         return NULL;
     memset(p, 0, sizeof(*p));
+    p->main_func_index = -1;
+
     p->symbols = h64debugsymbols_New();
     if (!p->symbols) {
         h64program_Free(p);
@@ -57,8 +59,10 @@ void h64program_PrintBytecodeStats(h64program *p) {
             if (!name) name = _noname;
         }
         printf(
-            "%s bytecode func id=%" PRId64 " name: \"%s\" cfunction: %d\n",
-            _prefix, (int64_t)i, name, p->func[i].iscfunc
+            "%s bytecode func id=%" PRId64 " "
+            "name: \"%s\" cfunction: %d%s\n",
+            _prefix, (int64_t)i, name, p->func[i].iscfunc,
+            (i == p->main_func_index ? " (PROGRAM START)" : "")
         );
         i++;
     }

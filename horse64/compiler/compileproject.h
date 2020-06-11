@@ -61,7 +61,8 @@ char *compileproject_ResolveImport(
 );
 
 int compileproject_CompileAllToBytecode(
-    h64compileproject *project, char **error
+    h64compileproject *project, const char *mainfileuri,
+    char **error
 );
 
 #endif  // HORSE64_COMPILER_COMPILEPROJECT_H_

@@ -104,7 +104,7 @@ START_TEST (test_scope_import_complex)
         project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
+    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
     if (ast->resultmsg.message_count > 0) {
         int i = 0;
         while (i < ast->resultmsg.message_count) {
@@ -145,7 +145,7 @@ START_TEST (test_scope_import_complex)
         project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
+    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
     int founderror = 0;
     ck_assert(ast->resultmsg.message_count > 0);
     {
@@ -189,7 +189,7 @@ START_TEST (test_scope_import_complex)
         project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
+    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
     if (ast->resultmsg.message_count > 0) {
         int i = 0;
         while (i < ast->resultmsg.message_count) {
@@ -226,7 +226,7 @@ START_TEST (test_scope_import_complex)
         project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
+    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
     founderror = 0;
     ck_assert(ast->resultmsg.message_count > 0);
     {
@@ -271,7 +271,7 @@ START_TEST (test_scope_import_complex)
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(ast->fileuri != NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast) != 0);
+    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
     if (ast->resultmsg.message_count > 0) {
         int i = 0;
         while (i < ast->resultmsg.message_count) {

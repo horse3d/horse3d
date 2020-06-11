@@ -111,6 +111,7 @@ typedef struct h64program {
 
     int func_count;
     h64func *func;
+    int main_func_index;
 
     int globalvar_count;
     h64globalvar *globalvar;
