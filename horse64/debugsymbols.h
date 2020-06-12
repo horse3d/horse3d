@@ -63,6 +63,8 @@ typedef struct h64debugsymbols {
 
     hashmap *func_id_to_module_symbols_index;
     hashmap *func_id_to_module_symbols_func_subindex;
+    hashmap *class_id_to_module_symbols_index;
+    hashmap *class_id_to_module_symbols_class_subindex;
 } h64debugsymbols;
 
 int64_t h64debugsymbols_MemberNameToMemberNameId(
@@ -100,6 +102,10 @@ h64debugsymbols *h64debugsymbols_New();
 
 h64funcsymbol *h64debugsymbols_GetFuncSymbolById(
     h64debugsymbols *symbols, int funcid
+);
+
+h64classsymbol *h64debugsymbols_GetClassSymbolById(
+    h64debugsymbols *symbols, int classid
 );
 
 #endif  // HORSE64_DEBUGSYMBOLS_H_

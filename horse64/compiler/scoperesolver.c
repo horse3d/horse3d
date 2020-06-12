@@ -286,8 +286,10 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
             }
             return 1;
         }
-        if (scope->is_global &&
-                expr->storage.set == 0) {
+        if ((scope->is_global &&
+                expr->storage.set == 0) || (
+                expr->type == H64EXPRTYPE_FUNCDEF_STMT &&
+                expr->funcdef.bytecode_func_id < 0)) {
             int outofmemory = 0;
             if (!scoperesolver_ComputeItemStorage(
                     atinfo->pr, expr, atinfo->pr->program, atinfo->ast,

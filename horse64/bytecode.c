@@ -58,11 +58,36 @@ void h64program_PrintBytecodeStats(h64program *p) {
             name = fsymbol->name;
             if (!name) name = _noname;
         }
+        char associatedclass[64] = "";
+        if (p->func[i].associated_class_index >= 0) {
+            snprintf(
+                associatedclass, sizeof(associatedclass) - 1,
+                " (CLASS: %d)", p->func[i].associated_class_index
+            );
+        }
         printf(
             "%s bytecode func id=%" PRId64 " "
-            "name: \"%s\" cfunction: %d%s\n",
+            "name: \"%s\" cfunction: %d%s%s\n",
             _prefix, (int64_t)i, name, p->func[i].iscfunc,
-            (i == p->main_func_index ? " (PROGRAM START)" : "")
+            (i == p->main_func_index ? " (PROGRAM START)" : ""),
+            associatedclass
+        );
+        i++;
+    }
+    i = 0;
+    while (i < p->classes_count) {
+        const char *name = "(no symbols)";
+        if (p->symbols) {
+            h64classsymbol *csymbol = h64debugsymbols_GetClassSymbolById(
+                p->symbols, i
+            );
+            assert(csymbol != NULL && csymbol->name != NULL);
+            name = csymbol->name;
+        }
+        printf(
+            "%s bytecode class id=%" PRId64 " "
+            "name: \"%s\"\n",
+            _prefix, (int64_t)i, name
         );
         i++;
     }
@@ -323,7 +348,7 @@ int h64program_RegisterCFunction(
         goto funcsymboloom;
     }
 
-    // Add function to lookups from func id to debug symbols:
+    // Add it to lookups from func id to debug symbols:
     if (p->symbols && !hash_IntMapSet(
             p->symbols->func_id_to_module_symbols_index, p->func_count,
             (uint64_t)msymbols->index)) {
@@ -428,6 +453,20 @@ int h64program_AddClass(
     );
     if (!msymbols->classes_symbols[msymbols->classes_count].name) {
         classsymboloom:
+        if (name)
+            hash_StringMapUnset(
+                msymbols->class_name_to_entry, name
+            );
+        if (p->symbols) {
+            hash_IntMapUnset(
+                p->symbols->class_id_to_module_symbols_index,
+                p->func_count
+            );
+            hash_IntMapUnset(
+                p->symbols->class_id_to_module_symbols_class_subindex,
+                p->func_count
+            );
+        }
         h64debugsymbols_ClearClassSymbol(
             &msymbols->classes_symbols[msymbols->classes_count]
         );
@@ -441,6 +480,19 @@ int h64program_AddClass(
     if (!hash_StringMapSet(
             msymbols->class_name_to_entry,
             name, setno)) {
+        goto classsymboloom;
+    }
+
+    // Add it to lookups from class id to debug symbols:
+    if (p->symbols && !hash_IntMapSet(
+            p->symbols->class_id_to_module_symbols_index, p->classes_count,
+            (uint64_t)msymbols->index)) {
+        goto classsymboloom;
+    }
+    if (p->symbols && !hash_IntMapSet(
+            p->symbols->class_id_to_module_symbols_class_subindex,
+            p->classes_count,
+            (uint64_t)msymbols->classes_count)) {
         goto classsymboloom;
     }
 
