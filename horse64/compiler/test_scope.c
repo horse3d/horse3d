@@ -116,7 +116,7 @@ START_TEST (test_scope_import_complex)
             i++;
         }
     }
-    ck_assert(ast->resultmsg.success);
+    ck_assert(ast->resultmsg.success && project->resultmsg->success);
     compileproject_Free(project);  // This indirectly frees 'ast'!
 
     {
@@ -164,7 +164,7 @@ START_TEST (test_scope_import_complex)
         }
         ck_assert(founderror);
     }
-    ck_assert(!ast->resultmsg.success);
+    ck_assert(!ast->resultmsg.success || !project->resultmsg->success);
     compileproject_Free(project);  // This indirectly frees 'ast'
 
     {
@@ -201,7 +201,7 @@ START_TEST (test_scope_import_complex)
             i++;
         }
     }
-    ck_assert(ast->resultmsg.success);
+    ck_assert(ast->resultmsg.success && project->resultmsg->success);
     compileproject_Free(project);  // This indirectly frees 'ast'
 
     {
@@ -245,7 +245,7 @@ START_TEST (test_scope_import_complex)
         }
         ck_assert(founderror);
     }
-    ck_assert(!ast->resultmsg.success);
+    ck_assert(!ast->resultmsg.success || !project->resultmsg->success);
     compileproject_Free(project);  // This indirectly frees 'ast'
 
     {
@@ -283,7 +283,7 @@ START_TEST (test_scope_import_complex)
             i++;
         }
     }
-    ck_assert(ast->resultmsg.success);
+    ck_assert(ast->resultmsg.success && project->resultmsg->success);
     compileproject_Free(project);  // This indirectly frees 'ast'
 
     free(testfolder_path);
