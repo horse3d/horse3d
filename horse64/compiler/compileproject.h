@@ -14,6 +14,7 @@ typedef struct h64compileproject {
 
     char *basefolder;
     hashmap *astfilemap;
+    int astfilemap_count;
     h64program *program;
 
     h64result *resultmsg;

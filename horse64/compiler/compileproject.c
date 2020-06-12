@@ -231,6 +231,7 @@ int compileproject_GetAST(
         *out_ast = NULL;
         return 0;
     }
+    pr->astfilemap_count++;
     *out_ast = result;
     *error = NULL;
     free(relfilepath);
@@ -959,15 +960,23 @@ int compileproject_CompileAllToBytecode(
     memset(&cinfo, 0, sizeof(cinfo));
     cinfo.pr = project;
     cinfo.mainfileuri = mainfileuri;
-    if (!hash_StringMapIterate(
-            project->astfilemap, &_resolveallcb,
-            &cinfo)) {
-        if (error)
-            *error = strdup(
-                "unexpected resolve callback failure, "
-                "out of memory?"
-            );
-        return 0;
+    while (1) {
+        int oldcount = project->astfilemap_count;
+        if (!hash_StringMapIterate(
+                project->astfilemap, &_resolveallcb,
+                &cinfo)) {
+            if (error)
+                *error = strdup(
+                    "unexpected resolve callback failure, "
+                    "out of memory?"
+                );
+            return 0;
+        }
+        if (oldcount == project->astfilemap_count)
+            break;
+        // We discovered more files during scope resolution. Do it again:
+        cinfo.mainfileseen = 0;
+        continue;
     }
     if (!cinfo.mainfileseen) {
         if (error) {

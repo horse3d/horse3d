@@ -1045,8 +1045,11 @@ int scoperesolver_BuildASTGlobalStorage(
                 continue;
             }
             if (expr->importstmt.referenced_ast != NULL) {
+                resolveinfo rinfo2;
+                memcpy(&rinfo2, rinfo, sizeof(*rinfo));
+                rinfo2.extract_main = 0;
                 if (!scoperesolver_BuildASTGlobalStorage(
-                        pr, expr->importstmt.referenced_ast, 0, rinfo
+                        pr, expr->importstmt.referenced_ast, 0, &rinfo2
                         )) {
                     return 0;
                 }
@@ -1063,10 +1066,10 @@ int scoperesolver_ResolveAST(
         h64compileproject *pr, h64ast *unresolved_ast,
         int extract_program_main
         ) {
-    assert(pr->program->main_func_index < 0 || !extract_program_main);
     assert(unresolved_ast != NULL);
     if (unresolved_ast->identifiers_resolved)
         return 1;
+    assert(pr->program->main_func_index < 0 || !extract_program_main);
 
     resolveinfo rinfo;
     memset(&rinfo, 0, sizeof(rinfo));
