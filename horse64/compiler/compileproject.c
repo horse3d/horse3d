@@ -208,27 +208,17 @@ int compileproject_GetAST(
     }
 
     // Add warnings & errors to collected ones in compileproject:
-    int i = 0;
-    while (i < result->resultmsg.message_count) {
-        if (!result_AddMessage(
-                pr->resultmsg, result->resultmsg.message[i].type,
-                result->resultmsg.message[i].message,
-                result->resultmsg.message[i].fileuri,
-                result->resultmsg.message[i].line,
-                result->resultmsg.message[i].column
-                )) {
-            result_FreeContents(pr->resultmsg);
-            pr->resultmsg->success = 0;
-            ast_FreeContents(result);
-            free(relfilepath);
-            free(result);
-            *error = strdup("alloc fail");
-            *out_ast = NULL;
-            return 0;
-        }
-        if (result->resultmsg.message[i].type == H64MSG_ERROR)
-            pr->resultmsg->success = 0;
-        i++;
+    if (!result_TransferMessages(
+            &result->resultmsg, pr->resultmsg
+            )) {
+        result_FreeContents(pr->resultmsg);
+        pr->resultmsg->success = 0;
+        ast_FreeContents(result);
+        free(relfilepath);
+        free(result);
+        *error = strdup("alloc fail");
+        *out_ast = NULL;
+        return 0;
     }
 
     if (!hash_StringMapSet(
@@ -1004,6 +994,7 @@ int compileproject_CompileAllToBytecode(
         // Stop here, we can't safely codegen if there was an error.
         return 1;
     }
+    assert(cinfo.pr->resultmsg->success);
     if (!hash_StringMapIterate(
             project->astfilemap, &_codegenallcb,
             &cinfo)) {

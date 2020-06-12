@@ -66,22 +66,17 @@ h64ast *codemodule_GetASTUncached(
             haderrormessages = 1;
         i++;
     }
-    i = 0;
-    while (i < tfile.resultmsg.message_count) {  // combine messages
-        if (!result_AddMessage(
-                &tcode->resultmsg, tfile.resultmsg.message[i].type,
-                tfile.resultmsg.message[i].message,
-                tfile.resultmsg.message[i].fileuri,
-                tfile.resultmsg.message[i].line,
-                tfile.resultmsg.message[i].column
-                )) {
-            lexer_FreeFileTokens(&tfile);
-            result_FreeContents(&tfile.resultmsg);
-            result_FreeContents(&tcode->resultmsg);
-            ast_FreeContents(tcode);
-            free(tcode);
-            return NULL;
-        }
+    if (!result_TransferMessages(
+            &tfile.resultmsg, &tcode->resultmsg
+            )) {
+        lexer_FreeFileTokens(&tfile);
+        result_FreeContents(&tfile.resultmsg);
+        result_FreeContents(&tcode->resultmsg);
+        ast_FreeContents(tcode);
+        free(tcode);
+        return NULL;
+    }
+    while (i < tfile.resultmsg.message_count) {
         if (tfile.resultmsg.message[i].type == H64MSG_ERROR)
             haderrormessages = 1;
         i++;

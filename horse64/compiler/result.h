@@ -11,6 +11,7 @@ typedef enum h64messagetype {
 
 typedef struct h64resultmessage {
     h64messagetype type;
+    char id[32];
     char *message;
     char *fileuri;
     int64_t line, column;
@@ -24,6 +25,10 @@ typedef struct h64result {
     h64resultmessage *message;
 } h64result;
 
+
+int result_TransferMessages(
+    h64result *resultfrom, h64result *resultto
+);
 
 int result_Error(
     h64result *result,

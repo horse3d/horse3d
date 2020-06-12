@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "compiler/result.h"
+#include "datetime.h"
+#include "secrandom.h"
 
 int result_Error(
         h64result *result,
@@ -38,9 +40,7 @@ int result_Success(
         const char *fileuri
         ) {
     result->success = 1;
-    if (fileuri) {
-        if (result->fileuri)
-            free(result->fileuri);
+    if (fileuri && !result->fileuri) {
         result->fileuri = strdup(fileuri);
         if (!result->fileuri)
             return 0;
@@ -48,12 +48,13 @@ int result_Success(
     return 1;
 }
 
-int result_AddMessage(
+int result_AddMessageEx(
         h64result *result,
         h64messagetype type,
         const char *message,
         const char *fileuri,
-        int64_t line, int64_t column
+        int64_t line, int64_t column,
+        const char id[32]
         ) {
     int newcount = result->message_count + 1;
     h64resultmessage *newmsgs = realloc(
@@ -63,6 +64,8 @@ int result_AddMessage(
         return 0;
     result->message = newmsgs;
     memset(&result->message[newcount - 1], 0, sizeof(*newmsgs));
+    memcpy(result->message[newcount - 1].id, id,
+        sizeof(*result->message[newcount - 1].id));
     result->message[newcount - 1].type = type;
     if (message) {
         result->message[newcount - 1].message = strdup(message);
@@ -80,6 +83,61 @@ int result_AddMessage(
         }
     }
     result->message_count = newcount;
+    return 1;
+}
+
+int result_AddMessage(
+        h64result *result,
+        h64messagetype type,
+        const char *message,
+        const char *fileuri,
+        int64_t line, int64_t column
+        ) {
+    char id[32];
+    while (1) {
+        if (secrandom_GetBytes(id, sizeof(*id))) break;
+        datetime_Sleep(10);
+    }
+    return result_AddMessageEx(
+        result, type, message, fileuri,
+        line, column, id
+    );
+}
+
+int result_MessageIdToIndex(h64result *result, const char id[32]) {
+    int i = 0;
+    while (i < result->message_count) {
+        if (memcmp(result->message[i].id, id,
+                sizeof(*result->message[i].id)) == 0)
+            return i;
+        i++;
+    }
+    return -1;
+}
+
+int result_TransferMessages(
+        h64result *resultfrom, h64result *resultto
+        ) {
+    int i = 0;
+    while (i < resultfrom->message_count) {
+        int targeti = result_MessageIdToIndex(
+            resultto, resultfrom->message[i].id
+        );
+        if (targeti < 0) {
+            if (!result_AddMessageEx(
+                    resultto, resultfrom->message[i].type,
+                    resultfrom->message[i].message,
+                    resultfrom->message[i].fileuri,
+                    resultfrom->message[i].line,
+                    resultfrom->message[i].column,
+                    resultfrom->message[i].id
+                    ))
+                return 0;
+        }
+        if (resultfrom->message[i].type == H64MSG_ERROR)
+            resultto->success = 0;
+        i++;
+    }
     return 1;
 }
 

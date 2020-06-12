@@ -43,25 +43,12 @@ int asttransform_Apply(
         k++;
     }
     {   // Copy over new messages resulting from resolution stage:
-        k = msgcount;
-        while (k < ast->resultmsg.message_count) {
-            if (!result_AddMessage(
-                    pr->resultmsg,
-                    ast->resultmsg.message[k].type,
-                    ast->resultmsg.message[k].message,
-                    ast->resultmsg.message[k].fileuri,
-                    ast->resultmsg.message[k].line,
-                    ast->resultmsg.message[k].column
-                    )) {
-                pr->resultmsg->success = 0;
-                ast->resultmsg.success = 0;
-                return 0;
-            }
-            if (ast->resultmsg.message[k].type == H64MSG_ERROR) {
-                pr->resultmsg->success = 0;
-                ast->resultmsg.success = 0;
-            }
-            k++;
+        if (!result_TransferMessages(
+                &ast->resultmsg, pr->resultmsg
+                )) {
+            pr->resultmsg->success = 0;
+            ast->resultmsg.success = 0;
+            return 0;
         }
     }
     if (atinfo.hadunexpectederror) {

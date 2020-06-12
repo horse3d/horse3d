@@ -141,19 +141,22 @@ int compiler_command_CompileEx(
 
     int haderrormessages = 0;
     int i = 0;
-    while (i < ast->resultmsg.message_count) {
-        if (ast->resultmsg.message[i].type == H64MSG_ERROR)
+    while (i < project->resultmsg->message_count) {
+        if (project->resultmsg->message[i].type == H64MSG_ERROR)
             haderrormessages = 1;
-        printmsg(&ast->resultmsg, &ast->resultmsg.message[i]);
+        printmsg(project->resultmsg, &project->resultmsg->message[i]);
         i++;
     }
-    int resultvalue = (haderrormessages || !ast->resultmsg.success);
+    int nosuccess = (
+        haderrormessages || !ast->resultmsg.success ||
+        !project->resultmsg->success
+    );
     if (mode == COMPILEEX_MODE_CODEINFO) {
-        if (!haderrormessages)
+        if (!nosuccess)
             h64program_PrintBytecodeStats(project->program);
     }
     compileproject_Free(project);  // This indirectly frees 'ast'!
-    return !resultvalue;
+    return !nosuccess;
 }
 
 int compiler_command_Compile(

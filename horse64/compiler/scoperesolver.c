@@ -74,6 +74,7 @@ const char *_shortenedname(
 );
 
 static int scoperesolver_ComputeItemStorage(
+        h64compileproject *project,
         h64expression *expr, h64program *program, h64ast *ast,
         int extract_main,
         int *outofmemory
@@ -135,7 +136,8 @@ static int scoperesolver_ComputeItemStorage(
         if (owningclass && !owningclass->storage.set) {
             int inneroom = 0;
             int innerresult = scoperesolver_ComputeItemStorage(
-                owningclass, program, ast, extract_main, &inneroom
+                project, owningclass, program, ast,
+                extract_main, &inneroom
             );
             if (!innerresult) {
                 if (inneroom && outofmemory) *outofmemory = 1;
@@ -213,13 +215,13 @@ static int scoperesolver_ComputeItemStorage(
         free(kwarg_names);
         assert(bytecode_func_id >= 0);
         if (scope->is_global) {
+            assert(expr->funcdef.stmt_count == 0 || expr->funcdef.stmt != NULL);
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALFUNCSLOT;
             expr->storage.ref.id = bytecode_func_id;
             if (name != NULL && strcmp(name, "main") == 0 &&
                     extract_main) {
                 if (program->main_func_index >= 0) {
-                    expr->importstmt.referenced_ast = NULL;
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
                         "unexpected duplicate main func found");
@@ -232,7 +234,16 @@ static int scoperesolver_ComputeItemStorage(
                         if (outofmemory) *outofmemory = 1;
                         return 0;
                     }
+                    ast->resultmsg.success = 0;
+                    if (!result_TransferMessages(
+                            &ast->resultmsg, project->resultmsg
+                            )) {
+                        if (outofmemory) *outofmemory = 1;
+                        return 0;
+                    }
+                    project->resultmsg->success = 0;
                 } else {
+                    assert(bytecode_func_id >= 0);
                     program->main_func_index = bytecode_func_id;
                 }
             }
@@ -279,7 +290,7 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                 expr->storage.set == 0) {
             int outofmemory = 0;
             if (!scoperesolver_ComputeItemStorage(
-                    expr, atinfo->pr->program, atinfo->ast,
+                    atinfo->pr, expr, atinfo->pr->program, atinfo->ast,
                     rinfo->extract_main,
                     &outofmemory)) {
                 if (outofmemory) {
@@ -1069,6 +1080,11 @@ int scoperesolver_ResolveAST(
         pr->resultmsg->success = 0;
         unresolved_ast->resultmsg.success = 0;
         return 0;
+    }
+    if (!pr->resultmsg->success || !unresolved_ast->resultmsg.success) {
+        pr->resultmsg->success = 0;
+        unresolved_ast->resultmsg.success = 0;
+        return 1;
     }
 
     // Add error message if we looked for "main" and didn't find it:
