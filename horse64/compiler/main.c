@@ -76,7 +76,7 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
             if (msg->column >= 0)
                 fprintf(output_fd, ":%" PRId64, msg->column);
         }
-        fprintf(output_fd, " ");
+        fprintf(output_fd, ": ");
     }
     fprintf(output_fd, "%s\n", msg->message);
 }
