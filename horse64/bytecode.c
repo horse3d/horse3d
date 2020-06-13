@@ -38,6 +38,109 @@ h64program *h64program_New() {
     return p;
 }
 
+int h64program_RegisterClassMemberEx(
+        h64program *p,
+        int64_t class_id,
+        const char *name,
+        int64_t func_idx
+        ) {
+    if (!p || !p->symbols)
+        return 0;
+
+    int64_t nameid = h64debugsymbols_MemberNameToMemberNameId(
+        p->symbols, name, 1
+    );
+    if (nameid < 0)
+        return 0;
+
+    // Allocate bucket slot:
+    assert(class_id >= 0 && class_id < p->classes_count);
+    assert(p->classes[class_id].
+           global_name_to_member_hashmap != NULL);
+    int bucketindex = (nameid % (int64_t)H64CLASS_HASH_SIZE);
+    int64_t *buckets =
+        (p->classes[class_id].
+            global_name_to_member_hashmap[bucketindex]);
+    int buckets_count = 0;
+    while (buckets[buckets_count] >= 0) {
+        if (buckets[buckets_count] == nameid)
+            return 0;
+        buckets_count++;
+    }
+    int64_t *new_buckets = realloc(
+        buckets, sizeof(*new_buckets) * (buckets_count + 2)
+    );
+    if (!new_buckets)
+        return 0;
+    p->classes[class_id].global_name_to_member_hashmap[
+        bucketindex
+    ] = new_buckets;
+    buckets = new_buckets;
+
+    // Allocate new slot for either methods or vars:
+    int entry_idx = -1;
+    if (func_idx >= 0) {
+        if (p->classes[class_id].methods_count >=
+                H64CLASS_MAX_METHODS)
+            return 0;
+        int64_t *new_method_global_name_idx = realloc(
+            p->classes[class_id].method_global_name_idx,
+            sizeof(*p->classes[class_id].
+                   method_global_name_idx) *
+            (p->classes[class_id].methods_count + 1)
+        );
+        if (!new_method_global_name_idx)
+            return 0;
+        p->classes[class_id].method_global_name_idx = (
+            new_method_global_name_idx
+        );
+        int64_t *new_method_func_idx = realloc(
+            p->classes[class_id].method_func_idx,
+            sizeof(*p->classes[class_id].
+                   method_func_idx) *
+            (p->classes[class_id].methods_count + 1)
+        );
+        if (!new_method_func_idx)
+            return 0;
+        p->classes[class_id].method_func_idx = (
+            new_method_func_idx
+        );
+        new_method_global_name_idx[
+            p->classes[class_id].methods_count
+        ] = nameid;
+        new_method_func_idx[
+            p->classes[class_id].methods_count
+        ] = func_idx;
+        p->classes[class_id].methods_count++;
+        entry_idx = p->classes[class_id].methods_count - 1;
+    } else {
+        int64_t *new_vars_global_name_idx = realloc(
+            p->classes[class_id].vars_global_name_idx,
+            sizeof(*p->classes[class_id].
+                   vars_global_name_idx) *
+            (p->classes[class_id].vars_count + 1)
+        );
+        if (!new_vars_global_name_idx)
+            return 0;
+        p->classes[class_id].vars_global_name_idx = (
+            new_vars_global_name_idx
+        );
+        new_vars_global_name_idx[
+            p->classes[class_id].vars_count
+        ] = nameid;
+        p->classes[class_id].vars_count++;
+        entry_idx = p->classes[class_id].vars_count - 1;
+    }
+
+    // Add into buckets:
+    buckets[buckets_count + 1] = -1;
+    buckets[buckets_count] = (
+        func_idx > 0 ?
+        entry_idx : (H64CLASS_MAX_METHODS + entry_idx)
+    );
+    return 1;
+}
+
 void h64program_PrintBytecodeStats(h64program *p) {
     char _prefix[] = "horsec: info:";
     printf("%s bytecode func count: %" PRId64 "\n",
@@ -262,6 +365,7 @@ int h64program_RegisterCFunction(
         int associated_class_index
         ) {
     assert(p != NULL && p->symbols != NULL);
+    assert(name != NULL || associated_class_index < 0);
     h64func *new_func = realloc(
         p->func, sizeof(*p->func) * (p->func_count + 1)
     );
@@ -377,6 +481,16 @@ int h64program_RegisterCFunction(
             p->func_count,
             (uint64_t)msymbols->func_count)) {
         goto funcsymboloom;
+    }
+
+    // Register function as class method if it is one:
+    if (associated_class_index >= 0) {
+        if (!h64program_RegisterClassMemberEx(
+                p, associated_class_index,
+                name, p->func_count
+                )) {
+            goto funcsymboloom;
+        }
     }
 
     // Add actual function entry:
@@ -558,4 +672,14 @@ int h64program_AddClass(
     msymbols->classes_count++;
 
     return p->classes_count - 1;
+}
+
+int h64program_RegisterClassVariable(
+        h64program *p,
+        int64_t class_id,
+        const char *name
+        ) {
+    return h64program_RegisterClassMemberEx(
+        p, class_id, name, -1
+    );
 }

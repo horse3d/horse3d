@@ -1,6 +1,7 @@
 #ifndef HORSE64_BYTECODE_H_
 #define HORSE64_BYTECODE_H_
 
+#include <limits.h>
 #include <stdint.h>
 
 #include "gcvalue.h"
@@ -72,16 +73,17 @@ typedef struct h64instruction_globalsetconst {
 
 
 #define H64CLASS_HASH_SIZE 16
+#define H64CLASS_MAX_METHODS (INT_MAX / 4)
 
 typedef struct h64class {
     int methods_count;
-    int *method_global_name_idx;
-    int *method_func_idx;
+    int64_t *method_global_name_idx;
+    int64_t *method_func_idx;
 
     int vars_count;
-    int *vars_global_name_idx;
+    int64_t *vars_global_name_idx;
 
-    int **global_name_to_member_hashmap;  // bucket lists end in -1
+    int64_t **global_name_to_member_hashmap;  // bucket lists end in -1
 } h64class;
 
 typedef struct h64func {
@@ -113,14 +115,14 @@ typedef struct h64program {
     int globals_count;
     valuecontent *globals;
 
-    int classes_count;
+    int64_t classes_count;
     h64class *classes;
 
-    int func_count;
+    int64_t func_count;
     h64func *func;
     int main_func_index;
 
-    int globalvar_count;
+    int64_t globalvar_count;
     h64globalvar *globalvar;
 
     h64debugsymbols *symbols;
@@ -141,6 +143,12 @@ static inline void h64program_ClearValueContent(
         }
     }
 }
+
+int h64program_RegisterClassVariable(
+    h64program *p,
+    int64_t class_id,
+    const char *name
+);
 
 int h64program_RegisterCFunction(
     h64program *p,
