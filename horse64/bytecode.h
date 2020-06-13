@@ -75,6 +75,11 @@ typedef struct h64instruction_globalsetconst {
 #define H64CLASS_HASH_SIZE 16
 #define H64CLASS_MAX_METHODS (INT_MAX / 4)
 
+typedef struct h64classmemberinfo {
+    int64_t nameid;
+    int methodorvaridx;  // vars have H64CLASS_MAX_METHODS offset
+} h64classmemberinfo;
+
 typedef struct h64class {
     int methods_count;
     int64_t *method_global_name_idx;
@@ -83,7 +88,7 @@ typedef struct h64class {
     int vars_count;
     int64_t *vars_global_name_idx;
 
-    int64_t **global_name_to_member_hashmap;  // bucket lists end in -1
+    h64classmemberinfo **global_name_to_member_hashmap;
 
     int hasvarinitfunc;
 } h64class;
@@ -145,6 +150,11 @@ static inline void h64program_ClearValueContent(
         }
     }
 }
+
+void h64program_LookupClassMember(
+    h64program *p, int64_t class_id, int64_t nameid,
+    int *out_membervarid, int *out_memberfuncid
+);
 
 int h64program_RegisterClassVariable(
     h64program *p,

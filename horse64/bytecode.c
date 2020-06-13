@@ -58,16 +58,16 @@ int h64program_RegisterClassMemberEx(
     assert(p->classes[class_id].
            global_name_to_member_hashmap != NULL);
     int bucketindex = (nameid % (int64_t)H64CLASS_HASH_SIZE);
-    int64_t *buckets =
+    h64classmemberinfo *buckets =
         (p->classes[class_id].
             global_name_to_member_hashmap[bucketindex]);
     int buckets_count = 0;
-    while (buckets[buckets_count] >= 0) {
-        if (buckets[buckets_count] == nameid)
+    while (buckets[buckets_count].nameid >= 0) {
+        if (buckets[buckets_count].nameid == nameid)
             return 0;
         buckets_count++;
     }
-    int64_t *new_buckets = realloc(
+    h64classmemberinfo *new_buckets = realloc(
         buckets, sizeof(*new_buckets) * (buckets_count + 2)
     );
     if (!new_buckets)
@@ -133,12 +133,58 @@ int h64program_RegisterClassMemberEx(
     }
 
     // Add into buckets:
-    buckets[buckets_count + 1] = -1;
-    buckets[buckets_count] = (
+    buckets[buckets_count + 1].nameid = -1;
+    buckets[buckets_count + 1].methodorvaridx = -1;
+    buckets[buckets_count].nameid = nameid;
+    buckets[buckets_count].methodorvaridx = (
         func_idx > 0 ?
         entry_idx : (H64CLASS_MAX_METHODS + entry_idx)
     );
     return 1;
+}
+
+void h64program_LookupClassMember(
+        h64program *p, int64_t class_id, int64_t nameid,
+        int *out_membervarid, int *out_memberfuncid
+        ) {
+    assert(p != NULL && p->symbols != NULL);
+    int bucketindex = (nameid % (int64_t)H64CLASS_HASH_SIZE);
+    h64classmemberinfo *buckets =
+        (p->classes[class_id].
+            global_name_to_member_hashmap[bucketindex]);
+    int i = 0;
+    while (buckets[i].nameid >= 0) {
+        if (buckets[i].nameid == nameid) {
+            int64_t result = buckets[i].methodorvaridx;
+            if (result < H64CLASS_MAX_METHODS) {
+                *out_memberfuncid = result;
+                *out_membervarid = -1;
+            } else {
+                *out_memberfuncid = -1;
+                *out_membervarid = (result - H64CLASS_MAX_METHODS);
+            }
+            return;
+        }
+        i++;
+    }
+    *out_memberfuncid = -1;
+    *out_membervarid = -1;
+}
+
+void h64program_LookupClassMemberByname(
+        h64program *p, int64_t class_id, const char *name,
+        int *out_membervarid, int *out_memberfuncid
+        ) {
+    int64_t nameid = h64debugsymbols_MemberNameToMemberNameId(
+        p->symbols, name, 0
+    );
+    if (nameid < 0) {
+        *out_membervarid = -1;
+        *out_memberfuncid = -1;
+    }
+    return h64program_LookupClassMember(
+        p, class_id, nameid, out_membervarid, out_memberfuncid
+    );
 }
 
 void h64program_PrintBytecodeStats(h64program *p) {
@@ -664,7 +710,9 @@ int h64program_AddClass(
             goto classsymboloom;
         }
         p->classes[p->classes_count].
-            global_name_to_member_hashmap[i][0] = -1;
+            global_name_to_member_hashmap[i][0].nameid = -1;
+        p->classes[p->classes_count].
+            global_name_to_member_hashmap[i][0].methodorvaridx = -1;
         i++;
     }
 
