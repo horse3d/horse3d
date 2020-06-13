@@ -84,6 +84,8 @@ typedef struct h64class {
     int64_t *vars_global_name_idx;
 
     int64_t **global_name_to_member_hashmap;  // bucket lists end in -1
+
+    int hasvarinitfunc;
 } h64class;
 
 typedef struct h64func {

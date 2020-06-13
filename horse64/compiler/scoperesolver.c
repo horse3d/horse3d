@@ -22,6 +22,15 @@ typedef struct resolveinfo {
     int main_was_found;
 } resolveinfo;
 
+
+static int isnullvardef(h64expression *expr) {
+    if (expr->type != H64EXPRTYPE_VARDEF_STMT)
+        return 0;
+    return (expr->vardef.value == NULL ||
+        (expr->vardef.value->type == H64EXPRTYPE_LITERAL &&
+        expr->vardef.value->literal.type == H64TK_CONSTANT_NONE));
+}
+
 static int identifierisbuiltin(
         h64program *program,
         const char *identifier,
@@ -81,6 +90,7 @@ static int scoperesolver_ComputeItemStorage(
         ) {
     h64scope *scope = ast_GetScope(expr, &ast->scope);
     assert(scope != NULL);
+    // Assign global variables + classes storage:
     if (scope->is_global ||
             expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
         if (expr->storage.set)
@@ -119,6 +129,61 @@ static int scoperesolver_ComputeItemStorage(
             return 1;
         }
     }
+    // Handle class members:
+    if (!scope->is_global && expr->type == H64EXPRTYPE_VARDEF_STMT) {
+        h64expression *owningclass = expr->parent;
+        while (owningclass) {
+            if (owningclass->type == H64EXPRTYPE_CLASSDEF_STMT)
+                break;
+            if (owningclass->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                    owningclass->type == H64EXPRTYPE_INLINEFUNCDEF) {
+                owningclass = NULL;
+                break;
+            }
+            owningclass = owningclass->parent;
+        }
+        if (owningclass) {
+            if (!owningclass->storage.set) {
+                int inneroom = 0;
+                int innerresult = scoperesolver_ComputeItemStorage(
+                    project, owningclass, program, ast,
+                    extract_main, &inneroom
+                );
+                if (!innerresult) {
+                    if (inneroom && outofmemory) *outofmemory = 1;
+                    if (!inneroom && outofmemory) *outofmemory = 0;
+                    return 0;
+                }
+            }
+            assert(owningclass->storage.set &&
+                   owningclass->storage.ref.type ==
+                       H64STORETYPE_GLOBALCLASSSLOT &&
+                   owningclass->storage.ref.id >= 0 &&
+                   owningclass->storage.ref.id < program->classes_count);
+            int owningclassindex = owningclass->storage.ref.id;
+            if (!h64program_RegisterClassVariable(
+                    program, owningclassindex, expr->vardef.identifier
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+            if (!isnullvardef(expr) && !program->classes[
+                    owningclassindex].hasvarinitfunc) {
+                int idx = h64program_RegisterHorse64Function(
+                    program, "$$varinit",
+                    ast->fileuri, 0, NULL, 0,
+                    ast->module_path, ast->library_name,
+                    owningclassindex
+                );
+                if (idx < 0) {
+                    if (outofmemory) *outofmemory = 1;
+                    return 0;
+                }
+            }
+            return 1;
+        }
+    }
+    // Add functions to bytecode:
     if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
         // Get the class owning this func, if any:
@@ -215,7 +280,8 @@ static int scoperesolver_ComputeItemStorage(
         free(kwarg_names);
         assert(bytecode_func_id >= 0);
         if (scope->is_global) {
-            assert(expr->funcdef.stmt_count == 0 || expr->funcdef.stmt != NULL);
+            assert(expr->funcdef.stmt_count == 0 ||
+                   expr->funcdef.stmt != NULL);
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALFUNCSLOT;
             expr->storage.ref.id = bytecode_func_id;
