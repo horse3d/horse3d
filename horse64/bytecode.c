@@ -99,6 +99,24 @@ void h64program_Free(h64program *p) {
 
     if (p->symbols)
         h64debugsymbols_Free(p->symbols);
+    if (p->classes) {
+        int i = 0;
+        while (i < p->classes_count) {
+            if (p->classes[i].global_name_to_member_hashmap) {
+                int k = 0;
+                while (k < H64CLASS_HASH_SIZE) {
+                    free(p->classes[i].
+                         global_name_to_member_hashmap[k]);
+                    k++;
+                }
+                free(p->classes[i].global_name_to_member_hashmap);
+            }
+            free(p->classes[i].method_func_idx);
+            free(p->classes[i].method_global_name_idx);
+            free(p->classes[i].vars_global_name_idx);
+            i++;
+        }
+    }
     free(p->classes);
     free(p->func);
     int i = 0;
@@ -467,6 +485,16 @@ int h64program_AddClass(
                 p->func_count
             );
         }
+        if (p->classes[p->classes_count].global_name_to_member_hashmap) {
+            int i = 0;
+            while (i < H64CLASS_HASH_SIZE) {
+                free(p->classes[p->classes_count].
+                     global_name_to_member_hashmap[i]);
+                i++;
+            }
+            free(p->classes[p->classes_count].
+                 global_name_to_member_hashmap);
+        }
         h64debugsymbols_ClearClassSymbol(
             &msymbols->classes_symbols[msymbols->classes_count]
         );
@@ -497,9 +525,34 @@ int h64program_AddClass(
     }
 
     // Add actual class entry:
-    p->classes[p->classes_count].members_count = 0;
-    p->classes[p->classes_count].methods_count = 0;
-    p->classes[p->classes_count].method_func_idx = NULL;
+    p->classes[p->classes_count].global_name_to_member_hashmap = malloc(
+        H64CLASS_HASH_SIZE * sizeof(
+            *p->classes[p->classes_count].global_name_to_member_hashmap
+        )
+    );
+    if (!p->classes[p->classes_count].global_name_to_member_hashmap)
+        goto classsymboloom;
+    memset(
+        p->classes[p->classes_count].global_name_to_member_hashmap,
+        0, H64CLASS_HASH_SIZE * sizeof(
+            *p->classes[p->classes_count].global_name_to_member_hashmap
+        )
+    );
+    int i = 0;
+    while (i < H64CLASS_HASH_SIZE) {
+        p->classes[p->classes_count].global_name_to_member_hashmap[i] =
+            malloc(
+                sizeof(**(p->classes[p->classes_count].
+                global_name_to_member_hashmap))
+            );
+        if (!p->classes[p->classes_count].
+                global_name_to_member_hashmap[i]) {
+            goto classsymboloom;
+        }
+        p->classes[p->classes_count].
+            global_name_to_member_hashmap[i][0] = -1;
+        i++;
+    }
 
     p->classes_count++;
     msymbols->classes_count++;

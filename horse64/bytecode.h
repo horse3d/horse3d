@@ -70,11 +70,18 @@ typedef struct h64instruction_globalsetconst {
     valuecontent content;
 } __attribute__((packed)) h64instruction_globalsetconst;
 
-typedef struct h64class {
-    int members_count;
 
+#define H64CLASS_HASH_SIZE 16
+
+typedef struct h64class {
     int methods_count;
+    int *method_global_name_idx;
     int *method_func_idx;
+
+    int vars_count;
+    int *vars_global_name_idx;
+
+    int **global_name_to_member_hashmap;  // bucket lists end in -1
 } h64class;
 
 typedef struct h64func {
