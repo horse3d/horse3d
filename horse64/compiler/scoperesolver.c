@@ -993,7 +993,9 @@ int scoperesolver_BuildASTGlobalStorage(
         h64expression *expr = (
             unresolved_ast->scope.definitionref[i]->declarationexpr
         );
-        if (expr->type != H64EXPRTYPE_IMPORT_STMT) {
+        if (expr->type != H64EXPRTYPE_IMPORT_STMT ||
+                (expr->importstmt.referenced_ast != NULL &&
+                 strlen(expr->importstmt.referenced_ast->fileuri) > 0)) {
             i++;
             continue;
         }
@@ -1096,8 +1098,14 @@ int scoperesolver_BuildASTGlobalStorage(
         &_resolvercallback_BuildGlobalStorage_visit_out,
         rinfo
     );
-    if (!buildstorageresult)
+    if (!buildstorageresult) {
+        // Mark as done anyway, even when it failed:
+        unresolved_ast->global_storage_built = 1;
         return 0;
+    }
+
+    // Mark ourselves as done: (IMPORTANT, keep this before recursing below)
+    unresolved_ast->global_storage_built = 1;
 
     // Do recursive handling if asked for:
     if (recursive) {
@@ -1125,8 +1133,6 @@ int scoperesolver_BuildASTGlobalStorage(
             i++;
         }
     }
-
-    unresolved_ast->global_storage_built = 1;
     return 1;
 }
 
