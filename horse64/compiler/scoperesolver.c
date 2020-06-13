@@ -986,6 +986,9 @@ int scoperesolver_BuildASTGlobalStorage(
         }
     }
 
+    // Mark done even if we fail:
+    unresolved_ast->global_storage_built = 1;
+
     // First, make sure all imports are loaded up:
     int i = 0;
     while (i < unresolved_ast->scope.definitionref_count) {
@@ -1098,14 +1101,8 @@ int scoperesolver_BuildASTGlobalStorage(
         &_resolvercallback_BuildGlobalStorage_visit_out,
         rinfo
     );
-    if (!buildstorageresult) {
-        // Mark as done anyway, even when it failed:
-        unresolved_ast->global_storage_built = 1;
+    if (!buildstorageresult)
         return 0;
-    }
-
-    // Mark ourselves as done: (IMPORTANT, keep this before recursing below)
-    unresolved_ast->global_storage_built = 1;
 
     // Do recursive handling if asked for:
     if (recursive) {
@@ -1143,7 +1140,10 @@ int scoperesolver_ResolveAST(
     assert(unresolved_ast != NULL);
     if (unresolved_ast->identifiers_resolved)
         return 1;
-    assert(pr->program->main_func_index < 0 || !extract_program_main);
+    unresolved_ast->identifiers_resolved = 1;  // mark done even if failing
+    assert(
+        pr->program->main_func_index < 0 || !extract_program_main
+    );
 
     resolveinfo rinfo;
     memset(&rinfo, 0, sizeof(rinfo));
@@ -1212,6 +1212,5 @@ int scoperesolver_ResolveAST(
                 return 0;
         }
     }
-    unresolved_ast->identifiers_resolved = 1;
     return 1;
 }
