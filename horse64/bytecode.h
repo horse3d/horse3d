@@ -11,9 +11,17 @@ typedef uint32_t unicodechar;
 
 typedef enum instructiontype {
     H64INST_INVALID = 0,
-    H64INST_STACKSETCONST = 1,
-    H64INST_GLOBALSETCONST
+    H64INST_SETCONST = 1,
+    H64INST_SETGLOBAL,
+    H64INST_GETGLOBAL,
+    H64INST_VALUECOPY,
+    H64INST_BINOP,
+    H64INST_UNOP,
+    H64INST_CALL,
+    H64INST_TOTAL_COUNT
 } instructiontype;
+
+const char *bytecode_InstructionTypeToStr(instructiontype itype);
 
 typedef enum storagetype {
     H64STORETYPE_INVALID = 0,

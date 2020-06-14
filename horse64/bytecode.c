@@ -13,6 +13,41 @@
 #include "hash.h"
 #include "uri.h"
 
+
+static char _name_itype_invalid[] = "invalid_instruction";
+static char _name_itype_setconst[] = "setconst";
+static char _name_itype_setglobal[] = "setglobal";
+static char _name_itype_getglobal[] = "getglobal";
+static char _name_itype_valuecopy[] = "valuecopy";
+static char _name_itype_binop[] = "binop";
+static char _name_itype_unop[] = "unop";
+static char _name_itype_call[] = "call";
+
+const char *bytecode_InstructionTypeToStr(instructiontype itype) {
+    switch (itype) {
+    case H64INST_INVALID:
+        return _name_itype_invalid;
+    case H64INST_SETCONST:
+        return _name_itype_setconst;
+    case H64INST_SETGLOBAL:
+        return _name_itype_setglobal;
+    case H64INST_GETGLOBAL:
+        return _name_itype_getglobal;
+    case H64INST_VALUECOPY:
+        return _name_itype_valuecopy;
+    case H64INST_BINOP:
+        return _name_itype_binop;
+    case H64INST_UNOP:
+        return _name_itype_unop;
+    case H64INST_CALL:
+        return _name_itype_call;
+    default:
+        fprintf(stderr, "bytecode_InstructionTypeToStr: called "
+                "on invalid value %d\n", itype);
+        return _name_itype_invalid;
+    }
+}
+
 h64program *h64program_New() {
     h64program *p = malloc(sizeof(*p));
     if (!p)
