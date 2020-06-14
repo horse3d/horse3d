@@ -20,6 +20,8 @@ typedef struct h64localstorageassign {
 
 typedef struct h64storageextrainfo {
     int lowest_guaranteed_free_temp;
+    int temp_calculation_slots;
+    int _temp_calc_slots_used_right_now;  // used by codegen
 
     int closureboundvars_count;
     h64scopedef **closureboundvars;
