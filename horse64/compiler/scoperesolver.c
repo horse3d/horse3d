@@ -99,6 +99,7 @@ static int scoperesolver_ComputeItemStorage(
         const char *name = NULL;
         if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
             name = expr->vardef.identifier;
+            assert(name != NULL);
             int64_t global_id = -1;
             if ((global_id = h64program_AddGlobalvar(
                     program, name,

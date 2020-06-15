@@ -41,14 +41,19 @@ typedef enum valuetype {
     H64VALTYPE_INVALID = 0,
     H64VALTYPE_INT64 = 1,
     H64VALTYPE_FLOAT64,
+    H64VALTYPE_BOOL,
+    H64VALTYPE_NONE,
     H64VALTYPE_CFUNCREF,
     H64VALTYPE_SIMPLEFUNCREF,
     H64VALTYPE_CLOSUREFUNCREF,
     H64VALTYPE_EMPTYARG,
     H64VALTYPE_ERROR,
     H64VALTYPE_GCVAL,
-    H64VALTYPE_SHORTSTR
+    H64VALTYPE_SHORTSTR,
+    H64VALTYPE_CONSTPREALLOCSTR
 } valuetype;
+
+#define VALUECONTENT_SHORTSTRLEN 2
 
 typedef struct valuecontent {
     uint8_t type;
@@ -57,27 +62,37 @@ typedef struct valuecontent {
         double float_value;
         void *ptr_value;
         struct {
-            unicodechar shortstr_value[3];
+            unicodechar shortstr_value[
+                VALUECONTENT_SHORTSTRLEN + 1
+            ];
             uint8_t shortstr_len;
         };
+        struct {
+            unicodechar *constpreallocstr_value;
+            int64_t constpreallocstr_len;
+        };
     };
-} valuecontent;
+} __attribute__((packed)) valuecontent;
 
 typedef struct h64instructionany {
     uint8_t type;
-} __attribute__((packed))h64instructionany;
+} __attribute__((packed)) h64instructionany;
 
 typedef struct h64instruction_stacksetconst {
     uint8_t type;
     int64_t slot;
     valuecontent content;
-} __attribute__((packed)) stacksetconst;
+} __attribute__((packed)) h64instruction_stacksetconst;
 
-typedef struct h64instruction_globalsetconst {
+typedef struct h64instruction_setglobal {
     uint8_t type;
-    int64_t slot;
-    valuecontent content;
-} __attribute__((packed)) h64instruction_globalsetconst;
+    int64_t globalto, slotfrom;
+} __attribute__((packed)) h64instruction_setglobal;
+
+typedef struct h64instruction_valuecopy {
+    uint8_t type;
+    int64_t slotto, slotfrom;
+} __attribute__((packed)) h64instruction_valuecopy;
 
 
 #define H64CLASS_HASH_SIZE 16
@@ -114,7 +129,7 @@ typedef struct h64func {
     union {
         struct {
             int instructions_bytes;
-            h64instructionany *instructions;
+            char *instructions;
         };
         struct {
             void *cfunc_ptr;

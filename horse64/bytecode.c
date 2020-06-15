@@ -356,7 +356,7 @@ int h64program_AddGlobalvar(
         const char *module_path,
         const char *library_name
         ) {
-    assert(p != NULL && p->symbols != NULL);
+    assert(p != NULL && p->symbols != NULL && name != NULL);
     h64globalvar *new_globalvar = realloc(
         p->globalvar, sizeof(*p->globalvar) * (p->globalvar_count + 1)
     );
