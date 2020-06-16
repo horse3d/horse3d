@@ -165,19 +165,20 @@ int _codegencallback_DoCodegen_visit_out(
             (expr->parent->type != H64EXPRTYPE_BINARYOP ||
              expr->parent->op.optype != H64OP_MEMBERBYIDENTIFIER ||
              expr->parent->op.value1 == expr ||
-             expr->parent->parent != H64EXPRTYPE_ASSIGN_STMT ||
-             expr->parent != expr->parent->parent.assignstmt.lvalue)
+             expr->parent->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
+             expr->parent != expr->parent->parent->assignstmt.lvalue)
             ))) {  // identifier that isn't directly being assigned to
-        if (expr->resolved_to_expr == H64EXPRTYPE_IMPORT_STMT)
+        if (expr->identifierref.resolved_to_expr->type ==
+                H64EXPRTYPE_IMPORT_STMT)
             return 1;  // nothing to do with those
         assert(expr->storage.set);
-        if (expr->storage.type == H64STORETYPE_STACKSLOT) {
-            expr->_exprstoredintemp = expr->storage.id;
-        } else if (expr->storage.type == H64STORETYPE_GLOBALVARSLOT) {
+        if (expr->storage.ref.type == H64STORETYPE_STACKSLOT) {
+            expr->storage._exprstoredintemp = expr->storage.ref.id;
+        } else if (expr->storage.ref.type == H64STORETYPE_GLOBALVARSLOT) {
             // FIXME: emit getglobal
-        } else if (expr->storage.type == H64STORETYPE_GLOBALFUNCSLOT) {
+        } else if (expr->storage.ref.type == H64STORETYPE_GLOBALFUNCSLOT) {
             // FIXME: create func ref
-        } else if (expr->storage.type == H64STORETYPE_GLOBALCLASSSLOT) {
+        } else if (expr->storage.ref.type == H64STORETYPE_GLOBALCLASSSLOT) {
             // FIXME: create class ref
         }
     } else if ((expr->type == H64EXPRTYPE_VARDEF_STMT &&
