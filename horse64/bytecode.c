@@ -277,6 +277,61 @@ void h64program_PrintBytecodeStats(h64program *p) {
     }
 }
 
+void valuecontent_Free(valuecontent *content) {
+    if (!content)
+        return;
+    if (content->type == H64VALTYPE_CONSTPREALLOCSTR)
+        free(content->constpreallocstr_value);
+    free(content);
+}
+
+void h64program_FreeInstructions(
+        char *instructionbytes,
+        int instructionbytes_len
+        ) {
+    char *p = instructionbytes;
+    int len = instructionbytes_len;
+    while (len > 0) {
+        size_t nextelement = h64program_PtrToInstructionSize(p);
+        h64instructionany *inst = (h64instructionany*)p;
+        if (inst->type == H64INST_SETCONST) {
+            h64instruction_setconst *instsetconst = (void *)p;
+            valuecontent_Free(&instsetconst->content);
+        }
+        len -= (int)nextelement;
+    }
+    free(instructionbytes);
+}
+
+size_t h64program_PtrToInstructionSize(char *ptr) {
+    if (!ptr)
+        return 0;
+    h64instructionany *inst = ptr;
+    switch (inst->type) {
+    case H64INST_SETCONST:
+        return sizeof(h64instruction_setconst);
+    case H64INST_SETGLOBAL:
+        return sizeof(h64instruction_setglobal);
+    case H64INST_GETGLOBAL:
+        return 0;
+    case H64INST_VALUECOPY:
+        return sizeof(h64instruction_valuecopy);
+    case H64INST_BINOP:
+        return 0;
+    case H64INST_UNOP:
+        return 0;
+    case H64INST_CALL:
+        return 0;
+    default:
+        fprintf(
+            stderr, "Invalid inst type for "
+            "h64program_PtrToInstructionSize: %d\n",
+            (int)inst->type
+        );
+    }
+    return 0;
+}
+
 void h64program_Free(h64program *p) {
     if (!p)
         return;

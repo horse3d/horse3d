@@ -78,11 +78,11 @@ typedef struct h64instructionany {
     uint8_t type;
 } __attribute__((packed)) h64instructionany;
 
-typedef struct h64instruction_stacksetconst {
+typedef struct h64instruction_setconst {
     uint8_t type;
     int64_t slot;
     valuecontent content;
-} __attribute__((packed)) h64instruction_stacksetconst;
+} __attribute__((packed)) h64instruction_setconst;
 
 typedef struct h64instruction_setglobal {
     uint8_t type;
@@ -162,6 +162,10 @@ h64program *h64program_New();
 
 typedef struct h64vmthread h64vmthread;
 
+size_t h64program_PtrToInstructionSize(
+    char *ptr
+);
+
 static inline void h64program_ClearValueContent(
         valuecontent *content, int referencedfromnonheap
         ) {
@@ -173,6 +177,12 @@ static inline void h64program_ClearValueContent(
         }
     }
 }
+
+void valuecontent_Free(valuecontent *content);
+
+void h64program_FreeInstructions(
+    char *instructionbytes, int instructionbytes_len
+);
 
 void h64program_LookupClassMember(
     h64program *p, int64_t class_id, int64_t nameid,
