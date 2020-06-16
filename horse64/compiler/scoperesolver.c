@@ -653,7 +653,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 if (_mapto == NULL) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
-                        "unexpected reference to module path %s, "
+                        "unexpected reference to module path \"%s\", "
                         "not found among this file's imports",
                         full_imp_path
                     );
@@ -735,8 +735,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         refitemname, &number) || number == 0) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
-                        "unexpected unknown identifier %s "
-                        "not found in module %s",
+                        "unexpected unknown identifier \"%s\" "
+                        "not found in module \"%s\"",
                         refitemname,
                         full_imp_path
                     );
