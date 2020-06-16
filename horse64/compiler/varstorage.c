@@ -274,6 +274,15 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
         vardefexpr->storage.ref.type = H64STORETYPE_STACKSLOT;
         vardefexpr->storage.ref.id = besttemp;
         einfo->lstoreassign_count++;
+    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
+            !expr->storage.set) {
+        h64expression *mapsto = expr->identifierref.resolved_to_expr;
+        if (mapsto != NULL && mapsto->type != H64EXPRTYPE_IMPORT_STMT &&
+                mapsto->storage.set) {
+            memcpy(
+                &expr->storage, &mapsto->storage, sizeof(expr->storage)
+            );
+        }
     }
     return 1;
 }
