@@ -81,8 +81,6 @@ typedef struct h64expression {
     struct storage {
         int set;
         storageref ref;
-        int withvarbox;
-        storageref varboxref;
         int _exprstoredintemp;
     } storage;
     struct knownvalue {

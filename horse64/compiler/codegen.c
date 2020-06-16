@@ -29,7 +29,8 @@ int appendinst(
         h64expression *func, void *ptr, size_t len
         ) {
     assert(p != NULL);
-    assert(func != NULL && func->type == H64EXPRTYPE_FUNCDEF_STMT);
+    assert(func != NULL && (func->type == H64EXPRTYPE_FUNCDEF_STMT ||
+           func->type == H64EXPRTYPE_INLINEFUNCDEF));
     int id = func->funcdef.bytecode_func_id;
     assert(id >= 0 && id < p->func_count);
     char *instructionsnew = realloc(
@@ -61,7 +62,7 @@ int _codegencallback_DoCodegen_visit_out(
 
     if (expr->type == H64EXPRTYPE_LITERAL) {
         int temp = newcalctemp(func);
-        h64instruction_stacksetconst inst = {0};
+        h64instruction_setconst inst = {0};
         inst.type = H64INST_SETCONST;
         memset(&inst.content, 0, sizeof(inst.content));
         if (expr->literal.type == H64TK_CONSTANT_INT) {

@@ -113,14 +113,6 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
                     einfo->closureboundvars[i]->declarationexpr
                 );
                 assert(vardefexpr->type == H64EXPRTYPE_VARDEF_STMT);
-                assert(!vardefexpr->storage.set);
-                vardefexpr->storage.set = 1;
-                vardefexpr->storage.ref.type = H64STORETYPE_STACKSLOT;
-                vardefexpr->storage.ref.id = freetemp;
-                assert(!vardefexpr->storage.withvarbox);
-                vardefexpr->storage.withvarbox = 1;
-                vardefexpr->storage.varboxref.type = H64STORETYPE_STACKSLOT;
-                vardefexpr->storage.varboxref.id = i;
                 einfo->lstoreassign_count++;
                 freetemp++;
                 i++;
@@ -163,6 +155,16 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
               (expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
                expr->funcdef.foundinscope : &expr->forstmt.scope)))
         );
+        #ifndef NDEBUG
+        assert(expr->type != H64EXPRTYPE_VARDEF_STMT ||
+               expr->vardef.identifier != NULL);
+        assert(expr->type != H64EXPRTYPE_FUNCDEF_STMT ||
+               expr->funcdef.name != NULL);
+        assert(expr->type != H64EXPRTYPE_TRY_STMT ||
+               expr->trystmt.exception_name != NULL);
+        assert(expr->type != H64EXPRTYPE_FOR_STMT ||
+               expr->forstmt.iterator_identifier != NULL);
+        #endif
         h64scopedef *scopedef = scope_QueryItem(
             scope,
             (expr->type == H64EXPRTYPE_VARDEF_STMT ?
@@ -267,17 +269,10 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
         h64expression *vardefexpr = (
             scopedef->declarationexpr
         );
-        assert(vardefexpr->type == H64EXPRTYPE_VARDEF_STMT);
         assert(!vardefexpr->storage.set);
         vardefexpr->storage.set = 1;
         vardefexpr->storage.ref.type = H64STORETYPE_STACKSLOT;
         vardefexpr->storage.ref.id = besttemp;
-        assert(!vardefexpr->storage.withvarbox);
-        if (valueboxid >= 0) {
-            vardefexpr->storage.withvarbox = 1;
-            vardefexpr->storage.varboxref.type = H64STORETYPE_STACKSLOT;
-            vardefexpr->storage.varboxref.id = valueboxid;
-        }
         einfo->lstoreassign_count++;
     }
     return 1;
