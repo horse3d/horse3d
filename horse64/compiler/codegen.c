@@ -111,7 +111,7 @@ int _codegencallback_DoCodegen_visit_out(
             }
             assert(!abortinvalid);
             assert(!abortoom);
-            if (out_len <= H64VALTYPE_SHORTSTR) {
+            if (out_len <= VALUECONTENT_SHORTSTRLEN) {
                 memcpy(
                     inst.content.shortstr_value,
                     result, out_len * sizeof(*result)
@@ -120,7 +120,7 @@ int _codegencallback_DoCodegen_visit_out(
             } else {
                 inst.content.type = H64VALTYPE_CONSTPREALLOCSTR;
                 inst.content.constpreallocstr_value = malloc(
-                    out_len
+                    out_len * sizeof(*result)
                 );
                 if (!inst.content.constpreallocstr_value) {
                     rinfo->hadoutofmemory = 1;
