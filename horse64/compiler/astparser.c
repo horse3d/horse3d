@@ -3339,8 +3339,8 @@ int ast_ParseExprStmt(
         }
 
         if (i < max_tokens_touse &&
-                tokens[0].type == H64TK_KEYWORD &&
-                strcmp(tokens[0].str_value, "extends") == 0) {
+                tokens[i].type == H64TK_KEYWORD &&
+                strcmp(tokens[i].str_value, "extends") == 0) {
             i++;
             int tlen = 0;
             int innerparsefail = 0;
