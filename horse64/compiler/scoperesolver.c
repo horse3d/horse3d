@@ -328,6 +328,26 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
     resolveinfo *rinfo = (resolveinfo*)atinfo->userdata;
     assert(rinfo != NULL);
 
+    // Add keyword argument names as global name indexes:
+    if (expr->type == H64EXPRTYPE_CALL) {
+        int i = 0;
+        while (i < expr->funcdef.arguments.arg_count) {
+            if (!expr->funcdef.arguments.arg_name[i]) {
+                i++;
+                continue;
+            }
+            int64_t idx = h64debugsymbols_MemberNameToMemberNameId(
+                atinfo->pr->program->symbols,
+                expr->funcdef.arguments.arg_name[i], 1
+            );
+            if (idx < 0) {
+                atinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            i++;
+        }
+    }
+
     // Add file-global items to the project-global item lookups:
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_CLASSDEF_STMT ||

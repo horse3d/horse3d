@@ -133,7 +133,7 @@ int disassembler_Dump(
                 h64debugsymbols_GetModuleSymbolsByFuncId(
                     p->symbols, i
                 ));
-            if (fsymbol && msymbols) {
+            if (fsymbol && msymbols && !p->func[i].iscfunc) {
                 char spaces[1024] = "";
                 while (strlen(spaces) < sizeof(spaces) - 1 &&
                         strlen(spaces) < strlen(linebuf)) {

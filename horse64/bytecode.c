@@ -18,10 +18,15 @@ static char _name_itype_invalid[] = "invalid_instruction";
 static char _name_itype_setconst[] = "setconst";
 static char _name_itype_setglobal[] = "setglobal";
 static char _name_itype_getglobal[] = "getglobal";
+static char _name_itype_getfunc[] = "getfunc";
+static char _name_itype_getclass[] = "getclass";
 static char _name_itype_valuecopy[] = "valuecopy";
 static char _name_itype_binop[] = "binop";
 static char _name_itype_unop[] = "unop";
-static char _name_itype_call[] = "call";
+static char _name_itype_startcall[] = "startcall";
+static char _name_itype_posarg[] = "posarg";
+static char _name_itype_kwarg[] = "kwarg";
+static char _name_itype_docall[] = "docall";
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
     switch (itype) {
@@ -33,14 +38,24 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_setglobal;
     case H64INST_GETGLOBAL:
         return _name_itype_getglobal;
+    case H64INST_GETFUNC:
+        return _name_itype_getfunc;
+    case H64INST_GETCLASS:
+        return _name_itype_getclass;
     case H64INST_VALUECOPY:
         return _name_itype_valuecopy;
     case H64INST_BINOP:
         return _name_itype_binop;
     case H64INST_UNOP:
         return _name_itype_unop;
-    case H64INST_CALL:
-        return _name_itype_call;
+    case H64INST_STARTCALL:
+        return _name_itype_startcall;
+    case H64INST_POSARG:
+        return _name_itype_posarg;
+    case H64INST_KWARG:
+        return _name_itype_kwarg;
+    case H64INST_DOCALL:
+        return _name_itype_docall;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -320,15 +335,25 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
     case H64INST_SETGLOBAL:
         return sizeof(h64instruction_setglobal);
     case H64INST_GETGLOBAL:
-        return 0;
+        return sizeof(h64instruction_getglobal);
+    case H64INST_GETFUNC:
+        return sizeof(h64instruction_getfunc);
+    case H64INST_GETCLASS:
+        return sizeof(h64instruction_getclass);
     case H64INST_VALUECOPY:
         return sizeof(h64instruction_valuecopy);
     case H64INST_BINOP:
-        return 0;
+        return sizeof(h64instruction_binop);
     case H64INST_UNOP:
-        return 0;
-    case H64INST_CALL:
-        return 0;
+        return sizeof(h64instruction_unop);
+    case H64INST_STARTCALL:
+        return sizeof(h64instruction_startcall);
+    case H64INST_POSARG:
+        return sizeof(h64instruction_posarg);
+    case H64INST_KWARG:
+        return sizeof(h64instruction_kwarg);
+    case H64INST_DOCALL:
+        return sizeof(h64instruction_docall);
     default:
         fprintf(
             stderr, "Invalid inst type for "

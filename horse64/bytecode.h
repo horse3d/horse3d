@@ -15,10 +15,15 @@ typedef enum instructiontype {
     H64INST_SETCONST = 1,
     H64INST_SETGLOBAL,
     H64INST_GETGLOBAL,
+    H64INST_GETFUNC,
+    H64INST_GETCLASS,
     H64INST_VALUECOPY,
     H64INST_BINOP,
     H64INST_UNOP,
-    H64INST_CALL,
+    H64INST_STARTCALL,
+    H64INST_POSARG,
+    H64INST_KWARG,
+    H64INST_DOCALL,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -87,13 +92,65 @@ typedef struct h64instruction_setconst {
 
 typedef struct h64instruction_setglobal {
     uint8_t type;
-    int16_t globalto, slotfrom;
+    int64_t globalto;
+    int16_t slotfrom;
 } __attribute__((packed)) h64instruction_setglobal;
+
+typedef struct h64instruction_getglobal {
+    uint8_t type;
+    int16_t slotto;
+    int64_t globalfrom;
+} __attribute__((packed)) h64instruction_getglobal;
+
+typedef struct h64instruction_getfunc {
+    uint8_t type;
+    int16_t slotto;
+    int64_t funcfrom;
+} __attribute__((packed)) h64instruction_getfunc;
+
+typedef struct h64instruction_getclass {
+    uint8_t type;
+    int16_t slotto;
+    int64_t classfrom;
+} __attribute__((packed)) h64instruction_getclass;
 
 typedef struct h64instruction_valuecopy {
     uint8_t type;
     int16_t slotto, slotfrom;
 } __attribute__((packed)) h64instruction_valuecopy;
+
+typedef struct h64instruction_binop {
+    uint8_t type;
+    uint8_t optype;
+    int16_t slotto, arg1slotfrom, arg2slotfrom;
+} __attribute__((packed)) h64instruction_binop;
+
+typedef struct h64instruction_unop {
+    uint8_t type;
+    uint8_t optype;
+    int16_t slotto, argslotfrom;
+} __attribute__((packed)) h64instruction_unop;
+
+typedef struct h64instruction_startcall {
+    uint8_t type;
+    int16_t slotcalled, slotreturnvalue;
+} __attribute__((packed)) h64instruction_startcall;
+
+typedef struct h64instruction_kwarg {
+    uint8_t type;
+    int16_t argslotfrom;
+    int64_t nameidx;
+} __attribute__((packed)) h64instruction_kwarg;
+
+typedef struct h64instruction_posarg {
+    uint8_t type;
+    int16_t argslotfrom;
+    uint8_t multiargfromlist;
+} __attribute__((packed)) h64instruction_posarg;
+
+typedef struct h64instruction_docall {
+    uint8_t type;
+} __attribute__((packed)) h64instruction_docall;
 
 
 #define H64CLASS_HASH_SIZE 16

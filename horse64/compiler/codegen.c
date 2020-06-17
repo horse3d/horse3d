@@ -30,7 +30,9 @@ int newcalctemp(h64expression *func) {
 
 int appendinst(
         h64program *p,
-        h64expression *func, void *ptr, size_t len
+        h64expression *func,
+        h64expression *corresondingexpr,
+        void *ptr, size_t len
         ) {
     assert(p != NULL);
     assert(func != NULL && (func->type == H64EXPRTYPE_FUNCDEF_STMT ||
@@ -210,37 +212,222 @@ int _codegencallback_DoCodegen_visit_out(
             }
             return 1;
         }
-        if (!appendinst(rinfo->pr->program, func,
+        if (!appendinst(rinfo->pr->program, func, expr,
                         &inst, sizeof(inst))) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
         expr->storage._exprstoredintemp = temp;
-    } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
+    } else if (expr->type == H64EXPRTYPE_BINARYOP && (
+            expr->op.optype != H64OP_MEMBERBYIDENTIFIER ||
+            !expr->parent->op.value1->storage.set)) {
+        int temp = -1;
+        storageref *parent_store = NULL;
+        if (expr->parent &&
+                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
+            get_assign_lvalue_storage(expr->parent, &parent_store);
+        if (parent_store && parent_store->type ==
+                H64STORETYPE_STACKSLOT) {
+            temp = parent_store->id;
+        } else {
+            temp = newcalctemp(func);
+        }
+        h64instruction_binop inst_binop = {0};
+        inst_binop.type = H64INST_BINOP;
+        inst_binop.slotto = temp;
+        inst_binop.arg1slotfrom = expr->op.value1->storage._exprstoredintemp;
+        inst_binop.arg2slotfrom = expr->op.value2->storage._exprstoredintemp;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_binop, sizeof(inst_binop))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+    } else if (expr->type == H64EXPRTYPE_CALL) {
+        int temp = -1;
+        storageref *parent_store = NULL;
+        if (expr->parent &&
+                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
+            get_assign_lvalue_storage(expr->parent, &parent_store);
+        if (parent_store && parent_store->type ==
+                H64STORETYPE_STACKSLOT) {
+            temp = parent_store->id;
+        } else {
+            temp = newcalctemp(func);
+        }
+        expr->storage._exprstoredintemp = temp;
+        int calledexprstoragetemp = (
+            expr->inlinecall.value->storage._exprstoredintemp
+        );
+        h64instruction_startcall inst_startcall = {0};
+        inst_startcall.type = H64INST_BINOP;
+        inst_startcall.slotcalled = calledexprstoragetemp;
+        inst_startcall.slotreturnvalue = temp;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_startcall, sizeof(inst_startcall))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        int iskwarg = 0;
+        int i = 0;
+        while (i < expr->funcdef.arguments.arg_count) {
+            if (expr->funcdef.arguments.arg_name[i])
+                iskwarg = 1;
+            int ismultiarg = 0;
+            if (iskwarg) {
+                assert(expr->funcdef.arguments.arg_name[i] != NULL);
+                int64_t kwnameidx = (
+                    h64debugsymbols_MemberNameToMemberNameId(
+                        rinfo->pr->program->symbols,
+                        expr->funcdef.arguments.arg_name[i],
+                        0
+                    ));
+                if (kwnameidx < 0) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "internal error: cannot map kw arg name: %s",
+                        expr->funcdef.arguments.arg_name[i]
+                    );
+                    if (!result_AddMessage(
+                            &rinfo->ast->resultmsg,
+                            H64MSG_ERROR, buf,
+                            rinfo->ast->fileuri,
+                            expr->line, expr->column
+                            )) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                    return 1;
+                }
+                h64instruction_kwarg inst_kwarg = {0};
+                inst_kwarg.type = H64INST_KWARG;
+                inst_kwarg.argslotfrom = (
+                    expr->funcdef.arguments.arg_value[i]->
+                        storage._exprstoredintemp);
+                inst_kwarg.nameidx = kwnameidx;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_kwarg, sizeof(inst_kwarg))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            } else if (i + 1 < expr->funcdef.arguments.arg_count &&
+                    expr->funcdef.arguments.arg_name[i]) {
+                ismultiarg = 1;
+            }
+            if (!iskwarg) {
+                h64instruction_posarg inst_posarg = {0};
+                inst_posarg.type = H64INST_POSARG;
+                inst_posarg.argslotfrom = (
+                    expr->funcdef.arguments.arg_value[i]->
+                        storage._exprstoredintemp);
+                inst_posarg.multiargfromlist = ismultiarg;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_posarg, sizeof(inst_posarg))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+            i++;
+        }
+        h64instruction_docall inst_docall = {0};
+        inst_docall.type = H64INST_DOCALL;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_docall, sizeof(inst_docall))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+    } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
+            expr->type == H64EXPRTYPE_CALL_STMT) {
         // Nothing to do
     } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
-        if (expr->parent == NULL || (
-                (expr->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
-                 expr->parent->assignstmt.lvalue != expr) &&
-                (expr->parent->type != H64EXPRTYPE_BINARYOP ||
-                 expr->parent->op.optype != H64OP_MEMBERBYIDENTIFIER ||
-                 expr->parent->op.value1 == expr ||
-                 expr->parent->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
-                 expr->parent != expr->parent->parent->assignstmt.lvalue)
-                )) {  // identifier that isn't directly being assigned to
-            if (expr->identifierref.resolved_to_expr &&
-                    expr->identifierref.resolved_to_expr->type ==
-                    H64EXPRTYPE_IMPORT_STMT)
-                return 1;  // nothing to do with those
-            assert(expr->storage.set);
-            if (expr->storage.ref.type == H64STORETYPE_STACKSLOT) {
-                expr->storage._exprstoredintemp = expr->storage.ref.id;
-            } else if (expr->storage.ref.type == H64STORETYPE_GLOBALVARSLOT) {
-                // FIXME: emit getglobal
-            } else if (expr->storage.ref.type == H64STORETYPE_GLOBALFUNCSLOT) {
-                // FIXME: create func ref
-            } else if (expr->storage.ref.type == H64STORETYPE_GLOBALCLASSSLOT) {
-                // FIXME: create class ref
+        if (expr->parent != NULL && (
+                (expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+                 expr->parent->assignstmt.lvalue == expr) ||
+                (expr->parent->type == H64EXPRTYPE_BINARYOP &&
+                 expr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+                 expr->parent->op.value2 == expr &&
+                 !expr->storage.set &&
+                 expr->parent->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+                 expr->parent == expr->parent->parent->assignstmt.lvalue)
+                )) {
+            // identifier is assigned to, will be handled later
+            return 1;
+        }
+        if (expr->identifierref.resolved_to_expr &&
+                expr->identifierref.resolved_to_expr->type ==
+                H64EXPRTYPE_IMPORT_STMT)
+            return 1;  // nothing to do with those
+        assert(expr->storage.set);
+        if (expr->storage.ref.type == H64STORETYPE_STACKSLOT) {
+            expr->storage._exprstoredintemp = expr->storage.ref.id;
+        } else {
+            int temp = -1;
+            storageref *parent_store = NULL;
+            if (expr->parent &&
+                    expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
+                get_assign_lvalue_storage(expr->parent, &parent_store);
+            if (parent_store && parent_store->type ==
+                    H64STORETYPE_STACKSLOT) {
+                temp = parent_store->id;
+            } else {
+                temp = newcalctemp(func);
+            }
+            expr->storage._exprstoredintemp = temp;
+            if (expr->storage.ref.type == H64STORETYPE_GLOBALVARSLOT) {
+                h64instruction_getglobal inst_getglobal = {0};
+                inst_getglobal.type = H64INST_GETGLOBAL;
+                inst_getglobal.slotto = temp;
+                inst_getglobal.globalfrom = expr->storage.ref.id;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_getglobal, sizeof(inst_getglobal))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            } else if (expr->storage.ref.type ==
+                    H64STORETYPE_GLOBALFUNCSLOT) {
+                h64instruction_getfunc inst_getfunc = {0};
+                inst_getfunc.type = H64INST_GETFUNC;
+                inst_getfunc.slotto = temp;
+                inst_getfunc.funcfrom = expr->storage.ref.id;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_getfunc, sizeof(inst_getfunc))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            } else if (expr->storage.ref.type ==
+                    H64STORETYPE_GLOBALCLASSSLOT) {
+                h64instruction_getclass inst_getclass = {0};
+                inst_getclass.type = H64INST_GETCLASS;
+                inst_getclass.slotto = temp;
+                inst_getclass.classfrom = expr->storage.ref.id;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_getclass, sizeof(inst_getclass))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            } else {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "internal error: unhandled storage type %d",
+                    (int)expr->storage.ref.type
+                );
+                if (!result_AddMessage(
+                        &rinfo->ast->resultmsg,
+                        H64MSG_ERROR, buf,
+                        rinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                return 1;
             }
         }
     } else if ((expr->type == H64EXPRTYPE_VARDEF_STMT &&
@@ -280,7 +467,7 @@ int _codegencallback_DoCodegen_visit_out(
             inst.type = H64INST_SETGLOBAL;
             inst.globalto = str->id;
             inst.slotfrom = assignfromtemporary;
-            if (!appendinst(rinfo->pr->program, func,
+            if (!appendinst(rinfo->pr->program, func, expr,
                             &inst, sizeof(inst))) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
@@ -291,7 +478,7 @@ int _codegencallback_DoCodegen_visit_out(
             inst.type = H64INST_VALUECOPY;
             inst.slotto = str->id;
             inst.slotfrom = assignfromtemporary;
-            if (!appendinst(rinfo->pr->program, func,
+            if (!appendinst(rinfo->pr->program, func, expr,
                             &inst, sizeof(inst))) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
