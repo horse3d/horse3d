@@ -21,7 +21,8 @@ int newcalctemp(h64expression *func) {
         func->funcdef._storageinfo->temp_calculation_slots = (
             func->funcdef._storageinfo->_temp_calc_slots_used_right_now
         );
-    return func->funcdef._storageinfo->_temp_calc_slots_used_right_now;
+    return func->funcdef._storageinfo->_temp_calc_slots_used_right_now +
+        func->funcdef._storageinfo->lowest_guaranteed_free_temp;
 }
 
 int appendinst(
@@ -50,6 +51,25 @@ int appendinst(
     return 1;
 }
 
+static void get_assign_lvalue_storage(
+        h64expression *expr,
+        storageref **out_storageref
+        ) {
+    assert(expr->type == H64EXPRTYPE_ASSIGN_STMT);
+    if (expr->assignstmt.lvalue->type ==
+            H64EXPRTYPE_BINARYOP &&
+            expr->assignstmt.lvalue->op.optype ==
+                H64OP_MEMBERBYIDENTIFIER &&
+            expr->assignstmt.lvalue->op.value2->storage.set) {
+        *out_storageref = &(
+            expr->assignstmt.lvalue->op.value2->storage.ref
+        );
+    } else {
+        assert(expr->assignstmt.lvalue->storage.set);
+        *out_storageref = &expr->assignstmt.lvalue->storage.ref;
+    }
+}
+
 int _codegencallback_DoCodegen_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
@@ -61,9 +81,19 @@ int _codegencallback_DoCodegen_visit_out(
     }
 
     if (expr->type == H64EXPRTYPE_LITERAL) {
-        int temp = newcalctemp(func);
+        int temp = -1;
+        storageref *parent_store = NULL;
+        if (expr->parent &&
+                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
+            get_assign_lvalue_storage(expr->parent, &parent_store);
+        if (parent_store && parent_store->type == H64STORETYPE_STACKSLOT) {
+            temp = parent_store->id;
+        } else {
+            temp = newcalctemp(func);
+        }
         h64instruction_setconst inst = {0};
         inst.type = H64INST_SETCONST;
+        inst.slot = temp;
         memset(&inst.content, 0, sizeof(inst.content));
         if (expr->literal.type == H64TK_CONSTANT_INT) {
             inst.content.type = H64VALTYPE_INT64;
@@ -155,31 +185,54 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         expr->storage._exprstoredintemp = temp;
-    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
-            expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
+    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+        // Determine final amount of temporaries/stack slots used:
+        h64funcsymbol *fsymbol = h64debugsymbols_GetFuncSymbolById(
+            rinfo->pr->program->symbols, func->funcdef.bytecode_func_id
+        );
+        func->funcdef._storageinfo->lowest_guaranteed_free_temp +=
+            func->funcdef._storageinfo->temp_calculation_slots;
+        fsymbol->closure_bound_count =
+            func->funcdef._storageinfo->closureboundvars_count;
+        fsymbol->stack_temporaries_count =
+            (func->funcdef._storageinfo->lowest_guaranteed_free_temp -
+             fsymbol->closure_bound_count -
+             fsymbol->arg_count -
+             (fsymbol->has_self_arg ? 1 : 0));
+        rinfo->pr->program->func[func->funcdef.bytecode_func_id].
+            inner_stack_size = fsymbol->stack_temporaries_count;
+        rinfo->pr->program->func[func->funcdef.bytecode_func_id].
+            input_stack_size = (
+                fsymbol->closure_bound_count +
+                fsymbol->arg_count +
+                (fsymbol->has_self_arg ? 1 : 0)
+            );
+    } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
         // Nothing to do
-    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF && (
-            expr->parent == NULL || (
-            (expr->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
-             expr->parent->assignstmt.lvalue != expr) &&
-            (expr->parent->type != H64EXPRTYPE_BINARYOP ||
-             expr->parent->op.optype != H64OP_MEMBERBYIDENTIFIER ||
-             expr->parent->op.value1 == expr ||
-             expr->parent->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
-             expr->parent != expr->parent->parent->assignstmt.lvalue)
-            ))) {  // identifier that isn't directly being assigned to
-        if (expr->identifierref.resolved_to_expr->type ==
-                H64EXPRTYPE_IMPORT_STMT)
-            return 1;  // nothing to do with those
-        assert(expr->storage.set);
-        if (expr->storage.ref.type == H64STORETYPE_STACKSLOT) {
-            expr->storage._exprstoredintemp = expr->storage.ref.id;
-        } else if (expr->storage.ref.type == H64STORETYPE_GLOBALVARSLOT) {
-            // FIXME: emit getglobal
-        } else if (expr->storage.ref.type == H64STORETYPE_GLOBALFUNCSLOT) {
-            // FIXME: create func ref
-        } else if (expr->storage.ref.type == H64STORETYPE_GLOBALCLASSSLOT) {
-            // FIXME: create class ref
+    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
+        if (expr->parent == NULL || (
+                (expr->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
+                 expr->parent->assignstmt.lvalue != expr) &&
+                (expr->parent->type != H64EXPRTYPE_BINARYOP ||
+                 expr->parent->op.optype != H64OP_MEMBERBYIDENTIFIER ||
+                 expr->parent->op.value1 == expr ||
+                 expr->parent->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
+                 expr->parent != expr->parent->parent->assignstmt.lvalue)
+                )) {  // identifier that isn't directly being assigned to
+            if (expr->identifierref.resolved_to_expr &&
+                    expr->identifierref.resolved_to_expr->type ==
+                    H64EXPRTYPE_IMPORT_STMT)
+                return 1;  // nothing to do with those
+            assert(expr->storage.set);
+            if (expr->storage.ref.type == H64STORETYPE_STACKSLOT) {
+                expr->storage._exprstoredintemp = expr->storage.ref.id;
+            } else if (expr->storage.ref.type == H64STORETYPE_GLOBALVARSLOT) {
+                // FIXME: emit getglobal
+            } else if (expr->storage.ref.type == H64STORETYPE_GLOBALFUNCSLOT) {
+                // FIXME: create func ref
+            } else if (expr->storage.ref.type == H64STORETYPE_GLOBALCLASSSLOT) {
+                // FIXME: create class ref
+            }
         }
     } else if ((expr->type == H64EXPRTYPE_VARDEF_STMT &&
                 expr->vardef.value != NULL) ||
@@ -203,13 +256,9 @@ int _codegencallback_DoCodegen_visit_out(
             assignfromtemporary = expr->vardef.value->
                 storage._exprstoredintemp;
         } else if (expr->type == H64EXPRTYPE_ASSIGN_STMT) {
-            if (expr->assignstmt.lvalue->type ==
-                    H64EXPRTYPE_BINARYOP) {
-                str = &expr->assignstmt.lvalue->op.value2->storage.ref;
-            } else {
-                assert(expr->assignstmt.lvalue->storage.set);
-                str = &expr->assignstmt.lvalue->storage.ref;
-            }
+            get_assign_lvalue_storage(
+                expr, &str
+            );
             assignfromtemporary = (
                 expr->assignstmt.rvalue->storage._exprstoredintemp
             );
@@ -227,7 +276,7 @@ int _codegencallback_DoCodegen_visit_out(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-        } else {
+        } else if (assignfromtemporary != str->id) {
             assert(str->type == H64STORETYPE_STACKSLOT);
             h64instruction_valuecopy inst = {0};
             inst.type = H64INST_VALUECOPY;

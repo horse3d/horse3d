@@ -38,4 +38,8 @@ int compiler_command_CodeInfo(
     const char **argc, int argv, int argoffset
 );
 
+int compiler_command_DumpASM(
+    const char **argv, int argc, int argoffset
+);
+
 #endif  // HORSE3D_COMPILER_MAIN_H_

@@ -7,7 +7,8 @@ typedef struct hashmap hashmap;
 
 typedef struct h64funcsymbol {
     char *name;
-    int arg_count;
+    int has_self_arg, arg_count, last_arg_is_multiarg,
+        stack_temporaries_count, closure_bound_count;
     char **arg_kwarg_name;
     int fileuri_index;
     int instruction_count;

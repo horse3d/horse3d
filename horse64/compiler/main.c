@@ -7,6 +7,7 @@
 #include "compiler/astparser.h"
 #include "compiler/codemodule.h"
 #include "compiler/compileproject.h"
+#include "compiler/disassembler.h"
 #include "compiler/lexer.h"
 #include "compiler/main.h"
 #include "compiler/scoperesolver.h"
@@ -84,6 +85,7 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
 #define COMPILEEX_MODE_COMPILE 1
 #define COMPILEEX_MODE_RUN 2
 #define COMPILEEX_MODE_CODEINFO 3
+#define COMPILEEX_MODE_DUMPASM 4
 
 int compiler_command_CompileEx(
         int mode, const char **argv, int argc, int argoffset
@@ -154,6 +156,9 @@ int compiler_command_CompileEx(
     if (mode == COMPILEEX_MODE_CODEINFO) {
         if (!nosuccess)
             h64program_PrintBytecodeStats(project->program);
+    } else if (mode == COMPILEEX_MODE_DUMPASM) {
+        if (!nosuccess)
+            disassembler_DumpToStdout(project->program);
     }
     compileproject_Free(project);  // This indirectly frees 'ast'!
     return !nosuccess;
@@ -556,5 +561,11 @@ int compiler_command_Run(const char **argv, int argc, int argoffset) {
 int compiler_command_CodeInfo(const char **argv, int argc, int argoffset) {
     return compiler_command_CompileEx(
         COMPILEEX_MODE_CODEINFO, argv, argc, argoffset
+    );
+}
+
+int compiler_command_DumpASM(const char **argv, int argc, int argoffset) {
+    return compiler_command_CompileEx(
+        COMPILEEX_MODE_DUMPASM, argv, argc, argoffset
     );
 }

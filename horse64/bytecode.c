@@ -249,10 +249,17 @@ void h64program_PrintBytecodeStats(h64program *p) {
                 " (CLASS: %d)", p->func[i].associated_class_index
             );
         }
+        char instructioninfo[64] = "";
+        if (!p->func[i].iscfunc && p->func[i].instructions_bytes > 0) {
+            snprintf(instructioninfo, sizeof(instructioninfo),
+                " code: %" PRId64 "B",
+                (int64_t)p->func[i].instructions_bytes);
+        }
         printf(
             "%s bytecode func id=%" PRId64 " "
-            "name: \"%s\" cfunction: %d%s%s\n",
+            "name: \"%s\" cfunction: %d%s%s%s\n",
             _prefix, (int64_t)i, name, p->func[i].iscfunc,
+            instructioninfo,
             (i == p->main_func_index ? " (PROGRAM START)" : ""),
             associatedclass
         );
@@ -306,7 +313,7 @@ void h64program_FreeInstructions(
 size_t h64program_PtrToInstructionSize(char *ptr) {
     if (!ptr)
         return 0;
-    h64instructionany *inst = ptr;
+    h64instructionany *inst = (h64instructionany *)ptr;
     switch (inst->type) {
     case H64INST_SETCONST:
         return sizeof(h64instruction_setconst);
@@ -517,6 +524,33 @@ int h64program_RegisterCFunction(
             return -1;
     }
 
+    char *cfunclookup = NULL;
+    if (func != NULL) {
+        cfunclookup = malloc(
+            (module_path ? strlen(module_path) : strlen("$$builtin")) +
+            1 + strlen(name) +
+            strlen("@lib:") +
+            (library_name ? strlen(library_name) : 0) + 1
+        );
+        if (!cfunclookup)
+            return -1;
+        cfunclookup[0] = '\0';
+        char _builtinpath[] = "$$builtin";
+        const char *writemodpath = module_path;
+        if (writemodpath == NULL || strlen(writemodpath) == 0)
+            writemodpath = _builtinpath;
+        memcpy(cfunclookup, writemodpath, strlen(writemodpath));
+        cfunclookup[strlen(writemodpath)] = '.';
+        cfunclookup[strlen(writemodpath) + 1] = '\0';
+        memcpy(cfunclookup + strlen(cfunclookup), name, strlen(name) + 1);
+        if (library_name && strlen(library_name) > 0) {
+            memcpy(cfunclookup + strlen(cfunclookup),
+                   "@lib:", strlen("@lib:") + 1);
+            memcpy(cfunclookup + strlen(cfunclookup), library_name,
+                   strlen(library_name) + 1);
+        }
+    }
+
     h64modulesymbols *msymbols = NULL;
     if (module_path) {
         msymbols = h64debugsymbols_GetModule(
@@ -550,6 +584,8 @@ int h64program_RegisterCFunction(
         fileuri_index = fileuriindex;
     if (!msymbols->func_symbols[msymbols->func_count].name) {
         funcsymboloom:
+        if (cfunclookup)
+            free(cfunclookup);
         if (name)
             hash_StringMapUnset(
                 msymbols->func_name_to_entry, name
@@ -569,6 +605,9 @@ int h64program_RegisterCFunction(
         );
         return -1;
     }
+    msymbols->func_symbols[msymbols->func_count].has_self_arg = (
+        associated_class_index >= 0
+    );
     msymbols->func_symbols[msymbols->func_count].arg_count = arg_count;
     if (arg_count > 0) {
         msymbols->func_symbols[msymbols->func_count].
@@ -630,16 +669,20 @@ int h64program_RegisterCFunction(
     }
 
     // Add actual function entry:
-    p->func[p->func_count].arg_count = arg_count;
-    p->func[p->func_count].last_is_multiarg = last_is_multiarg;
-    p->func[p->func_count].stack_slots_used = 0;
+    p->func[p->func_count].input_stack_size = (
+        arg_count + (associated_class_index >= 0 ? 1 : 0)
+    );
     p->func[p->func_count].is_threadable = is_threadable;
     p->func[p->func_count].iscfunc = 1;
     p->func[p->func_count].associated_class_index = (
         associated_class_index
     );
+    p->func[p->func_count].cfunclookup = cfunclookup;
     p->func[p->func_count].cfunc_ptr = func;
     msymbols->func_symbols[msymbols->func_count].global_id = p->func_count;
+    msymbols->func_symbols[msymbols->func_count].arg_count = arg_count;
+    msymbols->func_symbols[msymbols->func_count].
+        last_arg_is_multiarg = last_is_multiarg;
 
     p->func_count++;
     msymbols->func_count++;

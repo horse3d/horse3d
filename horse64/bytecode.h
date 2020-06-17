@@ -81,18 +81,18 @@ typedef struct h64instructionany {
 
 typedef struct h64instruction_setconst {
     uint8_t type;
-    int64_t slot;
+    int16_t slot;
     valuecontent content;
 } __attribute__((packed)) h64instruction_setconst;
 
 typedef struct h64instruction_setglobal {
     uint8_t type;
-    int64_t globalto, slotfrom;
+    int16_t globalto, slotfrom;
 } __attribute__((packed)) h64instruction_setglobal;
 
 typedef struct h64instruction_valuecopy {
     uint8_t type;
-    int64_t slotto, slotfrom;
+    int16_t slotto, slotfrom;
 } __attribute__((packed)) h64instruction_valuecopy;
 
 
@@ -118,12 +118,10 @@ typedef struct h64class {
 } h64class;
 
 typedef struct h64func {
-    int arg_count;
-    int last_is_multiarg;
-
-    int stack_slots_used;
-
+    int input_stack_size, inner_stack_size;
     int iscfunc, is_threadable;
+
+    char *cfunclookup;
 
     int associated_class_index;
 
