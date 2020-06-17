@@ -125,13 +125,9 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
     if (!symbols)
         return NULL;
 
-    const char *emptystr = "";
-    if (!modpath)
-        modpath = emptystr;
-
     char *modlibpath = malloc(
         (1 + (library_name ? strlen(library_name) : 0) + 1) +
-        strlen(modpath) + 1
+        (modpath ? strlen(modpath) : 0) + 1
     );
     if (!modlibpath)
         return NULL;
@@ -141,10 +137,11 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
     } else {
         modlibpath[1] = '\0';
     }
-    memcpy(
-        modlibpath + strlen(modlibpath),
-        modpath, strlen(modpath) + 1
-    );
+    if (modpath)
+        memcpy(
+            modlibpath + strlen(modlibpath),
+            modpath, strlen(modpath) + 1
+        );
 
     assert(symbols->modulelibpath_to_modulesymbol_id != NULL);
     uint64_t number = 0;
@@ -203,8 +200,10 @@ h64modulesymbols *_h64debugsymbols_GetModuleInternal(
             return NULL;
         }
 
-        msymbols->module_path = strdup(modpath);
-        if (!msymbols->module_path) {
+        msymbols->module_path = (
+            modpath ? strdup(modpath) : NULL
+        );
+        if (modpath && !msymbols->module_path) {
             h64debugsymbols_ClearModule(msymbols);
             free(msymbols);
             free(modlibpath);
@@ -364,6 +363,21 @@ h64classsymbol *h64debugsymbols_GetClassSymbolById(
     return &symbols->module_symbols[
         msymbols_index
     ]->classes_symbols[msymbols_classindex];
+}
+
+h64modulesymbols *h64debugsymbols_GetModuleSymbolsByFuncId(
+        h64debugsymbols *symbols, int funcid
+        ) {
+    uint64_t msymbols_index = 0;
+    if (!hash_IntMapGet(
+            symbols->func_id_to_module_symbols_index,
+            funcid, &msymbols_index)) {
+        return NULL;
+    }
+    assert((int)msymbols_index < symbols->module_count);
+    return symbols->module_symbols[
+        msymbols_index
+    ];
 }
 
 h64funcsymbol *h64debugsymbols_GetFuncSymbolById(

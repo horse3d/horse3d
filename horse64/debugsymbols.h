@@ -101,6 +101,10 @@ void h64debugsymbols_Free(h64debugsymbols *symbols);
 
 h64debugsymbols *h64debugsymbols_New();
 
+h64modulesymbols *h64debugsymbols_GetModuleSymbolsByFuncId(
+    h64debugsymbols *symbols, int funcid
+);
+
 h64funcsymbol *h64debugsymbols_GetFuncSymbolById(
     h64debugsymbols *symbols, int funcid
 );

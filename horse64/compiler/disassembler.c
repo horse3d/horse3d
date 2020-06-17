@@ -109,33 +109,51 @@ int disassembler_Dump(
                 (int64_t)p->func[i].associated_class_index
             );
         }
-        char symbolinfo[H64LIMIT_IDENTIFIERLEN * 2 + 256] = "";
         char cfuncref[H64LIMIT_IDENTIFIERLEN * 2] = "";
         if (p->func[i].iscfunc) {
             snprintf(cfuncref, sizeof(cfuncref) - 1,
                 " %s", p->func[i].cfunclookup);
         }
+        char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
+        snprintf(linebuf, sizeof(linebuf) - 1,
+            "%sFUNC%s %" PRId64 " %d %d%s%s",
+            (p->func[i].iscfunc ? "C" : ""),
+            (p->func[i].iscfunc ? "REF" : ""),
+            (int64_t)i,
+            p->func[i].input_stack_size,
+            p->func[i].inner_stack_size,
+            cfuncref, clsinfo
+        );
+        char symbolinfo[H64LIMIT_IDENTIFIERLEN * 2 + 1024] = "";
         if (p->symbols) {
             h64funcsymbol *fsymbol = h64debugsymbols_GetFuncSymbolById(
                 p->symbols, i
             );
-            if (fsymbol) {
+            h64modulesymbols *msymbols = (
+                h64debugsymbols_GetModuleSymbolsByFuncId(
+                    p->symbols, i
+                ));
+            if (fsymbol && msymbols) {
+                char spaces[1024] = "";
+                while (strlen(spaces) < sizeof(spaces) - 1 &&
+                        strlen(spaces) < strlen(linebuf)) {
+                    spaces[strlen(spaces) + 1] = '\0';
+                    spaces[strlen(spaces)] = ' ';
+                }
                 snprintf(
                     symbolinfo, sizeof(symbolinfo) - 1,
-                    "    # name=\"%s\" arg_count=%d closure_bound=%d",
+                    "    # name=\"%s\" module=\"%s\" library=\"%s\"\n"
+                    "%s    # arg_count=%d closure_bound=%d",
                     (fsymbol->name ? fsymbol->name : "(unnamed)"),
+                    (msymbols->module_path ? msymbols->module_path :
+                     "$$builtin"),
+                    (msymbols->library_name ? msymbols->library_name :
+                     ""), spaces,
                     fsymbol->arg_count, fsymbol->closure_bound_count);
             }
         }
         if (!disassembler_Write(di,
-                "%sFUNC%s %" PRId64 " %d %d%s%s%s\n",
-                (p->func[i].iscfunc ? "C" : ""),
-                (p->func[i].iscfunc ? "REF" : ""),
-                (int64_t)i,
-                p->func[i].input_stack_size,
-                p->func[i].inner_stack_size,
-                cfuncref, clsinfo, symbolinfo
-                ))
+                "%s%s\n", linebuf, symbolinfo))
             return 0;
         if (p->func[i].iscfunc) {
             i++;

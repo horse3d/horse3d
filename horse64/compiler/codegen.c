@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -21,8 +22,10 @@ int newcalctemp(h64expression *func) {
         func->funcdef._storageinfo->temp_calculation_slots = (
             func->funcdef._storageinfo->_temp_calc_slots_used_right_now
         );
-    return func->funcdef._storageinfo->_temp_calc_slots_used_right_now +
-        func->funcdef._storageinfo->lowest_guaranteed_free_temp;
+    return (
+        (func->funcdef._storageinfo->_temp_calc_slots_used_right_now - 1) +
+        func->funcdef._storageinfo->lowest_guaranteed_free_temp
+    );
 }
 
 int appendinst(
@@ -70,10 +73,38 @@ static void get_assign_lvalue_storage(
     }
 }
 
+void codegen_CalculateFinalFuncStack(
+        h64program *program, h64expression *expr) {
+    if (expr->type != H64EXPRTYPE_FUNCDEF_STMT)
+        return;
+    // Determine final amount of temporaries/stack slots used:
+    h64funcsymbol *fsymbol = h64debugsymbols_GetFuncSymbolById(
+        program->symbols, expr->funcdef.bytecode_func_id
+    );
+    expr->funcdef._storageinfo->lowest_guaranteed_free_temp +=
+        expr->funcdef._storageinfo->temp_calculation_slots;
+    fsymbol->closure_bound_count =
+        expr->funcdef._storageinfo->closureboundvars_count;
+    fsymbol->stack_temporaries_count =
+        (expr->funcdef._storageinfo->lowest_guaranteed_free_temp -
+         fsymbol->closure_bound_count -
+         fsymbol->arg_count -
+         (fsymbol->has_self_arg ? 1 : 0));
+    program->func[expr->funcdef.bytecode_func_id].
+        inner_stack_size = fsymbol->stack_temporaries_count;
+    program->func[expr->funcdef.bytecode_func_id].
+        input_stack_size = (
+            fsymbol->closure_bound_count +
+            fsymbol->arg_count +
+            (fsymbol->has_self_arg ? 1 : 0)
+        );
+}
+
 int _codegencallback_DoCodegen_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud;
+    codegen_CalculateFinalFuncStack(rinfo->pr->program, expr);
 
     h64expression *func = surroundingfunc(expr);
     if (!func) {
@@ -185,28 +216,6 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         expr->storage._exprstoredintemp = temp;
-    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
-        // Determine final amount of temporaries/stack slots used:
-        h64funcsymbol *fsymbol = h64debugsymbols_GetFuncSymbolById(
-            rinfo->pr->program->symbols, func->funcdef.bytecode_func_id
-        );
-        func->funcdef._storageinfo->lowest_guaranteed_free_temp +=
-            func->funcdef._storageinfo->temp_calculation_slots;
-        fsymbol->closure_bound_count =
-            func->funcdef._storageinfo->closureboundvars_count;
-        fsymbol->stack_temporaries_count =
-            (func->funcdef._storageinfo->lowest_guaranteed_free_temp -
-             fsymbol->closure_bound_count -
-             fsymbol->arg_count -
-             (fsymbol->has_self_arg ? 1 : 0));
-        rinfo->pr->program->func[func->funcdef.bytecode_func_id].
-            inner_stack_size = fsymbol->stack_temporaries_count;
-        rinfo->pr->program->func[func->funcdef.bytecode_func_id].
-            input_stack_size = (
-                fsymbol->closure_bound_count +
-                fsymbol->arg_count +
-                (fsymbol->has_self_arg ? 1 : 0)
-            );
     } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
         // Nothing to do
     } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
