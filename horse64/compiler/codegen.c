@@ -234,6 +234,7 @@ int _codegencallback_DoCodegen_visit_out(
         }
         h64instruction_binop inst_binop = {0};
         inst_binop.type = H64INST_BINOP;
+        inst_binop.optype = expr->op.optype;
         inst_binop.slotto = temp;
         inst_binop.arg1slotfrom = expr->op.value1->storage._exprstoredintemp;
         inst_binop.arg2slotfrom = expr->op.value2->storage._exprstoredintemp;
@@ -260,7 +261,7 @@ int _codegencallback_DoCodegen_visit_out(
             expr->inlinecall.value->storage._exprstoredintemp
         );
         h64instruction_startcall inst_startcall = {0};
-        inst_startcall.type = H64INST_BINOP;
+        inst_startcall.type = H64INST_STARTCALL;
         inst_startcall.slotcalled = calledexprstoragetemp;
         inst_startcall.slotreturnvalue = temp;
         if (!appendinst(

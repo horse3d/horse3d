@@ -74,14 +74,60 @@ int disassembler_PrintInstruction(
         }
         free(s);
         return 1;
+    case H64INST_GETGLOBAL: ;
+        h64instruction_getglobal *inst_getglobal =
+            (h64instruction_getglobal *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d g" PRId64 "\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_getglobal->slotto,
+                (int64_t)inst_getglobal->globalfrom)) {
+            return 0;
+        }
+        return 1;
+    case H64INST_GETFUNC: ;
+        h64instruction_getfunc *inst_getfunc =
+            (h64instruction_getfunc *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d f" PRId64 "\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_getfunc->slotto,
+                (int64_t)inst_getfunc->funcfrom)) {
+            return 0;
+        }
+        return 1;
+    case H64INST_GETCLASS: ;
+        h64instruction_getclass *inst_getclass =
+            (h64instruction_getclass *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d c" PRId64 "\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_getclass->slotto,
+                (int64_t)inst_getclass->classfrom)) {
+            return 0;
+        }
+        return 1;
     case H64INST_VALUECOPY: ;
         h64instruction_valuecopy *inst_vcopy =
-            (h64instruction_valuecopy*)inst;
+            (h64instruction_valuecopy *)inst;
         if (!disassembler_Write(di,
                 "    %s t%d t%d\n",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_vcopy->slotto,
                 (int)inst_vcopy->slotfrom)) {
+            return 0;
+        }
+        return 1;
+    case H64INST_BINOP: ;
+        h64instruction_binop *inst_binop =
+            (h64instruction_binop *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d %s t%d t%d\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_binop->slotto,
+                operator_OpTypeToStr(inst_binop->optype),
+                (int)inst_binop->arg1slotfrom,
+                (int)inst_binop->arg2slotfrom)) {
             return 0;
         }
         return 1;
