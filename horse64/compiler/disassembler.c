@@ -10,6 +10,9 @@
 #include "debugsymbols.h"
 #include "compiler/disassembler.h"
 #include "compiler/globallimits.h"
+#include "compiler/operator.h"
+#include "unicode.h"
+
 
 typedef struct dinfo {
     void (*pr)(const char *s);
@@ -47,6 +50,46 @@ char *disassembler_DumpValueContent(valuecontent *vs) {
         snprintf(buf, sizeof(buf) - 1,
             "%f", vs->float_value);
         return strdup(buf);
+    case H64VALTYPE_CONSTPREALLOCSTR: ;
+        const int len = vs->constpreallocstr_len * 4;
+        char *outbuf = malloc(len + 1);
+        if (!outbuf)
+            return NULL;
+        int64_t out_len = 0;
+        int result = utf32_to_utf8(
+            vs->constpreallocstr_value,
+            vs->constpreallocstr_len,
+            outbuf, len + 1,
+            &out_len, 1
+        );
+        if (out_len > len)
+            out_len = len;
+        outbuf[out_len] = '\0';
+        char *output_escaped = malloc(out_len * 2 + 3);
+        if (!output_escaped) {
+            free(outbuf);
+            return NULL;
+        }
+        output_escaped[0] = '\"';
+        int k = 1;
+        int i = 0;
+        while (i < out_len) {
+            if (outbuf[i] == '\"' || outbuf[i] == '\\') {
+                output_escaped[k] = '\\';
+                k++;
+                output_escaped[k] = outbuf[i];
+            } else {
+                output_escaped[k] = outbuf[i];
+            }
+            k++;
+            i++;
+        }
+        output_escaped[k] = '\"';
+        k++;
+        output_escaped[k] = '\0';
+        assert(k <= len);
+        free(outbuf);
+        return output_escaped;
     default:
         return strdup("<unknown valuecontent type>");
     }
@@ -89,7 +132,7 @@ int disassembler_PrintInstruction(
         h64instruction_getfunc *inst_getfunc =
             (h64instruction_getfunc *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d f" PRId64 "\n",
+                "    %s t%d f%" PRId64 "\n",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_getfunc->slotto,
                 (int64_t)inst_getfunc->funcfrom)) {
@@ -128,6 +171,32 @@ int disassembler_PrintInstruction(
                 operator_OpTypeToStr(inst_binop->optype),
                 (int)inst_binop->arg1slotfrom,
                 (int)inst_binop->arg2slotfrom)) {
+            return 0;
+        }
+        return 1;
+    case H64INST_UNOP: ;
+        h64instruction_unop *inst_unop =
+            (h64instruction_unop *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d %s t%d\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_unop->slotto,
+                operator_OpTypeToStr(inst_unop->optype),
+                (int)inst_unop->argslotfrom)) {
+            return 0;
+        }
+        return 1;
+    case H64INST_CALL: ;
+        h64instruction_call *inst_call =
+            (h64instruction_call *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d %d %d %d\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_call->returnto,
+                (int)inst_call->slotcalledfrom,
+                (int)inst_call->posargs,
+                (int)inst_call->kwargs,
+                (int)inst_call->expandlastposarg)) {
             return 0;
         }
         return 1;

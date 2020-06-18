@@ -23,7 +23,7 @@ typedef enum instructiontype {
     H64INST_STARTCALL,
     H64INST_POSARG,
     H64INST_KWARG,
-    H64INST_DOCALL,
+    H64INST_CALL,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -131,26 +131,12 @@ typedef struct h64instruction_unop {
     int16_t slotto, argslotfrom;
 } __attribute__((packed)) h64instruction_unop;
 
-typedef struct h64instruction_startcall {
+typedef struct h64instruction_call {
     uint8_t type;
-    int16_t slotcalled, slotreturnvalue;
-} __attribute__((packed)) h64instruction_startcall;
-
-typedef struct h64instruction_kwarg {
-    uint8_t type;
-    int16_t argslotfrom;
-    int64_t nameidx;
-} __attribute__((packed)) h64instruction_kwarg;
-
-typedef struct h64instruction_posarg {
-    uint8_t type;
-    int16_t argslotfrom;
-    uint8_t multiargfromlist;
-} __attribute__((packed)) h64instruction_posarg;
-
-typedef struct h64instruction_docall {
-    uint8_t type;
-} __attribute__((packed)) h64instruction_docall;
+    int16_t returnto, slotcalledfrom;
+    uint8_t expandlastposarg;
+    int16_t posargs, kwargs;
+} __attribute__((packed)) h64instruction_call;
 
 
 #define H64CLASS_HASH_SIZE 16

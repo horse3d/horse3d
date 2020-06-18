@@ -244,51 +244,38 @@ int _codegencallback_DoCodegen_visit_out(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-    } else if (expr->type == H64EXPRTYPE_CALL) {
-        int temp = -1;
-        storageref *parent_store = NULL;
-        if (expr->parent &&
-                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
-            get_assign_lvalue_storage(expr->parent, &parent_store);
-        if (parent_store && parent_store->type ==
-                H64STORETYPE_STACKSLOT) {
-            temp = parent_store->id;
-        } else {
-            temp = newcalctemp(func);
-        }
         expr->storage._exprstoredintemp = temp;
+    } else if (expr->type == H64EXPRTYPE_CALL) {
         int calledexprstoragetemp = (
             expr->inlinecall.value->storage._exprstoredintemp
         );
-        h64instruction_startcall inst_startcall = {0};
-        inst_startcall.type = H64INST_STARTCALL;
-        inst_startcall.slotcalled = calledexprstoragetemp;
-        inst_startcall.slotreturnvalue = temp;
-        if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_startcall, sizeof(inst_startcall))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
-        }
-        int iskwarg = 0;
+        int _argtemp = (
+            func->funcdef._storageinfo->_temp_calc_slots_used_right_now
+        ) + func->funcdef._storageinfo->lowest_guaranteed_free_temp;
+        int preargs_tempceiling = _argtemp;
+        int posargcount = 0;
+        int expandlastposarg = 0;
+        int kwargcount = 0;
+        int _reachedkwargs = 0;
         int i = 0;
-        while (i < expr->funcdef.arguments.arg_count) {
-            if (expr->funcdef.arguments.arg_name[i])
-                iskwarg = 1;
+        while (i < expr->inlinecall.arguments.arg_count) {
+            if (expr->inlinecall.arguments.arg_name[i])
+                _reachedkwargs = 1;
             int ismultiarg = 0;
-            if (iskwarg) {
-                assert(expr->funcdef.arguments.arg_name[i] != NULL);
+            if (_reachedkwargs) {
+                kwargcount++;
+                assert(expr->inlinecall.arguments.arg_name[i] != NULL);
                 int64_t kwnameidx = (
                     h64debugsymbols_MemberNameToMemberNameId(
                         rinfo->pr->program->symbols,
-                        expr->funcdef.arguments.arg_name[i],
+                        expr->inlinecall.arguments.arg_name[i],
                         0
                     ));
                 if (kwnameidx < 0) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
                         "internal error: cannot map kw arg name: %s",
-                        expr->funcdef.arguments.arg_name[i]
+                        expr->inlinecall.arguments.arg_name[i]
                     );
                     if (!result_AddMessage(
                             &rinfo->ast->resultmsg,
@@ -301,46 +288,88 @@ int _codegencallback_DoCodegen_visit_out(
                     }
                     return 1;
                 }
-                h64instruction_kwarg inst_kwarg = {0};
-                inst_kwarg.type = H64INST_KWARG;
-                inst_kwarg.argslotfrom = (
-                    expr->funcdef.arguments.arg_value[i]->
-                        storage._exprstoredintemp);
-                inst_kwarg.nameidx = kwnameidx;
+                h64instruction_setconst inst_setconst = {0};
+                inst_setconst.type = H64INST_SETCONST;
+                inst_setconst.slot = _argtemp;
+                inst_setconst.content.type = H64VALTYPE_INT64;
+                inst_setconst.content.int_value = kwnameidx;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
-                        &inst_kwarg, sizeof(inst_kwarg))) {
+                        &inst_setconst, sizeof(inst_setconst))) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
-            } else if (i + 1 < expr->funcdef.arguments.arg_count &&
-                    expr->funcdef.arguments.arg_name[i]) {
-                ismultiarg = 1;
-            }
-            if (!iskwarg) {
-                h64instruction_posarg inst_posarg = {0};
-                inst_posarg.type = H64INST_POSARG;
-                inst_posarg.argslotfrom = (
-                    expr->funcdef.arguments.arg_value[i]->
+                _argtemp++;
+                h64instruction_valuecopy inst_vc = {0};
+                inst_vc.type = H64INST_VALUECOPY;
+                inst_vc.slotto = _argtemp;
+                inst_vc.slotfrom = (
+                    expr->inlinecall.arguments.arg_value[i]->
                         storage._exprstoredintemp);
-                inst_posarg.multiargfromlist = ismultiarg;
+                _argtemp++;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
-                        &inst_posarg, sizeof(inst_posarg))) {
+                        &inst_vc, sizeof(inst_vc))) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
+                }
+            } else if (i + 1 < expr->inlinecall.arguments.arg_count &&
+                    expr->inlinecall.arguments.arg_name[i]) {
+                ismultiarg = 1;
+            }
+            if (!_reachedkwargs) {
+                posargcount++;
+                h64instruction_valuecopy inst_vc = {0};
+                inst_vc.type = H64INST_VALUECOPY;
+                inst_vc.slotto = _argtemp;
+                inst_vc.slotfrom = (
+                    expr->inlinecall.arguments.arg_value[i]->
+                        storage._exprstoredintemp);
+                _argtemp++;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_vc, sizeof(inst_vc))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                if (expr->inlinecall.arguments.last_posarg_is_multiarg) {
+                    expandlastposarg = 1;
                 }
             }
             i++;
         }
-        h64instruction_docall inst_docall = {0};
-        inst_docall.type = H64INST_DOCALL;
+        int maxslotsused = (_argtemp - preargs_tempceiling);
+        if (maxslotsused > func->funcdef._storageinfo->
+                temp_calculation_slots)
+            func->funcdef._storageinfo->temp_calculation_slots = (
+                maxslotsused
+            );
+        h64instruction_call inst_call = {0};
+        inst_call.type = H64INST_CALL;
+        inst_call.returnto = preargs_tempceiling;
+        int temp = -1;
+        storageref *parent_store = NULL;
+        if (expr->parent &&
+                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
+            get_assign_lvalue_storage(expr->parent, &parent_store);
+        if (parent_store && parent_store->type ==
+                H64STORETYPE_STACKSLOT) {
+            temp = parent_store->id;
+        } else {
+            temp = newcalctemp(func);
+        }
+        inst_call.returnto = temp;
+        inst_call.slotcalledfrom = calledexprstoragetemp;
+        inst_call.expandlastposarg = expandlastposarg;
+        inst_call.posargs = posargcount;
+        inst_call.kwargs = kwargcount;
         if (!appendinst(
                 rinfo->pr->program, func, expr,
-                &inst_docall, sizeof(inst_docall))) {
+                &inst_call, sizeof(inst_call))) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
+        expr->storage._exprstoredintemp = temp;
     } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
             expr->type == H64EXPRTYPE_CALL_STMT) {
         // Nothing to do

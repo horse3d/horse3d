@@ -23,10 +23,7 @@ static char _name_itype_getclass[] = "getclass";
 static char _name_itype_valuecopy[] = "valuecopy";
 static char _name_itype_binop[] = "binop";
 static char _name_itype_unop[] = "unop";
-static char _name_itype_startcall[] = "startcall";
-static char _name_itype_posarg[] = "posarg";
-static char _name_itype_kwarg[] = "kwarg";
-static char _name_itype_docall[] = "docall";
+static char _name_itype_call[] = "call";
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
     switch (itype) {
@@ -48,14 +45,8 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_binop;
     case H64INST_UNOP:
         return _name_itype_unop;
-    case H64INST_STARTCALL:
-        return _name_itype_startcall;
-    case H64INST_POSARG:
-        return _name_itype_posarg;
-    case H64INST_KWARG:
-        return _name_itype_kwarg;
-    case H64INST_DOCALL:
-        return _name_itype_docall;
+    case H64INST_CALL:
+        return _name_itype_call;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -346,14 +337,8 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_binop);
     case H64INST_UNOP:
         return sizeof(h64instruction_unop);
-    case H64INST_STARTCALL:
-        return sizeof(h64instruction_startcall);
-    case H64INST_POSARG:
-        return sizeof(h64instruction_posarg);
-    case H64INST_KWARG:
-        return sizeof(h64instruction_kwarg);
-    case H64INST_DOCALL:
-        return sizeof(h64instruction_docall);
+    case H64INST_CALL:
+        return sizeof(h64instruction_call);
     default:
         fprintf(
             stderr, "Invalid inst type for "
