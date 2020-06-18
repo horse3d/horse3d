@@ -121,7 +121,6 @@ typedef struct h64expression {
         } assignstmt;
         struct callstmt {
             h64expression *call;
-            h64scope *foundinscope;
         } callstmt;
         struct literal {
             h64tokentype type;
