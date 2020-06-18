@@ -31,7 +31,7 @@ int newcalctemp(h64expression *func) {
 int appendinst(
         h64program *p,
         h64expression *func,
-        h64expression *corresondingexpr,
+        h64expression *correspondingexpr,
         void *ptr, size_t len
         ) {
     assert(p != NULL);
@@ -354,7 +354,14 @@ int _codegencallback_DoCodegen_visit_out(
                  expr->parent->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
                  expr->parent == expr->parent->parent->assignstmt.lvalue)
                 )) {
-            // identifier is assigned to, will be handled later
+            // This identifier is assigned to, will be handled elsewhere
+            return 1;
+        } else if (expr->parent != NULL &&
+                expr->parent->type == H64EXPRTYPE_BINARYOP &&
+                expr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+                expr->parent->op.value2 == expr &&
+                expr->storage.set) {
+            // A runtime-resolved get by identifier, handled elsewhere
             return 1;
         }
         if (expr->identifierref.resolved_to_expr &&
