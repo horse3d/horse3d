@@ -430,7 +430,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             (parent == NULL ||
              parent->type != H64EXPRTYPE_BINARYOP ||
-             parent->op.value1 == expr)) {
+             parent->op.value1 == expr ||
+             parent->op.optype != H64OP_MEMBERBYIDENTIFIER)) {
         assert(expr->identifierref.value != NULL);
         h64scope *scope = ast_GetScope(expr, &atinfo->ast->scope);
         if (scope == NULL) {
