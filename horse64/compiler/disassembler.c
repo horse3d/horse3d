@@ -249,21 +249,16 @@ int disassembler_Dump(
                     p->symbols, i
                 ));
             if (fsymbol && msymbols && !p->func[i].iscfunc) {
-                char spaces[1024] = "";
-                while (strlen(spaces) < sizeof(spaces) - 1 &&
-                        strlen(spaces) < strlen(linebuf)) {
-                    spaces[strlen(spaces) + 1] = '\0';
-                    spaces[strlen(spaces)] = ' ';
-                }
                 snprintf(
                     symbolinfo, sizeof(symbolinfo) - 1,
-                    "    # name=\"%s\" module=\"%s\" library=\"%s\"\n"
-                    "%s    # arg_count=%d closure_bound=%d",
+                    "\n    # Name: \"%s\" Module: %s\n"
+                    "    # Library: \"%s\"\n"
+                    "    # Argument count: %d  Closure bounds: %d",
                     (fsymbol->name ? fsymbol->name : "(unnamed)"),
                     (msymbols->module_path ? msymbols->module_path :
                      "$$builtin"),
                     (msymbols->library_name ? msymbols->library_name :
-                     ""), spaces,
+                     ""),
                     fsymbol->arg_count, fsymbol->closure_bound_count);
             }
         }
