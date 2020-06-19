@@ -51,45 +51,58 @@ char *disassembler_DumpValueContent(valuecontent *vs) {
             "%f", vs->float_value);
         return strdup(buf);
     case H64VALTYPE_CONSTPREALLOCSTR: ;
-        const int len = vs->constpreallocstr_len * 4;
-        char *outbuf = malloc(len + 1);
-        if (!outbuf)
-            return NULL;
-        int64_t out_len = 0;
-        int result = utf32_to_utf8(
-            vs->constpreallocstr_value,
-            vs->constpreallocstr_len,
-            outbuf, len + 1,
-            &out_len, 1
-        );
-        if (out_len > len)
-            out_len = len;
-        outbuf[out_len] = '\0';
-        char *output_escaped = malloc(out_len * 2 + 3);
-        if (!output_escaped) {
-            free(outbuf);
-            return NULL;
-        }
-        output_escaped[0] = '\"';
-        int k = 1;
-        int i = 0;
-        while (i < out_len) {
-            if (outbuf[i] == '\"' || outbuf[i] == '\\') {
-                output_escaped[k] = '\\';
-                k++;
-                output_escaped[k] = outbuf[i];
+        int alloclen = vs->constpreallocstr_len * 2 + 2;
+        char *outbuf = malloc(alloclen);
+        outbuf[0] = '\"';
+        int outfill = 1;
+        int k = 0;
+        while (k < vs->constpreallocstr_len) {
+            uint64_t c = vs->constpreallocstr_value[k];
+            if (outfill + 16 >= alloclen) {
+                char *newoutbuf = realloc(
+                    outbuf, outfill + 64
+                );
+                if (!newoutbuf) {
+                    free(outbuf);
+                    return NULL;
+                }
+                outbuf = newoutbuf;
+                alloclen = outfill + 64;
+            }
+            if (c == '"' || c == '\\') {
+                outbuf[outfill] = '\\';
+                outfill++;
+            }
+            if (c < 32) {
+                char numesc[6];
+                snprintf(numesc, sizeof(numesc) - 1,
+                    "%x", (int)c);
+                outbuf[outfill] = '\\';
+                outfill++;
+                outbuf[outfill] = 'x';
+                outfill++;
+                if (strlen(numesc) < 2) {
+                    outbuf[outfill] = '0';
+                    outfill++;
+                }
+                memcpy(outbuf + outfill, numesc, strlen(numesc));
+                outfill += strlen(numesc);
+            } else if (c >= 127) {
+                char numesc[6];
+                snprintf(numesc, sizeof(numesc) - 1,
+                    "\\u" "%" PRId64, (int64_t)c);
+                memcpy(outbuf + outfill, numesc, strlen(numesc));
+                outfill += strlen(numesc);
             } else {
-                output_escaped[k] = outbuf[i];
+                outbuf[outfill] = c;
+                outfill++;
             }
             k++;
-            i++;
         }
-        output_escaped[k] = '\"';
-        k++;
-        output_escaped[k] = '\0';
-        assert(k <= len);
-        free(outbuf);
-        return output_escaped;
+        outbuf[outfill] = '"';
+        outfill++;
+        outbuf[outfill] = '\0';
+        return outbuf;
     default:
         return strdup("<unknown valuecontent type>");
     }
