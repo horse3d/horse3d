@@ -37,8 +37,14 @@ int newcalctemp(h64expression *func, h64expression *expr) {
     // Use temporary 'mandated' by parent if any:
     storageref *parent_store = NULL;
     if (expr && expr->parent &&
-            expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
+            expr->parent->type == H64EXPRTYPE_ASSIGN_STMT) {
         get_assign_lvalue_storage(expr->parent, &parent_store);
+    } else if (expr && expr->parent &&
+            expr->parent->type == H64EXPRTYPE_VARDEF_STMT) {
+        assert(expr->parent->storage.set);
+        if (expr->parent->storage.ref.type == H64STORETYPE_STACKSLOT)
+            return (int)expr->parent->storage.ref.id;
+    }
     if (parent_store && parent_store->type ==
             H64STORETYPE_STACKSLOT)
         return parent_store->id;
