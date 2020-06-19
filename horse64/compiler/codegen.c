@@ -49,6 +49,23 @@ int newcalctemp(h64expression *func, h64expression *expr) {
             H64STORETYPE_STACKSLOT)
         return parent_store->id;
 
+    // If a binary or unary operator, see if we can reuse child storage:
+    if (expr && (expr->type == H64EXPRTYPE_BINARYOP ||
+                 expr->type == H64EXPRTYPE_UNARYOP)) {
+        assert(expr->op.value1 != NULL);
+        if (expr->op.value1->storage._exprstoredintemp >=
+                func->funcdef._storageinfo->lowest_guaranteed_free_temp) {
+            return expr->op.value1->storage._exprstoredintemp;
+        }
+        if (expr->type == H64EXPRTYPE_BINARYOP) {
+            assert(expr->op.value2 != NULL);
+            if (expr->op.value2->storage._exprstoredintemp >=
+                    func->funcdef._storageinfo->lowest_guaranteed_free_temp) {
+                return expr->op.value2->storage._exprstoredintemp;
+            }
+        }
+    }
+
     // Get new free temporary:
     assert(func->funcdef._storageinfo != NULL);
     func->funcdef._storageinfo->_temp_calc_slots_used_right_now++;
