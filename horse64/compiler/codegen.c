@@ -481,7 +481,7 @@ int _codegencallback_DoCodegen_visit_out(
             assert(expr->storage.set);
             str = &expr->storage.ref;
             assignfromtemporary = expr->vardef.value->
-                storage._exprstoredintemp;
+                storage.ref.id;
         } else if (expr->type == H64EXPRTYPE_ASSIGN_STMT) {
             get_assign_lvalue_storage(
                 expr, &str

@@ -426,6 +426,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
     asttransforminfo *atinfo = (asttransforminfo *)ud;
+
     // Resolve most inner identifiers:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             (parent == NULL ||
@@ -458,361 +459,19 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         h64scopedef *def = scope_QueryItem(
             scope, expr->identifierref.value, 1
         );
-        if (def) {
-            expr->identifierref.resolved_to_def = def;
-            expr->identifierref.resolved_to_expr = def->declarationexpr;
-            // Check if it's a file-local thing referenced in a way we know:
-            // (we know of file-local funcs by name, surrounding funcs'
-            // parameters, file-local variables and classes, and
-            // surrounding for loops' iterators)
-            if (def->declarationexpr->type ==
-                    H64EXPRTYPE_VARDEF_STMT ||
-                    def->declarationexpr->type ==
-                    H64EXPRTYPE_FOR_STMT ||
-                    (def->declarationexpr->type ==
-                     H64EXPRTYPE_FUNCDEF_STMT &&
-                     strcmp(def->declarationexpr->funcdef.name,
-                            expr->identifierref.value) == 0) ||
-                    def->declarationexpr->type ==
-                    H64EXPRTYPE_CLASSDEF_STMT ||
-                    ((def->declarationexpr->type ==
-                      H64EXPRTYPE_FUNCDEF_STMT ||
-                      def->declarationexpr->type ==
-                      H64EXPRTYPE_INLINEFUNCDEF) &&
-                    funchasparamwithname(def->declarationexpr,
-                        expr->identifierref.value
-                    ))) {  // A known file-local thing
-                if (!isexprchildof(expr, def->declarationexpr) ||
-                        def->declarationexpr->type ==
-                        H64EXPRTYPE_FOR_STMT) {
-                    // -> let's mark it as used from somewhere external:
-                    def->everused = 1;
-                    if ((def->first_use_token_index < 0 ||
-                            def->first_use_token_index < expr->tokenindex) &&
-                            expr->tokenindex >= 0)
-                        def->first_use_token_index = expr->tokenindex;
-                    if ((def->last_use_token_index < 0 ||
-                            def->last_use_token_index > expr->tokenindex) &&
-                            expr->tokenindex >= 0)
-                        def->last_use_token_index = expr->tokenindex;
-                    // If the referenced thing is a variable inside a func
-                    // and we're closure, then mark as used in closure:
-                    h64expression *localvarfunc = surroundingfunc(
-                        def->declarationexpr
-                    );
-                    if (isinsideclosure(expr) &&
-                            def->declarationexpr->type ==
-                            H64EXPRTYPE_VARDEF_STMT &&
-                            localvarfunc != NULL) {
-                        def->closurebound = 1;  // mark as closure-used
-                        h64expression *closure = surroundingfunc(expr);
-                        assert(closure != NULL && closure != localvarfunc);
-                        // All nested closures up to the scope of to the
-                        // variable definition need to bind it:
-                        while (closure && closure != localvarfunc) {
-                            assert(
-                                closure->type == H64EXPRTYPE_FUNCDEF_STMT ||
-                                closure->type == H64EXPRTYPE_INLINEFUNCDEF
-                            );
-                            h64storageextrainfo *einfo = (
-                                closure->funcdef._storageinfo
-                            );
-                            if (!einfo) {
-                                einfo = malloc(sizeof(*einfo));
-                                if (!einfo) {
-                                    atinfo->hadoutofmemory = 1;
-                                    return 0;
-                                }
-                                memset(einfo, 0, sizeof(*einfo));
-                                closure->funcdef._storageinfo = einfo;
-                            }
-
-                            h64scopedef **newboundvars = realloc(
-                                einfo->closureboundvars,
-                                sizeof(*newboundvars) *
-                                (einfo->closureboundvars_count + 1)
-                            );
-                            if (!newboundvars) {
-                                atinfo->hadoutofmemory = 1;
-                                return 0;
-                            }
-                            einfo->closureboundvars = newboundvars;
-                            einfo->closureboundvars[
-                                einfo->closureboundvars_count
-                            ] = def;
-                            einfo->closureboundvars_count++;
-                            closure = surroundingfunc(closure);
-                        }
-                        assert(closure == localvarfunc);
-                    }
-                }
-
-                if (def->declarationexpr->storage.set) {
-                    memcpy(
-                        &expr->storage, &def->declarationexpr->storage,
-                        sizeof(expr->storage)
-                    );
-                } else if (def->scope->is_global) {
-                    // Global storage should have been determined already,
-                    // so this shouldn't happen. Log as error:
-                    atinfo->hadunexpectederror = 1;
-                }
-            } else if (def->declarationexpr->type ==
-                    H64EXPRTYPE_IMPORT_STMT) {
-                // Not a file-local, but instead an imported thing.
-                // Figure out what we're referencing and from what module:
-
-                // First, follow the tree to the full import path with dots:
-                int accessed_elements_count = 1;
-                int accessed_elements_alloc = H64LIMIT_IMPORTCHAINLEN + 1;
-                char **accessed_elements = alloca(
-                    sizeof(*accessed_elements) * (
-                    accessed_elements_alloc)
-                );
-                accessed_elements[0] = expr->identifierref.value;
-                h64expression *pexpr = expr;
-                while (pexpr->parent &&
-                        pexpr->parent->type == H64EXPRTYPE_BINARYOP &&
-                        pexpr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
-                        pexpr->parent->op.value1 == pexpr &&
-                        pexpr->parent->op.value2 != NULL &&
-                        pexpr->parent->op.value2->type ==
-                            H64EXPRTYPE_IDENTIFIERREF &&
-                        pexpr->parent->parent &&
-                        pexpr->parent->parent->op.optype ==
-                            H64OP_MEMBERBYIDENTIFIER &&
-                        pexpr->parent->parent->op.value1 == pexpr->parent &&
-                        pexpr->parent->parent->op.value2 != NULL &&
-                        pexpr->parent->parent->op.value2->type ==
-                            H64EXPRTYPE_IDENTIFIERREF) {
-                    pexpr = pexpr->parent;
-                    accessed_elements[accessed_elements_count] =
-                        pexpr->op.value2->identifierref.value;
-                    accessed_elements_count++;
-                    if (accessed_elements_count >= accessed_elements_alloc) {
-                        char buf[256];
-                        snprintf(buf, sizeof(buf) - 1,
-                            "unexpected import chain "
-                            "exceeding maximum nesting of %d",
-                            (int)H64LIMIT_IMPORTCHAINLEN
-                        );
-                        if (!result_AddMessage(
-                                &atinfo->ast->resultmsg,
-                                H64MSG_ERROR,
-                                buf,
-                                atinfo->ast->fileuri,
-                                expr->line, expr->column
-                                )) {
-                            atinfo->hadoutofmemory = 1;
-                            return 0;
-                        }
-                        return 1;
-                    }
-                }
-
-                // See what exact import statement that maps to:
-                h64expression *_mapto = NULL;
-                int j = -1;
-                while (j < def->additionaldecl_count) {
-                    h64expression *val = def->declarationexpr;
-                    if (j >= 0)
-                        val = def->additionaldecl[j];
-                    if (val->type == H64EXPRTYPE_IMPORT_STMT &&
-                            val->importstmt.import_elements_count ==
-                            accessed_elements_count) {
-                        int mismatch = 0;
-                        int k = 0;
-                        while (k < accessed_elements_count) {
-                            if (strcmp(
-                                    accessed_elements[k],
-                                    val->importstmt.import_elements[k]
-                                    ) != 0) {
-                                mismatch = 1;
-                                break;
-                            }
-                            k++;
-                        }
-                        if (!mismatch) _mapto = val;
-                    }
-                    j++;
-                }
-
-                // Put together path for error messages later:
-                size_t full_imp_path_len = 0;
-                char *full_imp_path = NULL;
-                {
-                    full_imp_path_len = 0;
-                    int k = 0;
-                    while (k < accessed_elements_count) {
-                        if (k > 0)
-                            full_imp_path_len++;
-                        full_imp_path_len += strlen(accessed_elements[k]);
-                        k++;
-                    }
-                    full_imp_path = malloc(full_imp_path_len + 1);
-                    if (!full_imp_path) {
-                        atinfo->hadoutofmemory = 1;
-                        return 0;
-                    }
-                    full_imp_path[0] = '\0';
-                    k = 0;
-                    while (k < accessed_elements_count) {
-                        if (k > 0) {
-                            full_imp_path[strlen(full_imp_path) + 1] = '\0';
-                            full_imp_path[strlen(full_imp_path) + 1] = '.';
-                        }
-                        memcpy(
-                            full_imp_path + strlen(full_imp_path),
-                            accessed_elements[k],
-                            strlen(accessed_elements[k]) + 1
-                        );
-                        k++;
-                    }
-                }
-
-                // Abort if we found no exact match for import:
-                if (_mapto == NULL) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf) - 1,
-                        "unexpected reference to module path \"%s\", "
-                        "not found among this file's imports",
-                        full_imp_path
-                    );
-                    free(full_imp_path);
-                    full_imp_path = NULL;
-                    if (!result_AddMessage(
-                            &atinfo->ast->resultmsg,
-                            H64MSG_ERROR,
-                            buf,
-                            atinfo->ast->fileuri,
-                            expr->line, expr->column
-                            )) {
-                        atinfo->hadoutofmemory = 1;
-                        return 0;
-                    }
-                    return 1;
-                }
-                expr->identifierref.resolved_to_expr = _mapto;
-
-                // Resolve the member access that is done on top of this
-                // module path (or error if there is none which is invalid,
-                // modules cannot be referenced in any other way):
-                assert(_mapto != NULL && pexpr != NULL);
-                if (pexpr->parent == NULL ||
-                        pexpr->parent->type != H64EXPRTYPE_BINARYOP ||
-                        pexpr->parent->op.optype !=
-                            H64OP_MEMBERBYIDENTIFIER ||
-                        pexpr->parent->op.value1 != pexpr ||
-                        pexpr->parent->op.value2 == NULL ||
-                        pexpr->parent->op.value2->type !=
-                            H64EXPRTYPE_IDENTIFIERREF) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf) - 1,
-                        "unexpected %s of module %s, "
-                        "instead of accessing any element from "
-                        "the module via \".\"",
-                        (pexpr->parent == NULL ? "standalone use" : (
-                         pexpr->parent->type != H64EXPRTYPE_BINARYOP ?
-                         ast_ExpressionTypeToStr(pexpr->parent->type) :
-                         operator_OpTypeToStr(pexpr->parent->op.optype))),
-                        full_imp_path
-                    );
-                    free(full_imp_path);
-                    full_imp_path = NULL;
-                    if (!result_AddMessage(
-                            &atinfo->ast->resultmsg,
-                            H64MSG_ERROR,
-                            buf,
-                            atinfo->ast->fileuri,
-                            expr->line, expr->column
-                            )) {
-                        atinfo->hadoutofmemory = 1;
-                        return 0;
-                    }
-                    return 1;
-                }
-                const char *refitemname = (
-                    pexpr->parent->op.value2->identifierref.value
-                );
-                if (!refitemname) {
-                    // Oops, the accessed member on the module is NULL.
-                    // Likely an error in a previous stage (e.g. parser).
-                    // Mark as error in any case, to make sure we return
-                    // an error message always:
-                    atinfo->hadunexpectederror = 1;
-                    free(full_imp_path);
-                    full_imp_path = NULL;
-                    return 1;
-                }
-                // Get the actual module item by name:
-                assert(_mapto->type == H64EXPRTYPE_IMPORT_STMT &&
-                    _mapto->importstmt.referenced_ast != NULL &&
-                    _mapto->importstmt.referenced_ast->scope.
-                            name_to_declaration_map != NULL);
-                uint64_t number = 0;
-                if (!hash_StringMapGet(
-                        _mapto->importstmt.referenced_ast->scope.
-                        name_to_declaration_map,
-                        refitemname, &number) || number == 0) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf) - 1,
-                        "unexpected unknown identifier \"%s\" "
-                        "not found in module \"%s\"",
-                        refitemname,
-                        full_imp_path
-                    );
-                    free(full_imp_path);
-                    full_imp_path = NULL;
-                    if (!result_AddMessage(
-                            &atinfo->ast->resultmsg,
-                            H64MSG_ERROR,
-                            buf,
-                            atinfo->ast->fileuri,
-                            expr->line, expr->column
-                            )) {
-                        atinfo->hadoutofmemory = 1;
-                        return 0;
-                    }
-                    return 1;
-                }
-
-                // We found the item. Mark as used & copy storage:
-                h64scopedef *targetitem = (
-                    (h64scopedef*)(uintptr_t)number
-                );
-                assert(targetitem != NULL &&
-                    targetitem->declarationexpr != NULL);
-                if (targetitem->declarationexpr->storage.set) {
-                    memcpy(
-                        &expr->storage.ref,
-                        &targetitem->declarationexpr->storage.ref,
-                        sizeof(expr->storage.ref)
-                    );
-                    expr->storage.set = 1;
-                } else {
-                    assert(!expr->storage.set);
-                }
-                free(full_imp_path);
-                full_imp_path = NULL;
-                def->everused = 1;
-                if ((def->first_use_token_index < 0 ||
-                        def->first_use_token_index < expr->tokenindex) &&
-                        expr->tokenindex >= 0)
-                    def->first_use_token_index = expr->tokenindex;
-                if ((def->last_use_token_index < 0 ||
-                        def->last_use_token_index > expr->tokenindex) &&
-                        expr->tokenindex >= 0)
-                    def->last_use_token_index = expr->tokenindex;
+        if (!def) {
+            if (identifierisbuiltin(
+                    atinfo->pr->program, expr->identifierref.value,
+                    &expr->storage.ref)) {
+                expr->identifierref.resolved_to_builtin = 1;
+                assert(expr->storage.ref.type != 0);
+                expr->storage.set = 1;
             } else {
-                char buf[256];
+                char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
-                    "internal error: identifier ref '%s' points "
-                    "to unhandled expr type %d at line %" PRId64 ", "
-                    "column %" PRId64,
-                    expr->identifierref.value,
-                    (int)def->declarationexpr->type,
-                    def->declarationexpr->line,
-                    def->declarationexpr->column
+                    "unexpected unknown identifier \"%s\", variable "
+                    "or module not found",
+                    _shortenedname(describebuf, expr->identifierref.value)
                 );
                 if (!result_AddMessage(
                         &atinfo->ast->resultmsg,
@@ -826,18 +485,363 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 }
                 return 1;
             }
-        } else if (identifierisbuiltin(
-                atinfo->pr->program, expr->identifierref.value,
-                &expr->storage.ref)) {
-            expr->identifierref.resolved_to_builtin = 1;
-            assert(expr->storage.ref.type != 0);
-            expr->storage.set = 1;
+            return 1;
+        }
+
+        expr->identifierref.resolved_to_def = def;
+        expr->identifierref.resolved_to_expr = def->declarationexpr;
+        // Check if it's a file-local thing referenced in a way we know:
+        // (we know of file-local funcs by name, surrounding funcs'
+        // parameters, file-local variables and classes, and
+        // surrounding for loops' iterators)
+        if (def->declarationexpr->type ==
+                H64EXPRTYPE_VARDEF_STMT ||
+                def->declarationexpr->type ==
+                H64EXPRTYPE_FOR_STMT ||
+                (def->declarationexpr->type ==
+                 H64EXPRTYPE_FUNCDEF_STMT &&
+                 strcmp(def->declarationexpr->funcdef.name,
+                        expr->identifierref.value) == 0) ||
+                def->declarationexpr->type ==
+                H64EXPRTYPE_CLASSDEF_STMT ||
+                ((def->declarationexpr->type ==
+                  H64EXPRTYPE_FUNCDEF_STMT ||
+                  def->declarationexpr->type ==
+                  H64EXPRTYPE_INLINEFUNCDEF) &&
+                funchasparamwithname(def->declarationexpr,
+                    expr->identifierref.value
+                ))) {  // A known file-local thing
+            if (!isexprchildof(expr, def->declarationexpr) ||
+                    def->declarationexpr->type ==
+                    H64EXPRTYPE_FOR_STMT) {
+                // -> let's mark it as used from somewhere external:
+                def->everused = 1;
+                if ((def->first_use_token_index < 0 ||
+                        def->first_use_token_index < expr->tokenindex) &&
+                        expr->tokenindex >= 0)
+                    def->first_use_token_index = expr->tokenindex;
+                if ((def->last_use_token_index < 0 ||
+                        def->last_use_token_index > expr->tokenindex) &&
+                        expr->tokenindex >= 0)
+                    def->last_use_token_index = expr->tokenindex;
+                // If the referenced thing is a variable inside a func
+                // and we're closure, then mark as used in closure:
+                h64expression *localvarfunc = surroundingfunc(
+                    def->declarationexpr
+                );
+                if (isinsideclosure(expr) &&
+                        def->declarationexpr->type ==
+                        H64EXPRTYPE_VARDEF_STMT &&
+                        localvarfunc != NULL) {
+                    def->closurebound = 1;  // mark as closure-used
+                    h64expression *closure = surroundingfunc(expr);
+                    assert(closure != NULL && closure != localvarfunc);
+                    // All nested closures up to the scope of to the
+                    // variable definition need to bind it:
+                    while (closure && closure != localvarfunc) {
+                        assert(
+                            closure->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                            closure->type == H64EXPRTYPE_INLINEFUNCDEF
+                        );
+                        h64storageextrainfo *einfo = (
+                            closure->funcdef._storageinfo
+                        );
+                        if (!einfo) {
+                            einfo = malloc(sizeof(*einfo));
+                            if (!einfo) {
+                                atinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                            memset(einfo, 0, sizeof(*einfo));
+                            closure->funcdef._storageinfo = einfo;
+                        }
+
+                        h64scopedef **newboundvars = realloc(
+                            einfo->closureboundvars,
+                            sizeof(*newboundvars) *
+                            (einfo->closureboundvars_count + 1)
+                        );
+                        if (!newboundvars) {
+                            atinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
+                        einfo->closureboundvars = newboundvars;
+                        einfo->closureboundvars[
+                            einfo->closureboundvars_count
+                        ] = def;
+                        einfo->closureboundvars_count++;
+                        closure = surroundingfunc(closure);
+                    }
+                    assert(closure == localvarfunc);
+                }
+            }
+
+            if (def->declarationexpr->storage.set) {
+                memcpy(
+                    &expr->storage, &def->declarationexpr->storage,
+                    sizeof(expr->storage)
+                );
+            } else if (def->scope->is_global) {
+                // Global storage should have been determined already,
+                // so this shouldn't happen. Log as error:
+                atinfo->hadunexpectederror = 1;
+            }
+        } else if (def->declarationexpr->type ==
+                H64EXPRTYPE_IMPORT_STMT) {
+            // Not a file-local, but instead an imported thing.
+            // Figure out what we're referencing and from what module:
+
+            // First, follow the tree to the full import path with dots:
+            int accessed_elements_count = 1;
+            int accessed_elements_alloc = H64LIMIT_IMPORTCHAINLEN + 1;
+            char **accessed_elements = alloca(
+                sizeof(*accessed_elements) * (
+                accessed_elements_alloc)
+            );
+            accessed_elements[0] = expr->identifierref.value;
+            h64expression *pexpr = expr;
+            while (pexpr->parent &&
+                    pexpr->parent->type == H64EXPRTYPE_BINARYOP &&
+                    pexpr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+                    pexpr->parent->op.value1 == pexpr &&
+                    pexpr->parent->op.value2 != NULL &&
+                    pexpr->parent->op.value2->type ==
+                        H64EXPRTYPE_IDENTIFIERREF &&
+                    pexpr->parent->parent &&
+                    pexpr->parent->parent->op.optype ==
+                        H64OP_MEMBERBYIDENTIFIER &&
+                    pexpr->parent->parent->op.value1 == pexpr->parent &&
+                    pexpr->parent->parent->op.value2 != NULL &&
+                    pexpr->parent->parent->op.value2->type ==
+                        H64EXPRTYPE_IDENTIFIERREF) {
+                pexpr = pexpr->parent;
+                accessed_elements[accessed_elements_count] =
+                    pexpr->op.value2->identifierref.value;
+                accessed_elements_count++;
+                if (accessed_elements_count >= accessed_elements_alloc) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected import chain "
+                        "exceeding maximum nesting of %d",
+                        (int)H64LIMIT_IMPORTCHAINLEN
+                    );
+                    if (!result_AddMessage(
+                            &atinfo->ast->resultmsg,
+                            H64MSG_ERROR,
+                            buf,
+                            atinfo->ast->fileuri,
+                            expr->line, expr->column
+                            )) {
+                        atinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                    return 1;
+                }
+            }
+
+            // See what exact import statement that maps to:
+            h64expression *_mapto = NULL;
+            int j = -1;
+            while (j < def->additionaldecl_count) {
+                h64expression *val = def->declarationexpr;
+                if (j >= 0)
+                    val = def->additionaldecl[j];
+                if (val->type == H64EXPRTYPE_IMPORT_STMT &&
+                        val->importstmt.import_elements_count ==
+                        accessed_elements_count) {
+                    int mismatch = 0;
+                    int k = 0;
+                    while (k < accessed_elements_count) {
+                        if (strcmp(
+                                accessed_elements[k],
+                                val->importstmt.import_elements[k]
+                                ) != 0) {
+                            mismatch = 1;
+                            break;
+                        }
+                        k++;
+                    }
+                    if (!mismatch) _mapto = val;
+                }
+                j++;
+            }
+
+            // Put together path for error messages later:
+            size_t full_imp_path_len = 0;
+            char *full_imp_path = NULL;
+            {
+                full_imp_path_len = 0;
+                int k = 0;
+                while (k < accessed_elements_count) {
+                    if (k > 0)
+                        full_imp_path_len++;
+                    full_imp_path_len += strlen(accessed_elements[k]);
+                    k++;
+                }
+                full_imp_path = malloc(full_imp_path_len + 1);
+                if (!full_imp_path) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                full_imp_path[0] = '\0';
+                k = 0;
+                while (k < accessed_elements_count) {
+                    if (k > 0) {
+                        full_imp_path[strlen(full_imp_path) + 1] = '\0';
+                        full_imp_path[strlen(full_imp_path) + 1] = '.';
+                    }
+                    memcpy(
+                        full_imp_path + strlen(full_imp_path),
+                        accessed_elements[k],
+                        strlen(accessed_elements[k]) + 1
+                    );
+                    k++;
+                }
+            }
+
+            // Abort if we found no exact match for import:
+            if (_mapto == NULL) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected reference to module path \"%s\", "
+                    "not found among this file's imports",
+                    full_imp_path
+                );
+                free(full_imp_path);
+                full_imp_path = NULL;
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                return 1;
+            }
+            expr->identifierref.resolved_to_expr = _mapto;
+
+            // Resolve the member access that is done on top of this
+            // module path (or error if there is none which is invalid,
+            // modules cannot be referenced in any other way):
+            assert(_mapto != NULL && pexpr != NULL);
+            if (pexpr->parent == NULL ||
+                    pexpr->parent->type != H64EXPRTYPE_BINARYOP ||
+                    pexpr->parent->op.optype !=
+                        H64OP_MEMBERBYIDENTIFIER ||
+                    pexpr->parent->op.value1 != pexpr ||
+                    pexpr->parent->op.value2 == NULL ||
+                    pexpr->parent->op.value2->type !=
+                        H64EXPRTYPE_IDENTIFIERREF) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s of module %s, "
+                    "instead of accessing any element from "
+                    "the module via \".\"",
+                    (pexpr->parent == NULL ? "standalone use" : (
+                     pexpr->parent->type != H64EXPRTYPE_BINARYOP ?
+                     ast_ExpressionTypeToStr(pexpr->parent->type) :
+                     operator_OpTypeToStr(pexpr->parent->op.optype))),
+                    full_imp_path
+                );
+                free(full_imp_path);
+                full_imp_path = NULL;
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                return 1;
+            }
+            const char *refitemname = (
+                pexpr->parent->op.value2->identifierref.value
+            );
+            if (!refitemname) {
+                // Oops, the accessed member on the module is NULL.
+                // Likely an error in a previous stage (e.g. parser).
+                // Mark as error in any case, to make sure we return
+                // an error message always:
+                atinfo->hadunexpectederror = 1;
+                free(full_imp_path);
+                full_imp_path = NULL;
+                return 1;
+            }
+            // Get the actual module item by name:
+            assert(_mapto->type == H64EXPRTYPE_IMPORT_STMT &&
+                _mapto->importstmt.referenced_ast != NULL &&
+                _mapto->importstmt.referenced_ast->scope.
+                        name_to_declaration_map != NULL);
+            uint64_t number = 0;
+            if (!hash_StringMapGet(
+                    _mapto->importstmt.referenced_ast->scope.
+                    name_to_declaration_map,
+                    refitemname, &number) || number == 0) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected unknown identifier \"%s\" "
+                    "not found in module \"%s\"",
+                    refitemname,
+                    full_imp_path
+                );
+                free(full_imp_path);
+                full_imp_path = NULL;
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                return 1;
+            }
+
+            // We found the item. Mark as used & copy storage:
+            h64scopedef *targetitem = (
+                (h64scopedef*)(uintptr_t)number
+            );
+            assert(targetitem != NULL &&
+                targetitem->declarationexpr != NULL);
+            if (targetitem->declarationexpr->storage.set) {
+                memcpy(
+                    &expr->storage.ref,
+                    &targetitem->declarationexpr->storage.ref,
+                    sizeof(expr->storage.ref)
+                );
+                expr->storage.set = 1;
+            } else {
+                assert(!expr->storage.set);
+            }
+            free(full_imp_path);
+            full_imp_path = NULL;
+            def->everused = 1;
+            if ((def->first_use_token_index < 0 ||
+                    def->first_use_token_index < expr->tokenindex) &&
+                    expr->tokenindex >= 0)
+                def->first_use_token_index = expr->tokenindex;
+            if ((def->last_use_token_index < 0 ||
+                    def->last_use_token_index > expr->tokenindex) &&
+                    expr->tokenindex >= 0)
+                def->last_use_token_index = expr->tokenindex;
         } else {
-            char buf[256]; char describebuf[64];
+            char buf[256];
             snprintf(buf, sizeof(buf) - 1,
-                "unexpected unknown identifier \"%s\", variable "
-                "or module not found",
-                _shortenedname(describebuf, expr->identifierref.value)
+                "internal error: identifier ref '%s' points "
+                "to unhandled expr type %d at line %" PRId64 ", "
+                "column %" PRId64,
+                expr->identifierref.value,
+                (int)def->declarationexpr->type,
+                def->declarationexpr->line,
+                def->declarationexpr->column
             );
             if (!result_AddMessage(
                     &atinfo->ast->resultmsg,

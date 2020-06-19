@@ -266,19 +266,26 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             use_start_token_index = own_token_start;
         einfo->lstoreassign[einfo->lstoreassign_count].
             use_end_token_index = own_token_end;
-        h64expression *vardefexpr = (
-            scopedef->declarationexpr
-        );
-        assert(!vardefexpr->storage.set);
-        vardefexpr->storage.set = 1;
-        vardefexpr->storage.ref.type = H64STORETYPE_STACKSLOT;
-        vardefexpr->storage.ref.id = besttemp;
+        if (valueboxid < 0) {
+            h64expression *vardefexpr = (
+                scopedef->declarationexpr
+            );
+            assert(!vardefexpr->storage.set);
+            vardefexpr->storage.set = 1;
+            vardefexpr->storage.ref.type = H64STORETYPE_STACKSLOT;
+            vardefexpr->storage.ref.id = besttemp;
+        } else {
+            assert(scopedef->declarationexpr->storage.set);
+        }
         einfo->lstoreassign_count++;
-    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
+    }
+
+    // Ensure all identifiers have their storage set:
+    if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             !expr->storage.set) {
         h64expression *mapsto = expr->identifierref.resolved_to_expr;
-        if (mapsto != NULL && mapsto->type != H64EXPRTYPE_IMPORT_STMT &&
-                mapsto->storage.set) {
+        if (mapsto != NULL && mapsto->type != H64EXPRTYPE_IMPORT_STMT) {
+            assert(mapsto->storage.set);
             memcpy(
                 &expr->storage, &mapsto->storage, sizeof(expr->storage)
             );
