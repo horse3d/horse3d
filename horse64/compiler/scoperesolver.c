@@ -351,7 +351,8 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
     // Add file-global items to the project-global item lookups:
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
-            expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+            expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+            expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
         h64scope *scope = ast_GetScope(expr, &atinfo->ast->scope);
         if (scope == NULL) {
             char buf[256];
@@ -376,7 +377,8 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
         }
         if ((scope->is_global &&
                 expr->storage.set == 0) || (
-                expr->type == H64EXPRTYPE_FUNCDEF_STMT &&
+                (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                 expr->type == H64EXPRTYPE_INLINEFUNCDEF) &&
                 expr->funcdef.bytecode_func_id < 0)) {
             int outofmemory = 0;
             if (!scoperesolver_ComputeItemStorage(

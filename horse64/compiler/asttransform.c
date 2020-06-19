@@ -38,6 +38,12 @@ int asttransform_Apply(
                 ast->fileuri,
                 -1, -1
             );
+            // At least try to transfer messages:
+            result_TransferMessages(
+                &ast->resultmsg, pr->resultmsg
+            );   // return value ignored, if we're oom nothing we can do
+            pr->resultmsg->success = 0;
+            ast->resultmsg.success = 0;
             return 0;
         }
         k++;

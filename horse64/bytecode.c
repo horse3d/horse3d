@@ -536,6 +536,7 @@ int h64program_RegisterCFunction(
 
     char *cfunclookup = NULL;
     if (func != NULL) {
+        assert(name != NULL);
         cfunclookup = malloc(
             (module_path ? strlen(module_path) : strlen("$$builtin")) +
             1 + strlen(name) +
@@ -592,7 +593,7 @@ int h64program_RegisterCFunction(
     }
     msymbols->func_symbols[msymbols->func_count].
         fileuri_index = fileuriindex;
-    if (!msymbols->func_symbols[msymbols->func_count].name) {
+    if (name && !msymbols->func_symbols[msymbols->func_count].name) {
         funcsymboloom:
         if (cfunclookup)
             free(cfunclookup);

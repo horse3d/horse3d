@@ -1003,7 +1003,13 @@ int compileproject_CompileAllToBytecode(
         // Stop here, we can't safely codegen if there was an error.
         return 1;
     }
-    assert(cinfo.pr->resultmsg->success);
+    if (!cinfo.pr->resultmsg->success) {
+        // Probably out of memory
+        if (error)
+            *error = strdup("unexpectedly failed to get error mesage, "
+                            "out of memory?");
+        return 0;
+    }
     if (!hash_StringMapIterate(
             project->astfilemap, &_codegenallcb,
             &cinfo)) {
