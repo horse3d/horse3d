@@ -13,6 +13,21 @@ static h64expression *surroundingfunc(h64expression *expr) {
     return NULL;
 }
 
+static h64expression *surroundingclass(
+        h64expression *expr, int allowfuncnesting
+        ) {
+    while (expr->parent) {
+        expr = expr->parent;
+        if (!allowfuncnesting && (
+                expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                expr->type == H64EXPRTYPE_INLINEFUNCDEF))
+            return NULL;
+        if (expr->type == H64EXPRTYPE_CLASSDEF_STMT)
+            return expr;
+    }
+    return NULL;
+}
+
 static int isinsideanyfunction(h64expression *expr) {
     return (surroundingfunc(expr) != NULL);
 }

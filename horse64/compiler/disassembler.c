@@ -220,7 +220,7 @@ int disassembler_Dump(
         if (p->func[i].associated_class_index >= 0) {
             snprintf(
                 clsinfo, sizeof(clsinfo) - 1,
-                "cls%" PRId64,
+                " cls%" PRId64,
                 (int64_t)p->func[i].associated_class_index
             );
         }

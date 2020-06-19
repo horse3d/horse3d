@@ -48,6 +48,11 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
             memset(expr->funcdef._storageinfo, 0,
                    sizeof(*expr->funcdef._storageinfo));
         }
+
+        h64expression *owningclassexpr = surroundingclass(
+            expr, 0
+        );
+
         h64storageextrainfo *einfo = expr->funcdef._storageinfo;
         if (einfo->closureboundvars_count > 0) {
             // It's a closure! Assign temporaries for actual values
@@ -55,7 +60,8 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
             // reference, not the actual value)
             int param_used_temps = (
                 einfo->closureboundvars_count +
-                expr->funcdef.arguments.arg_count
+                expr->funcdef.arguments.arg_count +
+                (owningclassexpr != NULL ? 1 : 0)
             );
             int freetemp = param_used_temps;
             int i = 0;
@@ -113,7 +119,8 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
         } else {
             einfo->lowest_guaranteed_free_temp = (
                 einfo->closureboundvars_count +
-                expr->funcdef.arguments.arg_count
+                expr->funcdef.arguments.arg_count +
+                (owningclassexpr != NULL ? 1 : 0)
             );
         }
     }

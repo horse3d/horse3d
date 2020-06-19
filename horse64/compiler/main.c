@@ -157,7 +157,16 @@ int compiler_command_CompileEx(
         if (!nosuccess)
             h64program_PrintBytecodeStats(project->program);
     } else if (mode == COMPILEEX_MODE_TOASM) {
-        if (!nosuccess)
+        int haveinstructions = 0;
+        if (nosuccess) {
+            int i = 0;
+            while (i < project->program->func_count) {
+                if (project->program->func[i].instructions_bytes > 0)
+                    haveinstructions = 1;
+                i++;
+            }
+        }
+        if (!nosuccess || haveinstructions)
             disassembler_DumpToStdout(project->program);
     }
     compileproject_Free(project);  // This indirectly frees 'ast'!
