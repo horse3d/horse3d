@@ -1,23 +1,15 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "compiler/ast.h"
+#include "compiler/asthelpers.h"
 #include "compiler/astparser.h"
 #include "compiler/asttransform.h"
 #include "compiler/compileproject.h"
 #include "compiler/varstorage.h"
 
-
-static h64expression *surroundingfunc(h64expression *expr) {
-    while (expr->parent) {
-        expr = expr->parent;
-        if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
-                expr->type == H64EXPRTYPE_INLINEFUNCDEF)
-            return expr;
-    }
-    return NULL;
-}
 
 static int nosideffectsvalue(h64expression *expr) {
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
@@ -266,17 +258,13 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             use_start_token_index = own_token_start;
         einfo->lstoreassign[einfo->lstoreassign_count].
             use_end_token_index = own_token_end;
-        if (valueboxid < 0) {
-            h64expression *vardefexpr = (
-                scopedef->declarationexpr
-            );
-            assert(!vardefexpr->storage.set);
-            vardefexpr->storage.set = 1;
-            vardefexpr->storage.ref.type = H64STORETYPE_STACKSLOT;
-            vardefexpr->storage.ref.id = besttemp;
-        } else {
-            assert(scopedef->declarationexpr->storage.set);
-        }
+        h64expression *vardefexpr = (
+            scopedef->declarationexpr
+        );
+        assert(!vardefexpr->storage.set);
+        vardefexpr->storage.set = 1;
+        vardefexpr->storage.ref.type = H64STORETYPE_STACKSLOT;
+        vardefexpr->storage.ref.id = besttemp;
         einfo->lstoreassign_count++;
     }
 
@@ -285,10 +273,60 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             !expr->storage.set) {
         h64expression *mapsto = expr->identifierref.resolved_to_expr;
         if (mapsto != NULL && mapsto->type != H64EXPRTYPE_IMPORT_STMT) {
-            assert(mapsto->storage.set);
-            memcpy(
-                &expr->storage, &mapsto->storage, sizeof(expr->storage)
-            );
+            if ((mapsto->type != H64EXPRTYPE_INLINEFUNCDEF &&
+                    mapsto->type != H64EXPRTYPE_FUNCDEF_STMT) ||
+                    !funcdef_has_parameter_with_name(
+                    mapsto, expr->identifierref.value
+                    )) {
+                #ifndef NDEBUG
+                if (!mapsto->storage.set) {
+                    char *s = ast_ExpressionToJSONStr(
+                        mapsto, rinfo->ast->fileuri
+                    );
+                    fprintf(stderr,
+                        "horsec: error: unexpectedly no storage on "
+                        "resolved-to expr: %s\n", (s ? s : "<oom>"));
+                    free(s);
+                    s = ast_ExpressionToJSONStr(
+                        expr, rinfo->ast->fileuri
+                    );
+                    fprintf(stderr,
+                        "horsec: error: identifier that was resolved to "
+                        "expr: %s\n", (s ? s : "<oom>"));
+                    free(s);
+                }
+                #endif
+                assert(mapsto->storage.set);
+                memcpy(
+                    &expr->storage, &mapsto->storage, sizeof(expr->storage)
+                );
+            } else {
+                assert(rinfo->pr->program->symbols != NULL);
+                assert(mapsto->funcdef.bytecode_func_id >= 0);
+                h64funcsymbol *fsymbol = h64debugsymbols_GetFuncSymbolById(
+                    rinfo->pr->program->symbols,
+                    mapsto->funcdef.bytecode_func_id
+                );
+                assert(fsymbol != NULL);
+                int argtempoffset = (
+                    mapsto->funcdef._storageinfo->closureboundvars_count +
+                    (fsymbol->has_self_arg ? 1 : 0)
+                );
+                int _found = 0;
+                int i = 0;
+                while (i < mapsto->funcdef.arguments.arg_count) {
+                    if (strcmp(mapsto->funcdef.arguments.arg_name[i],
+                               expr->identifierref.value) == 0) {
+                        expr->storage.set = 1;
+                        expr->storage.ref.type = H64STORETYPE_STACKSLOT;
+                        expr->storage.ref.id = argtempoffset + i;
+                        _found = 1;
+                        break;
+                    }
+                    i++;
+                }
+                assert(_found != 0);
+            }
         }
     }
     return 1;

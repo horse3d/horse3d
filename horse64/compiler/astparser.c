@@ -14,6 +14,7 @@
 
 #include "bytecode.h"
 #include "compiler/ast.h"
+#include "compiler/asthelpers.h"
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
 #include "compiler/globallimits.h"
@@ -130,22 +131,6 @@ static h64scopedef *_getSameScopeShadowedDefinition(
         return duplicateuse;
     }
     return NULL;
-}
-
-static int _funcdef_has_parameter_with_name(
-        h64expression *expr, const char *name) {
-    if (expr->type == H64EXPRTYPE_FUNCDEF_STMT
-            || expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
-        int i = 0;
-        while (i < expr->funcdef.arguments.arg_count) {
-            if (strcmp(expr->funcdef.arguments.arg_name[i], name) == 0)
-                return 1;
-            i++;
-        }
-        return 0;
-    } else {
-        return 0;
-    }
 }
 
 #define RECOVERFLAGS_MUSTFORWARD 1
@@ -2501,7 +2486,7 @@ const char *_identifierdeclarationname(
                 strcmp(expr->funcdef.name, identifier) == 0) {
             deftype = _defnamefunc;
         } else {
-            assert(_funcdef_has_parameter_with_name(
+            assert(funcdef_has_parameter_with_name(
                 expr, identifier
             ));
             deftype = _defnamefuncparam;
@@ -2650,7 +2635,7 @@ int ast_CanAddNameToScopeCheck(
                 H64EXPRTYPE_INLINEFUNCDEF) &&
                 shadoweduse->scope->classandfuncnestinglevel ==
                 parsethis->scope->classandfuncnestinglevel &&
-                _funcdef_has_parameter_with_name(
+                funcdef_has_parameter_with_name(
                 shadoweduse->declarationexpr,
                 expr->funcdef.name)) {
             forbidden = 1;

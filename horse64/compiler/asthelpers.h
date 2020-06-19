@@ -40,4 +40,20 @@ static int isexprchildof(
     return 0;
 }
 
+static int funcdef_has_parameter_with_name(
+        h64expression *expr, const char *name) {
+    if (expr->type == H64EXPRTYPE_FUNCDEF_STMT
+            || expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
+        int i = 0;
+        while (i < expr->funcdef.arguments.arg_count) {
+            if (strcmp(expr->funcdef.arguments.arg_name[i], name) == 0)
+                return 1;
+            i++;
+        }
+        return 0;
+    } else {
+        return 0;
+    }
+}
+
 #endif  // HORSE64_COMPILER_ASTHELPERS_H_
