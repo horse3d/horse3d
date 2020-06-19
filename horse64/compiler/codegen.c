@@ -244,7 +244,7 @@ int _codegencallback_DoCodegen_visit_out(
         expr->storage._exprstoredintemp = temp;
     } else if (expr->type == H64EXPRTYPE_BINARYOP && (
             expr->op.optype != H64OP_MEMBERBYIDENTIFIER ||
-            !expr->parent->op.value1->storage.set)) {
+            !expr->op.value1->storage.set)) {
         int temp = newcalctemp(func, expr);
         h64instruction_binop inst_binop = {0};
         inst_binop.type = H64INST_BINOP;
@@ -393,8 +393,8 @@ int _codegencallback_DoCodegen_visit_out(
         } else if (expr->parent != NULL &&
                 expr->parent->type == H64EXPRTYPE_BINARYOP &&
                 expr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
-                expr->parent->op.value2 == expr &&
-                expr->storage.set) {
+                expr->parent->op.value2 == expr
+                ) {
             // A runtime-resolved get by identifier, handled elsewhere
             return 1;
         }

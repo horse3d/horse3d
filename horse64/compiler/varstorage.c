@@ -120,11 +120,11 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
     return 1;
 }
 
-int _resolvercallback_AssignNonglobalStorage_visit_out(
-        h64expression *expr, h64expression *parent, void *ud
+int _resolver_EnsureLocalDefStorage(
+        asttransforminfo *rinfo, h64expression *expr
         ) {
-    asttransforminfo *rinfo = (asttransforminfo *)ud;
-
+    if (expr->storage.set)
+        return 1;
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_FOR_STMT ||
@@ -169,6 +169,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             0
         );
         assert(scopedef != NULL);
+        assert(scopedef->declarationexpr == expr);
         int unused_catch_exception = 0;
         int own_token_start = scopedef->first_use_token_index;
         int own_token_end = scopedef->first_use_token_index;
@@ -267,17 +268,43 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
         vardefexpr->storage.ref.id = besttemp;
         einfo->lstoreassign_count++;
     }
+    return 1;
+}
 
-    // Ensure all identifiers have their storage set:
+int _resolvercallback_AssignNonglobalStorage_visit_out(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    asttransforminfo *rinfo = (asttransforminfo *)ud;
+
+    // Compute local storage for the definitions themselves:
+    if (!_resolver_EnsureLocalDefStorage(
+            rinfo, expr
+            )) {
+        return 0;
+    }
+
+    // Ensure all identifiers referring to defs have storage set:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             !expr->storage.set) {
         h64expression *mapsto = expr->identifierref.resolved_to_expr;
         if (mapsto != NULL && mapsto->type != H64EXPRTYPE_IMPORT_STMT) {
+            if (!mapsto->storage.set) {
+                if (!_resolver_EnsureLocalDefStorage(rinfo, mapsto))
+                    return 0;
+            }
             if ((mapsto->type != H64EXPRTYPE_INLINEFUNCDEF &&
                     mapsto->type != H64EXPRTYPE_FUNCDEF_STMT) ||
                     !funcdef_has_parameter_with_name(
                     mapsto, expr->identifierref.value
                     )) {
+                if (!mapsto->storage.set &&
+                        (!rinfo->pr->resultmsg->success ||
+                        !rinfo->ast->resultmsg.success)) {
+                    // Follow-up error most likely, just ignore this item.
+                    rinfo->ast->resultmsg.success = 0;
+                    rinfo->pr->resultmsg->success = 0;
+                    return 1;
+                }
                 #ifndef NDEBUG
                 if (!mapsto->storage.set) {
                     char *s = ast_ExpressionToJSONStr(
@@ -300,6 +327,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 memcpy(
                     &expr->storage, &mapsto->storage, sizeof(expr->storage)
                 );
+                assert(expr->storage.set);
             } else {
                 assert(rinfo->pr->program->symbols != NULL);
                 assert(mapsto->funcdef.bytecode_func_id >= 0);
@@ -325,7 +353,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                     }
                     i++;
                 }
-                assert(_found != 0);
+                assert(_found != 0 && expr->storage.set);
             }
         }
     }
