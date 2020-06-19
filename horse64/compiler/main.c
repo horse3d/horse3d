@@ -85,7 +85,7 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
 #define COMPILEEX_MODE_COMPILE 1
 #define COMPILEEX_MODE_RUN 2
 #define COMPILEEX_MODE_CODEINFO 3
-#define COMPILEEX_MODE_DUMPASM 4
+#define COMPILEEX_MODE_TOASM 4
 
 int compiler_command_CompileEx(
         int mode, const char **argv, int argc, int argoffset
@@ -156,7 +156,7 @@ int compiler_command_CompileEx(
     if (mode == COMPILEEX_MODE_CODEINFO) {
         if (!nosuccess)
             h64program_PrintBytecodeStats(project->program);
-    } else if (mode == COMPILEEX_MODE_DUMPASM) {
+    } else if (mode == COMPILEEX_MODE_TOASM) {
         if (!nosuccess)
             disassembler_DumpToStdout(project->program);
     }
@@ -564,8 +564,8 @@ int compiler_command_CodeInfo(const char **argv, int argc, int argoffset) {
     );
 }
 
-int compiler_command_DumpASM(const char **argv, int argc, int argoffset) {
+int compiler_command_ToASM(const char **argv, int argc, int argoffset) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_DUMPASM, argv, argc, argoffset
+        COMPILEEX_MODE_TOASM, argv, argc, argoffset
     );
 }

@@ -399,7 +399,7 @@ int scriptcore_Run(int argc, const char **argv) {
                        "describe resulting bytecode.\n");
                 printf("  - \"compile\"           Compile .h64 code "
                        "and output executable.\n");
-                printf("  - \"dump_asm\"          Translate to .hasm\n");
+                printf("  - \"to_asm\"            Translate to .hasm\n");
                 printf("  - \"get_ast\"           Get AST of code\n");
                 printf("  - \"get_resolved_ast\"  "
                        "Get AST of code with resolved identifiers\n");
@@ -410,7 +410,7 @@ int scriptcore_Run(int argc, const char **argv) {
             }
             if (!action && (strcmp(argv[i], "codeinfo") == 0 ||
                     strcmp(argv[i], "compile") == 0 ||
-                    strcmp(argv[i], "dump_asm") == 0 ||
+                    strcmp(argv[i], "to_asm") == 0 ||
                     strcmp(argv[i], "get_ast") == 0 ||
                     strcmp(argv[i], "get_resolved_ast") == 0 ||
                     strcmp(argv[i], "get_tokens") == 0 ||
@@ -432,8 +432,8 @@ int scriptcore_Run(int argc, const char **argv) {
         return compiler_command_CodeInfo(argv, argc, action_offset);
     } else if (strcmp(action, "compile") == 0) {
         return compiler_command_Compile(argv, argc, action_offset);
-    } else if (strcmp(action, "dump_asm") == 0) {
-        return compiler_command_DumpASM(argv, argc, action_offset);
+    } else if (strcmp(action, "to_asm") == 0) {
+        return compiler_command_ToASM(argv, argc, action_offset);
     } else if (strcmp(action, "get_ast") == 0) {
         return compiler_command_GetAST(argv, argc, action_offset);
     } else if (strcmp(action, "get_resolved_ast") == 0) {

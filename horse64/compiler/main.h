@@ -38,7 +38,7 @@ int compiler_command_CodeInfo(
     const char **argc, int argv, int argoffset
 );
 
-int compiler_command_DumpASM(
+int compiler_command_ToASM(
     const char **argv, int argc, int argoffset
 );
 
