@@ -14,7 +14,36 @@
 #include "unicode.h"
 
 
-int newcalctemp(h64expression *func) {
+static void get_assign_lvalue_storage(
+        h64expression *expr,
+        storageref **out_storageref
+        ) {
+    assert(expr->type == H64EXPRTYPE_ASSIGN_STMT);
+    if (expr->assignstmt.lvalue->type ==
+            H64EXPRTYPE_BINARYOP &&
+            expr->assignstmt.lvalue->op.optype ==
+                H64OP_MEMBERBYIDENTIFIER &&
+            expr->assignstmt.lvalue->op.value2->storage.set) {
+        *out_storageref = &(
+            expr->assignstmt.lvalue->op.value2->storage.ref
+        );
+    } else {
+        assert(expr->assignstmt.lvalue->storage.set);
+        *out_storageref = &expr->assignstmt.lvalue->storage.ref;
+    }
+}
+
+int newcalctemp(h64expression *func, h64expression *expr) {
+    // Use temporary 'mandated' by parent if any:
+    storageref *parent_store = NULL;
+    if (expr && expr->parent &&
+            expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
+        get_assign_lvalue_storage(expr->parent, &parent_store);
+    if (parent_store && parent_store->type ==
+            H64STORETYPE_STACKSLOT)
+        return parent_store->id;
+
+    // Get new free temporary:
     assert(func->funcdef._storageinfo != NULL);
     func->funcdef._storageinfo->_temp_calc_slots_used_right_now++;
     if (func->funcdef._storageinfo->_temp_calc_slots_used_right_now >
@@ -56,25 +85,6 @@ int appendinst(
     return 1;
 }
 
-static void get_assign_lvalue_storage(
-        h64expression *expr,
-        storageref **out_storageref
-        ) {
-    assert(expr->type == H64EXPRTYPE_ASSIGN_STMT);
-    if (expr->assignstmt.lvalue->type ==
-            H64EXPRTYPE_BINARYOP &&
-            expr->assignstmt.lvalue->op.optype ==
-                H64OP_MEMBERBYIDENTIFIER &&
-            expr->assignstmt.lvalue->op.value2->storage.set) {
-        *out_storageref = &(
-            expr->assignstmt.lvalue->op.value2->storage.ref
-        );
-    } else {
-        assert(expr->assignstmt.lvalue->storage.set);
-        *out_storageref = &expr->assignstmt.lvalue->storage.ref;
-    }
-}
-
 void codegen_CalculateFinalFuncStack(
         h64program *program, h64expression *expr) {
     if (expr->type != H64EXPRTYPE_FUNCDEF_STMT)
@@ -114,16 +124,7 @@ int _codegencallback_DoCodegen_visit_out(
     }
 
     if (expr->type == H64EXPRTYPE_LITERAL) {
-        int temp = -1;
-        storageref *parent_store = NULL;
-        if (expr->parent &&
-                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
-            get_assign_lvalue_storage(expr->parent, &parent_store);
-        if (parent_store && parent_store->type == H64STORETYPE_STACKSLOT) {
-            temp = parent_store->id;
-        } else {
-            temp = newcalctemp(func);
-        }
+        int temp = newcalctemp(func, expr);
         h64instruction_setconst inst = {0};
         inst.type = H64INST_SETCONST;
         inst.slot = temp;
@@ -221,17 +222,7 @@ int _codegencallback_DoCodegen_visit_out(
     } else if (expr->type == H64EXPRTYPE_BINARYOP && (
             expr->op.optype != H64OP_MEMBERBYIDENTIFIER ||
             !expr->parent->op.value1->storage.set)) {
-        int temp = -1;
-        storageref *parent_store = NULL;
-        if (expr->parent &&
-                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
-            get_assign_lvalue_storage(expr->parent, &parent_store);
-        if (parent_store && parent_store->type ==
-                H64STORETYPE_STACKSLOT) {
-            temp = parent_store->id;
-        } else {
-            temp = newcalctemp(func);
-        }
+        int temp = newcalctemp(func, expr);
         h64instruction_binop inst_binop = {0};
         inst_binop.type = H64INST_BINOP;
         inst_binop.optype = expr->op.optype;
@@ -347,17 +338,7 @@ int _codegencallback_DoCodegen_visit_out(
         h64instruction_call inst_call = {0};
         inst_call.type = H64INST_CALL;
         inst_call.returnto = preargs_tempceiling;
-        int temp = -1;
-        storageref *parent_store = NULL;
-        if (expr->parent &&
-                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
-            get_assign_lvalue_storage(expr->parent, &parent_store);
-        if (parent_store && parent_store->type ==
-                H64STORETYPE_STACKSLOT) {
-            temp = parent_store->id;
-        } else {
-            temp = newcalctemp(func);
-        }
+        int temp = newcalctemp(func, expr);
         inst_call.returnto = temp;
         inst_call.slotcalledfrom = calledexprstoragetemp;
         inst_call.expandlastposarg = expandlastposarg;
@@ -402,17 +383,7 @@ int _codegencallback_DoCodegen_visit_out(
         if (expr->storage.ref.type == H64STORETYPE_STACKSLOT) {
             expr->storage._exprstoredintemp = expr->storage.ref.id;
         } else {
-            int temp = -1;
-            storageref *parent_store = NULL;
-            if (expr->parent &&
-                    expr->parent->type == H64EXPRTYPE_ASSIGN_STMT)
-                get_assign_lvalue_storage(expr->parent, &parent_store);
-            if (parent_store && parent_store->type ==
-                    H64STORETYPE_STACKSLOT) {
-                temp = parent_store->id;
-            } else {
-                temp = newcalctemp(func);
-            }
+            int temp = newcalctemp(func, expr);
             expr->storage._exprstoredintemp = temp;
             if (expr->storage.ref.type == H64STORETYPE_GLOBALVARSLOT) {
                 h64instruction_getglobal inst_getglobal = {0};
