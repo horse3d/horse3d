@@ -261,7 +261,7 @@ unicodechar *utf8_to_utf32_ex(
         memcpy((char*)temp_buf + k * sizeof(c), &c, sizeof(c));
         k++;
     }
-    temp_buf[k] = '\0';
+    temp_buf[k * sizeof(unicodechar)] = '\0';
     char *result = NULL;
     if (out_alloc) {
         result = out_alloc(
