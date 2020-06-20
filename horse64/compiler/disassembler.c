@@ -50,14 +50,33 @@ char *disassembler_DumpValueContent(valuecontent *vs) {
         snprintf(buf, sizeof(buf) - 1,
             "%f", vs->float_value);
         return strdup(buf);
-    case H64VALTYPE_CONSTPREALLOCSTR: ;
-        int alloclen = vs->constpreallocstr_len * 2 + 2;
+    case H64VALTYPE_BOOL:
+        if (vs->int_value)
+            return strdup("true");
+        return strdup("false");
+    case H64VALTYPE_NONE:
+        return strdup("none");
+    case H64VALTYPE_CONSTPREALLOCSTR:
+    case H64VALTYPE_SHORTSTR: ;
+        int alloclen = -1;
+        int totallen = -1;
+        if (vs->type == H64VALTYPE_CONSTPREALLOCSTR) {
+            totallen = (int)vs->constpreallocstr_len;
+        } else {
+            totallen = (int)vs->shortstr_len;
+        }
+        alloclen = totallen * 2 + 2;
         char *outbuf = malloc(alloclen);
         outbuf[0] = '\"';
         int outfill = 1;
         int k = 0;
         while (k < vs->constpreallocstr_len) {
-            uint64_t c = vs->constpreallocstr_value[k];
+            uint64_t c = 0;
+            if (vs->type == H64VALTYPE_CONSTPREALLOCSTR) {
+                c = vs->constpreallocstr_value[k];
+            } else {
+                c = vs->shortstr_value[k];
+            }
             if (outfill + 16 >= alloclen) {
                 char *newoutbuf = realloc(
                     outbuf, outfill + 64

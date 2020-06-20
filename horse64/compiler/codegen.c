@@ -452,8 +452,9 @@ int _codegencallback_DoCodegen_visit_out(
         }
         expr->storage._exprstoredintemp = temp;
     } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
-            expr->type == H64EXPRTYPE_CALL_STMT) {
-        // Nothing to do
+            expr->type == H64EXPRTYPE_CALL_STMT ||
+            expr->type == H64EXPRTYPE_IMPORT_STMT) {
+        // Nothing to do with those!
     } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
         if (expr->parent != NULL && (
                 (expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
@@ -538,6 +539,10 @@ int _codegencallback_DoCodegen_visit_out(
                 return 1;
             }
         }
+    } else if (expr->type == H64EXPRTYPE_VARDEF_STMT &&
+               expr->vardef.value == NULL) {
+        // Empty variable definition, nothing to do
+        return 1;
     } else if ((expr->type == H64EXPRTYPE_VARDEF_STMT &&
                 expr->vardef.value != NULL) ||
             (expr->type == H64EXPRTYPE_ASSIGN_STMT && (
