@@ -17,6 +17,8 @@ typedef struct h64compileproject {
     int astfilemap_count;
     h64program *program;
 
+    h64expression *_tempglobalfakeinitfunc;
+
     h64result *resultmsg;
 } h64compileproject;
 

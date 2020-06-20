@@ -313,6 +313,20 @@ static int scoperesolver_ComputeItemStorage(
                 } else {
                     assert(bytecode_func_id >= 0);
                     program->main_func_index = bytecode_func_id;
+                    program->symbols->mainfile_module_path = strdup(
+                        ast->module_path
+                    );
+                    if (!program->symbols->mainfile_module_path) {
+                        if (outofmemory) *outofmemory = 1;
+                        return 0;
+                    }
+                    program->symbols->mainfileuri_index = (
+                        bytecode_fileuriindex(program, ast->fileuri)
+                    );
+                    if (program->symbols->mainfileuri_index < 0) {
+                        if (outofmemory) *outofmemory = 1;
+                        return 0;
+                    }
                 }
             }
         }

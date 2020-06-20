@@ -135,6 +135,62 @@ void codegen_CalculateFinalFuncStack(
         );
 }
 
+h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
+    if (rinfo->pr->_tempglobalfakeinitfunc)
+        return rinfo->pr->_tempglobalfakeinitfunc;
+    rinfo->pr->_tempglobalfakeinitfunc = malloc(
+        sizeof(*rinfo->pr->_tempglobalfakeinitfunc)
+    );
+    if (!rinfo->pr->_tempglobalfakeinitfunc)
+        return NULL;
+    memset(rinfo->pr->_tempglobalfakeinitfunc, 0,
+           sizeof(*rinfo->pr->_tempglobalfakeinitfunc));
+    rinfo->pr->_tempglobalfakeinitfunc->type = (
+        H64EXPRTYPE_FUNCDEF_STMT
+    );
+    rinfo->pr->_tempglobalfakeinitfunc->funcdef.name = strdup(
+        "$$globalinit"
+    );
+    if (!rinfo->pr->_tempglobalfakeinitfunc->funcdef.name) {
+        oom:
+        free(rinfo->pr->_tempglobalfakeinitfunc->funcdef._storageinfo);
+        free(rinfo->pr->_tempglobalfakeinitfunc->funcdef.name);
+        free(rinfo->pr->_tempglobalfakeinitfunc);
+        rinfo->pr->_tempglobalfakeinitfunc = NULL;
+        return NULL;
+    }
+    rinfo->pr->_tempglobalfakeinitfunc->funcdef.bytecode_func_id = -1;
+    rinfo->pr->_tempglobalfakeinitfunc->funcdef._storageinfo = (
+        malloc(sizeof(
+            *rinfo->pr->_tempglobalfakeinitfunc->funcdef._storageinfo
+        ))
+    );
+    if (!rinfo->pr->_tempglobalfakeinitfunc->funcdef._storageinfo)
+        goto oom;
+    int bytecode_id = h64program_RegisterHorse64Function(
+        rinfo->pr->program, "$$globalinit",
+        rinfo->pr->program->symbols->fileuri[
+            rinfo->pr->program->symbols->mainfileuri_index
+        ],
+        0, NULL, 0,
+        rinfo->pr->program->symbols->mainfile_module_path,
+        "", -1
+    );
+    if (bytecode_id < 0)
+        goto oom;
+    rinfo->pr->_tempglobalfakeinitfunc->
+        funcdef.bytecode_func_id = bytecode_id;
+    rinfo->pr->program->globalinit_func_index = bytecode_id;
+    rinfo->pr->_tempglobalfakeinitfunc->storage.set = 1;
+    rinfo->pr->_tempglobalfakeinitfunc->storage.ref.type = (
+        H64STORETYPE_GLOBALFUNCSLOT
+    );
+    rinfo->pr->_tempglobalfakeinitfunc->storage.ref.id = (
+        bytecode_id
+    );
+    return rinfo->pr->_tempglobalfakeinitfunc;
+}
+
 int _codegencallback_DoCodegen_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
@@ -143,7 +199,15 @@ int _codegencallback_DoCodegen_visit_out(
 
     h64expression *func = surroundingfunc(expr);
     if (!func) {
-        return 1;
+        h64expression *sclass = surroundingclass(expr, 0);
+        if (sclass != NULL) {
+            return 1;
+        }
+        func = _fakeglobalinitfunc(rinfo);
+        if (!func) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
     }
 
     if (expr->type == H64EXPRTYPE_LITERAL) {

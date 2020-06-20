@@ -387,7 +387,7 @@ void h64program_Free(h64program *p) {
     free(p);
 }
 
-static int _getfileuriindex(h64program *p, const char *fileuri) {
+int bytecode_fileuriindex(h64program *p, const char *fileuri) {
     char *normalized_uri = uri_Normalize(fileuri, 1);
     if (!normalized_uri)
         return -1;
@@ -439,7 +439,7 @@ int h64program_AddGlobalvar(
 
     int fileuriindex = -1;
     if (fileuri) {
-        fileuriindex = _getfileuriindex(p, fileuri);
+        fileuriindex = bytecode_fileuriindex(p, fileuri);
         if (fileuriindex < 0)
             return -1;
     }
@@ -529,7 +529,7 @@ int h64program_RegisterCFunction(
 
     int fileuriindex = -1;
     if (fileuri) {
-        int fileuriindex = _getfileuriindex(p, fileuri);
+        int fileuriindex = bytecode_fileuriindex(p, fileuri);
         if (fileuriindex < 0)
             return -1;
     }
@@ -741,7 +741,7 @@ int h64program_AddClass(
 
     int fileuriindex = -1;
     if (fileuri) {
-        int fileuriindex = _getfileuriindex(p, fileuri);
+        int fileuriindex = bytecode_fileuriindex(p, fileuri);
         if (fileuriindex < 0)
             return -1;
     }

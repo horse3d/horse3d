@@ -54,6 +54,9 @@ typedef struct h64debugsymbols {
     int fileuri_count;
     char **fileuri;
 
+    int mainfileuri_index;
+    char *mainfile_module_path;
+
     hashmap *modulelibpath_to_modulesymbol_id;
     int module_count;
     h64modulesymbols **module_symbols;

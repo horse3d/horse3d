@@ -192,7 +192,7 @@ typedef struct h64program {
 
     int64_t func_count;
     h64func *func;
-    int main_func_index;
+    int main_func_index, globalinit_func_index;
 
     int64_t globalvar_count;
     h64globalvar *globalvar;
@@ -283,5 +283,7 @@ int h64program_AddGlobalvar(
 void h64program_Free(h64program *p);
 
 void h64program_PrintBytecodeStats(h64program *p);
+
+int bytecode_fileuriindex(h64program *p, const char *fileuri);
 
 #endif  // HORSE64_BYTECODE_H_
