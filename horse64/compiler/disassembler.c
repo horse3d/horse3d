@@ -134,10 +134,21 @@ int disassembler_PrintInstruction(
         h64instruction_getglobal *inst_getglobal =
             (h64instruction_getglobal *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d g" PRId64 "\n",
+                "    %s t%d g%" PRId64 "\n",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_getglobal->slotto,
                 (int64_t)inst_getglobal->globalfrom)) {
+            return 0;
+        }
+        return 1;
+    case H64INST_SETGLOBAL: ;
+        h64instruction_setglobal *inst_setglobal =
+            (h64instruction_setglobal *)inst;
+        if (!disassembler_Write(di,
+                "    %s g%" PRId64 " t%d\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int64_t)inst_setglobal->globalto,
+                (int)inst_setglobal->slotfrom)) {
             return 0;
         }
         return 1;
