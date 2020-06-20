@@ -167,6 +167,10 @@ h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
     );
     if (!rinfo->pr->_tempglobalfakeinitfunc->funcdef._storageinfo)
         goto oom;
+    memset(
+        rinfo->pr->_tempglobalfakeinitfunc->funcdef._storageinfo, 0,
+        sizeof(*rinfo->pr->_tempglobalfakeinitfunc->funcdef._storageinfo)
+    );
     int bytecode_id = h64program_RegisterHorse64Function(
         rinfo->pr->program, "$$globalinit",
         rinfo->pr->program->symbols->fileuri[
