@@ -339,6 +339,15 @@ int _codegencallback_DoCodegen_visit_out(
         int expandlastposarg = 0;
         int kwargcount = 0;
         int _reachedkwargs = 0;
+        h64instruction_settop inst_settop = {0};
+        inst_settop.type = H64INST_SETTOP;
+        inst_settop.topto = _argtemp;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_settop, sizeof(inst_settop))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
         int i = 0;
         while (i < expr->inlinecall.arguments.arg_count) {
             if (expr->inlinecall.arguments.arg_name[i])

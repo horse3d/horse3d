@@ -24,6 +24,7 @@ static char _name_itype_valuecopy[] = "valuecopy";
 static char _name_itype_binop[] = "binop";
 static char _name_itype_unop[] = "unop";
 static char _name_itype_call[] = "call";
+static char _name_itype_settop[] = "settop";
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
     switch (itype) {
@@ -47,6 +48,8 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_unop;
     case H64INST_CALL:
         return _name_itype_call;
+    case H64INST_SETTOP:
+        return _name_itype_settop;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -339,6 +342,8 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_unop);
     case H64INST_CALL:
         return sizeof(h64instruction_call);
+    case H64INST_SETTOP:
+        return sizeof(h64instruction_settop);
     default:
         fprintf(
             stderr, "Invalid inst type for "

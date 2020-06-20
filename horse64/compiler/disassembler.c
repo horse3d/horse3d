@@ -130,6 +130,16 @@ int disassembler_PrintInstruction(
         }
         free(s);
         return 1;
+    case H64INST_SETTOP: ;
+        h64instruction_settop *inst_settop =
+            (h64instruction_settop *)inst;
+        if (!disassembler_Write(di,
+                "    %s %d\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_settop->topto)) {
+            return 0;
+        }
+        return 1;
     case H64INST_GETGLOBAL: ;
         h64instruction_getglobal *inst_getglobal =
             (h64instruction_getglobal *)inst;

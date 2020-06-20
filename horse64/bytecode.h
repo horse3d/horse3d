@@ -24,6 +24,7 @@ typedef enum instructiontype {
     H64INST_POSARG,
     H64INST_KWARG,
     H64INST_CALL,
+    H64INST_SETTOP,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -138,6 +139,10 @@ typedef struct h64instruction_call {
     int16_t posargs, kwargs;
 } __attribute__((packed)) h64instruction_call;
 
+typedef struct h64instruction_settop {
+    uint8_t type;
+    int16_t topto;
+} __attribute__ ((packed)) h64instruction_settop;
 
 #define H64CLASS_HASH_SIZE 16
 #define H64CLASS_MAX_METHODS (INT_MAX / 4)
