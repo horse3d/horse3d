@@ -704,7 +704,7 @@ int _codegencallback_DoCodegen_visit_in(
         h64instruction_condjump inst_condjump = {0};
         inst_condjump.type = H64INST_CONDJUMP;
         inst_condjump.conditionalslot = (
-            expr->storage.eval_temp_id
+            expr->whilestmt.conditional->storage.eval_temp_id
         );
         inst_condjump.jumpbytesoffset = jumpid_end;
         if (!appendinst(
