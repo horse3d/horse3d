@@ -1,6 +1,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -310,7 +311,6 @@ void valuecontent_Free(valuecontent *content) {
         return;
     if (content->type == H64VALTYPE_CONSTPREALLOCSTR)
         free(content->constpreallocstr_value);
-    free(content);
 }
 
 void h64program_FreeInstructions(
@@ -320,6 +320,7 @@ void h64program_FreeInstructions(
     char *p = instructionbytes;
     int len = instructionbytes_len;
     while (len > 0) {
+        assert(p != NULL);
         size_t nextelement = h64program_PtrToInstructionSize(p);
         h64instructionany *inst = (h64instructionany*)p;
         if (inst->type == H64INST_SETCONST) {
@@ -327,6 +328,7 @@ void h64program_FreeInstructions(
             valuecontent_Free(&instsetconst->content);
         }
         len -= (int)nextelement;
+        p += (ptrdiff_t)nextelement;
     }
     free(instructionbytes);
 }
@@ -399,6 +401,21 @@ void h64program_Free(h64program *p) {
         }
     }
     free(p->classes);
+    if (p->func) {
+        int i = 0;
+        while (i < p->func_count) {
+            free(p->func[i].cfunclookup);
+            if (!p->func[i].iscfunc) {
+                assert(p->func[i].instructions ||
+                       p->func[i].instructions_bytes == 0);
+                h64program_FreeInstructions(
+                    p->func[i].instructions,
+                    p->func[i].instructions_bytes
+                );
+            }
+            i++;
+        }
+    }
     free(p->func);
     int i = 0;
     while (i < p->globalvar_count) {

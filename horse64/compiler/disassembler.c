@@ -36,6 +36,7 @@ static inline int disassembler_Write(
         printf("%s", buffer);
     else if (di->pr)
         di->pr(buffer);
+    free(buffer);
     return 1;
 }
 

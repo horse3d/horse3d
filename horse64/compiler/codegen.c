@@ -91,6 +91,7 @@ int appendinst(
            func->type == H64EXPRTYPE_INLINEFUNCDEF));
     int id = func->funcdef.bytecode_func_id;
     assert(id >= 0 && id < p->func_count);
+    assert(!p->func[id].iscfunc);
     char *instructionsnew = realloc(
         p->func[id].instructions,
         sizeof(*p->func[id].instructions) *
@@ -100,11 +101,13 @@ int appendinst(
         return 0;
     }
     p->func[id].instructions = instructionsnew;
+    assert(p->func[id].instructions != NULL);
     memcpy(
         p->func[id].instructions + p->func[id].instructions_bytes,
         ptr, len
     );
     p->func[id].instructions_bytes += len;
+    assert(p->func[id].instructions_bytes >= 0);
     return 1;
 }
 

@@ -257,6 +257,9 @@ void compileproject_Free(h64compileproject *pr) {
 
     free(pr->basefolder);
 
+    if (pr->_tempglobalfakeinitfunc) {
+        ast_FreeExpression(pr->_tempglobalfakeinitfunc);
+    }
     if (pr->astfilemap) {
         hash_StringMapIterate(
             pr->astfilemap, &_compileproject_astfreecallback, NULL

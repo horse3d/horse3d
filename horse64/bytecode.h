@@ -194,7 +194,7 @@ typedef struct h64func {
     int input_stack_size, inner_stack_size;
     int iscfunc, is_threadable;
 
-    char *cfunclookup;
+    char *cfunclookup;  // path to identify C extension func
 
     int associated_class_index;
 
