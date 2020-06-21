@@ -9,6 +9,7 @@ typedef struct asttransforminfo {
     h64ast *ast;
     int isbuiltinmodule;
     int hadoutofmemory, hadunexpectederror;
+    int dont_descend_visitation;
     void *userdata;
 } asttransforminfo;
 
@@ -21,6 +22,10 @@ int asttransform_Apply(
         h64expression *expr, h64expression *parent, void *ud
     ),
     void *ud
+);
+
+int _asttransform_cancel_visit_descend_callback(
+    h64expression *expr, void *ud
 );
 
 #endif  // HORSE64_ASTTRANSFORM_H_

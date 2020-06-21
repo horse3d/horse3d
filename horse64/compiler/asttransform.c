@@ -6,6 +6,17 @@
 #include "compiler/asttransform.h"
 #include "compiler/compileproject.h"
 
+int _asttransform_cancel_visit_descend_callback(
+        h64expression *expr, void *ud
+        ) {
+    asttransforminfo *atinfo = (asttransforminfo *)ud;
+    if (atinfo->dont_descend_visitation) {
+        atinfo->dont_descend_visitation = 0;
+        return 1;
+    }
+    return 0;
+}
+
 int asttransform_Apply(
         h64compileproject *pr, h64ast *ast,
         int (*visit_in)(
@@ -22,6 +33,7 @@ int asttransform_Apply(
     atinfo.pr = pr;
     atinfo.ast = ast;
     atinfo.userdata = ud;
+    atinfo.dont_descend_visitation = 0;
     int msgcount = ast->resultmsg.message_count;
     int k = 0;
     while (k < ast->stmt_count) {
@@ -29,6 +41,7 @@ int asttransform_Apply(
                ast->stmt[k] != NULL);
         int result = ast_VisitExpression(
             ast->stmt[k], NULL, visit_in, visit_out,
+            _asttransform_cancel_visit_descend_callback,
             &atinfo
         );
         if (!result || atinfo.hadoutofmemory) {

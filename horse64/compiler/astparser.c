@@ -4751,7 +4751,7 @@ h64ast *ast_ParseFromTokens(
         assert(result->scope.magicinitnum == SCOPEMAGICINITNUM);
         if (!ast_VisitExpression(
                 result->stmt[i], NULL,
-                &_ast_visit_in_setparent, NULL, NULL)) {
+                &_ast_visit_in_setparent, NULL, NULL, NULL)) {
             ast_FreeContents(result);
             result_ErrorNoLoc(
                 &result->resultmsg,

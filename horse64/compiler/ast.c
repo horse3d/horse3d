@@ -129,6 +129,9 @@ int ast_VisitExpression(
         int (*visit_out)(
             h64expression *expr, h64expression *parent, void *ud
         ),
+        int (*cancel_visit_descend_callback)(
+            h64expression *expr, void *ud
+        ),
         void *ud
         ) {
     if (!expr)
@@ -137,6 +140,12 @@ int ast_VisitExpression(
     if (visit_in) {
         if (!visit_in(expr, parent, ud))
             return 0;
+        if (cancel_visit_descend_callback != NULL &&
+                cancel_visit_descend_callback(expr, ud)) {
+            if (!visit_out(expr, parent, ud))
+                return 0;
+            return 1;
+        }
     }
 
     int i = 0;
@@ -148,7 +157,8 @@ int ast_VisitExpression(
     case H64EXPRTYPE_VARDEF_STMT:
         if (expr->vardef.value)
             if (!ast_VisitExpression(
-                    expr->vardef.value, expr, visit_in, visit_out, ud
+                    expr->vardef.value, expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
         break;
@@ -158,7 +168,8 @@ int ast_VisitExpression(
         while (i < expr->funcdef.arguments.arg_count) {
             if (!ast_VisitExpression(
                     expr->funcdef.arguments.arg_value[i], expr,
-                    visit_in, visit_out, ud
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -166,7 +177,8 @@ int ast_VisitExpression(
         i = 0;
         while (i < expr->funcdef.stmt_count) {
             if (!ast_VisitExpression(
-                    expr->funcdef.stmt[i], expr, visit_in, visit_out, ud
+                    expr->funcdef.stmt[i], expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -175,19 +187,22 @@ int ast_VisitExpression(
     case H64EXPRTYPE_CALL_STMT:
         if (expr->callstmt.call)
             if (!ast_VisitExpression(
-                    expr->callstmt.call, expr, visit_in, visit_out, ud
+                    expr->callstmt.call, expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
         break;
     case H64EXPRTYPE_CLASSDEF_STMT:
         if (!ast_VisitExpression(
-                expr->classdef.baseclass_ref, expr, visit_in, visit_out, ud
+                expr->classdef.baseclass_ref, expr, visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         i = 0;
         while (i < expr->classdef.vardef_count) {
             if (!ast_VisitExpression(
-                    expr->classdef.vardef[i], expr, visit_in, visit_out, ud
+                    expr->classdef.vardef[i], expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -195,7 +210,8 @@ int ast_VisitExpression(
         i = 0;
         while (i < expr->classdef.funcdef_count) {
             if (!ast_VisitExpression(
-                    expr->classdef.funcdef[i], expr, visit_in, visit_out, ud
+                    expr->classdef.funcdef[i], expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -209,13 +225,15 @@ int ast_VisitExpression(
             );
 
             if (!ast_VisitExpression(
-                    current_clause->conditional, expr, visit_in, visit_out, ud
+                    current_clause->conditional, expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i = 0;
             while (i < current_clause->stmt_count) {
                 if (!ast_VisitExpression(
-                        current_clause->stmt[i], expr, visit_in, visit_out, ud
+                        current_clause->stmt[i], expr, visit_in, visit_out,
+                        cancel_visit_descend_callback, ud
                         ))
                     return 0;
                 i++;
@@ -225,13 +243,15 @@ int ast_VisitExpression(
         break;
     case H64EXPRTYPE_WHILE_STMT:
         if (!ast_VisitExpression(
-                expr->whilestmt.conditional, expr, visit_in, visit_out, ud
+                expr->whilestmt.conditional, expr, visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         i = 0;
         while (i < expr->whilestmt.stmt_count) {
             if (!ast_VisitExpression(
-                    expr->whilestmt.stmt[i], expr, visit_in, visit_out, ud
+                    expr->whilestmt.stmt[i], expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -240,13 +260,15 @@ int ast_VisitExpression(
     case H64EXPRTYPE_FOR_STMT:
         if (!ast_VisitExpression(
                 expr->forstmt.iterated_container, expr,
-                visit_in, visit_out, ud
+                visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         i = 0;
         while (i < expr->forstmt.stmt_count) {
             if (!ast_VisitExpression(
-                    expr->forstmt.stmt[i], expr, visit_in, visit_out, ud
+                    expr->forstmt.stmt[i], expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -257,7 +279,8 @@ int ast_VisitExpression(
     case H64EXPRTYPE_RETURN_STMT:
         if (!ast_VisitExpression(
                 expr->returnstmt.returned_expression, expr,
-                visit_in, visit_out, ud
+                visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         break;
@@ -265,7 +288,8 @@ int ast_VisitExpression(
         i = 0;
         while (i < expr->trystmt.trystmt_count) {
             if (!ast_VisitExpression(
-                    expr->trystmt.trystmt[i], expr, visit_in, visit_out, ud
+                    expr->trystmt.trystmt[i], expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -274,7 +298,8 @@ int ast_VisitExpression(
         while (i < expr->trystmt.exceptions_count) {
             if (!ast_VisitExpression(
                     expr->trystmt.exceptions[i], expr,
-                    visit_in, visit_out, ud
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -282,7 +307,8 @@ int ast_VisitExpression(
         i = 0;
         while (i < expr->trystmt.catchstmt_count) {
             if (!ast_VisitExpression(
-                    expr->trystmt.catchstmt[i], expr, visit_in, visit_out, ud
+                    expr->trystmt.catchstmt[i], expr, visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -291,7 +317,8 @@ int ast_VisitExpression(
         while (i < expr->trystmt.finallystmt_count) {
             if (!ast_VisitExpression(
                     expr->trystmt.finallystmt[i], expr,
-                    visit_in, visit_out, ud
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -299,40 +326,47 @@ int ast_VisitExpression(
         break;
     case H64EXPRTYPE_ASSIGN_STMT:
         if (!ast_VisitExpression(
-                expr->assignstmt.lvalue, expr, visit_in, visit_out, ud
+                expr->assignstmt.lvalue, expr, visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         if (!ast_VisitExpression(
-                expr->assignstmt.rvalue, expr, visit_in, visit_out, ud
+                expr->assignstmt.rvalue, expr, visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         break;
     case H64EXPRTYPE_BINARYOP:
         if (!ast_VisitExpression(
-                expr->op.value1, expr, visit_in, visit_out, ud
+                expr->op.value1, expr, visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         if (!ast_VisitExpression(
-                expr->op.value2, expr, visit_in, visit_out, ud
+                expr->op.value2, expr, visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         break;
     case H64EXPRTYPE_UNARYOP:
         if (!ast_VisitExpression(
-                expr->op.value1, expr, visit_in, visit_out, ud
+                expr->op.value1, expr, visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         break;
     case H64EXPRTYPE_CALL:
         if (!ast_VisitExpression(
-                expr->inlinecall.value, expr, visit_in, visit_out, ud
+                expr->inlinecall.value, expr, visit_in, visit_out,
+                cancel_visit_descend_callback, ud
                 ))
             return 0;
         i = 0;
         while (i < expr->inlinecall.arguments.arg_count) {
             if (!ast_VisitExpression(
                     expr->inlinecall.arguments.arg_value[i], expr,
-                    visit_in, visit_out, ud
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -343,7 +377,8 @@ int ast_VisitExpression(
         while (i < expr->constructorlist.entry_count) {
             if (!ast_VisitExpression(
                     expr->constructorlist.entry[i], expr,
-                    visit_in, visit_out, ud
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -354,7 +389,8 @@ int ast_VisitExpression(
         while (i < expr->constructorset.entry_count) {
             if (!ast_VisitExpression(
                     expr->constructorset.entry[i], expr,
-                    visit_in, visit_out, ud
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -365,12 +401,14 @@ int ast_VisitExpression(
         while (i < expr->constructormap.entry_count) {
             if (!ast_VisitExpression(
                     expr->constructormap.key[i], expr,
-                    visit_in, visit_out, ud
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             if (!ast_VisitExpression(
                     expr->constructormap.value[i], expr,
-                    visit_in, visit_out, ud
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
@@ -381,7 +419,8 @@ int ast_VisitExpression(
         while (i < expr->constructorvector.entry_count) {
             if (!ast_VisitExpression(
                     expr->constructorvector.entry[i], expr,
-                    visit_in, visit_out, ud
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;

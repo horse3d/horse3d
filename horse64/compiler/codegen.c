@@ -195,60 +195,6 @@ h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
     return rinfo->pr->_tempglobalfakeinitfunc;
 }
 
-int _codegencallback_DoCodegen_visit_in(
-        h64expression *expr, h64expression *parent, void *ud
-        ) {
-    asttransforminfo *rinfo = (asttransforminfo *)ud;
-    codegen_CalculateFinalFuncStack(rinfo->pr->program, expr);
-
-    h64expression *func = surroundingfunc(expr);
-    if (!func) {
-        h64expression *sclass = surroundingclass(expr, 0);
-        if (sclass != NULL) {
-            return 1;
-        }
-        func = _fakeglobalinitfunc(rinfo);
-        if (!func) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
-        }
-    }
-
-    if (expr->type == H64EXPRTYPE_WHILE_STMT) {
-        assert(expr->whilestmt.loopcond == NULL);
-
-        h64instruction_jumptarget inst_jumptarget = {0};
-        inst_jumptarget.type = H64INST_JUMPTARGET;
-        inst_jumptarget.jumpid = (
-            func->funcdef._storageinfo->jump_targets_used
-        );
-        func->funcdef._storageinfo->jump_targets_used++;
-        if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jumptarget, sizeof(inst_jumptarget))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
-        }
-        expr->whilestmt.loopstart = &inst_jumptarget;
-
-        h64instruction_condjump inst_condjump = {0};
-        inst_condjump.type = H64INST_CONDJUMP;
-        inst_condjump.slotconditional = (
-            expr->storage.eval_temp_id
-        );
-        inst_condjump.jumpbytesoffset = -1;
-        if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_condjump, sizeof(inst_condjump))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
-        }
-        expr->whilestmt.loopcond = &inst_condjump;
-    }
-
-    return 1;
-}
-
 int _codegencallback_DoCodegen_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
@@ -364,6 +310,8 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         expr->storage.eval_temp_id = temp;
+    } else if (expr->type == H64EXPRTYPE_WHILE_STMT) {
+        // Already handled in visit_in
     } else if (expr->type == H64EXPRTYPE_BINARYOP && (
             expr->op.optype != H64OP_MEMBERBYIDENTIFIER ||
             !expr->op.value1->storage.set)) {
@@ -622,34 +570,6 @@ int _codegencallback_DoCodegen_visit_out(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-    } else if (expr->type == H64EXPRTYPE_WHILE_STMT) {
-        h64instruction_jump inst_jump = {0};
-        inst_jump.type = H64INST_JUMP;
-        inst_jump.jumpbytesoffset = (
-            expr->whilestmt.loopstart->jumpid
-        );
-        if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jump, sizeof(inst_jump))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
-        }
-
-        h64instruction_jumptarget inst_jumptarget = {0};
-        inst_jumptarget.type = H64INST_JUMPTARGET;
-        inst_jumptarget.jumpid = (
-            func->funcdef._storageinfo->jump_targets_used
-        );
-        if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jumptarget, sizeof(inst_jumptarget))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
-        }
-        expr->whilestmt.loopcond->jumpbytesoffset = (
-            inst_jumptarget.jumpid
-        );
-        func->funcdef._storageinfo->jump_targets_used++;
     } else if ((expr->type == H64EXPRTYPE_VARDEF_STMT &&
                 expr->vardef.value != NULL) ||
             (expr->type == H64EXPRTYPE_ASSIGN_STMT && (
@@ -724,6 +644,111 @@ int _codegencallback_DoCodegen_visit_out(
 
     if (IS_STMT(expr->type)) {
         func->funcdef._storageinfo->_temp_calc_slots_used_right_now = 0;
+    }
+
+    return 1;
+}
+
+int _codegencallback_DoCodegen_visit_in(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    asttransforminfo *rinfo = (asttransforminfo *)ud;
+    codegen_CalculateFinalFuncStack(rinfo->pr->program, expr);
+
+    h64expression *func = surroundingfunc(expr);
+    if (!func) {
+        h64expression *sclass = surroundingclass(expr, 0);
+        if (sclass != NULL) {
+            return 1;
+        }
+        func = _fakeglobalinitfunc(rinfo);
+        if (!func) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+    }
+
+    if (expr->type == H64EXPRTYPE_WHILE_STMT) {
+        rinfo->dont_descend_visitation = 1;
+        int32_t jumpid_start = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+        int32_t jumpid_end = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+
+        h64instruction_jumptarget inst_jumptarget = {0};
+        inst_jumptarget.type = H64INST_JUMPTARGET;
+        inst_jumptarget.jumpid = jumpid_start;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jumptarget, sizeof(inst_jumptarget))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        int result = ast_VisitExpression(
+            expr->whilestmt.conditional, expr,
+            &_codegencallback_DoCodegen_visit_in,
+            &_codegencallback_DoCodegen_visit_out,
+            _asttransform_cancel_visit_descend_callback,
+            rinfo
+        );
+        rinfo->dont_descend_visitation = 1;
+        if (!result)
+            return 0;
+
+        h64instruction_condjump inst_condjump = {0};
+        inst_condjump.type = H64INST_CONDJUMP;
+        inst_condjump.slotconditional = (
+            expr->storage.eval_temp_id
+        );
+        inst_condjump.jumpbytesoffset = jumpid_end;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_condjump, sizeof(inst_condjump))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        int i = 0;
+        while (i < expr->whilestmt.stmt_count) {
+            result = ast_VisitExpression(
+                expr->whilestmt.stmt[i], expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            rinfo->dont_descend_visitation = 1;
+            if (!result)
+                return 0;
+            i++;
+        }
+
+        h64instruction_jump inst_jump = {0};
+        inst_jump.type = H64INST_JUMP;
+        inst_jump.jumpbytesoffset = jumpid_start;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jump, sizeof(inst_jump))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        h64instruction_jumptarget inst_jumptargetend = {0};
+        inst_jumptarget.type = H64INST_JUMPTARGET;
+        inst_jumptarget.jumpid = jumpid_end;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jumptarget, sizeof(inst_jumptarget))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        rinfo->dont_descend_visitation = 1;
+        return 1;
     }
 
     return 1;

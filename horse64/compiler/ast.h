@@ -197,8 +197,6 @@ typedef struct h64expression {
             h64expression *conditional;
             int stmt_count;
             h64expression **stmt;
-            h64instruction_jumptarget *loopstart;
-            h64instruction_condjump *loopcond;
         } whilestmt;
         struct h64ifstmt ifstmt;
         struct trystmt {
@@ -249,6 +247,9 @@ int ast_VisitExpression(
         h64expression *expr, h64expression *parent, void *ud),
     int (*visit_out)(
         h64expression *expr, h64expression *parent, void *ud),
+    int (*cancel_visit_descend_callback)(
+        h64expression *expr, void *ud
+    ),
     void *ud
 );
 
