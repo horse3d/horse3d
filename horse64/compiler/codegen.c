@@ -290,6 +290,7 @@ int _codegencallback_DoCodegen_visit_out(
                     result, out_len * sizeof(*result)
                 );
             }
+            free(result);
         } else {
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,

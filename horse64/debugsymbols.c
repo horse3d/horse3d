@@ -12,6 +12,7 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
     if (!symbols)
         return;
 
+    free(symbols->mainfile_module_path);
     int i = 0;
     while (i < symbols->global_member_count) {
         free(symbols->global_member_name[i]);
