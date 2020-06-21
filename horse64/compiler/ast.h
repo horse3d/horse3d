@@ -117,7 +117,7 @@ typedef struct h64expression {
         struct assignstmt {
             h64expression *lvalue;
             h64expression *rvalue;
-            char assignop[3];
+            int assignop;
         } assignstmt;
         struct callstmt {
             h64expression *call;

@@ -2942,6 +2942,42 @@ int ast_ParseExprStmt(
         if (i < max_tokens_touse &&
                 tokens[i].type == H64TK_BINOPSYMBOL &&
                 IS_ASSIGN_OP(tokens[i].int_value)) {
+            if (tokens[i].int_value != H64OP_ASSIGN) {
+                if (outofmemory) *outofmemory = 0;
+                char buf[512]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected '%s', "
+                    "expected '=' instead to assign variable "
+                    "default value",
+                    operator_OpPrintedAsStr(tokens[i].int_value)
+                );
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(
+                            context->tokenstreaminfo, tokens, i),
+                        _refcol(
+                            context->tokenstreaminfo, tokens, i)
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    scope_RemoveItem(
+                        parsethis->scope, expr->vardef.identifier
+                    );
+                    if (parsefail) *parsefail = 0;
+                    return 0;
+                }
+                int oldi = i;
+                ast_ParseRecover_FindNextStatement(
+                    context->tokenstreaminfo, tokens,
+                    max_tokens_touse, &i,
+                    RECOVERFLAGS_MUSTFORWARD
+                );
+                assert(i > oldi || i >= max_tokens_touse);
+                *out_expr = expr;
+                if (out_tokenlen) *out_tokenlen = i;
+                if (parsefail) *parsefail = 0;
+                return 1;
+            }
             i++;
             int tlen = 0;
             int _innerparsefail = 0;
@@ -4532,6 +4568,7 @@ int ast_ParseExprStmt(
             if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_BINOPSYMBOL &&
                     IS_ASSIGN_OP(tokens[i].int_value)) {
+                int operator = tokens[i].int_value;
                 if (!ast_CanBeLValue(innerexpr)) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
@@ -4606,6 +4643,7 @@ int ast_ParseExprStmt(
                 i += tlen;
                 expr->assignstmt.lvalue = innerexpr;
                 expr->assignstmt.rvalue = innerexpr2;
+                expr->assignstmt.assignop = operator;
                 *out_expr = expr;
                 if (out_tokenlen) *out_tokenlen = i;
                 if (parsefail) *parsefail = 0;

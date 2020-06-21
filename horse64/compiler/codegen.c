@@ -37,7 +37,8 @@ int newcalctemp(h64expression *func, h64expression *expr) {
     // Use temporary 'mandated' by parent if any:
     storageref *parent_store = NULL;
     if (expr && expr->parent &&
-            expr->parent->type == H64EXPRTYPE_ASSIGN_STMT) {
+            expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+            expr->parent->assignstmt.assignop == H64OP_ASSIGN) {
         get_assign_lvalue_storage(expr->parent, &parent_store);
     } else if (expr && expr->parent &&
             expr->parent->type == H64EXPRTYPE_VARDEF_STMT) {
@@ -602,6 +603,41 @@ int _codegencallback_DoCodegen_visit_out(
             assignfromtemporary = (
                 expr->assignstmt.rvalue->storage.eval_temp_id
             );
+            if (expr->assignstmt.assignop != H64OP_ASSIGN) {
+                int oldvaluetemp = -1;
+                if (str->type == H64STORETYPE_GLOBALVARSLOT) {
+                    oldvaluetemp = newcalctemp(func, expr);
+                    h64instruction_getglobal inst = {0};
+                    inst.type = H64INST_GETGLOBAL;
+                    inst.globalfrom = str->id;
+                    inst.slotto = oldvaluetemp;
+                    if (!appendinst(rinfo->pr->program, func, expr,
+                                    &inst, sizeof(inst))) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                } else {
+                    assert(str->type == H64STORETYPE_STACKSLOT);
+                    oldvaluetemp = str->id;
+                }
+                int mathop = operator_AssignOpToMathOp(
+                    expr->assignstmt.assignop
+                );
+                assert(mathop != H64OP_INVALID);
+                h64instruction_binop inst_assignmath = {0};
+                inst_assignmath.type = H64INST_BINOP;
+                inst_assignmath.optype = mathop;
+                inst_assignmath.arg1slotfrom = oldvaluetemp;
+                inst_assignmath.arg2slotfrom = assignfromtemporary;
+                inst_assignmath.slotto = oldvaluetemp;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_assignmath, sizeof(inst_assignmath))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                assignfromtemporary = oldvaluetemp;
+            }
         }
         assert(assignfromtemporary >= 0);
         assert(str->type == H64STORETYPE_GLOBALVARSLOT ||

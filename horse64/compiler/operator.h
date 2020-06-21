@@ -56,6 +56,14 @@ typedef enum h64optype {
 #define IS_ASSIGN_OP(x) (x >= H64OP_ASSIGNMATH_DIVIDE && x <= H64OP_ASSIGN)
 #define IS_UNWANTED_ASSIGN_OP(x) (x >= H64OP_ASSIGNMATH_MODULO && x <= H64OP_ASSIGNMATH_BINSHIFTRIGHT)
 
+static int operator_AssignOpToMathOp(int assignop) {
+    if (assignop >= H64OP_ASSIGNMATH_DIVIDE &&
+            assignop <= H64OP_ASSIGNMATH_BINSHIFTRIGHT) {
+        return assignop - (H64OP_ASSIGNMATH_DIVIDE - H64OP_MATH_DIVIDE);
+    }
+    return H64OP_INVALID;
+}
+
 extern int operator_precedences_total_count;
 extern int *operators_by_precedence_counts;
 extern h64optype **operators_by_precedence;
