@@ -263,6 +263,39 @@ int disassembler_PrintInstruction(
             return 0;
         }
         return 1;
+    case H64INST_JUMPTARGET: ;
+        h64instruction_jumptarget *inst_jumptarget =
+            (h64instruction_jumptarget *)inst;
+        if (!disassembler_Write(di,
+                "    %s j%d\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_jumptarget->jumpid)) {
+            return 0;
+        }
+        return 1;
+    case H64INST_CONDJUMP: ;
+        h64instruction_condjump *inst_condjump =
+            (h64instruction_condjump *)inst;
+        if (!disassembler_Write(di,
+                "    %s %s%d t%d\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (inst_condjump->jumpbytesoffset >= 0 ? "+" : ""),
+                (int)inst_condjump->jumpbytesoffset,
+                inst_condjump->conditionalslot)) {
+            return 0;
+        }
+        return 1;
+    case H64INST_JUMP: ;
+        h64instruction_jump *inst_jump =
+            (h64instruction_jump *)inst;
+        if (!disassembler_Write(di,
+                "    %s %s%d\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (inst_jump->jumpbytesoffset >= 0 ? "+" : ""),
+                (int)inst_jump->jumpbytesoffset)) {
+            return 0;
+        }
+        return 1;
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>\n",

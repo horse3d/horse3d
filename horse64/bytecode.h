@@ -161,7 +161,7 @@ typedef struct h64instruction_jumptarget {
 typedef struct h64instruction_condjump {
     uint8_t type;
     int32_t jumpbytesoffset;
-    int16_t slotconditional;
+    int16_t conditionalslot;
 } __attribute__ ((packed)) h64instruction_condjump;
 
 typedef struct h64instruction_jump {

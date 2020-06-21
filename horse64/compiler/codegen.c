@@ -689,6 +689,7 @@ int _codegencallback_DoCodegen_visit_in(
             return 0;
         }
 
+        rinfo->dont_descend_visitation = 0;
         int result = ast_VisitExpression(
             expr->whilestmt.conditional, expr,
             &_codegencallback_DoCodegen_visit_in,
@@ -702,7 +703,7 @@ int _codegencallback_DoCodegen_visit_in(
 
         h64instruction_condjump inst_condjump = {0};
         inst_condjump.type = H64INST_CONDJUMP;
-        inst_condjump.slotconditional = (
+        inst_condjump.conditionalslot = (
             expr->storage.eval_temp_id
         );
         inst_condjump.jumpbytesoffset = jumpid_end;
@@ -715,6 +716,7 @@ int _codegencallback_DoCodegen_visit_in(
 
         int i = 0;
         while (i < expr->whilestmt.stmt_count) {
+            rinfo->dont_descend_visitation = 0;
             result = ast_VisitExpression(
                 expr->whilestmt.stmt[i], expr,
                 &_codegencallback_DoCodegen_visit_in,
