@@ -25,6 +25,10 @@ typedef enum instructiontype {
     H64INST_KWARG,
     H64INST_CALL,
     H64INST_SETTOP,
+    H64INST_RETURNVALUE,
+    H64INST_JUMPTARGET,
+    H64INST_CONDJUMP,
+    H64INST_JUMP,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -143,6 +147,27 @@ typedef struct h64instruction_settop {
     uint8_t type;
     int16_t topto;
 } __attribute__ ((packed)) h64instruction_settop;
+
+typedef struct h64instruction_returnvalue {
+    uint8_t type;
+    int16_t returnslotfrom;
+} __attribute__ ((packed)) h64instruction_returnvalue;
+
+typedef struct h64instruction_jumptarget {
+    uint8_t type;
+    int32_t jumpid;
+} __attribute__ ((packed)) h64instruction_jumptarget;
+
+typedef struct h64instruction_condjump {
+    uint8_t type;
+    int32_t jumpbytesoffset;
+    int16_t slotconditional;
+} __attribute__ ((packed)) h64instruction_condjump;
+
+typedef struct h64instruction_jump {
+    uint8_t type;
+    int32_t jumpbytesoffset;
+} __attribute__ ((packed)) h64instruction_jump;
 
 #define H64CLASS_HASH_SIZE 16
 #define H64CLASS_MAX_METHODS (INT_MAX / 4)

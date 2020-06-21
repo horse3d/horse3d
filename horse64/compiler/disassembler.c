@@ -253,6 +253,16 @@ int disassembler_PrintInstruction(
             return 0;
         }
         return 1;
+    case H64INST_RETURNVALUE: ;
+        h64instruction_returnvalue *inst_returnvalue =
+            (h64instruction_returnvalue *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d\n",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_returnvalue->returnslotfrom)) {
+            return 0;
+        }
+        return 1;
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>\n",

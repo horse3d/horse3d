@@ -559,7 +559,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                             closure->type == H64EXPRTYPE_FUNCDEF_STMT ||
                             closure->type == H64EXPRTYPE_INLINEFUNCDEF
                         );
-                        h64storageextrainfo *einfo = (
+                        h64funcstorageextrainfo *einfo = (
                             closure->funcdef._storageinfo
                         );
                         if (!einfo) {

@@ -53,7 +53,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
             expr, 0
         );
 
-        h64storageextrainfo *einfo = expr->funcdef._storageinfo;
+        h64funcstorageextrainfo *einfo = expr->funcdef._storageinfo;
         if (einfo->closureboundvars_count > 0) {
             // It's a closure! Assign temporaries for actual values
             // (the parameter temporaries are used for the varbox
@@ -197,7 +197,7 @@ int _resolver_EnsureLocalDefStorage(
         }
 
         // Determine temporary slot to be used:
-        h64storageextrainfo *einfo = func->funcdef._storageinfo;
+        h64funcstorageextrainfo *einfo = func->funcdef._storageinfo;
         int besttemp = -1;
         int besttemp_score = -1;
         int valueboxid = -1;
@@ -384,7 +384,7 @@ int varstorage_AssignLocalStorage(
 }
 
 void varstorage_FreeExtraInfo(
-        h64storageextrainfo *einfo
+        h64funcstorageextrainfo *einfo
         ) {
     if (!einfo)
         return;
@@ -394,7 +394,7 @@ void varstorage_FreeExtraInfo(
 }
 
 jsonvalue *varstorage_ExtraInfoToJSON(
-        h64storageextrainfo *einfo
+        h64funcstorageextrainfo *einfo
         ) {
     if (!einfo)
         return NULL;

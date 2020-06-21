@@ -18,24 +18,25 @@ typedef struct h64localstorageassign {
     int use_start_token_index, use_end_token_index;
 } h64localstorageassign;
 
-typedef struct h64storageextrainfo {
+typedef struct h64funcstorageextrainfo {
     int lowest_guaranteed_free_temp;
     int temp_calculation_slots;
     int _temp_calc_slots_used_right_now;  // used by codegen
+    int32_t jump_targets_used;
 
     int closureboundvars_count;
     h64scopedef **closureboundvars;
 
     int lstoreassign_count;
     h64localstorageassign *lstoreassign;
-} h64storageextrainfo;
+} h64funcstorageextrainfo;
 
 void varstorage_FreeExtraInfo(
-    h64storageextrainfo *einfo
+    h64funcstorageextrainfo *einfo
 );
 
 jsonvalue *varstorage_ExtraInfoToJSON(
-    h64storageextrainfo *einfo
+    h64funcstorageextrainfo *einfo
 );
 
 #endif  // HORSE64_COMPILER_VARSTORAGE_H_

@@ -25,6 +25,10 @@ static char _name_itype_binop[] = "binop";
 static char _name_itype_unop[] = "unop";
 static char _name_itype_call[] = "call";
 static char _name_itype_settop[] = "settop";
+static char _name_itype_returnvalue[] = "returnvalue";
+static char _name_itype_jumptarget[] = "jumptarget";
+static char _name_itype_condjump[] = "condjump";
+static char _name_itype_jump[] = "jump";
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
     switch (itype) {
@@ -50,6 +54,14 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_call;
     case H64INST_SETTOP:
         return _name_itype_settop;
+    case H64INST_RETURNVALUE:
+        return _name_itype_returnvalue;
+    case H64INST_JUMPTARGET:
+        return _name_itype_jumptarget;
+    case H64INST_CONDJUMP:
+        return _name_itype_condjump;
+    case H64INST_JUMP:
+        return _name_itype_jump;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -344,6 +356,14 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_call);
     case H64INST_SETTOP:
         return sizeof(h64instruction_settop);
+    case H64INST_RETURNVALUE:
+        return sizeof(h64instruction_returnvalue);
+    case H64INST_JUMPTARGET:
+        return sizeof(h64instruction_jumptarget);
+    case H64INST_CONDJUMP:
+        return sizeof(h64instruction_condjump);
+    case H64INST_JUMP:
+        return sizeof(h64instruction_jump);
     default:
         fprintf(
             stderr, "Invalid inst type for "
