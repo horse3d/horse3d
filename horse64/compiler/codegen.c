@@ -611,8 +611,9 @@ int _codegencallback_DoCodegen_visit_out(
                     inst.type = H64INST_GETGLOBAL;
                     inst.globalfrom = str->id;
                     inst.slotto = oldvaluetemp;
-                    if (!appendinst(rinfo->pr->program, func, expr,
-                                    &inst, sizeof(inst))) {
+                    if (!appendinst(
+                            rinfo->pr->program, func, expr,
+                            &inst, sizeof(inst))) {
                         rinfo->hadoutofmemory = 1;
                         return 0;
                     }
