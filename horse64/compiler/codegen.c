@@ -782,13 +782,105 @@ int _codegencallback_DoCodegen_visit_in(
         }
 
         h64instruction_jumptarget inst_jumptargetend = {0};
-        inst_jumptarget.type = H64INST_JUMPTARGET;
-        inst_jumptarget.jumpid = jumpid_end;
+        inst_jumptargetend.type = H64INST_JUMPTARGET;
+        inst_jumptargetend.jumpid = jumpid_end;
         if (!appendinst(
                 rinfo->pr->program, func, expr,
-                &inst_jumptarget, sizeof(inst_jumptarget))) {
+                &inst_jumptargetend, sizeof(inst_jumptargetend))) {
             rinfo->hadoutofmemory = 1;
             return 0;
+        }
+        rinfo->dont_descend_visitation = 1;
+        return 1;
+    } else if (expr->type == H64EXPRTYPE_IF_STMT) {
+        rinfo->dont_descend_visitation = 1;
+        int32_t jumpid_end = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+
+        struct h64ifstmt *current_clause = &func->ifstmt;
+        assert(current_clause->conditional != NULL);
+        while (current_clause != NULL) {
+            int32_t jumpid_nextclause = -1;
+            if (current_clause->followup_clause) {
+                jumpid_nextclause = (
+                    func->funcdef._storageinfo->jump_targets_used
+                );
+                func->funcdef._storageinfo->jump_targets_used++;
+            }
+
+            rinfo->dont_descend_visitation = 0;
+            int result = ast_VisitExpression(
+                current_clause->conditional, expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            rinfo->dont_descend_visitation = 1;
+            if (!result)
+                return 0;
+
+            h64instruction_condjump inst_condjump = {0};
+            inst_condjump.type = H64INST_CONDJUMP;
+            inst_condjump.conditionalslot = (
+                current_clause->conditional->storage.eval_temp_id
+            );
+            inst_condjump.jumpbytesoffset = (
+                current_clause->followup_clause != NULL ?
+                jumpid_nextclause : jumpid_end
+            );
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_condjump, sizeof(inst_condjump))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+
+            int i = 0;
+            while (i < current_clause->stmt_count) {
+                rinfo->dont_descend_visitation = 0;
+                result = ast_VisitExpression(
+                    current_clause->stmt[i], expr,
+                    &_codegencallback_DoCodegen_visit_in,
+                    &_codegencallback_DoCodegen_visit_out,
+                    _asttransform_cancel_visit_descend_callback,
+                    rinfo
+                );
+                rinfo->dont_descend_visitation = 1;
+                if (!result)
+                    return 0;
+                i++;
+            }
+
+            if (current_clause->followup_clause != NULL) {
+                h64instruction_jump inst_jump = {0};
+                inst_jump.type = H64INST_JUMP;
+                inst_jump.jumpbytesoffset = jumpid_end;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_jump, sizeof(inst_jump))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+
+            h64instruction_jumptarget inst_jumptarget = {0};
+            inst_jumptarget.type = H64INST_JUMPTARGET;
+            if (current_clause->followup_clause != NULL) {
+                inst_jumptarget.jumpid = jumpid_end;
+            } else {
+                inst_jumptarget.jumpid = jumpid_nextclause;
+            }
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_jumptarget, sizeof(inst_jumptarget))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            rinfo->dont_descend_visitation = 1;
+            current_clause = current_clause->followup_clause;
         }
         rinfo->dont_descend_visitation = 1;
         return 1;
