@@ -169,6 +169,18 @@ typedef struct h64instruction_jump {
     int32_t jumpbytesoffset;
 } __attribute__ ((packed)) h64instruction_jump;
 
+typedef struct h64instruction_newiterator {
+    uint8_t type;
+    int16_t slotiteratorto, slotcontainerfrom;
+} __attribute__ ((packed)) h64instruction_newiterator;
+
+typedef struct h64instruction_iterate {
+    uint8_t type;
+    int16_t slotiteratorto, slotiteratorfrom;
+} __attribute__ ((packed)) h64instruction_iterate;
+
+
+
 #define H64CLASS_HASH_SIZE 16
 #define H64CLASS_MAX_METHODS (INT_MAX / 4)
 
