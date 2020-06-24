@@ -160,7 +160,8 @@ void codegen_CalculateFinalFuncStack(
         program->symbols, expr->funcdef.bytecode_func_id
     );
     expr->funcdef._storageinfo->lowest_guaranteed_free_temp +=
-        expr->funcdef._storageinfo->codegen.max_oneline_slots;
+        expr->funcdef._storageinfo->codegen.max_oneline_slots +
+        expr->funcdef._storageinfo->codegen.perm_temps_count;
     fsymbol->closure_bound_count =
         expr->funcdef._storageinfo->closureboundvars_count;
     fsymbol->stack_temporaries_count =
