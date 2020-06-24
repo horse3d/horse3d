@@ -33,7 +33,45 @@ static void get_assign_lvalue_storage(
     }
 }
 
-int newcalctemp(h64expression *func, h64expression *expr) {
+int newpermtemp(h64expression *func, h64expression *expr) {
+    assert(func->funcdef._storageinfo->codegen.oneline_temps_used_now == 0);
+    int i = 0;
+    while (i < func->funcdef._storageinfo->codegen.perm_temps_count) {
+        if (!func->funcdef._storageinfo->codegen.perm_temps_used[i]) {
+            func->funcdef._storageinfo->codegen.perm_temps_used[i] = 1;
+            return func->funcdef._storageinfo->
+                lowest_guaranteed_free_temp + i;
+        }
+        i++;
+    }
+    int *new_used = realloc(
+        func->funcdef._storageinfo->codegen.perm_temps_used,
+        sizeof(*func->funcdef._storageinfo->codegen.perm_temps_used) * (
+        func->funcdef._storageinfo->codegen.perm_temps_count + 1)
+    );
+    if (!new_used)
+        return -1;
+    func->funcdef._storageinfo->codegen.perm_temps_used = new_used;
+    func->funcdef._storageinfo->codegen.perm_temps_used[
+        func->funcdef._storageinfo->codegen.perm_temps_count
+    ] = 1;
+    func->funcdef._storageinfo->codegen.perm_temps_count++;
+    return func->funcdef._storageinfo->lowest_guaranteed_free_temp + (
+        func->funcdef._storageinfo->codegen.perm_temps_count - 1
+    );
+}
+
+void freepermtemp(
+        h64expression *func, h64expression *expr, int temp
+        ) {
+    temp -= func->funcdef._storageinfo->lowest_guaranteed_free_temp;
+    assert(temp >= 0 && temp <
+           func->funcdef._storageinfo->codegen.perm_temps_count);
+    assert(func->funcdef._storageinfo->codegen.perm_temps_used[temp]);
+    func->funcdef._storageinfo->codegen.perm_temps_used[temp] = 0;
+}
+
+int new1linetemp(h64expression *func, h64expression *expr) {
     // Use temporary 'mandated' by parent if any:
     storageref *parent_store = NULL;
     if (expr && expr->parent &&
@@ -61,7 +99,8 @@ int newcalctemp(h64expression *func, h64expression *expr) {
         if (expr->type == H64EXPRTYPE_BINARYOP) {
             assert(expr->op.value2 != NULL);
             if (expr->op.value2->storage.eval_temp_id >=
-                    func->funcdef._storageinfo->lowest_guaranteed_free_temp) {
+                    func->funcdef._storageinfo->
+                        lowest_guaranteed_free_temp) {
                 return expr->op.value2->storage.eval_temp_id;
             }
         }
@@ -69,14 +108,14 @@ int newcalctemp(h64expression *func, h64expression *expr) {
 
     // Get new free temporary:
     assert(func->funcdef._storageinfo != NULL);
-    func->funcdef._storageinfo->_temp_calc_slots_used_right_now++;
-    if (func->funcdef._storageinfo->_temp_calc_slots_used_right_now >
-            func->funcdef._storageinfo->temp_calculation_slots)
-        func->funcdef._storageinfo->temp_calculation_slots = (
-            func->funcdef._storageinfo->_temp_calc_slots_used_right_now
+    func->funcdef._storageinfo->codegen.oneline_temps_used_now++;
+    if (func->funcdef._storageinfo->codegen.oneline_temps_used_now >
+            func->funcdef._storageinfo->codegen.max_oneline_slots)
+        func->funcdef._storageinfo->codegen.max_oneline_slots = (
+            func->funcdef._storageinfo->codegen.oneline_temps_used_now
         );
     return (
-        (func->funcdef._storageinfo->_temp_calc_slots_used_right_now - 1) +
+        (func->funcdef._storageinfo->codegen.oneline_temps_used_now - 1) +
         func->funcdef._storageinfo->lowest_guaranteed_free_temp
     );
 }
@@ -121,7 +160,7 @@ void codegen_CalculateFinalFuncStack(
         program->symbols, expr->funcdef.bytecode_func_id
     );
     expr->funcdef._storageinfo->lowest_guaranteed_free_temp +=
-        expr->funcdef._storageinfo->temp_calculation_slots;
+        expr->funcdef._storageinfo->codegen.max_oneline_slots;
     fsymbol->closure_bound_count =
         expr->funcdef._storageinfo->closureboundvars_count;
     fsymbol->stack_temporaries_count =
@@ -219,7 +258,7 @@ int _codegencallback_DoCodegen_visit_out(
     }
 
     if (expr->type == H64EXPRTYPE_LITERAL) {
-        int temp = newcalctemp(func, expr);
+        int temp = new1linetemp(func, expr);
         h64instruction_setconst inst = {0};
         inst.type = H64INST_SETCONST;
         inst.slot = temp;
@@ -320,7 +359,7 @@ int _codegencallback_DoCodegen_visit_out(
     } else if (expr->type == H64EXPRTYPE_BINARYOP && (
             expr->op.optype != H64OP_MEMBERBYIDENTIFIER ||
             !expr->op.value1->storage.set)) {
-        int temp = newcalctemp(func, expr);
+        int temp = new1linetemp(func, expr);
         h64instruction_binop inst_binop = {0};
         inst_binop.type = H64INST_BINOP;
         inst_binop.optype = expr->op.optype;
@@ -339,7 +378,7 @@ int _codegencallback_DoCodegen_visit_out(
             expr->inlinecall.value->storage.eval_temp_id
         );
         int _argtemp = (
-            func->funcdef._storageinfo->_temp_calc_slots_used_right_now
+            func->funcdef._storageinfo->codegen.oneline_temps_used_now
         ) + func->funcdef._storageinfo->lowest_guaranteed_free_temp;
         int preargs_tempceiling = _argtemp;
         int posargcount = 0;
@@ -438,14 +477,14 @@ int _codegencallback_DoCodegen_visit_out(
         }
         int maxslotsused = (_argtemp - preargs_tempceiling);
         if (maxslotsused > func->funcdef._storageinfo->
-                temp_calculation_slots)
-            func->funcdef._storageinfo->temp_calculation_slots = (
+                codegen.max_oneline_slots)
+            func->funcdef._storageinfo->codegen.max_oneline_slots = (
                 maxslotsused
             );
         h64instruction_call inst_call = {0};
         inst_call.type = H64INST_CALL;
         inst_call.returnto = preargs_tempceiling;
-        int temp = newcalctemp(func, expr);
+        int temp = new1linetemp(func, expr);
         inst_call.returnto = temp;
         inst_call.slotcalledfrom = calledexprstoragetemp;
         inst_call.expandlastposarg = expandlastposarg;
@@ -491,7 +530,7 @@ int _codegencallback_DoCodegen_visit_out(
         if (expr->storage.ref.type == H64STORETYPE_STACKSLOT) {
             expr->storage.eval_temp_id = expr->storage.ref.id;
         } else {
-            int temp = newcalctemp(func, expr);
+            int temp = new1linetemp(func, expr);
             expr->storage.eval_temp_id = temp;
             if (expr->storage.ref.type == H64STORETYPE_GLOBALVARSLOT) {
                 h64instruction_getglobal inst_getglobal = {0};
@@ -555,7 +594,7 @@ int _codegencallback_DoCodegen_visit_out(
         if (expr->returnstmt.returned_expression) {
             returntemp = expr->storage.eval_temp_id;
         } else {
-            returntemp = newcalctemp(func, expr);
+            returntemp = new1linetemp(func, expr);
             h64instruction_setconst inst_setconst = {0};
             inst_setconst.type = H64INST_SETCONST;
             inst_setconst.content.type = H64VALTYPE_NONE;
@@ -606,7 +645,7 @@ int _codegencallback_DoCodegen_visit_out(
             if (expr->assignstmt.assignop != H64OP_ASSIGN) {
                 int oldvaluetemp = -1;
                 if (str->type == H64STORETYPE_GLOBALVARSLOT) {
-                    oldvaluetemp = newcalctemp(func, expr);
+                    oldvaluetemp = new1linetemp(func, expr);
                     h64instruction_getglobal inst = {0};
                     inst.type = H64INST_GETGLOBAL;
                     inst.globalfrom = str->id;
@@ -684,7 +723,7 @@ int _codegencallback_DoCodegen_visit_out(
     }
 
     if (IS_STMT(expr->type)) {
-        func->funcdef._storageinfo->_temp_calc_slots_used_right_now = 0;
+        func->funcdef._storageinfo->codegen.oneline_temps_used_now = 0;
     }
 
     return 1;
@@ -694,7 +733,6 @@ int _codegencallback_DoCodegen_visit_in(
         h64expression *expr, h64expression *parent, void *ud
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud;
-    codegen_CalculateFinalFuncStack(rinfo->pr->program, expr);
 
     h64expression *func = surroundingfunc(expr);
     if (!func) {
@@ -707,6 +745,10 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
+    }
+
+    if (IS_STMT(expr->type)) {
+        func->funcdef._storageinfo->codegen.oneline_temps_used_now = 0;
     }
 
     if (expr->type == H64EXPRTYPE_WHILE_STMT) {
@@ -790,6 +832,133 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
+        rinfo->dont_descend_visitation = 1;
+        return 1;
+    } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
+        rinfo->dont_descend_visitation = 1;
+        int32_t jumpid_start = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+        int32_t jumpid_end = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+
+        int itertemp = newpermtemp(func, expr);
+        if (itertemp < 0) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        int containertemp = -1;
+        int freecontainertemp = 0;
+        assert(expr->forstmt.iterated_container->storage.set);
+        if (expr->forstmt.iterated_container->storage.ref.type ==
+                H64STORETYPE_STACKSLOT) {
+            containertemp = expr->forstmt.
+                iterated_container->storage.ref.id;
+        } else {
+            assert(
+                expr->forstmt.iterated_container->storage.ref.type ==
+                H64STORETYPE_GLOBALVARSLOT
+            );
+            freecontainertemp = 1;
+            containertemp = newpermtemp(func, expr);
+            if (containertemp < 0) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            h64instruction_getglobal inst_getglobal = {0};
+            inst_getglobal.type = H64INST_GETGLOBAL;
+            inst_getglobal.slotto = containertemp;
+            inst_getglobal.globalfrom = expr->forstmt.
+                iterated_container->storage.ref.id;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_getglobal, sizeof(inst_getglobal))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+
+        h64instruction_newiterator inst_newiter = {0};
+        inst_newiter.type = H64INST_NEWITERATOR;
+        inst_newiter.slotiteratorto = itertemp;
+        inst_newiter.slotcontainerfrom = containertemp;
+
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_newiter, sizeof(inst_newiter))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        h64instruction_jumptarget inst_jumpstart = {0};
+        inst_jumpstart.type = H64INST_JUMPTARGET;
+        inst_jumpstart.jumpid = jumpid_start;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jumpstart, sizeof(inst_jumpstart))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        assert(
+            expr->storage.set &&
+            expr->storage.ref.type == H64STORETYPE_STACKSLOT
+        );
+        h64instruction_iterate inst_iterate = {0};
+        inst_iterate.type = H64INST_ITERATE;
+        inst_iterate.slotvalueto = expr->storage.ref.id;
+        inst_iterate.slotiteratorfrom = itertemp;
+        inst_iterate.jumponend = jumpid_end;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_iterate, sizeof(inst_iterate))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        int i = 0;
+        while (i < expr->forstmt.stmt_count) {
+            rinfo->dont_descend_visitation = 0;
+            int result = ast_VisitExpression(
+                expr->forstmt.stmt[i], expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            rinfo->dont_descend_visitation = 1;
+            if (!result)
+                return 0;
+            i++;
+        }
+
+        h64instruction_jump inst_jump = {0};
+        inst_jump.type = H64INST_JUMP;
+        inst_jump.jumpbytesoffset = jumpid_start;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jump, sizeof(inst_jump))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        h64instruction_jumptarget inst_jumpend = {0};
+        inst_jumpend.type = H64INST_JUMPTARGET;
+        inst_jumpend.jumpid = jumpid_end;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jumpend, sizeof(inst_jumpend))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        freepermtemp(func, expr, itertemp);
+        if (freecontainertemp)
+            freepermtemp(func, expr, containertemp);
         rinfo->dont_descend_visitation = 1;
         return 1;
     } else if (expr->type == H64EXPRTYPE_IF_STMT) {

@@ -18,10 +18,20 @@ typedef struct h64localstorageassign {
     int use_start_token_index, use_end_token_index;
 } h64localstorageassign;
 
+struct h64codegenstorageinfo {
+    int oneline_temps_used_now;
+    int max_oneline_slots;
+
+    int perm_temps_count;
+    int *perm_temps_used;
+};
+
 typedef struct h64funcstorageextrainfo {
     int lowest_guaranteed_free_temp;
     int temp_calculation_slots;
-    int _temp_calc_slots_used_right_now;  // used by codegen
+
+    struct h64codegenstorageinfo codegen;
+
     int32_t jump_targets_used;
 
     int closureboundvars_count;

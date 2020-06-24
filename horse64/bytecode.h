@@ -29,6 +29,8 @@ typedef enum instructiontype {
     H64INST_JUMPTARGET,
     H64INST_CONDJUMP,
     H64INST_JUMP,
+    H64INST_NEWITERATOR,
+    H64INST_ITERATE,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -176,7 +178,7 @@ typedef struct h64instruction_newiterator {
 
 typedef struct h64instruction_iterate {
     uint8_t type;
-    int16_t slotiteratorto, slotiteratorfrom;
+    int16_t slotvalueto, slotiteratorfrom, jumponend;
 } __attribute__ ((packed)) h64instruction_iterate;
 
 

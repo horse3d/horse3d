@@ -30,6 +30,8 @@ static char _name_itype_returnvalue[] = "returnvalue";
 static char _name_itype_jumptarget[] = "jumptarget";
 static char _name_itype_condjump[] = "condjump";
 static char _name_itype_jump[] = "jump";
+static char _name_itype_newiterator[] = "newiterator";
+static char _name_itype_iterate[] = "iterate";
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
     switch (itype) {
@@ -63,6 +65,10 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_condjump;
     case H64INST_JUMP:
         return _name_itype_jump;
+    case H64INST_NEWITERATOR:
+        return _name_itype_newiterator;
+    case H64INST_ITERATE:
+        return _name_itype_iterate;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -366,6 +372,10 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_condjump);
     case H64INST_JUMP:
         return sizeof(h64instruction_jump);
+    case H64INST_NEWITERATOR:
+        return sizeof(h64instruction_newiterator);
+    case H64INST_ITERATE:
+        return sizeof(h64instruction_iterate);
     default:
         fprintf(
             stderr, "Invalid inst type for "
