@@ -835,6 +835,203 @@ int _codegencallback_DoCodegen_visit_in(
         }
         rinfo->dont_descend_visitation = 1;
         return 1;
+    } else if (expr->type == H64EXPRTYPE_TRY_STMT) {
+        rinfo->dont_descend_visitation = 1;
+
+        int32_t jumpid_catch = -1;
+        int32_t jumpid_finally = -1;
+        int32_t jumpid_end = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+
+        h64instruction_pushcatchframe inst_pushframe = {0};
+        inst_pushframe.type = H64INST_PUSHCATCHFRAME;
+        inst_pushframe.slotexceptionto = -1;
+        inst_pushframe.jumponcatch = -1;
+        inst_pushframe.jumponfinally = -1;
+        if (expr->trystmt.exceptions_count > 0) {
+            assert(expr->storage.set);
+            assert(expr->storage.ref.type ==
+                   H64STORETYPE_STACKSLOT);
+            inst_pushframe.jumponcatch = expr->storage.ref.id;
+            inst_pushframe.mode |= CATCHMODE_JUMPONCATCH;
+            jumpid_catch = (
+                func->funcdef._storageinfo->jump_targets_used
+            );
+            func->funcdef._storageinfo->jump_targets_used++;
+            inst_pushframe.jumponcatch = jumpid_catch;
+        }
+        if (expr->trystmt.has_finally_block) {
+            inst_pushframe.mode |= CATCHMODE_JUMPONFINALLY;
+            jumpid_finally = (
+                func->funcdef._storageinfo->jump_targets_used
+            );
+            func->funcdef._storageinfo->jump_targets_used++;
+            inst_pushframe.jumponfinally = jumpid_finally;
+        }
+
+        int exception_reuse_tmp = -1;
+        int i = 0;
+        while (i < expr->trystmt.exceptions_count) {
+            assert(expr->trystmt.exceptions[i]->storage.set);
+            int exception_tmp = -1;
+            if (expr->trystmt.exceptions[i]->storage.ref.type ==
+                    H64STORETYPE_STACKSLOT) {
+                exception_tmp = (int)(
+                    expr->trystmt.exceptions[i]->storage.ref.id
+                );
+            } else if (expr->trystmt.exceptions[i]->storage.ref.type ==
+                       H64STORETYPE_GLOBALCLASSSLOT) {
+                h64instruction_addcatchtype addctype = {0};
+                addctype.type = H64INST_ADDCATCHTYPE;
+                addctype.classid = (
+                    expr->trystmt.exceptions[i]->
+                        storage.ref.id
+                );
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &addctype, sizeof(addctype))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                i++;
+                continue;
+            } else {
+                assert(expr->trystmt.exceptions[i]->storage.ref.type ==
+                       H64STORETYPE_GLOBALVARSLOT);
+                if (exception_reuse_tmp < 0) {
+                    exception_reuse_tmp = new1linetemp(
+                        func, expr
+                    );
+                }
+                exception_tmp = exception_reuse_tmp;
+                h64instruction_getglobal inst_getglobal = {0};
+                inst_getglobal.type = H64INST_GETGLOBAL;
+                inst_getglobal.slotto = exception_tmp;
+                inst_getglobal.globalfrom = expr->trystmt.exceptions[i]->
+                    storage.ref.id;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_getglobal, sizeof(inst_getglobal))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+            assert(exception_tmp >= 0);
+            h64instruction_addcatchtypebyref addctyperef = {0};
+            addctyperef.type = H64INST_ADDCATCHTYPEBYREF;
+            addctyperef.slotfrom = exception_tmp;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &addctyperef, sizeof(addctyperef))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            i++;
+        }
+
+        i = 0;
+        while (i < expr->trystmt.trystmt_count) {
+            rinfo->dont_descend_visitation = 0;
+            int result = ast_VisitExpression(
+                expr->trystmt.trystmt[i], expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            rinfo->dont_descend_visitation = 1;
+            if (!result)
+                return 0;
+            i++;
+        }
+        h64instruction_popcatchframe inst_popcatch = {0};
+        inst_popcatch.type = H64INST_POPCATCHFRAME;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_popcatch, sizeof(inst_popcatch))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        h64instruction_jump inst_jump = {0};
+        inst_jump.type = H64INST_JUMP;
+        inst_jump.jumpbytesoffset = jumpid_end;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jump, sizeof(inst_jump))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        if ((inst_pushframe.mode | CATCHMODE_JUMPONCATCH) != 0) {
+            h64instruction_jumptarget inst_jumpcatch = {0};
+            inst_jumpcatch.type = H64INST_JUMPTARGET;
+            inst_jumpcatch.jumpid = jumpid_catch;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_jumpcatch, sizeof(inst_jumpcatch))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+
+            i = 0;
+            while (i < expr->trystmt.catchstmt_count) {
+                rinfo->dont_descend_visitation = 0;
+                int result = ast_VisitExpression(
+                    expr->trystmt.catchstmt[i], expr,
+                    &_codegencallback_DoCodegen_visit_in,
+                    &_codegencallback_DoCodegen_visit_out,
+                    _asttransform_cancel_visit_descend_callback,
+                    rinfo
+                );
+                rinfo->dont_descend_visitation = 1;
+                if (!result)
+                    return 0;
+                i++;
+            }
+        }
+
+        if ((inst_pushframe.mode | CATCHMODE_JUMPONFINALLY) != 0) {
+            h64instruction_jumptarget inst_jumpfinally = {0};
+            inst_jumpfinally.type = H64INST_JUMPTARGET;
+            inst_jumpfinally.jumpid = jumpid_finally;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_jumpfinally, sizeof(inst_jumpfinally))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+
+            i = 0;
+            while (i < expr->trystmt.finallystmt_count) {
+                rinfo->dont_descend_visitation = 0;
+                int result = ast_VisitExpression(
+                    expr->trystmt.finallystmt[i], expr,
+                    &_codegencallback_DoCodegen_visit_in,
+                    &_codegencallback_DoCodegen_visit_out,
+                    _asttransform_cancel_visit_descend_callback,
+                    rinfo
+                );
+                rinfo->dont_descend_visitation = 1;
+                if (!result)
+                    return 0;
+                i++;
+            }
+        }
+
+        h64instruction_jumptarget inst_jumpend = {0};
+        inst_jumpend.type = H64INST_JUMPTARGET;
+        inst_jumpend.jumpid = jumpid_end;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jumpend, sizeof(inst_jumpend))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        rinfo->dont_descend_visitation = 1;
+        return 1;
     } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
         rinfo->dont_descend_visitation = 1;
         int32_t jumpid_start = (

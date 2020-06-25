@@ -211,6 +211,7 @@ typedef struct h64expression {
             h64expression **catchstmt;
             h64scope catchscope;
 
+            int has_finally_block;
             int finallystmt_count;
             h64expression **finallystmt;
             h64scope finallyscope;

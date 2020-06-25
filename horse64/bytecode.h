@@ -31,6 +31,10 @@ typedef enum instructiontype {
     H64INST_JUMP,
     H64INST_NEWITERATOR,
     H64INST_ITERATE,
+    H64INST_PUSHCATCHFRAME,
+    H64INST_ADDCATCHTYPEBYREF,
+    H64INST_ADDCATCHTYPE,
+    H64INST_POPCATCHFRAME,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -181,6 +185,28 @@ typedef struct h64instruction_iterate {
     int16_t slotvalueto, slotiteratorfrom, jumponend;
 } __attribute__ ((packed)) h64instruction_iterate;
 
+#define CATCHMODE_JUMPONCATCH 1
+#define CATCHMODE_JUMPONFINALLY 2
+
+typedef struct h64instruction_pushcatchframe {
+    uint8_t type;
+    uint8_t mode;
+    int16_t slotexceptionto, jumponcatch, jumponfinally;
+} __attribute__ ((packed)) h64instruction_pushcatchframe;
+
+typedef struct h64instruction_addcatchtypebyref {
+    uint8_t type;
+    int16_t slotfrom;
+} __attribute__ ((packed)) h64instruction_addcatchtypebyref;
+
+typedef struct h64instruction_addcatchtype {
+    uint8_t type;
+    int64_t classid;
+} __attribute__ ((packed)) h64instruction_addcatchtype;
+
+typedef struct h64instruction_popcatchframe {
+    uint8_t type;
+} __attribute__ ((packed)) h64instruction_popcatchframe;
 
 
 #define H64CLASS_HASH_SIZE 16

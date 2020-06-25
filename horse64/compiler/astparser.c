@@ -3900,6 +3900,7 @@ int ast_ParseExprStmt(
             int innerparsefail = 0;
             int inneroom = 0;
             h64parsethis _buf;
+            expr->trystmt.has_finally_block = 1;
             expr->trystmt.finallyscope.parentscope = parsethis->scope;
             if (!scope_Init(&expr->trystmt.finallyscope)) {
                 if (outofmemory) *outofmemory = 1;

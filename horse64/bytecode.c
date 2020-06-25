@@ -32,6 +32,10 @@ static char _name_itype_condjump[] = "condjump";
 static char _name_itype_jump[] = "jump";
 static char _name_itype_newiterator[] = "newiterator";
 static char _name_itype_iterate[] = "iterate";
+static char _name_itype_pushcatchframe[] = "pushcatchframe";
+static char _name_itype_addcatchtypebyref[] = "addcatchtyperef";
+static char _name_itype_addcatchtype[] = "addcatchtype";
+static char _name_itype_popcatchframe[] = "popcatchframe";
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
     switch (itype) {
@@ -69,6 +73,14 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_newiterator;
     case H64INST_ITERATE:
         return _name_itype_iterate;
+    case H64INST_PUSHCATCHFRAME:
+        return _name_itype_pushcatchframe;
+    case H64INST_ADDCATCHTYPEBYREF:
+        return _name_itype_addcatchtypebyref;
+    case H64INST_ADDCATCHTYPE:
+        return _name_itype_addcatchtype;
+    case H64INST_POPCATCHFRAME:
+        return _name_itype_popcatchframe;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -376,6 +388,14 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_newiterator);
     case H64INST_ITERATE:
         return sizeof(h64instruction_iterate);
+    case H64INST_PUSHCATCHFRAME:
+        return sizeof(h64instruction_pushcatchframe);
+    case H64INST_ADDCATCHTYPEBYREF:
+        return sizeof(h64instruction_addcatchtypebyref);
+    case H64INST_ADDCATCHTYPE:
+        return sizeof(h64instruction_addcatchtype);
+    case H64INST_POPCATCHFRAME:
+        return sizeof(h64instruction_popcatchframe);
     default:
         fprintf(
             stderr, "Invalid inst type for "
