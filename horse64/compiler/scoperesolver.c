@@ -474,10 +474,10 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         }
         if (strcmp(expr->identifierref.value, "self") == 0 ||
                 strcmp(expr->identifierref.value, "base") == 0) {
-            h64expression *surroundingclass = surroundingclass(
+            h64expression *owningclass = surroundingclass(
                 expr, 1
             );
-            if (!surroundingclass) {
+            if (!owningclass) {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected identifier \"%s\", "
