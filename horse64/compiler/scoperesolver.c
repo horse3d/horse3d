@@ -472,6 +472,32 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             }
             return 1;
         }
+        if (strcmp(expr->identifierref.value, "self") == 0 ||
+                strcmp(expr->identifierref.value, "base") == 0) {
+            h64expression *surroundingclass = surroundingclass(
+                expr, 1
+            );
+            if (!surroundingclass) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected identifier \"%s\", "
+                    "not inside a class func",
+                    expr->identifierref.value
+                );
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                return 1;
+            }
+            return 1;
+        }
         h64scopedef *def = scope_QueryItem(
             scope, expr->identifierref.value, 1
         );
