@@ -239,6 +239,141 @@ h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
     return rinfo->pr->_tempglobalfakeinitfunc;
 }
 
+struct _jumpinfo {
+    int jumpid;
+    int64_t offset;
+};
+
+int codegen_TransformJumpsToFinalOffsets(
+        h64program *pr
+        ) {
+    int jump_table_alloc = 0;
+    int jump_table_fill = 0;
+    int *jump_id = NULL;
+    struct _jumpinfo *jump_info = NULL;
+
+    int i = 0;
+    while (i < pr->func_count) {
+        jump_table_fill = 0;
+
+        // Remove jumptarget instructions while extracting offsets:
+        int64_t k = 0;
+        while (k < pr->func[k].instructions_bytes) {
+            h64instructionany *inst = (
+                (h64instructionany *)((char*)pr->func[k].instructions + k)
+            );
+            if (inst->type == H64INST_JUMPTARGET) {
+                if (jump_table_fill + 1 > jump_table_alloc) {
+                    struct _jumpinfo *new_jump_info = realloc(
+                        jump_info,
+                        sizeof(*jump_info) *
+                            ((jump_table_fill + 1) * 2 + 10)
+                    );
+                    if (!new_jump_info) {
+                        free(jump_info);
+                        return 0;
+                    }
+                    jump_table_alloc = (
+                        (jump_table_fill + 1) * 2 + 10
+                    );
+                    jump_info = new_jump_info;
+                }
+                memset(
+                    &jump_info[jump_table_fill], 0,
+                    sizeof(*jump_info)
+                );
+                jump_info[jump_table_fill].offset = k;
+                jump_info[jump_table_fill].jumpid = (
+                    ((h64instruction_jumptarget *)inst)->jumpid
+                );
+                memmove(
+                    (char*)pr->func[k].instructions + k,
+                    (char*)pr->func[k].instructions + k +
+                        sizeof(h64instruction_jumptarget),
+                    pr->func[k].instructions_bytes - (
+                        k + sizeof(h64instruction_jumptarget)
+                    )
+                );
+                pr->func[k].instructions_bytes -=
+                    sizeof(h64instruction_jumptarget);
+                continue;
+            }
+            k += h64program_PtrToInstructionSize((char*)inst);
+        }
+
+        // Rewrite jumps to the actual offsets:
+        k = 0;
+        while (k < pr->func[k].instructions_bytes) {
+            h64instructionany *inst = (
+                (h64instructionany *)((char*)pr->func[k].instructions + k)
+            );
+
+            int32_t jumpid = -1;
+
+            switch (inst->type) {
+            case H64INST_CONDJUMP: {
+                h64instruction_condjump *cjump = (
+                    (h64instruction_condjump *)inst
+                );
+                jumpid = cjump->jumpbytesoffset;
+                break;
+            }
+            case H64INST_JUMP: {
+                h64instruction_jump *jump = (
+                    (h64instruction_jump *)inst
+                );
+                jumpid = jump->jumpbytesoffset;
+                break;
+            }
+            default:
+                k += h64program_PtrToInstructionSize((char*)inst);
+                continue;
+            }
+
+            // FIXME: use a faster algorithm here, maybe hash table?
+            int64_t jumptargetoffset = -1;
+            int z = 0;
+            while (z < jump_table_fill) {
+                if (jump_info[z].jumpid == z) {
+                    jumptargetoffset = jump_info[z].offset;
+                    break;
+                }
+                z++;
+            }
+            if (jumptargetoffset < 0) {
+                free(jump_info);
+                return 0;
+            }
+
+            switch (inst->type) {
+            case H64INST_CONDJUMP: {
+                h64instruction_condjump *cjump = (
+                    (h64instruction_condjump *)inst
+                );
+                cjump->jumpbytesoffset = jumptargetoffset;
+                break;
+            }
+            case H64INST_JUMP: {
+                h64instruction_jump *jump = (
+                    (h64instruction_jump *)inst
+                );
+                jump->jumpbytesoffset = jumptargetoffset;
+                break;
+            }
+            default:
+                fprintf(stderr, "horsec: error: internal error in "
+                    "codegen jump translation: unhandled jump type\n");
+                free(jump_info);
+                return 0;
+            }
+            k += h64program_PtrToInstructionSize((char*)inst);
+        }
+        i++;
+    }
+    free(jump_info);
+    return 1;
+}
+
 int _codegencallback_DoCodegen_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
@@ -1271,6 +1406,25 @@ int codegen_GenerateBytecodeForFile(
     );
     if (!transformresult)
         return 0;
+
+    // Transform jump instructions to final offsets:
+    if (!codegen_TransformJumpsToFinalOffsets(project->program)) {
+        project->resultmsg->success = 0;
+        char buf[256];
+        snprintf(buf, sizeof(buf) - 1,
+            "internal error: jump offset calculation "
+            "failed, out of memory or codegen bug?"
+        );
+        if (!result_AddMessage(
+                project->resultmsg,
+                H64MSG_ERROR, buf,
+                NULL, -1, -1
+                )) {
+            // Nothing we can do
+        }
+        return 0;  // since always OOM if no major compiler bug,
+                   // so return OOM indication
+    }
 
     return 1;
 }
