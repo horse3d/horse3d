@@ -94,6 +94,7 @@ h64program *h64program_New() {
         return NULL;
     memset(p, 0, sizeof(*p));
     p->main_func_index = -1;
+    p->globalinit_func_index = -1;
 
     p->symbols = h64debugsymbols_New();
     if (!p->symbols) {

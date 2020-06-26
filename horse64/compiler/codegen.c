@@ -120,16 +120,11 @@ int new1linetemp(h64expression *func, h64expression *expr) {
     );
 }
 
-int appendinst(
+int appendinstbyfuncid(
         h64program *p,
-        h64expression *func,
-        h64expression *correspondingexpr,
+        int id, h64expression *correspondingexpr,
         void *ptr, size_t len
         ) {
-    assert(p != NULL);
-    assert(func != NULL && (func->type == H64EXPRTYPE_FUNCDEF_STMT ||
-           func->type == H64EXPRTYPE_INLINEFUNCDEF));
-    int id = func->funcdef.bytecode_func_id;
     assert(id >= 0 && id < p->func_count);
     assert(!p->func[id].iscfunc);
     char *instructionsnew = realloc(
@@ -149,6 +144,19 @@ int appendinst(
     p->func[id].instructions_bytes += len;
     assert(p->func[id].instructions_bytes >= 0);
     return 1;
+}
+
+int appendinst(
+        h64program *p,
+        h64expression *func,
+        h64expression *correspondingexpr,
+        void *ptr, size_t len
+        ) {
+    assert(p != NULL);
+    assert(func != NULL && (func->type == H64EXPRTYPE_FUNCDEF_STMT ||
+           func->type == H64EXPRTYPE_INLINEFUNCDEF));
+    int id = func->funcdef.bytecode_func_id;
+    return appendinstbyfuncid(p, id, correspondingexpr, ptr, len);
 }
 
 void codegen_CalculateFinalFuncStack(
@@ -244,8 +252,8 @@ struct _jumpinfo {
     int64_t offset;
 };
 
-int codegen_TransformJumpsToFinalOffsets(
-        h64program *pr
+int codegen_FinalBytecodeTransform(
+        h64compileproject *prj, h64program *pr
         ) {
     int jump_table_alloc = 0;
     int jump_table_fill = 0;
@@ -258,9 +266,9 @@ int codegen_TransformJumpsToFinalOffsets(
 
         // Remove jumptarget instructions while extracting offsets:
         int64_t k = 0;
-        while (k < pr->func[k].instructions_bytes) {
+        while (k < pr->func[i].instructions_bytes) {
             h64instructionany *inst = (
-                (h64instructionany *)((char*)pr->func[k].instructions + k)
+                (h64instructionany *)((char*)pr->func[i].instructions + k)
             );
             if (inst->type == H64INST_JUMPTARGET) {
                 if (jump_table_fill + 1 > jump_table_alloc) {
@@ -298,14 +306,14 @@ int codegen_TransformJumpsToFinalOffsets(
                     sizeof(h64instruction_jumptarget);
                 continue;
             }
-            k += h64program_PtrToInstructionSize((char*)inst);
+            k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
         }
 
         // Rewrite jumps to the actual offsets:
         k = 0;
-        while (k < pr->func[k].instructions_bytes) {
+        while (k < pr->func[i].instructions_bytes) {
             h64instructionany *inst = (
-                (h64instructionany *)((char*)pr->func[k].instructions + k)
+                (h64instructionany *)((char*)pr->func[i].instructions + k)
             );
 
             int32_t jumpid = -1;
@@ -326,7 +334,7 @@ int codegen_TransformJumpsToFinalOffsets(
                 break;
             }
             default:
-                k += h64program_PtrToInstructionSize((char*)inst);
+                k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
                 continue;
             }
 
@@ -343,6 +351,23 @@ int codegen_TransformJumpsToFinalOffsets(
             if (jumptargetoffset < 0) {
                 free(jump_info);
                 return 0;
+            }
+            if (jumptargetoffset > 65535 || jumptargetoffset < -65535) {
+                prj->resultmsg->success = 0;
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "found jump instruction in func with global id=%d "
+                    "that exceeds 16bit int range, this is not spuported",
+                    (int)i
+                );
+                if (!result_AddMessage(
+                        prj->resultmsg,
+                        H64MSG_ERROR, buf,
+                        NULL, -1, -1
+                        )) {
+                    return 0;
+                }
+                return 1;
             }
 
             switch (inst->type) {
@@ -366,8 +391,52 @@ int codegen_TransformJumpsToFinalOffsets(
                 free(jump_info);
                 return 0;
             }
-            k += h64program_PtrToInstructionSize((char*)inst);
+            k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
         }
+        i++;
+    }
+    i = 0;
+    while (i < pr->func_count) {
+        jump_table_fill = 0;
+
+        int func_ends_in_return = 0;
+        int64_t k = 0;
+        while (k < pr->func[i].instructions_bytes) {
+            h64instructionany *inst = (
+                (h64instructionany *)((char*)pr->func[i].instructions + k)
+            );
+            size_t instsize = (
+                h64program_PtrToInstructionSize((char*)inst)
+            );
+            if (k + instsize >= pr->func[i].instructions_bytes &&
+                    inst->type == H64INST_RETURNVALUE) {
+                func_ends_in_return = 1;
+            }
+            k += (int64_t)instsize;
+        }
+        if (!func_ends_in_return) {
+            // Add return to the end:
+            if (pr->func[i].inner_stack_size <= 0)
+                pr->func[i].inner_stack_size = 1;
+            h64instruction_setconst inst_setnone = {0};
+            inst_setnone.type = H64INST_SETCONST;
+            inst_setnone.slot = 0;
+            inst_setnone.content.type = H64VALTYPE_NONE;
+            if (!appendinstbyfuncid(
+                    pr, i, NULL,
+                    &inst_setnone, sizeof(inst_setnone))) {
+                return 0;
+            }
+            h64instruction_returnvalue inst_return = {0};
+            inst_return.type = H64INST_RETURNVALUE;
+            inst_return.returnslotfrom = 0;
+            if (!appendinstbyfuncid(
+                    pr, i, NULL,
+                    &inst_return, sizeof(inst_return))) {
+                return 0;
+            }
+        }
+
         i++;
     }
     free(jump_info);
@@ -1408,7 +1477,9 @@ int codegen_GenerateBytecodeForFile(
         return 0;
 
     // Transform jump instructions to final offsets:
-    if (!codegen_TransformJumpsToFinalOffsets(project->program)) {
+    if (!codegen_FinalBytecodeTransform(
+            project, project->program
+            )) {
         project->resultmsg->success = 0;
         char buf[256];
         snprintf(buf, sizeof(buf) - 1,

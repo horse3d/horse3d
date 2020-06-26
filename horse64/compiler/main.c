@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "compiler/astparser.h"
 #include "compiler/codemodule.h"
@@ -141,11 +142,18 @@ int compiler_command_CompileEx(
         return 0;
     }
 
+    // Examine & print message:
     int haderrormessages = 0;
     int i = 0;
     while (i < project->resultmsg->message_count) {
         if (project->resultmsg->message[i].type == H64MSG_ERROR)
             haderrormessages = 1;
+        if (mode == COMPILEEX_MODE_RUN &&
+                project->resultmsg->message[i].type != H64MSG_ERROR) {
+            // When running directly, don't print if not a compile error
+            i++;
+            continue;
+        }
         printmsg(project->resultmsg, &project->resultmsg->message[i]);
         i++;
     }
@@ -153,6 +161,8 @@ int compiler_command_CompileEx(
         haderrormessages || !ast->resultmsg.success ||
         !project->resultmsg->success
     );
+
+    // Do final post-compile action depending on compile mode:
     if (mode == COMPILEEX_MODE_CODEINFO) {
         if (!nosuccess)
             h64program_PrintBytecodeStats(project->program);
@@ -168,6 +178,19 @@ int compiler_command_CompileEx(
         }
         if (!nosuccess || haveinstructions)
             disassembler_DumpToStdout(project->program);
+    } else if (mode == COMPILEEX_MODE_RUN) {
+        if (nosuccess) {
+            int resultcode = vmexec_ExecuteProgram(
+                project->program
+            );
+            _exit(resultcode);
+        } else {
+            fprintf(stderr, "horsec: error: "
+                "not running program due to compile errors\n");
+        }
+    } else {
+        fprintf(stderr, "horsec: error: internal error: "
+            "unhandled compile mode %d\n", mode);
     }
     compileproject_Free(project);  // This indirectly frees 'ast'!
     return !nosuccess;

@@ -1,6 +1,8 @@
 #ifndef HORSE64_VMEXEC_H_
 #define HORSE64_VMEXEC_H_
 
+#define MAX_STACK_FRAMES 10
+
 typedef struct h64program h64program;
 typedef struct h64instruction h64instruction;
 typedef struct poolalloc poolalloc;
@@ -39,6 +41,15 @@ typedef struct h64vmthread {
     int execution_instruction_id;
 } h64vmthread;
 
+typedef struct h64exceptioninfo {
+    int stack_frame_count;
+    int stack_frame_funcid[MAX_STACK_FRAMES];
+    int64_t stack_frame_byteoffset[MAX_STACK_FRAMES];
+
+    int exception_class_id;
+    char *msg;
+} h64exceptioninfo;
+
 
 static inline int VMTHREAD_FUNCSTACKBOTTOM(h64vmthread *vmthread) {
     if (vmthread->funcframe_count > 0)
@@ -51,6 +62,15 @@ void vmthread_WipeFuncStack(h64vmthread *vmthread);
 
 h64vmthread *vmthread_New();
 
+int vmthread_RunFunctionWithReturnInt(
+    h64vmthread *vmthread, h64program *pr,
+    int func_id,
+    h64exceptioninfo **einfo,
+    int *out_returnint
+);
+
 void vmthread_Free(h64vmthread *vmthread);
+
+int vmexec_ExecuteProgram(h64program *pr);
 
 #endif  // HORSE64_VMEXEC_H_
