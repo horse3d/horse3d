@@ -262,7 +262,14 @@ int codegen_FinalBytecodeTransform(
 
     int i = 0;
     while (i < pr->func_count) {
+        if (pr->func[i].iscfunc) {
+            i++;
+            continue;
+        }
         jump_table_fill = 0;
+
+        assert(pr->func[i].instructions != NULL ||
+               pr->func[i].instructions_bytes == 0);
 
         // Remove jumptarget instructions while extracting offsets:
         int64_t k = 0;
@@ -291,19 +298,23 @@ int codegen_FinalBytecodeTransform(
                     sizeof(*jump_info)
                 );
                 jump_info[jump_table_fill].offset = k;
+                assert(k > 0);
                 jump_info[jump_table_fill].jumpid = (
                     ((h64instruction_jumptarget *)inst)->jumpid
                 );
+                assert(k + sizeof(h64instruction_jumptarget) <=
+                       pr->func[i].instructions_bytes);
                 memmove(
-                    (char*)pr->func[k].instructions + k,
-                    (char*)pr->func[k].instructions + k +
+                    ((char*)pr->func[i].instructions) + k,
+                    ((char*)pr->func[i].instructions) + k +
                         sizeof(h64instruction_jumptarget),
-                    pr->func[k].instructions_bytes - (
+                    pr->func[i].instructions_bytes - (
                         k + sizeof(h64instruction_jumptarget)
                     )
                 );
-                pr->func[k].instructions_bytes -=
+                pr->func[i].instructions_bytes -=
                     sizeof(h64instruction_jumptarget);
+                jump_table_fill++;
                 continue;
             }
             k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
@@ -337,12 +348,13 @@ int codegen_FinalBytecodeTransform(
                 k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
                 continue;
             }
+            assert(jumpid >= 0);
 
             // FIXME: use a faster algorithm here, maybe hash table?
             int64_t jumptargetoffset = -1;
             int z = 0;
             while (z < jump_table_fill) {
-                if (jump_info[z].jumpid == z) {
+                if (jump_info[z].jumpid == jumpid) {
                     jumptargetoffset = jump_info[z].offset;
                     break;
                 }
@@ -351,6 +363,25 @@ int codegen_FinalBytecodeTransform(
             if (jumptargetoffset < 0) {
                 free(jump_info);
                 return 0;
+            }
+            jumptargetoffset -= k;
+            if (jumptargetoffset == 0) {
+                prj->resultmsg->success = 0;
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1, "internal error: "
+                    "found jump instruction in func with global id=%d "
+                    "that has invalid zero relative offset - "
+                    "codegen bug?",
+                    (int)i
+                );
+                if (!result_AddMessage(
+                        prj->resultmsg,
+                        H64MSG_ERROR, buf,
+                        NULL, -1, -1
+                        )) {
+                    return 0;
+                }
+                return 1;
             }
             if (jumptargetoffset > 65535 || jumptargetoffset < -65535) {
                 prj->resultmsg->success = 0;
@@ -397,6 +428,10 @@ int codegen_FinalBytecodeTransform(
     }
     i = 0;
     while (i < pr->func_count) {
+        if (pr->func[i].iscfunc) {
+            i++;
+            continue;
+        }
         jump_table_fill = 0;
 
         int func_ends_in_return = 0;
