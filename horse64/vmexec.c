@@ -78,67 +78,88 @@ int vmthread_RunFunction(
     goto setupinterpreter;
 
     inst_invalid: {
-
+        fprintf(stderr, "invalid instruction\n");
+        return 0;
     }
     inst_setconst: {
-
+        fprintf(stderr, "setconst not implemented\n");
+        return 0;
     }
     inst_setglobal: {
-
+        fprintf(stderr, "setglobal not implemented\n");
+        return 0;
     }
     inst_getglobal: {
-
+        fprintf(stderr, "getglobal not implemented\n");
+        return 0;
     }
     inst_getfunc: {
-
+        fprintf(stderr, "getfunc not implemented\n");
+        return 0;
     }
     inst_getclass: {
-
+        fprintf(stderr, "getclass not implemented\n");
+        return 0;
     }
     inst_valuecopy: {
-
+        fprintf(stderr, "valuecopy not implemented\n");
+        return 0;
     }
     inst_binop: {
-
+        fprintf(stderr, "binop not implemented\n");
+        return 0;
     }
     inst_unop: {
-
+        fprintf(stderr, "unop not implemented\n");
+        return 0;
     }
     inst_call: {
-
+        fprintf(stderr, "call not implemented\n");
+        return 0;
     }
     inst_settop: {
-
+        fprintf(stderr, "settop not implemented\n");
+        return 0;
     }
     inst_returnvalue: {
-
+        fprintf(stderr, "returnvalue not implemented\n");
+        return 0;
     }
     inst_jumptarget: {
-
+        fprintf(stderr, "jumptarget not implemented\n");
+        return 0;
     }
     inst_condjump: {
-
+        fprintf(stderr, "condjump not implemented\n");
+        return 0;
     }
     inst_jump: {
-
+        fprintf(stderr, "jump not implemented\n");
+        return 0;
     }
     inst_newiterator: {
-
+        fprintf(stderr, "newiterator not implemented\n");
+        return 0;
     }
     inst_iterate: {
-
+        fprintf(stderr, "iterate not implemented\n");
+        return 0;
     }
     inst_pushcatchframe: {
-
+        fprintf(stderr, "pushcatchframe not implemented\n");
+        return 0;
     }
     inst_addcatchtypebyref: {
-
+        fprintf(stderr, "addcatchtypebyref not implemented\n");
+        return 0;
     }
     inst_addcatchtype: {
-
+        fprintf(stderr, "addcatchtype not implemented\n");
+        return 0;
     }
     inst_popcatchframe: {
-
+        fprintf(stderr, "popcatchframe not implemented\n");
+        return 0;
     }
 
     setupinterpreter:
