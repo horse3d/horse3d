@@ -78,6 +78,8 @@ int vmthread_RunFunction(
     char *p = pr->func[func_id].instructions;
     char *pend = p + (intptr_t)pr->func[func_id].instructions_bytes;
     void *jumptable[H64INST_TOTAL_COUNT];
+    h64stack *stack = vmthread->stack;
+    poolalloc *heap = heap;
 
     goto setupinterpreter;
 
@@ -85,9 +87,45 @@ int vmthread_RunFunction(
         fprintf(stderr, "invalid instruction\n");
         return 0;
     }
-    inst_setconst: {
-        fprintf(stderr, "setconst not implemented\n");
+    triggeroom: {
+        fprintf(stderr, "oom\n");
         return 0;
+    }
+    inst_setconst: {
+        h64instruction_setconst *inst = (h64instruction_setconst *)p;
+        valuecontent *vc = STACK_ENTRY(stack, inst->slot);
+        valuecontent_Free(vc);
+        if (inst->content.type == H64VALTYPE_CONSTPREALLOCSTR) {
+            vc->type = H64VALTYPE_GCVAL;
+            vc->ptr_value = poolalloc_malloc(
+                heap, 0
+            );
+            if (!vc->ptr_value)
+                goto triggeroom;
+            h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+            gcval->type = H64GCVALUETYPE_STRING;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            memset(&gcval->str_val, 0, sizeof(gcval->str_val));
+            if (!vmstrings_Set(
+                    vmthread, &gcval->str_val,
+                    inst->content.constpreallocstr_len)) {
+                poolalloc_free(heap, gcval);
+                vc->ptr_value = NULL;
+                goto triggeroom;
+            }
+            memcpy(
+                gcval->str_val.s, inst->content.constpreallocstr_value,
+                inst->content.constpreallocstr_len * sizeof(unicodechar)
+            );
+        } else {
+            memcpy(vc, &inst->content, sizeof(*vc));
+            if (vc->type == H64VALTYPE_GCVAL)
+                ((h64gcvalue *)vc->ptr_value)->
+                    externalreferencecount = 1;
+        }
+        p += sizeof(h64instruction_setconst);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_setglobal: {
         fprintf(stderr, "setglobal not implemented\n");

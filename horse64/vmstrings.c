@@ -19,10 +19,12 @@ int vmstrings_Set(
         if (!vthread->str_pile)
             return 0;
     }
-    if (len <= POOLEDSTRSIZE) {
-        v->s = poolalloc_malloc(vthread->str_pile, len);
+    if (len * sizeof(unicodechar) <= POOLEDSTRSIZE) {
+        v->s = poolalloc_malloc(
+            vthread->str_pile, 0
+        );
     } else {
-        v->s = malloc(len);
+        v->s = malloc(sizeof(unicodechar) * len);
     }
     return (v->s != NULL);
 }

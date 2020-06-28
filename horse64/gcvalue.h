@@ -26,7 +26,7 @@ typedef struct h64gcvalue {
             valuecontent *membervars;
         };
         struct {
-            h64stringval *str_val;
+            h64stringval str_val;
         };
     };
 } h64gcvalue;

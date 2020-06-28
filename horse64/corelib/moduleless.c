@@ -38,20 +38,20 @@ int corelib_print(h64vmthread *vmthread) {
             h64gcvalue *gcval = c->ptr_value;
             switch (gcval->type) {
             case H64GCVALUETYPE_STRING:
-                if (buflen < gcval->str_val->len * 4 + 1) {
+                if (buflen < gcval->str_val.len * 4 + 1) {
                     char *newbuf = malloc(
-                        gcval->str_val->len * 4 + 1
+                        gcval->str_val.len * 4 + 1
                     );
                     buffree = 1;
                     if (newbuf) {
                         if (buffree)
                             free(buf);
                         buf = newbuf;
-                        buflen = gcval->str_val->len * 4 + 1;
+                        buflen = gcval->str_val.len * 4 + 1;
                     }
                     int64_t outlen = 0;
                     int result = utf32_to_utf8(
-                        gcval->str_val->s, gcval->str_val->len,
+                        gcval->str_val.s, gcval->str_val.len,
                         buf, buflen, &outlen, 1
                     );
                     assert(result != 0);

@@ -22,7 +22,7 @@ h64stack *stack_New() {
 }
 
 void stack_FreeEntry(h64stackblock *block, int slot) {
-    return;
+    valuecontent_Free(&block->entry[slot]);
 }
 
 void stack_Free(h64stack *st) {
