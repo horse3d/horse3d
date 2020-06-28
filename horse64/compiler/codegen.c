@@ -302,7 +302,7 @@ int codegen_FinalBytecodeTransform(
                 jump_info[jump_table_fill].jumpid = (
                     ((h64instruction_jumptarget *)inst)->jumpid
                 );
-                assert(k + sizeof(h64instruction_jumptarget) <=
+                assert(k + (int)sizeof(h64instruction_jumptarget) <=
                        pr->func[i].instructions_bytes);
                 memmove(
                     ((char*)pr->func[i].instructions) + k,
@@ -443,7 +443,7 @@ int codegen_FinalBytecodeTransform(
             size_t instsize = (
                 h64program_PtrToInstructionSize((char*)inst)
             );
-            if (k + instsize >= pr->func[i].instructions_bytes &&
+            if (k + (int)instsize >= pr->func[i].instructions_bytes &&
                     inst->type == H64INST_RETURNVALUE) {
                 func_ends_in_return = 1;
             }
@@ -1072,6 +1072,125 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
+        rinfo->dont_descend_visitation = 1;
+        return 1;
+    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+        rinfo->dont_descend_visitation = 1;
+
+        int func_id = expr->funcdef.bytecode_func_id;
+
+        // Handling of keyword arguments:
+        int argtmp = (
+            rinfo->pr->program->func[func_id].associated_class_index > 0 ?
+            1 : 0
+        );
+        int i = 0;
+        while (i < expr->funcdef.arguments.arg_count) {
+            if (expr->funcdef.arguments.arg_value[i] != NULL) {
+                assert(i + 1 >= expr->funcdef.arguments.arg_count ||
+                       expr->funcdef.arguments.arg_value[i + 1] != NULL);
+                assert(i > 0 || !expr->funcdef.arguments.
+                           last_posarg_is_multiarg);
+                int jump_past_id = (
+                    func->funcdef._storageinfo->jump_targets_used
+                );
+                func->funcdef._storageinfo->jump_targets_used++;
+
+                int operand2tmp = new1linetemp(
+                    func, expr
+                );
+
+                h64instruction_setconst inst_sconst = {0};
+                inst_sconst.type = H64INST_SETCONST;
+                inst_sconst.content.type = H64VALTYPE_UNSPECIFIED_KWARG;
+                inst_sconst.slot = operand2tmp;
+
+                h64instruction_binop inst_binop = {0};
+                inst_binop.type = H64INST_BINOP;
+                inst_binop.optype = H64OP_CMP_NOTEQUAL;
+                inst_binop.slotto = operand2tmp;
+                inst_binop.arg1slotfrom = argtmp;
+                inst_binop.arg2slotfrom = operand2tmp;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_binop, sizeof(inst_binop))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+
+                h64instruction_condjump cjump = {0};
+                cjump.type = H64INST_CONDJUMP;
+                cjump.jumpbytesoffset = jump_past_id;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &cjump, sizeof(cjump))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+
+                func->funcdef._storageinfo->codegen.
+                    oneline_temps_used_now = 0;
+
+                rinfo->dont_descend_visitation = 0;
+                int result = ast_VisitExpression(
+                    expr->funcdef.arguments.arg_value[i], expr,
+                    &_codegencallback_DoCodegen_visit_in,
+                    &_codegencallback_DoCodegen_visit_out,
+                    _asttransform_cancel_visit_descend_callback,
+                    rinfo
+                );
+                rinfo->dont_descend_visitation = 1;
+                if (!result)
+                    return 0;
+                assert(expr->funcdef.arguments.arg_value[i]->
+                    storage.eval_temp_id >= 0);
+
+                h64instruction_valuecopy vc;
+                vc.type = H64INST_VALUECOPY;
+                vc.slotto = argtmp;
+                vc.slotfrom = expr->funcdef.arguments.arg_value[i]->
+                    storage.eval_temp_id;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &vc, sizeof(vc))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+
+                func->funcdef._storageinfo->codegen.
+                    oneline_temps_used_now = 0;
+                h64instruction_jumptarget jumpt = {0};
+                jumpt.type = H64INST_JUMPTARGET;
+                jumpt.jumpid = jump_past_id;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &jumpt, sizeof(jumpt))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+            argtmp++;
+            i++;
+        }
+        func->funcdef._storageinfo->codegen.
+            oneline_temps_used_now = 0;
+
+        i = 0;
+        while (i < expr->funcdef.stmt_count) {
+            rinfo->dont_descend_visitation = 0;
+            int result = ast_VisitExpression(
+                expr->funcdef.stmt[i], expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            rinfo->dont_descend_visitation = 1;
+            if (!result)
+                return 0;
+            i++;
+        }
+
         rinfo->dont_descend_visitation = 1;
         return 1;
     } else if (expr->type == H64EXPRTYPE_TRY_STMT) {
