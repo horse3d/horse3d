@@ -944,6 +944,8 @@ int _codegencallback_DoCodegen_visit_out(
                 return 0;
             }
         }
+    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+        // Handled on _visit_in
     } else {
         char buf[256];
         snprintf(buf, sizeof(buf) - 1,
@@ -977,11 +979,11 @@ int _codegencallback_DoCodegen_visit_in(
     h64expression *func = surroundingfunc(expr);
     if (!func) {
         h64expression *sclass = surroundingclass(expr, 0);
-        if (sclass != NULL) {
+        if (sclass != NULL && expr->type != H64EXPRTYPE_FUNCDEF_STMT) {
             return 1;
         }
         func = _fakeglobalinitfunc(rinfo);
-        if (!func) {
+        if (!func && expr->type != H64EXPRTYPE_FUNCDEF_STMT) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
