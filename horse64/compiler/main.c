@@ -14,6 +14,7 @@
 #include "compiler/scoperesolver.h"
 #include "json.h"
 #include "uri.h"
+#include "vmexec.h"
 
 static int _compileargparse(
         const char *cmd,
@@ -179,7 +180,7 @@ int compiler_command_CompileEx(
         if (!nosuccess || haveinstructions)
             disassembler_DumpToStdout(project->program);
     } else if (mode == COMPILEEX_MODE_RUN) {
-        if (nosuccess) {
+        if (!nosuccess) {
             int resultcode = vmexec_ExecuteProgram(
                 project->program
             );
