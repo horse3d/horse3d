@@ -59,8 +59,11 @@ int poolalloc_AddArea(poolalloc *poolac) {
         poolac->pools_count--;
         return 0;
     }
-    memset(poolac->pools[poolac->pools_count - 1].slotused, 0,
-           sizeof(*poolac->pools[poolac->pools_count - 1].slotused));
+    memset(
+        poolac->pools[poolac->pools_count - 1].slotused, 0,
+        sizeof(*poolac->pools[poolac->pools_count - 1].slotused) *
+        pool_size
+    );
     poolac->freeitems += pool_size;
     poolac->totalitems += pool_size;
     poolac->lastusedareaindex = poolac->pools_count - 1;

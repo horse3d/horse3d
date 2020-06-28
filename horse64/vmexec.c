@@ -198,13 +198,13 @@ int vmthread_RunFunctionWithReturnInt(
         vmthread, pr, func_id, einfo
     );
     *out_returnint = 0;
-    return 1;
+    return result;
 }
 
 int vmexec_ExecuteProgram(h64program *pr) {
     h64vmthread *mainthread = vmthread_New();
     if (!mainthread) {
-        fprintf(stderr, "vmexec.c: out of memory during setup");
+        fprintf(stderr, "vmexec.c: out of memory during setup\n");
         return -1;
     }
     assert(pr->main_func_index >= 0);
@@ -215,7 +215,7 @@ int vmexec_ExecuteProgram(h64program *pr) {
                 mainthread, pr, pr->globalinit_func_index, &einfo, &rval
                 )) {
             fprintf(stderr, "vmexec.c: fatal error in $$globalinit, "
-                "out of memory?");
+                "out of memory?\n");
             return -1;
         }
         if (einfo) {
@@ -231,7 +231,7 @@ int vmexec_ExecuteProgram(h64program *pr) {
             mainthread, pr, pr->main_func_index, &einfo, &rval
             )) {
         fprintf(stderr, "vmexec.c: fatal error in main, "
-            "out of memory?");
+            "out of memory?\n");
         return -1;
     }
     if (einfo) {
