@@ -26,12 +26,16 @@ h64vmthread *vmthread_New() {
 }
 
 void vmthread_Free(h64vmthread *vmthread) {
+    if (!vmthread)
+        return;
+
     if (vmthread->heap) {
         // Free items on heap, FIXME
 
         // Free heap:
         poolalloc_Destroy(vmthread->heap);
     }
+    free(vmthread);
 }
 
 void vmthread_WipeFuncStack(h64vmthread *vmthread) {
@@ -216,6 +220,7 @@ int vmexec_ExecuteProgram(h64program *pr) {
                 )) {
             fprintf(stderr, "vmexec.c: fatal error in $$globalinit, "
                 "out of memory?\n");
+            vmthread_Free(mainthread);
             return -1;
         }
         if (einfo) {
@@ -223,6 +228,7 @@ int vmexec_ExecuteProgram(h64program *pr) {
                 (pr->symbols ?
                  _classnamelookup(pr, einfo->exception_class_id) :
                  "Exception"));
+            vmthread_Free(mainthread);
             return -1;
         }
     }
@@ -232,6 +238,7 @@ int vmexec_ExecuteProgram(h64program *pr) {
             )) {
         fprintf(stderr, "vmexec.c: fatal error in main, "
             "out of memory?\n");
+        vmthread_Free(mainthread);
         return -1;
     }
     if (einfo) {
@@ -239,7 +246,9 @@ int vmexec_ExecuteProgram(h64program *pr) {
             (pr->symbols ?
              _classnamelookup(pr, einfo->exception_class_id) :
              "Exception"));
+        vmthread_Free(mainthread);
         return -1;
     }
+    vmthread_Free(mainthread);
     return rval;
 }

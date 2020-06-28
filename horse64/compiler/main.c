@@ -184,7 +184,9 @@ int compiler_command_CompileEx(
             int resultcode = vmexec_ExecuteProgram(
                 project->program
             );
+            compileproject_Free(project);
             _exit(resultcode);
+            return 1;
         } else {
             fprintf(stderr, "horsec: error: "
                 "not running program due to compile errors\n");

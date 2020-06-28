@@ -590,6 +590,8 @@ int _codegencallback_DoCodegen_visit_out(
         }
         if (!appendinst(rinfo->pr->program, func, expr,
                         &inst, sizeof(inst))) {
+            if (inst.content.type == H64VALTYPE_CONSTPREALLOCSTR)
+                free(inst.content.constpreallocstr_value);
             rinfo->hadoutofmemory = 1;
             return 0;
         }
