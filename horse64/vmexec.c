@@ -22,6 +22,14 @@ h64vmthread *vmthread_New() {
         vmthread_Free(vmthread);
         return NULL;
     }
+
+    vmthread->stack = stack_New();
+    if (!vmthread->stack) {
+        vmthread_Free(vmthread);
+        poolalloc_Destroy(vmthread->heap);
+        return NULL;
+    }
+
     return vmthread;
 }
 
@@ -34,6 +42,9 @@ void vmthread_Free(h64vmthread *vmthread) {
 
         // Free heap:
         poolalloc_Destroy(vmthread->heap);
+    }
+    if (vmthread->stack) {
+        stack_Free(vmthread->stack);
     }
     free(vmthread);
 }
@@ -75,6 +86,7 @@ int vmthread_RunFunction(
         return 0;
 
     assert(func_id >= 0 && func_id < pr->func_count);
+    assert(!pr->func[func_id].iscfunc);
     char *p = pr->func[func_id].instructions;
     char *pend = p + (intptr_t)pr->func[func_id].instructions_bytes;
     void *jumptable[H64INST_TOTAL_COUNT];
@@ -226,6 +238,13 @@ int vmthread_RunFunction(
     jumptable[H64INST_ADDCATCHTYPEBYREF] = &&inst_addcatchtypebyref;
     jumptable[H64INST_ADDCATCHTYPE] = &&inst_addcatchtype;
     jumptable[H64INST_POPCATCHFRAME] = &&inst_popcatchframe;
+    assert(stack != NULL);
+    if (!stack_ToSize(
+            stack, pr->func[func_id].input_stack_size +
+            pr->func[func_id].inner_stack_size, 0
+            )) {
+        goto triggeroom;
+    }
     goto *jumptable[((h64instructionany *)p)->type];
 }
 
