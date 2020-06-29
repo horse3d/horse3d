@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,6 +93,7 @@ int vmthread_RunFunction(
     void *jumptable[H64INST_TOTAL_COUNT];
     h64stack *stack = vmthread->stack;
     poolalloc *heap = heap;
+    int funcnestdepth = 0;
 
     goto setupinterpreter;
 
@@ -176,6 +178,56 @@ int vmthread_RunFunction(
         return 0;
     }
     inst_returnvalue: {
+        h64instruction_returnvalue *inst = (h64instruction_returnvalue *)p;
+
+        // Get return value:
+        valuecontent *vc = STACK_ENTRY(stack, inst->returnslotfrom);
+        valuecontent vccopy;
+        memcpy(&vccopy, vc, sizeof(vccopy));
+        if (vccopy.type == H64VALTYPE_GCVAL) {
+            // Make sure it won't be GC'ed when stack is reduced
+            ((h64gcvalue *)vccopy.ptr_value)->externalreferencecount++;
+        }
+
+        // Remove function stack:
+        int current_stack_size = (
+            pr->func[func_id].input_stack_size +
+            pr->func[func_id].inner_stack_size
+        );
+        #ifndef NDEBUG
+        if (funcnestdepth <= 1 &&
+                stack->entry_total_count - current_stack_size != 0) {
+            fprintf(
+                stderr, "horsevm: error: "
+                "stack total count %d, current func stack %d, "
+                "unwound last function should return this to 0 "
+                "and doesn't\n",
+                (int)stack->entry_total_count, (int)current_stack_size
+            );
+        }
+        #endif
+        assert(stack->entry_total_count >= current_stack_size);
+        funcnestdepth--;
+        if (funcnestdepth <= 0) {
+            assert(stack->entry_total_count - current_stack_size == 0);
+            if (!stack_ToSize(
+                    stack, 1, 0
+                    )) {
+                if (vccopy.type == H64VALTYPE_GCVAL)
+                    ((h64gcvalue *)vccopy.ptr_value)->externalreferencecount--;
+                goto triggeroom;
+            }
+
+            // Place return value:
+            valuecontent *newvc = stack_GetEntrySlow(
+                stack, 0
+            );
+            valuecontent_Free(newvc);
+            memcpy(newvc, &vccopy, sizeof(vccopy));
+            return 1;
+        } else {
+
+        }
         fprintf(stderr, "returnvalue not implemented\n");
         return 0;
     }
@@ -245,6 +297,9 @@ int vmthread_RunFunction(
             )) {
         goto triggeroom;
     }
+    stack->current_func_floor = 0;
+
+    funcnestdepth++;
     goto *jumptable[((h64instructionany *)p)->type];
 }
 
@@ -258,7 +313,26 @@ int vmthread_RunFunctionWithReturnInt(
     int result = vmthread_RunFunction(
         vmthread, pr, func_id, einfo
     );
-    *out_returnint = 0;
+    assert(vmthread->stack->entry_total_count <= 1);
+    if (!result || vmthread->stack->entry_total_count == 0) {
+        *out_returnint = 0;
+    } else {
+        valuecontent *vc = stack_GetEntrySlow(vmthread->stack, 0);
+        if (vc->type == H64VALTYPE_INT64) {
+            int64_t v = vc->int_value;
+            if (v > INT_MAX) v = INT_MAX;
+            if (v < INT_MIN) v = INT_MIN;
+            *out_returnint = 1;
+            return result;
+        } else if (vc->type == H64VALTYPE_FLOAT64) {
+            int64_t v = roundl(vc->float_value);
+            if (v > INT_MAX) v = INT_MAX;
+            if (v < INT_MIN) v = INT_MIN;
+            *out_returnint = 1;
+            return result;
+        }
+        *out_returnint = 0;
+    }
     return result;
 }
 
