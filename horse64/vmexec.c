@@ -313,7 +313,7 @@ int vmthread_RunFunctionWithReturnInt(
     int result = vmthread_RunFunction(
         vmthread, pr, func_id, einfo
     );
-    assert(vmthread->stack->entry_total_count <= 1);
+    assert(vmthread->stack->entry_total_count <= 1 || !result);
     if (!result || vmthread->stack->entry_total_count == 0) {
         *out_returnint = 0;
     } else {

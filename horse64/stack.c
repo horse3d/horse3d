@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -134,6 +135,50 @@ void stack_GrowEntriesTo(
     st->entry_total_count += (size - oldcount);
 }
 
+void stack_PrintDebug(h64stack *st) {
+    fprintf(stderr, "=== STACK %p ===\n", st);
+    fprintf(
+        stderr, "* Total entries: %" PRId64
+        ", alloc entries: %" PRId64
+        " blocks: %d *\n",
+        st->entry_total_count,
+        st->alloc_total_count,
+        st->block_count
+    );
+    int i = 0;
+    while (i < st->block_count) {
+        h64stackblock *bl = &st->block[i];
+        printf("=== STACK %p BLOCK %d ===\n",
+               st, i);
+        fprintf(
+            stderr, "* Total entries: %d"
+            ", alloc entries: %d"
+            ", offset: %" PRId64 " *\n",
+            bl->entry_count, bl->alloc_count,
+            bl->offset
+        );
+        int k = 0;
+        while (k < bl->entry_count) {
+            valuecontent *vc = &bl->entry[k];
+            fprintf(stderr, "%d: ", k);
+            if (vc->type == H64VALTYPE_INT64) {
+                fprintf(stderr, "%" PRId64, vc->int_value);
+            } else if (vc->type == H64VALTYPE_FLOAT64) {
+                fprintf(stderr, "%f", vc->float_value);
+            } else if (vc->type == H64VALTYPE_BOOL) {
+                fprintf(stderr, "%s", (vc->int_value ? "true" : "false"));
+            } else if (vc->type == H64VALTYPE_GCVAL) {
+                fprintf(stderr, "gcval %p", vc->ptr_value);
+            } else {
+                fprintf(stderr, "<value type %d>", (int)vc->type);
+            }
+            fprintf(stderr, "\n");
+            k++;
+        }
+        i++;
+    }
+}
+
 int stack_ToSize(
         h64stack *st,
         int64_t total_entries,
@@ -161,10 +206,17 @@ int stack_ToSize(
         #endif
         int last_block = st->block_count - 1;
         assert(last_block >= 0);
-        assert(
-            st->block[last_block].offset ==
-            (int64_t)BLOCK_MAX_ENTRIES * (int64_t)(last_block - 1)
-        );
+        #ifndef NDEBUG
+        {  // If stack offset is broken, print out details before erroring:
+            if (st->block[last_block].offset !=
+                    (int64_t)BLOCK_MAX_ENTRIES * (int64_t)(last_block))
+                stack_PrintDebug(st);
+            assert(
+                st->block[last_block].offset ==
+                (int64_t)BLOCK_MAX_ENTRIES * (int64_t)(last_block)
+            );
+        }
+        #endif
         int64_t need_in_last_block = (
             total_entries - st->block[last_block].offset
         );
