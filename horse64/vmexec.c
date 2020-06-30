@@ -31,7 +31,6 @@ h64vmthread *vmthread_New() {
     vmthread->stack = stack_New();
     if (!vmthread->stack) {
         vmthread_Free(vmthread);
-        poolalloc_Destroy(vmthread->heap);
         return NULL;
     }
 
@@ -180,21 +179,48 @@ int vmthread_RunFunction(
             memset(tmpresult, 0, sizeof(*tmpresult));
         }
 
+        valuecontent *v1 = STACK_ENTRY(stack, inst->arg1slotfrom);
+        valuecontent *v2 = STACK_ENTRY(stack, inst->arg2slotfrom);
+        #ifndef NDEBUG
+        if (!op_jumptable[inst->optype]) {
+            fprintf(stderr, "binop %d missing in jump table\n",
+                    inst->optype);
+            return 0;
+        }
+        #endif
+        goto *op_jumptable[inst->optype];
+        int invalidtypes = 0;
+        char invalidtypesmsg[] = (
+            "operand not allowed for given types"
+        );
         binop_divide: {
-
+            if (unlikely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                invalidtypes = 1;
+            } else {
+                //tmpresult->type =
+            }
+            goto binop_done;
         }
         binop_add: {
 
+            goto binop_done;
         }
         binop_substract: {
 
+            goto binop_done;
         }
         binop_multiply: {
 
+            goto binop_done;
         }
         binop_modulo: {
 
+            goto binop_done;
         }
+        binop_done:
         fprintf(stderr, "binop not implemented\n");
         return 0;
     }

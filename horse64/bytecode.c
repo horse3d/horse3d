@@ -811,6 +811,7 @@ int h64program_AddClass(
         return -1;
     p->classes = new_classes;
     memset(&p->classes[p->classes_count], 0, sizeof(*p->classes));
+    p->classes[p->classes_count].base_class_global_id = -1;
 
     int fileuriindex = -1;
     if (fileuri) {

@@ -219,6 +219,7 @@ typedef struct h64class {
     int methods_count;
     int64_t *method_global_name_idx;
     int64_t *method_func_idx;
+    int base_class_global_id;
 
     int vars_count;
     int64_t *vars_global_name_idx;

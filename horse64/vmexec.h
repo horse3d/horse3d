@@ -25,6 +25,7 @@ typedef struct h64vmerrorcatchframe {
     int in_catch, in_finally;
 } h64vmerrorcatchframe;
 
+
 typedef struct h64vmthread {
     h64program *program;
     int can_access_globals;
