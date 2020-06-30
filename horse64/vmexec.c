@@ -6,11 +6,15 @@
 #include <string.h>
 
 #include "bytecode.h"
+#include "compiler/operator.h"
 #include "debugsymbols.h"
 #include "gcvalue.h"
 #include "poolalloc.h"
 #include "stack.h"
 #include "vmexec.h"
+
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 h64vmthread *vmthread_New() {
     h64vmthread *vmthread = malloc(sizeof(*vmthread));
@@ -91,6 +95,8 @@ int vmthread_RunFunction(
     char *p = pr->func[func_id].instructions;
     char *pend = p + (intptr_t)pr->func[func_id].instructions_bytes;
     void *jumptable[H64INST_TOTAL_COUNT];
+    void *op_jumptable[TOTAL_OP_COUNT];
+    memset(op_jumptable, 0, sizeof(*op_jumptable) * TOTAL_OP_COUNT);
     h64stack *stack = vmthread->stack;
     poolalloc *heap = heap;
     int funcnestdepth = 0;
@@ -162,6 +168,33 @@ int vmthread_RunFunction(
         return 0;
     }
     inst_binop: {
+        h64instruction_binop *inst = (h64instruction_binop *)p;
+
+        valuecontent _tmpresultbuf = {0};
+        valuecontent *tmpresult = STACK_ENTRY(stack, inst->slotto);
+        if (likely(inst->slotto == inst->arg1slotfrom ||
+                inst->slotto == inst->arg2slotfrom)) {
+            tmpresult = &_tmpresultbuf;
+        } else {
+            valuecontent_Free(tmpresult);
+            memset(tmpresult, 0, sizeof(*tmpresult));
+        }
+
+        binop_divide: {
+
+        }
+        binop_add: {
+
+        }
+        binop_substract: {
+
+        }
+        binop_multiply: {
+
+        }
+        binop_modulo: {
+
+        }
         fprintf(stderr, "binop not implemented\n");
         return 0;
     }
@@ -290,6 +323,11 @@ int vmthread_RunFunction(
     jumptable[H64INST_ADDCATCHTYPEBYREF] = &&inst_addcatchtypebyref;
     jumptable[H64INST_ADDCATCHTYPE] = &&inst_addcatchtype;
     jumptable[H64INST_POPCATCHFRAME] = &&inst_popcatchframe;
+    op_jumptable[H64OP_MATH_DIVIDE] = &&binop_divide;
+    op_jumptable[H64OP_MATH_ADD] = &&binop_add;
+    op_jumptable[H64OP_MATH_SUBSTRACT] = &&binop_substract;
+    op_jumptable[H64OP_MATH_MULTIPLY] = &&binop_multiply;
+    op_jumptable[H64OP_MATH_MODULO] = &&binop_modulo;
     assert(stack != NULL);
     if (!stack_ToSize(
             stack, pr->func[func_id].input_stack_size +
