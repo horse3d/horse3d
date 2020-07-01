@@ -5,6 +5,8 @@
 
 #define MAX_STACK_FRAMES 10
 
+#include "compiler/main.h"
+
 typedef struct h64program h64program;
 typedef struct h64instruction h64instruction;
 typedef struct poolalloc poolalloc;
@@ -27,6 +29,7 @@ typedef struct h64vmerrorcatchframe {
 
 
 typedef struct h64vmthread {
+    h64misccompileroptions moptions;
     h64program *program;
     int can_access_globals;
     int can_call_unthreadable;
@@ -74,6 +77,8 @@ int vmthread_RunFunctionWithReturnInt(
 
 void vmthread_Free(h64vmthread *vmthread);
 
-int vmexec_ExecuteProgram(h64program *pr);
+int vmexec_ExecuteProgram(
+    h64program *pr, h64misccompileroptions *moptions
+);
 
 #endif  // HORSE64_VMEXEC_H_

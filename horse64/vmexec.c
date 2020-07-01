@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "bytecode.h"
+#include "compiler/disassembler.h"
 #include "compiler/operator.h"
 #include "debugsymbols.h"
 #include "gcvalue.h"
@@ -129,8 +130,9 @@ int vmthread_RunFunction(
     }
     inst_setconst: {
         h64instruction_setconst *inst = (h64instruction_setconst *)p;
-        #if defined(DEBUGVMEXEC)
-        if (!vmthread_PrintExec(inst)) goto triggeroom;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
         #endif
         valuecontent *vc = STACK_ENTRY(stack, inst->slot);
         valuecontent_Free(vc);
@@ -188,8 +190,9 @@ int vmthread_RunFunction(
     }
     inst_binop: {
         h64instruction_binop *inst = (h64instruction_binop *)p;
-        #if defined(DEBUGVMEXEC)
-        if (!vmthread_PrintExec(inst)) goto triggeroom;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
         #endif
 
         int copyatend = 0;
@@ -628,8 +631,9 @@ int vmthread_RunFunction(
     }
     inst_returnvalue: {
         h64instruction_returnvalue *inst = (h64instruction_returnvalue *)p;
-        #if defined(DEBUGVMEXEC)
-        if (!vmthread_PrintExec(inst)) goto triggeroom;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
         #endif
 
         // Get return value:
@@ -799,13 +803,16 @@ int vmthread_RunFunctionWithReturnInt(
     return result;
 }
 
-int vmexec_ExecuteProgram(h64program *pr) {
+int vmexec_ExecuteProgram(
+        h64program *pr, h64misccompileroptions *moptions
+        ) {
     h64vmthread *mainthread = vmthread_New();
     if (!mainthread) {
         fprintf(stderr, "vmexec.c: out of memory during setup\n");
         return -1;
     }
     assert(pr->main_func_index >= 0);
+    memcpy(&mainthread->moptions, moptions, sizeof(*moptions));
     h64exceptioninfo *einfo = NULL;
     int rval = 0;
     if (pr->globalinit_func_index >= 0) {

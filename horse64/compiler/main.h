@@ -42,4 +42,8 @@ int compiler_command_ToASM(
     const char **argv, int argc, int argoffset
 );
 
+typedef struct h64misccompileroptions {
+    int vmexec_debug;
+} h64misccompileroptions;
+
 #endif  // HORSE3D_COMPILER_MAIN_H_

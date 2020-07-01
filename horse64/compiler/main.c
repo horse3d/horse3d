@@ -19,7 +19,8 @@
 static int _compileargparse(
         const char *cmd,
         const char **argv, int argc, int argoffset,
-        const char **fileuri, h64compilewarnconfig *wconfig
+        const char **fileuri, h64compilewarnconfig *wconfig,
+        h64misccompileroptions *miscoptions
         ) {
     if (wconfig) warningconfig_Init(wconfig);
     int doubledashed = 0;
@@ -30,6 +31,13 @@ static int _compileargparse(
             *fileuri = argv[i];
         } else if (strcmp(argv[i], "--") == 0) {
             doubledashed = 1;
+        } else if (strcmp(cmd, "run") == 0 &&
+                strcmp(argv[i], "--vmexec-debug") == 0) {
+            miscoptions->vmexec_debug = 1;
+            #ifdef NDEBUG
+            fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
+                "output for --vmexec-debug not compiled in\n");
+            #endif
         } else if (wconfig && argv[i][0] == '-' &&
                 argv[i][1] == 'W') {
             if (!warningconfig_CheckOption(
@@ -100,10 +108,11 @@ int compiler_command_CompileEx(
         mode == COMPILEEX_MODE_COMPILE ? _name_mode_compile : (
         mode == COMPILEEX_MODE_RUN ? _name_mode_run : _name_mode_cinfo
         ));
-    h64compilewarnconfig wconfig;
+    h64compilewarnconfig wconfig = {0};
+    h64misccompileroptions moptions = {0};
     if (!_compileargparse(
             command, argv, argc,
-            argoffset, &fileuri, &wconfig
+            argoffset, &fileuri, &wconfig, &moptions
             ))
         return 0;
 
@@ -182,7 +191,7 @@ int compiler_command_CompileEx(
     } else if (mode == COMPILEEX_MODE_RUN) {
         if (!nosuccess) {
             int resultcode = vmexec_ExecuteProgram(
-                project->program
+                project->program, &moptions
             );
             compileproject_Free(project);
             _exit(resultcode);
@@ -367,10 +376,11 @@ jsonvalue *compiler_TokenizeToJSON(
 
 int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
     const char *fileuri = NULL;
-    h64compilewarnconfig wconfig;
+    h64compilewarnconfig wconfig = {0};
+    h64misccompileroptions moptions = {0};
     if (!_compileargparse(
             "get_tokens", argv, argc, argoffset,
-            &fileuri, &wconfig
+            &fileuri, &wconfig, &moptions
             ))
         return 0;
 
@@ -389,10 +399,11 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
 
 int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
     const char *fileuri = NULL;
-    h64compilewarnconfig wconfig;
+    h64compilewarnconfig wconfig = {0};
+    h64misccompileroptions moptions = {0};
     if (!_compileargparse(
             "get_ast", argv, argc, argoffset,
-            &fileuri, &wconfig
+            &fileuri, &wconfig, &moptions
             ))
         return 0;
     assert(fileuri != NULL);
@@ -414,10 +425,11 @@ int compiler_command_GetResolvedAST(
         const char **argv, int argc, int argoffset
         ) {
     const char *fileuri = NULL;
-    h64compilewarnconfig wconfig;
+    h64compilewarnconfig wconfig = {0};
+    h64misccompileroptions moptions = {0};
     if (!_compileargparse(
             "get_resolved_ast", argv, argc, argoffset,
-            &fileuri, &wconfig
+            &fileuri, &wconfig, &moptions
             ))
         return 0;
     assert(fileuri != NULL);
