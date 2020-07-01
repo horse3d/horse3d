@@ -187,7 +187,7 @@ int vmthread_RunFunction(
     void *op_jumptable[TOTAL_OP_COUNT];
     memset(op_jumptable, 0, sizeof(*op_jumptable) * TOTAL_OP_COUNT);
     h64stack *stack = vmthread->stack;
-    poolalloc *heap = heap;
+    poolalloc *heap = vmthread->heap;
     int funcnestdepth = 0;
 
     goto setupinterpreter;
