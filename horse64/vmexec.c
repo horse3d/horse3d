@@ -246,6 +246,7 @@ int vmthread_RunFunction(
                 ((h64gcvalue *)vc->ptr_value)->
                     externalreferencecount = 1;
         }
+        assert(vc->type != H64VALTYPE_CONSTPREALLOCSTR);
         p += sizeof(h64instruction_setconst);
         goto *jumptable[((h64instructionany *)p)->type];
     }

@@ -23,6 +23,7 @@ h64stack *stack_New() {
 }
 
 void stack_FreeEntry(h64stackblock *block, int slot) {
+    assert(block->entry[slot].type != H64VALTYPE_CONSTPREALLOCSTR);
     valuecontent_Free(&block->entry[slot]);
 }
 
