@@ -258,12 +258,34 @@ int vmthread_RunFunction(
         return 0;
     }
     inst_getfunc: {
-        fprintf(stderr, "getfunc not implemented\n");
-        return 0;
+        h64instruction_getfunc *inst = (h64instruction_getfunc *)p;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
+        valuecontent_Free(vc);
+        vc->type = H64VALTYPE_CFUNCREF;
+        vc->int_value = (int64_t)inst->funcfrom;
+
+        p += sizeof(h64instruction_getfunc);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_getclass: {
-        fprintf(stderr, "getclass not implemented\n");
-        return 0;
+        h64instruction_getclass *inst = (h64instruction_getclass *)p;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
+        valuecontent_Free(vc);
+        vc->type = H64VALTYPE_CLASSREF;
+        vc->int_value = (int64_t)inst->classfrom;
+
+        p += sizeof(h64instruction_getclass);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_valuecopy: {
         fprintf(stderr, "valuecopy not implemented\n");
@@ -825,9 +847,11 @@ int vmthread_RunFunction(
             goto *jumptable[((h64instructionany *)p)->type];
         }
 
-        p = pr->func[func_id].instructions + (
+        p += (
             (ptrdiff_t)inst->jumpbytesoffset
         );
+        assert(p >= pr->func[func_id].instructions &&
+               p < pend);
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_jump: {
@@ -837,9 +861,11 @@ int vmthread_RunFunction(
                 !vmthread_PrintExec((void*)inst)) goto triggeroom;
         #endif
 
-        p = pr->func[func_id].instructions + (
+        p += (
             (ptrdiff_t)inst->jumpbytesoffset
         );
+        assert(p >= pr->func[func_id].instructions &&
+               p < pend);
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_newiterator: {

@@ -134,7 +134,7 @@ char *disassembler_DumpValueContent(valuecontent *vs) {
 }
 
 int disassembler_PrintInstruction(
-        dinfo *di, h64instructionany *inst
+        dinfo *di, h64instructionany *inst, ptrdiff_t offset
         ) {
     switch (inst->type) {
     case H64INST_SETCONST: ;
@@ -146,7 +146,7 @@ int disassembler_PrintInstruction(
         if (!s)
             return 0;
         if (!disassembler_Write(di,
-                "    %s t%d %s\n",
+                "    %s t%d %s",
                 bytecode_InstructionTypeToStr(inst->type),
                 inst_setconst->slot,
                 s)) {
@@ -154,77 +154,77 @@ int disassembler_PrintInstruction(
             return 0;
         }
         free(s);
-        return 1;
+        break;
     case H64INST_SETTOP: ;
         h64instruction_settop *inst_settop =
             (h64instruction_settop *)inst;
         if (!disassembler_Write(di,
-                "    %s %d\n",
+                "    %s %d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_settop->topto)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_GETGLOBAL: ;
         h64instruction_getglobal *inst_getglobal =
             (h64instruction_getglobal *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d g%" PRId64 "\n",
+                "    %s t%d g%" PRId64 "",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_getglobal->slotto,
                 (int64_t)inst_getglobal->globalfrom)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_SETGLOBAL: ;
         h64instruction_setglobal *inst_setglobal =
             (h64instruction_setglobal *)inst;
         if (!disassembler_Write(di,
-                "    %s g%" PRId64 " t%d\n",
+                "    %s g%" PRId64 " t%d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int64_t)inst_setglobal->globalto,
                 (int)inst_setglobal->slotfrom)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_GETFUNC: ;
         h64instruction_getfunc *inst_getfunc =
             (h64instruction_getfunc *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d f%" PRId64 "\n",
+                "    %s t%d f%" PRId64 "",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_getfunc->slotto,
                 (int64_t)inst_getfunc->funcfrom)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_GETCLASS: ;
         h64instruction_getclass *inst_getclass =
             (h64instruction_getclass *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d c" PRId64 "\n",
+                "    %s t%d c" PRId64 "",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_getclass->slotto,
                 (int64_t)inst_getclass->classfrom)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_VALUECOPY: ;
         h64instruction_valuecopy *inst_vcopy =
             (h64instruction_valuecopy *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d t%d\n",
+                "    %s t%d t%d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_vcopy->slotto,
                 (int)inst_vcopy->slotfrom)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_BINOP: ;
         h64instruction_binop *inst_binop =
             (h64instruction_binop *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d %s t%d t%d\n",
+                "    %s t%d %s t%d t%d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_binop->slotto,
                 operator_OpTypeToStr(inst_binop->optype),
@@ -232,24 +232,24 @@ int disassembler_PrintInstruction(
                 (int)inst_binop->arg2slotfrom)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_UNOP: ;
         h64instruction_unop *inst_unop =
             (h64instruction_unop *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d %s t%d\n",
+                "    %s t%d %s t%d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_unop->slotto,
                 operator_OpTypeToStr(inst_unop->optype),
                 (int)inst_unop->argslotfrom)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_CALL: ;
         h64instruction_call *inst_call =
             (h64instruction_call *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d t%d %d %d %d\n",
+                "    %s t%d t%d %d %d %d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_call->returnto,
                 (int)inst_call->slotcalledfrom,
@@ -258,58 +258,72 @@ int disassembler_PrintInstruction(
                 (int)inst_call->expandlastposarg)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_RETURNVALUE: ;
         h64instruction_returnvalue *inst_returnvalue =
             (h64instruction_returnvalue *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d\n",
+                "    %s t%d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_returnvalue->returnslotfrom)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_JUMPTARGET: ;
         h64instruction_jumptarget *inst_jumptarget =
             (h64instruction_jumptarget *)inst;
         if (!disassembler_Write(di,
-                "    %s j%d\n",
+                "    %s j%d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_jumptarget->jumpid)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_CONDJUMP: ;
         h64instruction_condjump *inst_condjump =
             (h64instruction_condjump *)inst;
         if (!disassembler_Write(di,
-                "    %s %s%d t%d\n",
+                "    %s %s%d t%d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (inst_condjump->jumpbytesoffset >= 0 ? "+" : ""),
                 (int)inst_condjump->jumpbytesoffset,
                 inst_condjump->conditionalslot)) {
             return 0;
         }
-        return 1;
+        break;
     case H64INST_JUMP: ;
         h64instruction_jump *inst_jump =
             (h64instruction_jump *)inst;
         if (!disassembler_Write(di,
-                "    %s %s%d\n",
+                "    %s %s%d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (inst_jump->jumpbytesoffset >= 0 ? "+" : ""),
                 (int)inst_jump->jumpbytesoffset)) {
             return 0;
         }
-        return 1;
+        break;
     default:
         if (!disassembler_Write(di,
-                "    %s <unknownargs>\n",
+                "    %s <unknownargs>",
                 bytecode_InstructionTypeToStr(inst->type))) {
             return 0;
         }
-        return 1;
+        break;
     }
+    if (offset >= 0) {
+        if (!disassembler_Write(di,
+                "  # offset=%" PRId64 "\n",
+                (int64_t)offset)) {
+            return 0;
+        }
+    } else {
+        if (!disassembler_Write(di,
+                "\n"
+                )) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static int disassembler_AppendToStrCallback(
@@ -337,17 +351,36 @@ char *disassembler_InstructionToStr(
     char *s = NULL;
     di.pr = &disassembler_AppendToStrCallback;
     di.userdata = &s;
-    int result = disassembler_PrintInstruction(&di, inst);
+    int result = disassembler_PrintInstruction(&di, inst, -1);
     if (!result) {
         free(s);
         return NULL;
     }
-    int trailingwhitespace = 0;
-    int i = (int)strlen(s) - 1;
+
+    // Trim trailing comments:
+    char in_escaped = '\0';
+    int i = 0;
+    while (i < (int)strlen(s)) {
+        if (in_escaped == '\0' && (
+                s[i] == '\'' ||
+                s[i] == '"')) {
+            in_escaped = s[i];
+        } else if (in_escaped != '\0' &&
+                s[i] == in_escaped) {
+
+        } else if (in_escaped == '\0' && s[i] == '#') {
+            s[i] = '\0';
+            break;
+        }
+        i++;
+    }
+
+    // Trim away whitespace:
+    i = (int)strlen(s) - 1;
     while (i >= 0 && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' ||
             s[i] == '\r')) {
+        s[i] = '\0';
         i--;
-        trailingwhitespace++;
     }
     int leadingwhitespace = 0;
     i = 0;
@@ -359,13 +392,6 @@ char *disassembler_InstructionToStr(
         memmove(
             s, s + leadingwhitespace,
             strlen(s) + 1 - leadingwhitespace
-        );
-    assert(trailingwhitespace <= (int)strlen(s));
-    if (trailingwhitespace > 0)
-        memmove(
-            s + strlen(s) - trailingwhitespace,
-            s + strlen(s),
-            trailingwhitespace
         );
     return s;
 }
@@ -433,7 +459,8 @@ int disassembler_Dump(
         int64_t lenleft = (int64_t)p->func[i].instructions_bytes;
         while (lenleft > 0) {
             if (!disassembler_PrintInstruction(
-                    di, (h64instructionany*)instp
+                    di, (h64instructionany*)instp,
+                    (ptrdiff_t)(instp - (char *)p->func[i].instructions)
                     )) {
                 return 0;
             }
