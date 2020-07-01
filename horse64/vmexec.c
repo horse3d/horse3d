@@ -13,6 +13,8 @@
 #include "stack.h"
 #include "vmexec.h"
 
+#define DEBUGVMEXEC
+
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
@@ -81,6 +83,18 @@ static const char *_classnamelookup(h64program *pr, int64_t classid) {
     return csymbol->name;
 }
 
+#if defined(DEBUGVMEXEC)
+static int vmthread_PrintExec(
+        h64instructionany *inst
+        ) {
+    char *_s = disassembler_InstructionToStr(inst);
+    if (!_s) return 0;
+    fprintf(stderr, "horsevm: debug: vmexec %s\n", _s);
+    free(_s);
+    return 1;
+}
+#endif
+
 int vmthread_RunFunction(
         h64vmthread *vmthread,
         h64program *pr, int func_id,
@@ -107,11 +121,17 @@ int vmthread_RunFunction(
         return 0;
     }
     triggeroom: {
+        #if defined(DEBUGVMEXEC)
+        fprintf(stderr, "horsevm: debug: vmexec triggeroom\n");
+        #endif
         fprintf(stderr, "oom\n");
         return 0;
     }
     inst_setconst: {
         h64instruction_setconst *inst = (h64instruction_setconst *)p;
+        #if defined(DEBUGVMEXEC)
+        if (!vmthread_PrintExec(inst)) goto triggeroom;
+        #endif
         valuecontent *vc = STACK_ENTRY(stack, inst->slot);
         valuecontent_Free(vc);
         if (inst->content.type == H64VALTYPE_CONSTPREALLOCSTR) {
@@ -168,11 +188,16 @@ int vmthread_RunFunction(
     }
     inst_binop: {
         h64instruction_binop *inst = (h64instruction_binop *)p;
+        #if defined(DEBUGVMEXEC)
+        if (!vmthread_PrintExec(inst)) goto triggeroom;
+        #endif
 
+        int copyatend = 0;
         valuecontent _tmpresultbuf = {0};
         valuecontent *tmpresult = STACK_ENTRY(stack, inst->slotto);
         if (likely(inst->slotto == inst->arg1slotfrom ||
                 inst->slotto == inst->arg2slotfrom)) {
+            copyatend = 1;
             tmpresult = &_tmpresultbuf;
         } else {
             valuecontent_Free(tmpresult);
@@ -188,41 +213,406 @@ int vmthread_RunFunction(
             return 0;
         }
         #endif
-        goto *op_jumptable[inst->optype];
-        int invalidtypes = 0;
+        int invalidtypes = 1;
+        int divisionbyzero = 0;
         char invalidtypesmsg[] = (
             "operand not allowed for given types"
         );
+        goto *op_jumptable[inst->optype];
         binop_divide: {
             if (unlikely((v1->type != H64VALTYPE_INT64 &&
                     v1->type != H64VALTYPE_FLOAT64) ||
                     (v2->type != H64VALTYPE_INT64 &&
                     v2->type != H64VALTYPE_FLOAT64))) {
-                invalidtypes = 1;
+                // invalid
             } else {
-                //tmpresult->type =
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    tmpresult->float_value = (v1no / v2no);
+                    if (isnan(tmpresult->float_value) || v2no == 0) {
+                        divisionbyzero = 1;
+                    }
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    if (v2->int_value == 0) {
+                        divisionbyzero = 1;
+                    } else {
+                        tmpresult->int_value = (
+                            v1->int_value / v2->int_value
+                        );
+                    }
+                }
             }
             goto binop_done;
         }
         binop_add: {
-
+            if (unlikely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                // invalid
+            } else if (unlikely((
+                    ((v1->type == H64VALTYPE_GCVAL &&
+                     ((h64gcvalue *)v1->ptr_value)->type ==
+                        H64GCVALUETYPE_STRING) ||
+                     v1->type == H64VALTYPE_SHORTSTR)) &&
+                    ((v2->type == H64VALTYPE_GCVAL &&
+                     ((h64gcvalue *)v2->ptr_value)->type ==
+                        H64GCVALUETYPE_STRING) ||
+                     v2->type == H64VALTYPE_SHORTSTR))) {
+                fprintf(stderr, "string concatenation not implemented\n");
+                return 0;
+            } else {
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    tmpresult->float_value = (v1no + v2no);
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->int_value = (
+                        v1->int_value + v2->int_value
+                    );
+                }
+            }
             goto binop_done;
         }
         binop_substract: {
-
+            if (unlikely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                // invalid
+            } else {
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    tmpresult->float_value = (v1no - v2no);
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->int_value = (
+                        v1->int_value - v2->int_value
+                    );
+                }
+            }
             goto binop_done;
         }
         binop_multiply: {
-
+            if (unlikely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                // invalid
+            } else {
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    tmpresult->float_value = (v1no * v2no);
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->int_value = (
+                        v1->int_value * v2->int_value
+                    );
+                }
+            }
             goto binop_done;
         }
         binop_modulo: {
-
+            if (unlikely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                // invalid
+            } else {
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    if (unlikely(v1no < 0 || v2no < 0)) {
+                        if (v1no >= 0 && v2no < 0) {
+                            tmpresult->float_value = -(
+                                (-v2no) - fmod(v1no, -v2no)
+                            );
+                        } else if (v2no >= 0) {
+                            tmpresult->float_value = (
+                                v2no - fmod(-v1no, v2no)
+                            );
+                        } else {
+                            tmpresult->float_value = (
+                                -fmod(-v1no, -v2no)
+                            );
+                        }
+                    } else {
+                        tmpresult->float_value = fmod(v1no, v2no);
+                    }
+                    if (isnan(tmpresult->float_value) || v2no == 0) {
+                        divisionbyzero = 1;
+                    }
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    if (v2->int_value == 0) {
+                        divisionbyzero = 1;
+                    } else {
+                        tmpresult->int_value = (
+                            v1->int_value % v2->int_value
+                        );
+                    }
+                }
+            }
+            goto binop_done;
+        }
+        binop_cmp_equal: {
+            if (likely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                // generic case:
+                fprintf(stderr, "equality case not implemented\n");
+                return 0;
+            } else {
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    tmpresult->float_value = (v1no == v2no);
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->int_value = (
+                        v1->int_value == v2->int_value
+                    );
+                }
+            }
+            goto binop_done;
+        }
+        binop_cmp_notequal: {
+            fprintf(stderr, "oopsie daisy\n");
+            return 0;
+        }
+        binop_cmp_largerorequal: {
+            if (likely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                // invalid
+            } else {
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    tmpresult->float_value = (v1no >= v2no);
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->int_value = (
+                        v1->int_value >= v2->int_value
+                    );
+                }
+            }
+            goto binop_done;
+        }
+        binop_cmp_smallerorequal: {
+            if (likely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                // invalid
+            } else {
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    tmpresult->float_value = (v1no <= v2no);
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->int_value = (
+                        v1->int_value <= v2->int_value
+                    );
+                }
+            }
+            goto binop_done;
+        }
+        binop_cmp_larger: {
+            if (likely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                // invalid
+            } else {
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    tmpresult->float_value = (v1no > v2no);
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->int_value = (
+                        v1->int_value > v2->int_value
+                    );
+                }
+            }
+            goto binop_done;
+        }
+        binop_cmp_smaller: {
+            if (likely((v1->type != H64VALTYPE_INT64 &&
+                    v1->type != H64VALTYPE_FLOAT64) ||
+                    (v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64))) {
+                // invalid
+            } else {
+                invalidtypes = 0;
+                if (v1->type == H64VALTYPE_FLOAT64 ||
+                        v2->type == H64VALTYPE_FLOAT64) {
+                    double v1no = 1;
+                    if (v1->type == H64VALTYPE_FLOAT64) {
+                        v1no = v1->float_value;
+                    } else {
+                        v1no = v1->int_value;
+                    }
+                    double v2no = 1;
+                    if (v2->type == H64VALTYPE_FLOAT64) {
+                        v2no = v2->float_value;
+                    } else {
+                        v2no = v2->int_value;
+                    }
+                    tmpresult->type = H64VALTYPE_FLOAT64;
+                    tmpresult->float_value = (v1no < v2no);
+                } else {
+                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->int_value = (
+                        v1->int_value < v2->int_value
+                    );
+                }
+            }
             goto binop_done;
         }
         binop_done:
-        fprintf(stderr, "binop not implemented\n");
-        return 0;
+        if (invalidtypes || divisionbyzero) {
+            fprintf(stderr, "binop error not implemented\n");
+            return 0;
+        }
+        if (copyatend) {
+            valuecontent *target = STACK_ENTRY(stack, inst->slotto);
+            if (target->type == H64VALTYPE_GCVAL) {
+                // prevent actual value from being free'd
+                ((h64gcvalue *)target->ptr_value)->
+                    externalreferencecount++;
+            }
+            valuecontent_Free(target);
+            memcpy(target, tmpresult, sizeof(*tmpresult));
+        }
+        p += sizeof(h64instruction_binop);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_unop: {
         fprintf(stderr, "unop not implemented\n");
@@ -238,6 +628,9 @@ int vmthread_RunFunction(
     }
     inst_returnvalue: {
         h64instruction_returnvalue *inst = (h64instruction_returnvalue *)p;
+        #if defined(DEBUGVMEXEC)
+        if (!vmthread_PrintExec(inst)) goto triggeroom;
+        #endif
 
         // Get return value:
         valuecontent *vc = STACK_ENTRY(stack, inst->returnslotfrom);
@@ -354,6 +747,12 @@ int vmthread_RunFunction(
     op_jumptable[H64OP_MATH_SUBSTRACT] = &&binop_substract;
     op_jumptable[H64OP_MATH_MULTIPLY] = &&binop_multiply;
     op_jumptable[H64OP_MATH_MODULO] = &&binop_modulo;
+    op_jumptable[H64OP_CMP_EQUAL] = &&binop_cmp_equal;
+    op_jumptable[H64OP_CMP_NOTEQUAL] = &&binop_cmp_notequal;
+    op_jumptable[H64OP_CMP_LARGEROREQUAL] = &&binop_cmp_largerorequal;
+    op_jumptable[H64OP_CMP_SMALLEROREQUAL] = &&binop_cmp_smallerorequal;
+    op_jumptable[H64OP_CMP_LARGER] = &&binop_cmp_larger;
+    op_jumptable[H64OP_CMP_SMALLER] = &&binop_cmp_smaller;
     assert(stack != NULL);
     if (!stack_ToSize(
             stack, pr->func[func_id].input_stack_size +

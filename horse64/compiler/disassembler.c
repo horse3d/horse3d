@@ -13,11 +13,12 @@
 #include "compiler/operator.h"
 #include "unicode.h"
 
-
-typedef struct dinfo {
-    void (*pr)(const char *s);
+typedef struct dinfo dinfo;
+struct dinfo {
+    int (*pr)(dinfo *di, const char *s, void *userdata);
     int tostdout;
-} dinfo;
+    void *userdata;
+};
 
 static inline int disassembler_Write(
         dinfo *di, char *str, ...
@@ -32,10 +33,14 @@ static inline int disassembler_Write(
     vsnprintf(buffer, buflen - 1, str, args);
     buffer[buflen - 1] = '\0';
     va_end(args);
-    if (di->tostdout)
+    if (di->tostdout) {
         printf("%s", buffer);
-    else if (di->pr)
-        di->pr(buffer);
+    } else if (di->pr) {
+        if (!di->pr(di, buffer, di->userdata)) {
+            free(buffer);
+            return 0;
+        }
+    }
     free(buffer);
     return 1;
 }
@@ -305,6 +310,64 @@ int disassembler_PrintInstruction(
         }
         return 1;
     }
+}
+
+static int disassembler_AppendToStrCallback(
+        dinfo *di, const char *print_s, void *userdata
+        ) {
+    char **s = userdata;
+    int oldlen = ((*s) != NULL ? strlen(*s) : 0);
+    char *new_s = realloc(
+        *s,
+        oldlen + strlen(print_s) + 1
+    );
+    if (!new_s) {
+        return 0;
+    }
+    *s = new_s;
+    memcpy((*s) + oldlen, print_s, strlen(print_s) + 1);
+    return 1;
+}
+
+char *disassembler_InstructionToStr(
+        h64instructionany *inst
+        ) {
+    dinfo di;
+    memset(&di, 0, sizeof(di));
+    char *s = NULL;
+    di.pr = &disassembler_AppendToStrCallback;
+    di.userdata = &s;
+    int result = disassembler_PrintInstruction(&di, inst);
+    if (!result) {
+        free(s);
+        return NULL;
+    }
+    int trailingwhitespace = 0;
+    int i = (int)strlen(s) - 1;
+    while (i >= 0 && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' ||
+            s[i] == '\r')) {
+        i--;
+        trailingwhitespace++;
+    }
+    int leadingwhitespace = 0;
+    i = 0;
+    while (i < (int)strlen(s) && (s[i] == '\t' || s[i] == ' ')) {
+        i++;
+        leadingwhitespace++;
+    }
+    if (leadingwhitespace > 0)
+        memmove(
+            s, s + leadingwhitespace,
+            strlen(s) + 1 - leadingwhitespace
+        );
+    assert(trailingwhitespace <= (int)strlen(s));
+    if (trailingwhitespace > 0)
+        memmove(
+            s + strlen(s) - trailingwhitespace,
+            s + strlen(s),
+            trailingwhitespace
+        );
+    return s;
 }
 
 int disassembler_Dump(
