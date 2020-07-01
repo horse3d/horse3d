@@ -96,13 +96,61 @@ static int vmthread_PrintExec(
 }
 #endif
 
+static inline int pushfuncframe(h64vmthread *vt, int func_id) {
+    if (vt->funcframe_count + 1 > vt->funcframe_alloc) {
+        h64vmfunctionframe *new_funcframe = realloc(
+            vt->funcframe, sizeof(*new_funcframe) *
+            (vt->funcframe_count + 32)
+        );
+        if (!new_funcframe)
+            return 0;
+        vt->funcframe = new_funcframe;
+        vt->funcframe_alloc = vt->funcframe_count + 32;
+    }
+    memset(
+        &vt->funcframe[vt->funcframe_count], 0,
+        sizeof(vt->funcframe[vt->funcframe_count])
+    );
+    #ifndef NDEBUG
+    if (vt->funcframe_count > 0) {
+        assert(
+            vt->stack->entry_total_count -
+            vt->stack->current_func_floor >=
+            vt->program->func[func_id].input_stack_size
+        );
+    }
+    #endif
+    assert(vt->program != NULL &&
+           func_id >= 0 && func_id < vt->program->func_count);
+    int prevtop = vt->stack->entry_total_count;
+    if (!stack_ToSize(
+            vt->stack,
+            (vt->funcframe_count == 0 ?
+             vt->program->func[func_id].input_stack_size : 0) +
+            vt->program->func[func_id].inner_stack_size, 0
+            )) {
+        return 0;
+    }
+    vt->funcframe[vt->funcframe_count].stack_bottom = (
+        vt->stack->entry_total_count - (
+        vt->program->func[func_id].input_stack_size +
+        vt->program->func[func_id].inner_stack_size)
+    );
+    vt->funcframe[vt->funcframe_count].func_id = func_id;
+    vt->funcframe_count++;
+    vt->stack->current_func_floor = (
+        vt->funcframe[vt->funcframe_count - 1].stack_bottom
+    );
+    return 1;
+}
+
 int vmthread_RunFunction(
-        h64vmthread *vmthread,
-        h64program *pr, int func_id,
+        h64vmthread *vmthread, int func_id,
         h64exceptioninfo **einfo
         ) {
     if (!vmthread || !einfo)
         return 0;
+    h64program *pr = vmthread->program;
 
     assert(func_id >= 0 && func_id < pr->func_count);
     assert(!pr->func[func_id].iscfunc);
@@ -134,6 +182,12 @@ int vmthread_RunFunction(
         if (vmthread->moptions.vmexec_debug &&
                 !vmthread_PrintExec((void*)inst)) goto triggeroom;
         #endif
+        assert(
+            stack != NULL && inst->slot >= 0 &&
+            inst->slot < stack->entry_total_count -
+            stack->current_func_floor &&
+            stack->alloc_total_count >= stack->entry_total_count
+        );
         valuecontent *vc = STACK_ENTRY(stack, inst->slot);
         valuecontent_Free(vc);
         if (inst->content.type == H64VALTYPE_CONSTPREALLOCSTR) {
@@ -758,27 +812,22 @@ int vmthread_RunFunction(
     op_jumptable[H64OP_CMP_LARGER] = &&binop_cmp_larger;
     op_jumptable[H64OP_CMP_SMALLER] = &&binop_cmp_smaller;
     assert(stack != NULL);
-    if (!stack_ToSize(
-            stack, pr->func[func_id].input_stack_size +
-            pr->func[func_id].inner_stack_size, 0
-            )) {
+    if (!pushfuncframe(vmthread, func_id)) {
         goto triggeroom;
     }
-    stack->current_func_floor = 0;
 
     funcnestdepth++;
     goto *jumptable[((h64instructionany *)p)->type];
 }
 
 int vmthread_RunFunctionWithReturnInt(
-        h64vmthread *vmthread, h64program *pr,
-        int func_id,
+        h64vmthread *vmthread, int func_id,
         h64exceptioninfo **einfo, int *out_returnint
         ) {
     if (!vmthread || !einfo || !out_returnint)
         return 0;
     int result = vmthread_RunFunction(
-        vmthread, pr, func_id, einfo
+        vmthread, func_id, einfo
     );
     assert(vmthread->stack->entry_total_count <= 1 || !result);
     if (!result || vmthread->stack->entry_total_count == 0) {
@@ -811,13 +860,14 @@ int vmexec_ExecuteProgram(
         fprintf(stderr, "vmexec.c: out of memory during setup\n");
         return -1;
     }
+    mainthread->program = pr;
     assert(pr->main_func_index >= 0);
     memcpy(&mainthread->moptions, moptions, sizeof(*moptions));
     h64exceptioninfo *einfo = NULL;
     int rval = 0;
     if (pr->globalinit_func_index >= 0) {
         if (!vmthread_RunFunctionWithReturnInt(
-                mainthread, pr, pr->globalinit_func_index, &einfo, &rval
+                mainthread, pr->globalinit_func_index, &einfo, &rval
                 )) {
             fprintf(stderr, "vmexec.c: fatal error in $$globalinit, "
                 "out of memory?\n");
@@ -835,7 +885,7 @@ int vmexec_ExecuteProgram(
     }
     rval = 0;
     if (!vmthread_RunFunctionWithReturnInt(
-            mainthread, pr, pr->main_func_index, &einfo, &rval
+            mainthread, pr->main_func_index, &einfo, &rval
             )) {
         fprintf(stderr, "vmexec.c: fatal error in main, "
             "out of memory?\n");
