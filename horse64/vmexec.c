@@ -96,7 +96,29 @@ static int vmthread_PrintExec(
 }
 #endif
 
-static inline int pushfuncframe(h64vmthread *vt, int func_id) {
+static inline void popfuncframe(h64vmthread *vt) {
+    int64_t new_floor = (
+        vt->funcframe[vt->funcframe_count - 1].stack_bottom
+    );
+    int64_t prev_floor = vt->stack->current_func_floor;
+    assert(new_floor <= prev_floor);
+    vt->stack->current_func_floor = new_floor;
+    if (prev_floor < vt->stack->entry_total_count) {
+        int result = stack_ToSize(
+            vt->stack, prev_floor, 0
+        );
+        assert(result != 0);
+    }
+    vt->funcframe_count -= 1;
+    if (vt->funcframe_count <= 1) {
+        vt->stack->current_func_floor = 0;
+    }
+}
+
+static inline int pushfuncframe(
+        h64vmthread *vt, int func_id, int return_slot,
+        int return_to_func_id, ptrdiff_t return_to_execution_offset
+        ) {
     if (vt->funcframe_count + 1 > vt->funcframe_alloc) {
         h64vmfunctionframe *new_funcframe = realloc(
             vt->funcframe, sizeof(*new_funcframe) *
@@ -137,6 +159,11 @@ static inline int pushfuncframe(h64vmthread *vt, int func_id) {
         vt->program->func[func_id].inner_stack_size)
     );
     vt->funcframe[vt->funcframe_count].func_id = func_id;
+    vt->funcframe[vt->funcframe_count].return_slot = return_slot;
+    vt->funcframe[vt->funcframe_count].
+            return_to_func_id = return_to_func_id;
+    vt->funcframe[vt->funcframe_count].
+            return_to_execution_offset = return_to_execution_offset;
     vt->funcframe_count++;
     vt->stack->current_func_floor = (
         vt->funcframe[vt->funcframe_count - 1].stack_bottom
@@ -735,11 +762,40 @@ int vmthread_RunFunction(
             valuecontent_Free(newvc);
             memcpy(newvc, &vccopy, sizeof(vccopy));
             return 1;
-        } else {
-
         }
-        fprintf(stderr, "returnvalue not implemented\n");
-        return 0;
+        assert(vmthread->funcframe_count > 1);
+        int returnslot = (
+            vmthread->funcframe[vmthread->funcframe_count].
+            return_slot
+        );
+        int returnfuncid = (
+            vmthread->funcframe[vmthread->funcframe_count].
+            return_to_func_id
+        );
+        ptrdiff_t returnoffset = (
+            vmthread->funcframe[vmthread->funcframe_count].
+            return_to_execution_offset
+        );
+        popfuncframe(vmthread);
+
+        // Place return value:
+        if (returnslot >= 0) {
+            valuecontent *newvc = stack_GetEntrySlow(
+                stack, returnslot
+            );
+            valuecontent_Free(newvc);
+            memcpy(newvc, &vccopy, sizeof(vccopy));
+        } else {
+            valuecontent_Free(&vccopy);
+        }
+
+        // Return to old execution:
+        func_id = returnfuncid;
+        p = pr->func[func_id].instructions + returnoffset;
+        pend = pr->func[func_id].instructions + (
+            (ptrdiff_t)pr->func[func_id].instructions_bytes
+        );
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_jumptarget: {
         fprintf(stderr, "jumptarget not implemented\n");
@@ -812,7 +868,7 @@ int vmthread_RunFunction(
     op_jumptable[H64OP_CMP_LARGER] = &&binop_cmp_larger;
     op_jumptable[H64OP_CMP_SMALLER] = &&binop_cmp_smaller;
     assert(stack != NULL);
-    if (!pushfuncframe(vmthread, func_id)) {
+    if (!pushfuncframe(vmthread, func_id, -1, -1, 0)) {
         goto triggeroom;
     }
 

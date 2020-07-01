@@ -17,6 +17,9 @@ typedef struct h64refvalue h64refvalue;
 typedef struct h64vmfunctionframe {
     int stack_bottom;
     int func_id;
+    int return_slot;
+    int return_to_func_id;
+    ptrdiff_t return_to_execution_offset;
 } h64vmfunctionframe;
 
 typedef struct h64vmerrorcatchframe {
