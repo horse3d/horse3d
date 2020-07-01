@@ -533,10 +533,10 @@ int vmthread_RunFunction(
                     } else {
                         v2no = v2->int_value;
                     }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    tmpresult->float_value = (v1no == v2no);
+                    tmpresult->type = H64VALTYPE_BOOL;
+                    tmpresult->int_value = (v1no == v2no);
                 } else {
-                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->type = H64VALTYPE_BOOL;
                     tmpresult->int_value = (
                         v1->int_value == v2->int_value
                     );
@@ -570,10 +570,10 @@ int vmthread_RunFunction(
                     } else {
                         v2no = v2->int_value;
                     }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    tmpresult->float_value = (v1no >= v2no);
+                    tmpresult->type = H64VALTYPE_BOOL;
+                    tmpresult->int_value = (v1no >= v2no);
                 } else {
-                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->type = H64VALTYPE_BOOL;
                     tmpresult->int_value = (
                         v1->int_value >= v2->int_value
                     );
@@ -603,10 +603,10 @@ int vmthread_RunFunction(
                     } else {
                         v2no = v2->int_value;
                     }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    tmpresult->float_value = (v1no <= v2no);
+                    tmpresult->type = H64VALTYPE_BOOL;
+                    tmpresult->int_value = (v1no <= v2no);
                 } else {
-                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->type = H64VALTYPE_BOOL;
                     tmpresult->int_value = (
                         v1->int_value <= v2->int_value
                     );
@@ -636,10 +636,10 @@ int vmthread_RunFunction(
                     } else {
                         v2no = v2->int_value;
                     }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    tmpresult->float_value = (v1no > v2no);
+                    tmpresult->type = H64VALTYPE_BOOL;
+                    tmpresult->int_value = (v1no > v2no);
                 } else {
-                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->type = H64VALTYPE_BOOL;
                     tmpresult->int_value = (
                         v1->int_value > v2->int_value
                     );
@@ -669,10 +669,10 @@ int vmthread_RunFunction(
                     } else {
                         v2no = v2->int_value;
                     }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    tmpresult->float_value = (v1no < v2no);
+                    tmpresult->type = H64VALTYPE_BOOL;
+                    tmpresult->int_value = (v1no < v2no);
                 } else {
-                    tmpresult->type = H64VALTYPE_INT64;
+                    tmpresult->type = H64VALTYPE_BOOL;
                     tmpresult->int_value = (
                         v1->int_value < v2->int_value
                     );
@@ -802,12 +802,45 @@ int vmthread_RunFunction(
         return 0;
     }
     inst_condjump: {
-        fprintf(stderr, "condjump not implemented\n");
-        return 0;
+        h64instruction_condjump *inst = (h64instruction_condjump *)p;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        int jumpevalvalue = 1;
+        valuecontent *vc = STACK_ENTRY(stack, inst->conditionalslot);
+        if (vc->type == H64VALTYPE_INT64 ||
+                vc->type == H64VALTYPE_BOOL) {
+            jumpevalvalue = (vc->int_value != 0);
+        } else if (vc->type == H64VALTYPE_FLOAT64) {
+            jumpevalvalue = fabs(vc->float_value - 0) != 0;
+        } else if (vc->type == H64VALTYPE_NONE ||
+                vc->type == H64VALTYPE_EMPTYARG) {
+            jumpevalvalue = 0;
+        }
+
+        if (!jumpevalvalue) {
+            p += sizeof(h64instruction_condjump);
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+
+        p = pr->func[func_id].instructions + (
+            (ptrdiff_t)inst->jumpbytesoffset
+        );
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_jump: {
-        fprintf(stderr, "jump not implemented\n");
-        return 0;
+        h64instruction_jump *inst = (h64instruction_jump *)p;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        p = pr->func[func_id].instructions + (
+            (ptrdiff_t)inst->jumpbytesoffset
+        );
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_newiterator: {
         fprintf(stderr, "newiterator not implemented\n");
