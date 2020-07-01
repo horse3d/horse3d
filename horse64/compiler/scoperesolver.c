@@ -1,3 +1,4 @@
+#include "compileconfig.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -336,7 +337,8 @@ static int scoperesolver_ComputeItemStorage(
 }
 
 int _resolvercallback_BuildGlobalStorage_visit_out(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr, ATTR_UNUSED h64expression *parent,
+        void *ud
         ) {
     asttransforminfo *atinfo = (asttransforminfo *)ud;
     resolveinfo *rinfo = (resolveinfo*)atinfo->userdata;

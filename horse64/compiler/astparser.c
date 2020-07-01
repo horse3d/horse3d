@@ -1,3 +1,4 @@
+#include "compileconfig.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
@@ -4668,7 +4669,8 @@ int ast_ParseExprStmt(
 }
 
 int _ast_visit_in_setparent(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr, h64expression *parent,
+        ATTR_UNUSED void *ud
         ) {
     expr->parent = parent;
     return 1;

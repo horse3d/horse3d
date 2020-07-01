@@ -69,9 +69,14 @@ int corelib_print(h64vmthread *vmthread) {
             assert(buflen >= 25);
             assert(c->shortstr_len >= 0 &&
                    c->shortstr_len < 5);
+            unicodechar shortstr_value[
+                VALUECONTENT_SHORTSTRLEN + 1
+            ];
+            memcpy(&shortstr_value, c->shortstr_value,
+                   VALUECONTENT_SHORTSTRLEN + 1);
             int64_t outlen = 0;
             int result = utf32_to_utf8(
-                c->shortstr_value, c->shortstr_len,
+                shortstr_value, c->shortstr_len,
                 buf, 25, &outlen, 1
             );
             assert(result != 0 && outlen > 0 && outlen < 25);

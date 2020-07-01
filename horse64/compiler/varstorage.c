@@ -1,3 +1,4 @@
+#include "compileconfig.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -31,7 +32,8 @@ static int nosideeffectsdef(h64expression *expr) {
 }
 
 int _resolvercallback_AssignNonglobalStorage_visit_in(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr, ATTR_UNUSED h64expression *parent,
+        void *ud
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud;
 
@@ -279,7 +281,8 @@ int _resolver_EnsureLocalDefStorage(
 }
 
 int _resolvercallback_AssignNonglobalStorage_visit_out(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr, ATTR_UNUSED h64expression *parent,
+        void *ud
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud;
 

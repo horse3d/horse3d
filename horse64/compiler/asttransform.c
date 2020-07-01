@@ -1,3 +1,4 @@
+#include "compileconfig.h"
 
 #include <assert.h>
 
@@ -7,7 +8,7 @@
 #include "compiler/compileproject.h"
 
 int _asttransform_cancel_visit_descend_callback(
-        h64expression *expr, void *ud
+        ATTR_UNUSED h64expression *expr, void *ud
         ) {
     asttransforminfo *atinfo = (asttransforminfo *)ud;
     if (atinfo->dont_descend_visitation) {

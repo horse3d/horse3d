@@ -1,3 +1,4 @@
+#include "compileconfig.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -33,7 +34,7 @@ static void get_assign_lvalue_storage(
     }
 }
 
-int newpermtemp(h64expression *func, h64expression *expr) {
+int newmultilinetemp(h64expression *func, ATTR_UNUSED h64expression *expr) {
     assert(func->funcdef._storageinfo->codegen.oneline_temps_used_now == 0);
     int i = 0;
     while (i < func->funcdef._storageinfo->codegen.perm_temps_count) {
@@ -61,8 +62,8 @@ int newpermtemp(h64expression *func, h64expression *expr) {
     );
 }
 
-void freepermtemp(
-        h64expression *func, h64expression *expr, int temp
+void freemultilinetemp(
+        h64expression *func, int temp
         ) {
     temp -= func->funcdef._storageinfo->lowest_guaranteed_free_temp;
     assert(temp >= 0 && temp <
@@ -479,7 +480,7 @@ int codegen_FinalBytecodeTransform(
 }
 
 int _codegencallback_DoCodegen_visit_out(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr, ATTR_UNUSED h64expression *parent, void *ud
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud;
     codegen_CalculateFinalFuncStack(rinfo->pr->program, expr);
@@ -974,7 +975,7 @@ int _codegencallback_DoCodegen_visit_out(
 }
 
 int _codegencallback_DoCodegen_visit_in(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr, ATTR_UNUSED h64expression *parent, void *ud
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud;
 
@@ -1405,7 +1406,7 @@ int _codegencallback_DoCodegen_visit_in(
         );
         func->funcdef._storageinfo->jump_targets_used++;
 
-        int itertemp = newpermtemp(func, expr);
+        int itertemp = newmultilinetemp(func, expr);
         if (itertemp < 0) {
             rinfo->hadoutofmemory = 1;
             return 0;
@@ -1424,7 +1425,7 @@ int _codegencallback_DoCodegen_visit_in(
                 H64STORETYPE_GLOBALVARSLOT
             );
             freecontainertemp = 1;
-            containertemp = newpermtemp(func, expr);
+            containertemp = newmultilinetemp(func, expr);
             if (containertemp < 0) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
@@ -1516,9 +1517,9 @@ int _codegencallback_DoCodegen_visit_in(
             return 0;
         }
 
-        freepermtemp(func, expr, itertemp);
+        freemultilinetemp(func, itertemp);
         if (freecontainertemp)
-            freepermtemp(func, expr, containertemp);
+            freemultilinetemp(func, containertemp);
         rinfo->dont_descend_visitation = 1;
         return 1;
     } else if (expr->type == H64EXPRTYPE_IF_STMT) {

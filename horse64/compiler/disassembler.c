@@ -1,3 +1,4 @@
+#include "compileconfig.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -327,7 +328,8 @@ int disassembler_PrintInstruction(
 }
 
 static int disassembler_AppendToStrCallback(
-        dinfo *di, const char *print_s, void *userdata
+        ATTR_UNUSED dinfo *di, const char *print_s,
+        void *userdata
         ) {
     char **s = userdata;
     int oldlen = ((*s) != NULL ? strlen(*s) : 0);

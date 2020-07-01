@@ -1,3 +1,4 @@
+#include "compileconfig.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -893,8 +894,8 @@ typedef struct compileallinfo {
 } compileallinfo;
 
 int _resolveallcb(
-        hashmap *map, const char *key, uint64_t number,
-        void *userdata
+        ATTR_UNUSED hashmap *map, const char *key,
+        uint64_t number, void *userdata
         ) {
     if (!key || number == 0)
         return 0;
@@ -936,8 +937,8 @@ int _resolveallcb(
 }
 
 int _codegenallcb(
-        hashmap *map, const char *key, uint64_t number,
-        void *userdata
+        ATTR_UNUSED hashmap *map, const char *key,
+        uint64_t number, void *userdata
         ) {
     if (!key || number == 0)
         return 0;
