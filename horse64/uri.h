@@ -1,5 +1,5 @@
-#ifndef HORSE3D_URI_H_
-#define HORSE3D_URI_H_
+#ifndef HORSE64_URI_H_
+#define HORSE64_URI_H_
 
 
 typedef struct uriinfo {
@@ -22,4 +22,4 @@ void uri_Free(uriinfo *uri);
 
 char *uri_Dump(uriinfo *uri);
 
-#endif  // HORSE3D_URI_H_
+#endif  // HORSE64_URI_H_

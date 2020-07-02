@@ -1,5 +1,5 @@
-#ifndef HORSE3D_COMPILER_LEXER_H_
-#define HORSE3D_COMPILER_LEXER_H_
+#ifndef HORSE64_COMPILER_LEXER_H_
+#define HORSE64_COMPILER_LEXER_H_
 
 #include <stdint.h>
 #include <stdlib.h>  // for NULL
@@ -80,4 +80,4 @@ int utf8_char_len(const unsigned char *p);
 
 void lexer_DebugPrintTokens(h64token *t, int count);
 
-#endif  // HORSE3D_COMPILER_LEXER_H_
+#endif  // HORSE64_COMPILER_LEXER_H_

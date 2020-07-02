@@ -1,5 +1,5 @@
-#ifndef HORSE3D_COMPILER_MAIN_H_
-#define HORSE3D_COMPILER_MAIN_H_
+#ifndef HORSE64_COMPILER_MAIN_H_
+#define HORSE64_COMPILER_MAIN_H_
 
 #include "json.h"
 
@@ -46,4 +46,4 @@ typedef struct h64misccompileroptions {
     int vmexec_debug;
 } h64misccompileroptions;
 
-#endif  // HORSE3D_COMPILER_MAIN_H_
+#endif  // HORSE64_COMPILER_MAIN_H_

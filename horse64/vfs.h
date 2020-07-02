@@ -1,6 +1,7 @@
-#ifndef HORSE3D_VFS_H_
-#define HORSE3D_VFS_H_
+#ifndef HORSE64_VFS_H_
+#define HORSE64_VFS_H_
 
+#include <stdint.h>
 
 #define VFSFLAG_NO_REALDISK_ACCESS 1
 #define VFSFLAG_NO_VIRTUALPAK_ACCESS 2
@@ -83,4 +84,4 @@ int vfs_ListFolderEx(
     int flags
 );
 
-#endif  // HORSE3D_VFS_H_
+#endif  // HORSE64_VFS_H_

@@ -35,7 +35,7 @@ func main {
   suitable for cloud & micro service use.
 
 - **Multimedia included.** Support for 3D via OpenGL, and
-  complex User Interfaces out of the box.
+  complex User Interfaces with the official `multimedia` library.
 
 - **Open.** *Horse64* is, excluding its logo, all free software
   under BSD-like licensing. [Check the license here.](LICENSE.md)

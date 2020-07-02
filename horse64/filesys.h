@@ -1,5 +1,5 @@
-#ifndef HORSE3D_FILESYS_H_
-#define HORSE3D_FILESYS_H_
+#ifndef HORSE64_FILESYS_H_
+#define HORSE64_FILESYS_H_
 
 int filesys_FileExists(const char *path);
 
@@ -66,4 +66,4 @@ int filesys_FolderContainsPath(
     int *result
 );
 
-#endif  // HORSE3D_FILESYS_H_
+#endif  // HORSE64_FILESYS_H_

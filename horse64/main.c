@@ -1,33 +1,85 @@
 
-#include <SDL2/SDL.h>
 #include <stdio.h>
+#include <string.h>
 
+#include "horse64/compiler/main.h"
 #include "filesys.h"
-#include "scriptcore.h"
 #include "vfs.h"
 
 
-int main(int argc, char **argv) {
-    SDL_SetHintWithPriority(
-        "SDL_MOUSE_FOCUS_CLICKTHROUGH", "1",
-        SDL_HINT_OVERRIDE
-    );
-
-    // Initialize essentials:
-    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|
-                 SDL_INIT_EVENTS|SDL_INIT_TIMER) != 0) {
-        fprintf(stderr, "horse3d/main.c: error: SDL "
-                "initialization failed: %s\n", SDL_GetError());
-        return 1;
-    }
-    // Initialize non-essentials:
-    if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) == 0)
-        SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
-    SDL_InitSubSystem(SDL_INIT_HAPTIC);
-
+int main(int argc, const char **argv) {
     vfs_Init(argv[0]);
 
-    return scriptcore_Run(argc, argv);
+    int doubledash_seen = 0;
+    const char *action = NULL;
+    int action_offset = -1;
+    const char *action_file = NULL;
+    int i = 0;
+    while (i < argc) {
+        if (strcmp(argv[i], "--") == 0) {
+            doubledash_seen = 1;
+            i++;
+            continue;
+        }
+        if (!doubledash_seen) {
+            if (strcasecmp(argv[i], "-h") == 0 ||
+                    strcasecmp(argv[i], "--help") == 0 ||
+                    strcasecmp(argv[i], "-?") == 0 ||
+                    strcasecmp(argv[i], "/?") == 0) {
+                printf("Usage: horsecc [action] "
+                       "[...options + arguments...]\n");
+                printf("\n");
+                printf("Available actions:\n");
+                printf("  - \"codeinfo\"          Compile .h64 code and show "
+                       "describe resulting bytecode.\n");
+                printf("  - \"compile\"           Compile .h64 code "
+                       "and output executable.\n");
+                printf("  - \"to_asm\"            Translate to .hasm\n");
+                printf("  - \"get_ast\"           Get AST of code\n");
+                printf("  - \"get_resolved_ast\"  "
+                       "Get AST of code with resolved identifiers\n");
+                printf("  - \"get_tokens\"        Get Tokenization of code\n");
+                printf("  - \"run\"               Compile .h64 code, and "
+                       "run it immediately.\n");
+                return 0;
+            }
+            if (!action && (strcmp(argv[i], "codeinfo") == 0 ||
+                    strcmp(argv[i], "compile") == 0 ||
+                    strcmp(argv[i], "to_asm") == 0 ||
+                    strcmp(argv[i], "get_ast") == 0 ||
+                    strcmp(argv[i], "get_resolved_ast") == 0 ||
+                    strcmp(argv[i], "get_tokens") == 0 ||
+                    strcmp(argv[i], "run") == 0)) {
+                action = argv[i];
+                action_offset = i + 1;
+                break;
+            }
+        }
+        i++;
+    }
+    if (!action) {
+        fprintf(stderr, "horsecc: error: need action, "
+            "like horsecc run. See horsecc --help\n");
+        return 1;
+    }
+
+    if (strcmp(action, "codeinfo") == 0) {
+        return compiler_command_CodeInfo(argv, argc, action_offset);
+    } else if (strcmp(action, "compile") == 0) {
+        return compiler_command_Compile(argv, argc, action_offset);
+    } else if (strcmp(action, "to_asm") == 0) {
+        return compiler_command_ToASM(argv, argc, action_offset);
+    } else if (strcmp(action, "get_ast") == 0) {
+        return compiler_command_GetAST(argv, argc, action_offset);
+    } else if (strcmp(action, "get_resolved_ast") == 0) {
+        return compiler_command_GetResolvedAST(argv, argc, action_offset);
+    } else if (strcmp(action, "get_tokens") == 0) {
+        return compiler_command_GetTokens(argv, argc, action_offset);
+    } else if (strcmp(action, "run") == 0) {
+        return compiler_command_Run(argv, argc, action_offset);
+    } else {
+        return 1;
+    }
 }
 
 

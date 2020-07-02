@@ -1,5 +1,5 @@
-#ifndef HORSE3D_THREADING_H_
-#define HORSE3D_THREADING_H_
+#ifndef HORSE64_THREADING_H_
+#define HORSE64_THREADING_H_
 
 
 typedef struct mutex mutex;
@@ -61,4 +61,4 @@ void thread_Join(thread *t);
 
 int thread_InMainThread();
 
-#endif  // HORSE3D_THREADING_H_
+#endif  // HORSE64_THREADING_H_

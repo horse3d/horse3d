@@ -1,5 +1,5 @@
-#ifndef HORSE3D_UNICODE_H_
-#define HORSE3D_UNICODE_H_
+#ifndef HORSE64_UNICODE_H_
+#define HORSE64_UNICODE_H_
 
 #include <stdint.h>
 
@@ -45,4 +45,4 @@ int utf32_to_utf8(
     int64_t *out_len, int surrogateunescape
 );
 
-#endif  // HORSE3D_UNICODE_H_
+#endif  // HORSE64_UNICODE_H_

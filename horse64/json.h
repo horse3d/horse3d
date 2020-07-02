@@ -1,7 +1,6 @@
-#ifndef HORSE3D_JSON_H_
-#define HORSE3D_JSON_H_
+#ifndef HORSE64_JSON_H_
+#define HORSE64_JSON_H_
 
-#include <lua.h>
 #include <stdarg.h>
 #include <stdint.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -78,12 +77,6 @@ jsonvalue *json_GetNestedValue(jsonvalue *v, ...);
 
 ssize_t json_GetNestedLength(jsonvalue *v, ...);
 
-int json_PushEncodedStrToLuaStack(
-    lua_State *l, int valueindex, char **error
-);
-
-int json_PushDecodedValueToLuaStack(lua_State *l, jsonvalue *jv);
-
 char *json_Dump(jsonvalue *jv);
 
-#endif  // HORSE3D_JSON_H_
+#endif  // HORSE64_JSON_H_

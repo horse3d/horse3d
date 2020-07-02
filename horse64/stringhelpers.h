@@ -1,6 +1,6 @@
 
-#ifndef HORSE3D_STRINGS_H_
-#define HORSE3D_STRINGS_H_
+#ifndef HORSE64_STRINGS_H_
+#define HORSE64_STRINGS_H_
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>

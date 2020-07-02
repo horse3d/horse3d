@@ -1,41 +1,4 @@
-[submodule "vendor/lua-upstream"]
-	path = vendor/lua-upstream
-	url = https://github.com/lua/lua
-    ignore = untracked
-[submodule "vendor/mathc"]
-	path = vendor/mathc
-	url = https://github.com/felselva/mathc
-    ignore = untracked
-[submodule "vendor/stb"]
-	path = vendor/stb
-	url = https://github.com/nothings/stb
-    ignore = untracked
-[submodule "vendor/miniaudio"]
-	path = vendor/miniaudio
-	url = https://github.com/dr-soft/miniaudio
-    ignore = untracked
-[submodule "vendor/bullet3"]
-	path = vendor/bullet3
-	url = https://github.com/bulletphysics/bullet3
-    ignore = untracked
-[submodule "vendor/SDL-mirror"]
-	path = vendor/SDL-mirror
-	url = https://github.com/spurious/SDL-mirror
-    ignore = untracked
 [submodule "vendor/physfs"]
 	path = vendor/physfs
 	url = https://github.com/criptych/physfs
     ignore = untracked
-[submodule "vendor/cgltf"]
-	path = vendor/cgltf
-	url = https://github.com/jkuhlmann/cgltf
-[submodule "vendor/SDL_ttf"]
-	path = vendor/SDL_ttf
-	url = https://github.com/SDL-mirror/SDL_ttf
-    ignore = untracked
-[submodule "vendor/dr_libs"]
-	path = vendor/dr_libs
-	url = https://github.com/mackron/dr_libs
-[submodule "vendor/freetype2"]
-	path = vendor/freetype2
-	url = https://git.savannah.nongnu.org/git/freetype/freetype2.git
