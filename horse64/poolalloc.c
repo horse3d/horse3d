@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,9 +40,15 @@ int poolalloc_AddArea(poolalloc *poolac) {
         sizeof(*poolac->pools)
     );
     int pool_size = FIRSTPOOLSIZE;
-    if (poolac->pools_count > 0)
-        pool_size = poolac->pools[poolac->pools_count - 1].
+    if (poolac->pools_count > 1) {
+        assert(
+            poolac->pools[poolac->pools_count - 2].
+            item_count > 0
+        );
+        pool_size = poolac->pools[poolac->pools_count - 2].
             item_count * 2;
+    }
+    assert(pool_size > 0);
     poolac->pools[poolac->pools_count - 1].item_count = pool_size;
     poolac->pools[poolac->pools_count - 1].poolarea = malloc(
         pool_size * poolac->allocsize
@@ -64,6 +71,7 @@ int poolalloc_AddArea(poolalloc *poolac) {
         sizeof(*poolac->pools[poolac->pools_count - 1].slotused) *
         pool_size
     );
+    assert(pool_size > 0);
     poolac->freeitems += pool_size;
     poolac->totalitems += pool_size;
     poolac->lastusedareaindex = poolac->pools_count - 1;
@@ -131,14 +139,17 @@ void poolalloc_free(poolalloc *poolac, void *ptr) {
 
 void *poolalloc_malloc(poolalloc *poolac,
                        int can_use_emergency_margin) {
+    // Add more free items if necessary:
     if (!can_use_emergency_margin && poolac->freeitems < 10) {
         if (!poolalloc_AddArea(poolac))
             return 0;
     }
-    if (poolac->freeitems <= 0)
+    if (poolac->freeitems <= 0)  // Adding new free items failed
         return 0;
+
     if (poolac->lastusedareaindex >= 0 &&
             poolac->lastusedareaindex < poolac->pools_count) {
+        // Try to add into last used pool area:
         const int c = poolac->pools[poolac->lastusedareaindex].item_count;
         int k = poolac->pools[poolac->lastusedareaindex].possiblyfreeindex;
         if (k >= 0 && k < c &&
@@ -167,6 +178,7 @@ void *poolalloc_malloc(poolalloc *poolac,
             k++;
         }
     }
+    // See what pool area we can add this to:
     int j = 0;
     while (j < poolac->pools_count) {
         const int c = poolac->pools[j].item_count;
