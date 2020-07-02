@@ -29,7 +29,7 @@ typedef struct poolalloc {
 int poolalloc_AddArea(poolalloc *poolac) {
     pool *new_areas = realloc(
         poolac->pools, sizeof(*poolac->pools) * (
-        poolac->lastusedareaindex + 1));
+        poolac->pools_count + 1));
     if (!new_areas)
         return 0;
     poolac->pools = new_areas;

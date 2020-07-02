@@ -54,6 +54,7 @@ void vmthread_Free(h64vmthread *vmthread) {
     if (vmthread->stack) {
         stack_Free(vmthread->stack);
     }
+    free(vmthread->funcframe);
     free(vmthread);
 }
 
