@@ -451,6 +451,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
              parent->type != H64EXPRTYPE_BINARYOP ||
              parent->op.value1 == expr ||
              parent->op.optype != H64OP_MEMBERBYIDENTIFIER)) {
+        // This actually refers to an item itself, rather than
+        // just being the name of a member obtained at runtime -> resolve
         assert(expr->identifierref.value != NULL);
         h64scope *scope = ast_GetScope(expr, &atinfo->ast->scope);
         if (scope == NULL) {
@@ -876,6 +878,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     def->last_use_token_index > expr->tokenindex) &&
                     expr->tokenindex >= 0)
                 def->last_use_token_index = expr->tokenindex;
+            // FIXME: set storage on all import path items
         } else {
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
@@ -900,6 +903,24 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             return 1;
         }
     }
+
+    // Resolve member by identifier names to ids:
+    if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
+            parent != NULL &&
+            parent->type == H64EXPRTYPE_BINARYOP &&
+            parent->op.value2 == expr &&
+            parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+            !expr->storage.set) {
+        int64_t idx = h64debugsymbols_MemberNameToMemberNameId(
+            atinfo->pr->program->symbols,
+            expr->identifierref.value, 1
+        );
+        if (idx < 0) {
+            atinfo->hadoutofmemory = 1;
+            return 0;
+        }
+    }
+
     return 1;
 }
 

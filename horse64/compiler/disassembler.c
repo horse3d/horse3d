@@ -304,6 +304,17 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
+    case H64INST_GETMEMBER: ;
+        h64instruction_getmember *inst_getmember =
+            (h64instruction_getmember *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d %" PRId64,
+                bytecode_InstructionTypeToStr(inst->type),
+                inst_getmember->slotto, inst_getmember->objslotfrom,
+                inst_getmember->nameidx)) {
+            return 0;
+        }
+        break;
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>",

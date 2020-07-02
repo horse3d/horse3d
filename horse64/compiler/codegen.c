@@ -599,6 +599,33 @@ int _codegencallback_DoCodegen_visit_out(
         expr->storage.eval_temp_id = temp;
     } else if (expr->type == H64EXPRTYPE_WHILE_STMT) {
         // Already handled in visit_in
+    } else if (expr->type == H64EXPRTYPE_BINARYOP &&
+            expr->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+            (expr->op.value1->storage.set ||
+             !expr->op.value2->storage.set)
+            ) {
+        assert(expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF);
+        int64_t idx = h64debugsymbols_MemberNameToMemberNameId(
+            rinfo->pr->program->symbols,
+            expr->op.value2->identifierref.value, 0
+        );
+        int temp = new1linetemp(func, expr);
+        if (idx < 0) {
+            // FIXME: hard-code an error raise
+        } else {
+            h64instruction_getmember inst_getmem = {0};
+            inst_getmem.type = H64INST_GETMEMBER;
+            inst_getmem.slotto = temp;
+            inst_getmem.objslotfrom = expr->op.value1->storage.ref.id;
+            inst_getmem.nameidx = idx;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_getmem, sizeof(inst_getmem))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+        expr->storage.eval_temp_id = temp;
     } else if (expr->type == H64EXPRTYPE_BINARYOP && (
             expr->op.optype != H64OP_MEMBERBYIDENTIFIER ||
             !expr->op.value1->storage.set)) {
@@ -760,7 +787,8 @@ int _codegencallback_DoCodegen_visit_out(
         } else if (expr->parent != NULL &&
                 expr->parent->type == H64EXPRTYPE_BINARYOP &&
                 expr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
-                expr->parent->op.value2 == expr
+                expr->parent->op.value2 == expr &&
+                !expr->storage.set
                 ) {
             // A runtime-resolved get by identifier, handled elsewhere
             return 1;

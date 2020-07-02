@@ -898,6 +898,10 @@ int vmthread_RunFunction(
         fprintf(stderr, "popcatchframe not implemented\n");
         return 0;
     }
+    inst_getmember: {
+        fprintf(stderr, "getmember not implemented\n");
+        return 0;
+    }
 
     setupinterpreter:
     jumptable[H64INST_INVALID] = &&inst_invalid;
@@ -921,6 +925,7 @@ int vmthread_RunFunction(
     jumptable[H64INST_ADDCATCHTYPEBYREF] = &&inst_addcatchtypebyref;
     jumptable[H64INST_ADDCATCHTYPE] = &&inst_addcatchtype;
     jumptable[H64INST_POPCATCHFRAME] = &&inst_popcatchframe;
+    jumptable[H64INST_GETMEMBER] = &&inst_getmember;
     op_jumptable[H64OP_MATH_DIVIDE] = &&binop_divide;
     op_jumptable[H64OP_MATH_ADD] = &&binop_add;
     op_jumptable[H64OP_MATH_SUBSTRACT] = &&binop_substract;
