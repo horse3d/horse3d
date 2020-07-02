@@ -414,6 +414,46 @@ int disassembler_Dump(
         dinfo *di, h64program *p
         ) {
     assert(p != NULL);
+    if (p->main_func_index >= 0) {
+        if (!disassembler_Write(di,
+                "MAINFUNC f%d\n", p->main_func_index))
+            return 0;
+    }
+    if (p->to_str_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX %d to_str\n", p->to_str_name_index))
+            return 0;
+    }
+    if (p->length_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX %d length\n", p->length_name_index))
+            return 0;
+    }
+    if (p->init_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX %d init\n", p->init_name_index))
+            return 0;
+    }
+    if (p->destroy_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX %d destroy\n", p->destroy_name_index))
+            return 0;
+    }
+    if (p->clone_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX %d clone\n", p->clone_name_index))
+            return 0;
+    }
+    if (p->equals_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX %d equals\n", p->equals_name_index))
+            return 0;
+    }
+    if (p->hash_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX %d hash\n", p->hash_name_index))
+            return 0;
+    }
     int i = 0;
     while (i < p->func_count) {
         char clsinfo[64] = "";

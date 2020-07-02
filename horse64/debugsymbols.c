@@ -111,6 +111,23 @@ int64_t h64debugsymbols_MemberNameToMemberNameId(
                 symbols->global_member_count--;
                 return -1;
             }
+            if (symbols->program) {
+                if (strcmp(name, "to_str") == 0) {
+                    symbols->program->to_str_name_index = new_id;
+                } else if (strcmp(name, "length") == 0) {
+                    symbols->program->length_name_index = new_id;
+                } else if (strcmp(name, "init") == 0) {
+                    symbols->program->init_name_index = new_id;
+                } else if (strcmp(name, "destroy") == 0) {
+                    symbols->program->destroy_name_index = new_id;
+                } else if (strcmp(name, "clone") == 0) {
+                    symbols->program->clone_name_index = new_id;
+                } else if (strcmp(name, "equals") == 0) {
+                    symbols->program->equals_name_index = new_id;
+                } else if (strcmp(name, "hash") == 0) {
+                    symbols->program->hash_name_index = new_id;
+                }
+            }
             return new_id;
         }
         return -1;

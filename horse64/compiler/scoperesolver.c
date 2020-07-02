@@ -91,6 +91,7 @@ static int scoperesolver_ComputeItemStorage(
         int *outofmemory
         ) {
     h64scope *scope = ast_GetScope(expr, &ast->scope);
+    assert(program->symbols != NULL);
     assert(scope != NULL);
     // Assign global variables + classes storage:
     if (scope->is_global ||

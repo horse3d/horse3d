@@ -51,6 +51,8 @@ typedef struct h64modulesymbols {
 } h64modulesymbols;
 
 typedef struct h64debugsymbols {
+    h64program *program;
+
     int fileuri_count;
     char **fileuri;
 

@@ -269,7 +269,16 @@ typedef struct h64program {
 
     int64_t func_count;
     h64func *func;
-    int main_func_index, globalinit_func_index;
+
+    int main_func_index;
+    int globalinit_func_index;
+    int64_t to_str_name_index;
+    int64_t length_name_index;
+    int64_t init_name_index;
+    int64_t destroy_name_index;
+    int64_t clone_name_index;
+    int64_t equals_name_index;
+    int64_t hash_name_index;
 
     int64_t globalvar_count;
     h64globalvar *globalvar;

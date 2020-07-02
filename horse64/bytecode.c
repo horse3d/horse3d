@@ -96,14 +96,23 @@ h64program *h64program_New() {
     if (!p)
         return NULL;
     memset(p, 0, sizeof(*p));
+
     p->main_func_index = -1;
     p->globalinit_func_index = -1;
+    p->to_str_name_index = -1;
+    p->length_name_index = -1;
+    p->init_name_index = -1;
+    p->destroy_name_index = -1;
+    p->clone_name_index = -1;
+    p->equals_name_index = -1;
+    p->hash_name_index = -1;
 
     p->symbols = h64debugsymbols_New();
     if (!p->symbols) {
         h64program_Free(p);
         return NULL;
     }
+    p->symbols->program = p;
 
     if (!corelib_RegisterErrorClasses(p)) {
         h64program_Free(p);
