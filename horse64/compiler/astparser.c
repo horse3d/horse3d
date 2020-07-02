@@ -149,7 +149,7 @@ void ast_ParseRecover_FindNextStatement(
     int i = *k;
     int initiali = i;
     while (i < max_tokens_touse &&
-            i < tokenstreaminfo->token_count - offseti - 1) {
+            i < tokenstreaminfo->token_count - offseti) {
         if (tokens[i].type == H64TK_BRACKET) {
             char c = tokens[i].char_value;
             if (c == '{' || c == '[' || c == '(') {
