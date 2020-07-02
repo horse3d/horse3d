@@ -3652,7 +3652,6 @@ int ast_ParseExprStmt(
             }
             i += tlen;
         }
-
         if (i >= max_tokens_touse ||
                 tokens[i].type != H64TK_KEYWORD || (
                 strcmp(tokens[i].str_value, "catch") != 0 &&
@@ -3802,7 +3801,7 @@ int ast_ParseExprStmt(
                 return 0;
             }
             int named_error = (tokens[i].type == H64TK_KEYWORD);
-            i++;
+            if (named_error) i++;
             if (named_error && (i >= max_tokens_touse ||
                     tokens[i].type != H64TK_IDENTIFIER)) {
                 char buf[256]; char describebuf[64];
@@ -3894,7 +3893,9 @@ int ast_ParseExprStmt(
             i += tlen;
         }
 
-        if (strcmp(tokens[i].str_value, "finally") == 0) {
+        if (i < max_tokens_touse &&
+                tokens[i].type == H64TK_KEYWORD &&
+                strcmp(tokens[i].str_value, "finally") == 0) {
             i++;
 
             // Get code block in finally { ... }
