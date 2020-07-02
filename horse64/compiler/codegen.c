@@ -253,13 +253,80 @@ struct _jumpinfo {
     int64_t offset;
 };
 
+static int _resolve_jumpid_to_jumpoffset(
+        h64compileproject *prj,
+        int jumpid, int64_t offset,
+        struct _jumpinfo *jump_info,
+        int jump_table_fill,
+        int *out_oom,
+        int16_t *out_jumpoffset
+        ) {
+    int64_t jumptargetoffset = -1;
+    int z = 0;
+    while (z < jump_table_fill) {
+        if (jump_info[z].jumpid == jumpid) {
+            jumptargetoffset = jump_info[z].offset;
+            break;
+        }
+        z++;
+    }
+    if (jumptargetoffset < 0) {
+        if (out_oom) *out_oom = 0;
+        return 0;
+    }
+    jumptargetoffset -= offset;
+    if (jumptargetoffset == 0) {
+        prj->resultmsg->success = 0;
+        char buf[256];
+        snprintf(buf, sizeof(buf) - 1, "internal error: "
+            "found jump instruction in func at "
+            "instruction pos %" PRId64 " "
+            "that has invalid zero relative offset - "
+            "codegen bug?",
+            (int64_t)offset
+        );
+        if (!result_AddMessage(
+                prj->resultmsg,
+                H64MSG_ERROR, buf,
+                NULL, -1, -1
+                )) {
+            if (out_oom) *out_oom = 1;
+            return 0;
+        }
+        if (out_oom) *out_oom = 0;
+        return 0;
+    }
+    if (jumptargetoffset > 65535 || jumptargetoffset < -65535) {
+        prj->resultmsg->success = 0;
+        char buf[256];
+        snprintf(buf, sizeof(buf) - 1,
+            "found jump instruction in func at "
+            "instruction pos %" PRId64 " "
+            "that exceeds 16bit int range, this is not spuported",
+            (int64_t)offset
+        );
+        if (!result_AddMessage(
+                prj->resultmsg,
+                H64MSG_ERROR, buf,
+                NULL, -1, -1
+                )) {
+            if (out_oom) *out_oom = 1;
+            return 0;
+        }
+        if (out_oom) *out_oom = 0;
+        return 0;
+    }
+    if (out_jumpoffset) *out_jumpoffset = jumptargetoffset;
+    return 1;
+}
+
 int codegen_FinalBytecodeTransform(
-        h64compileproject *prj, h64program *pr
+        h64compileproject *prj
         ) {
     int jump_table_alloc = 0;
     int jump_table_fill = 0;
-    int *jump_id = NULL;
     struct _jumpinfo *jump_info = NULL;
+    h64program *pr = prj->program;
 
     int i = 0;
     while (i < pr->func_count) {
@@ -329,6 +396,7 @@ int codegen_FinalBytecodeTransform(
             );
 
             int32_t jumpid = -1;
+            int32_t jumpid2 = -1;
 
             switch (inst->type) {
             case H64INST_CONDJUMP: {
@@ -345,83 +413,92 @@ int codegen_FinalBytecodeTransform(
                 jumpid = jump->jumpbytesoffset;
                 break;
             }
+            case H64INST_PUSHCATCHFRAME: {
+                h64instruction_pushcatchframe *catchjump = (
+                    (h64instruction_pushcatchframe *)inst
+                );
+                if ((catchjump->mode & CATCHMODE_JUMPONCATCH) != 0) {
+                    jumpid = catchjump->jumponcatch;
+                }
+                if ((catchjump->mode & CATCHMODE_JUMPONFINALLY) != 0) {
+                    jumpid2 = catchjump->jumponfinally;
+                }
+                break;
+            }
             default:
                 k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
                 continue;
             }
-            assert(jumpid >= 0);
+            assert(jumpid >= 0 || jumpid2 >= 2);
 
             // FIXME: use a faster algorithm here, maybe hash table?
-            int64_t jumptargetoffset = -1;
-            int z = 0;
-            while (z < jump_table_fill) {
-                if (jump_info[z].jumpid == jumpid) {
-                    jumptargetoffset = jump_info[z].offset;
+            if (jumpid >= 0) {
+                int hadoom = 0;
+                int16_t offset = 0;
+                int resolveworked = _resolve_jumpid_to_jumpoffset(
+                    prj, jumpid, k, jump_info, jump_table_fill,
+                    &hadoom, &offset
+                );
+                if (!resolveworked) {
+                    free(jump_info);
+                    return 0;
+                }
+
+                switch (inst->type) {
+                case H64INST_CONDJUMP: {
+                    h64instruction_condjump *cjump = (
+                        (h64instruction_condjump *)inst
+                    );
+                    cjump->jumpbytesoffset = offset;
                     break;
                 }
-                z++;
-            }
-            if (jumptargetoffset < 0) {
-                free(jump_info);
-                return 0;
-            }
-            jumptargetoffset -= k;
-            if (jumptargetoffset == 0) {
-                prj->resultmsg->success = 0;
-                char buf[256];
-                snprintf(buf, sizeof(buf) - 1, "internal error: "
-                    "found jump instruction in func with global id=%d "
-                    "that has invalid zero relative offset - "
-                    "codegen bug?",
-                    (int)i
-                );
-                if (!result_AddMessage(
-                        prj->resultmsg,
-                        H64MSG_ERROR, buf,
-                        NULL, -1, -1
-                        )) {
+                case H64INST_JUMP: {
+                    h64instruction_jump *jump = (
+                        (h64instruction_jump *)inst
+                    );
+                    jump->jumpbytesoffset = offset;
+                    break;
+                }
+                case H64INST_PUSHCATCHFRAME: {
+                    h64instruction_pushcatchframe *catchjump = (
+                        (h64instruction_pushcatchframe *)inst
+                    );
+                    catchjump->jumponcatch = offset;
+                    break;
+                }
+                default:
+                    fprintf(stderr, "horsec: error: internal error in "
+                        "codegen jump translation: unhandled jump type\n");
+                    free(jump_info);
                     return 0;
                 }
-                return 1;
             }
-            if (jumptargetoffset > 65535 || jumptargetoffset < -65535) {
-                prj->resultmsg->success = 0;
-                char buf[256];
-                snprintf(buf, sizeof(buf) - 1,
-                    "found jump instruction in func with global id=%d "
-                    "that exceeds 16bit int range, this is not spuported",
-                    (int)i
+            if (jumpid2 >= 0) {
+                int hadoom = 0;
+                int16_t offset = 0;
+                int resolveworked = _resolve_jumpid_to_jumpoffset(
+                    prj, jumpid2, k, jump_info, jump_table_fill,
+                    &hadoom, &offset
                 );
-                if (!result_AddMessage(
-                        prj->resultmsg,
-                        H64MSG_ERROR, buf,
-                        NULL, -1, -1
-                        )) {
+                if (!resolveworked) {
+                    free(jump_info);
                     return 0;
                 }
-                return 1;
-            }
 
-            switch (inst->type) {
-            case H64INST_CONDJUMP: {
-                h64instruction_condjump *cjump = (
-                    (h64instruction_condjump *)inst
-                );
-                cjump->jumpbytesoffset = jumptargetoffset;
-                break;
-            }
-            case H64INST_JUMP: {
-                h64instruction_jump *jump = (
-                    (h64instruction_jump *)inst
-                );
-                jump->jumpbytesoffset = jumptargetoffset;
-                break;
-            }
-            default:
-                fprintf(stderr, "horsec: error: internal error in "
-                    "codegen jump translation: unhandled jump type\n");
-                free(jump_info);
-                return 0;
+                switch (inst->type) {
+                case H64INST_PUSHCATCHFRAME: {
+                    h64instruction_pushcatchframe *catchjump = (
+                        (h64instruction_pushcatchframe *)inst
+                    );
+                    catchjump->jumponfinally = offset;
+                    break;
+                }
+                default:
+                    fprintf(stderr, "horsec: error: internal error in "
+                        "codegen jump translation: unhandled jump type\n");
+                    free(jump_info);
+                    return 0;
+                }
             }
             k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
         }
@@ -1242,10 +1319,14 @@ int _codegencallback_DoCodegen_visit_in(
         inst_pushframe.jumponcatch = -1;
         inst_pushframe.jumponfinally = -1;
         if (expr->trystmt.exceptions_count > 0) {
-            assert(expr->storage.set);
-            assert(expr->storage.ref.type ==
+            assert(!expr->storage.set ||
+                   expr->storage.ref.type ==
                    H64STORETYPE_STACKSLOT);
-            inst_pushframe.jumponcatch = expr->storage.ref.id;
+            int exception_tmp = -1;
+            if (expr->storage.set) {
+                exception_tmp = expr->storage.ref.id;
+            }
+            inst_pushframe.slotexceptionto = exception_tmp;
             inst_pushframe.mode |= CATCHMODE_JUMPONCATCH;
             jumpid_catch = (
                 func->funcdef._storageinfo->jump_targets_used
@@ -1260,6 +1341,12 @@ int _codegencallback_DoCodegen_visit_in(
             );
             func->funcdef._storageinfo->jump_targets_used++;
             inst_pushframe.jumponfinally = jumpid_finally;
+        }
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_pushframe, sizeof(inst_pushframe))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
         }
 
         int exception_reuse_tmp = -1;
@@ -1665,7 +1752,7 @@ int codegen_GenerateBytecodeForFile(
 
     // Transform jump instructions to final offsets:
     if (!codegen_FinalBytecodeTransform(
-            project, project->program
+            project
             )) {
         project->resultmsg->success = 0;
         char buf[256];
