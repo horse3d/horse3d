@@ -202,7 +202,7 @@ int vmthread_RunFunction(
         #if defined(DEBUGVMEXEC)
         fprintf(stderr, "horsevm: debug: vmexec triggeroom\n");
         #endif
-        fprintf(stderr, "oom\n");
+        fprintf(stderr, "oom exceptions not implemented\n");
         return 0;
     }
     inst_setconst: {
