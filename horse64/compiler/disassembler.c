@@ -315,6 +315,73 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
+    case H64INST_PUSHCATCHFRAME: ;
+        h64instruction_pushcatchframe *inst_pushcatchframe =
+            (h64instruction_pushcatchframe *)inst;
+        char slotexceptionbuf[64] = "none";
+        if (inst_pushcatchframe->slotexceptionto >= 0) {
+            snprintf(
+                slotexceptionbuf, sizeof(slotexceptionbuf) - 1,
+                "t%d", inst_pushcatchframe->slotexceptionto
+            );
+        }
+        char catchjumpbuf[64] = "none";
+        if ((inst_pushcatchframe->mode & CATCHMODE_JUMPONCATCH) != 0) {
+            snprintf(
+                catchjumpbuf, sizeof(catchjumpbuf) - 1,
+                "%s%d",
+                (inst_pushcatchframe->jumponcatch >= 0 ? "+" : ""),
+                (int)inst_pushcatchframe->jumponcatch
+            );
+        }
+        char finallyjumpbuf[64] = "none";
+        if ((inst_pushcatchframe->mode & CATCHMODE_JUMPONFINALLY) != 0) {
+            snprintf(
+                finallyjumpbuf, sizeof(finallyjumpbuf) - 1,
+                "%s%d",
+                (inst_pushcatchframe->jumponfinally >= 0 ? "+" : ""),
+                (int)inst_pushcatchframe->jumponfinally
+            );
+        }
+        if (!disassembler_Write(di,
+                "    %s %d %s %s %s",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_pushcatchframe->mode,
+                slotexceptionbuf, catchjumpbuf, finallyjumpbuf
+                )) {
+            return 0;
+        }
+        break;
+    case H64INST_ADDCATCHTYPEBYREF: ;
+        h64instruction_addcatchtypebyref *inst_addcatchtypebyref =
+            (h64instruction_addcatchtypebyref *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_addcatchtypebyref->slotfrom
+                )) {
+            return 0;
+        }
+        break;
+    case H64INST_ADDCATCHTYPE: ;
+        h64instruction_addcatchtype *inst_addcatchtype =
+            (h64instruction_addcatchtype *)inst;
+        if (!disassembler_Write(di,
+                "    %s c%" PRId64,
+                bytecode_InstructionTypeToStr(inst->type),
+                (int64_t)inst_addcatchtype->classid
+                )) {
+            return 0;
+        }
+        break;
+    case H64INST_POPCATCHFRAME:
+        if (!disassembler_Write(di,
+                "    %s",
+                bytecode_InstructionTypeToStr(inst->type)
+                )) {
+            return 0;
+        }
+        break;
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>",
