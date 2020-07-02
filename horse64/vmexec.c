@@ -55,6 +55,9 @@ void vmthread_Free(h64vmthread *vmthread) {
         stack_Free(vmthread->stack);
     }
     free(vmthread->funcframe);
+    if (vmthread->str_pile) {
+        poolalloc_Destroy(vmthread->str_pile);
+    }
     free(vmthread);
 }
 
