@@ -1,7 +1,6 @@
 
 #include <assert.h>
 #include <inttypes.h>
-#include <lua.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
