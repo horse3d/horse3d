@@ -5,13 +5,13 @@
 #define _LARGEFILE64_SOURCE
 
 #include <assert.h>
-#include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #if defined(ANDROID) || defined(__ANDROID__)
 #include <jni.h>
 #endif
+#include <stdarg.h>
 #include <string.h>
 #if defined(__unix__) || defined(__linux__) || defined(ANDROID) || defined(__ANDROID__) || defined(__APPLE__) || defined(__OSX__)
 #if !defined(ANDROID) && !defined(__ANDROID__)

@@ -6,8 +6,11 @@
 #include "filesys.h"
 #include "vfs.h"
 
-
+#if defined(_WIN32) || defined(_WIN64)
+int _actualmain(int argc, const char **argv) {
+#else
 int main(int argc, const char **argv) {
+#endif
     vfs_Init(argv[0]);
 
     int doubledash_seen = 0;
@@ -185,8 +188,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev,
         i++;
     }
     free(argline);
-    SDL_SetMainReady();
-    int result = SDL_main(argc, argv);
+    int result = _actualmain(argc, argv);
     int k = 0;
     while (k < argc) {
         free(argv[k]);

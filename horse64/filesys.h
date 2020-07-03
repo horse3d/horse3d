@@ -1,6 +1,8 @@
 #ifndef HORSE64_FILESYS_H_
 #define HORSE64_FILESYS_H_
 
+#include <stdint.h>
+
 int filesys_FileExists(const char *path);
 
 int filesys_IsDirectory(const char *path);
