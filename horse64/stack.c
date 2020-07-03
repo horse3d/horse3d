@@ -63,6 +63,7 @@ int stack_Shrink(h64stack *st, int64_t total_entries) {
             st->block_count--;
             if (st->block_count == 0) {
                 free(st->block);
+                st->last_block = NULL;
                 st->block = NULL;
             } else {
                 h64stackblock *new_blocks = realloc(
@@ -72,6 +73,8 @@ int stack_Shrink(h64stack *st, int64_t total_entries) {
                 );
                 if (new_blocks)
                     st->block = new_blocks;
+                st->last_block = &st->block[st->block_count - 1];
+                stack_RelFloorUpdate(st);
             }
             i--;
             continue;
@@ -343,6 +346,8 @@ int stack_ToSize(
         }
         lookat_block++;
     }
+    st->last_block = &st->block[st->block_count - 1];
+    stack_RelFloorUpdate(st);
     assert(st->entry_total_count == total_entries);
     return 1;
 }

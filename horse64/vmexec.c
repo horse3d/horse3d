@@ -108,6 +108,7 @@ static inline void popfuncframe(h64vmthread *vt) {
     int64_t prev_floor = vt->stack->current_func_floor;
     assert(new_floor <= prev_floor);
     vt->stack->current_func_floor = new_floor;
+    stack_RelFloorUpdate(vt->stack);
     if (prev_floor < vt->stack->entry_total_count) {
         int result = stack_ToSize(
             vt->stack, prev_floor, 0
@@ -117,6 +118,7 @@ static inline void popfuncframe(h64vmthread *vt) {
     vt->funcframe_count -= 1;
     if (vt->funcframe_count <= 1) {
         vt->stack->current_func_floor = 0;
+        stack_RelFloorUpdate(vt->stack);
     }
 }
 
@@ -173,6 +175,7 @@ static inline int pushfuncframe(
     vt->stack->current_func_floor = (
         vt->funcframe[vt->funcframe_count - 1].stack_bottom
     );
+    stack_RelFloorUpdate(vt->stack);
     return 1;
 }
 
