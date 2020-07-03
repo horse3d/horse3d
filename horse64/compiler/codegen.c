@@ -1052,7 +1052,8 @@ int _codegencallback_DoCodegen_visit_out(
                 return 0;
             }
         }
-    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
+    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+            expr->type == H64EXPRTYPE_TRY_STMT) {
         // Handled on _visit_in
     } else {
         char buf[256];
