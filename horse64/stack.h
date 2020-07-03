@@ -1,9 +1,14 @@
+// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// also see LICENSE.md file.
+// SPDX-License-Identifier: BSD-2-Clause
+
 #ifndef HORSE64_STACK_H_
 #define HORSE64_STACK_H_
 
 #include <stdint.h>
 
 #include "bytecode.h"
+#include "compileconfig.h"
 
 typedef struct valuecontent valuecontent;
 
@@ -56,7 +61,7 @@ static inline valuecontent *stack_GetEntrySlowUnsafe(
 static inline valuecontent *stack_GetEntrySlow(
         h64stack *st, int64_t index
         ) {
-    if (index < 0)
+    if (unlikely(index < 0))
         index = st->entry_total_count + index;
     return stack_GetEntrySlowUnsafe(st, index);
 }
@@ -67,7 +72,7 @@ static inline valuecontent *stack_GetEntrySlow(
     )
 #define STACK_ALLOC_SIZE(stack) ((int64_t)stack->alloc_total_count)
 #define STACK_ENTRY(stack, no) (\
-    ((no + stack->last_block_relative_floor <\
+    (likely(no + stack->last_block_relative_floor <\
           stack->last_block->entry_count) ?\
       &stack->last_block->entry[no + stack->last_block_relative_floor] :\
       stack_GetEntrySlowUnsafe(stack, no + stack->current_func_floor))\

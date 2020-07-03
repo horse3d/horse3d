@@ -1,3 +1,8 @@
+// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// also see LICENSE.md file.
+// SPDX-License-Identifier: BSD-2-Clause
+
+#include "compileconfig.h"
 
 #include <assert.h>
 #include <math.h>
@@ -17,8 +22,6 @@
 
 #define DEBUGVMEXEC
 
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
 
 h64vmthread *vmthread_New() {
     h64vmthread *vmthread = malloc(sizeof(*vmthread));

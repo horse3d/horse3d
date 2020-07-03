@@ -1,3 +1,8 @@
+// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// also see LICENSE.md file.
+// SPDX-License-Identifier: BSD-2-Clause
+
+#include "compileconfig.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -9,9 +14,6 @@
 #include "bytecode.h"
 #include "stack.h"
 
-
-#define likely(x) __builtin_expect(!!(x), 1) 
-#define unlikely(x) __builtin_expect(!!(x), 0) 
 
 h64stack *stack_New() {
     h64stack *st = malloc(sizeof(*st));
