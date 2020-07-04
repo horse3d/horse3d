@@ -27,13 +27,13 @@ typedef struct h64vmfunctionframe {
     ptrdiff_t return_to_execution_offset;
 } h64vmfunctionframe;
 
-typedef struct h64vmerrorcatchframe {
+typedef struct h64vmexceptioncatchframe {
     int function_frame_no;
     int64_t catch_instruction_offset;
     int64_t finally_instruction_offset;
-    int error_obj_temporary_id;
+    int exception_obj_temporary_id;
     int triggered_catch, triggered_finally;
-} h64vmerrorcatchframe;
+} h64vmexceptioncatchframe;
 
 
 typedef struct h64vmthread {
@@ -47,8 +47,8 @@ typedef struct h64vmthread {
 
     int funcframe_count, funcframe_alloc;
     h64vmfunctionframe *funcframe;
-    int errorcatchframe_count;
-    h64vmerrorcatchframe *errorframe;
+    int exceptionframe_count, exceptionframe_alloc;
+    h64vmexceptioncatchframe *exceptionframe;
     h64refvalue *caught_error;
 
     int execution_func_id;

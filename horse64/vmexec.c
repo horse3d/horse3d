@@ -182,6 +182,38 @@ static inline int pushfuncframe(
     return 1;
 }
 
+static int pushexceptionframe(
+        h64vmthread* vmthread,
+        int64_t catch_instruction_offset,
+        int64_t finally_instruction_offset,
+        int exception_obj_temporary_slot
+        ) {
+    int new_alloc = vmthread->exceptionframe_count + 10;
+    if (new_alloc > vmthread->exceptionframe_alloc ||
+            new_alloc < vmthread->exceptionframe_alloc - 20) {
+        h64vmexceptioncatchframe *newframes = realloc(
+            vmthread->exceptionframe,
+            sizeof(*newframes) * new_alloc
+        );
+        if (!newframes && vmthread->exceptionframe_count >
+                vmthread->exceptionframe_alloc) {
+            return 0;
+        }
+        if (newframes) {
+            vmthread->exceptionframe = newframes;
+            vmthread->exceptionframe_alloc = new_alloc;
+        }
+    }
+    h64vmexceptioncatchframe *newframe = (
+        &vmthread->exceptionframe[vmthread->exceptionframe_count]
+    );
+    memset(newframe, 0, sizeof(*newframe));
+    newframe->catch_instruction_offset = catch_instruction_offset;
+    newframe->finally_instruction_offset = finally_instruction_offset;
+    newframe->exception_obj_temporary_id = exception_obj_temporary_slot;
+    return 1;
+}
+
 int vmthread_RunFunction(
         h64vmthread *vmthread, int func_id,
         h64exceptioninfo **einfo
