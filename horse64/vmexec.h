@@ -29,10 +29,10 @@ typedef struct h64vmfunctionframe {
 
 typedef struct h64vmerrorcatchframe {
     int function_frame_no;
-    int catch_instruction_offset;
-    int finally_instruction_offset;
+    int64_t catch_instruction_offset;
+    int64_t finally_instruction_offset;
     int error_obj_temporary_id;
-    int in_catch, in_finally;
+    int triggered_catch, triggered_finally;
 } h64vmerrorcatchframe;
 
 
