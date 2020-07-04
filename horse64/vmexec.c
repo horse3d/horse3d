@@ -921,8 +921,28 @@ int vmthread_RunFunction(
         return 0;
     }
     inst_pushcatchframe: {
-        fprintf(stderr, "pushcatchframe not implemented\n");
-        return 0;
+        h64instruction_pushcatchframe *inst = (
+            (h64instruction_pushcatchframe *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        if (!pushexceptionframe(
+                vmthread,
+                ((inst->mode & CATCHMODE_JUMPONCATCH) != 0 ?
+                 (p - pr->func[func_id].instructions) +
+                 (int64_t)inst->jumponcatch : -1),
+                ((inst->mode & CATCHMODE_JUMPONFINALLY) != 0 ?
+                 (p - pr->func[func_id].instructions) +
+                 (int64_t)inst->jumponfinally : -1),
+                inst->slotexceptionto)) {
+            goto triggeroom;
+        }
+
+        p += sizeof(h64instruction_pushcatchframe);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_addcatchtypebyref: {
         fprintf(stderr, "addcatchtypebyref not implemented\n");
