@@ -10,10 +10,16 @@ endif
 PHYSFSPATH=$(shell pwd)/$(shell echo -e 'import os\nfor f in os.listdir("./vendor"):\n  if not os.path.isdir("vendor/" + f):\n    continue\n  if f.lower().startswith("physfs-") or f.lower() == "physfs":\n    print("vendor/" + f)\n' | python3)
 
 # -------- CFLAGS & LDFLAGS DEFAULTS --------
-ifeq ($(DEBUGGABLE),true)
-CFLAGS_OPTIMIZATION:=-O0 -g -msse2 -fno-omit-frame-pointer
+CANUSESSE=`python3 tools/can-use-sse.py`
+ifeq ($(CANUSESSE),true)
+SSEFLAG:=-msse2 -march=haswell
 else
-CFLAGS_OPTIMIZATION:=-Ofast -s -msse2 -march=haswell -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
+SSEFLAG:=
+endif
+ifeq ($(DEBUGGABLE),true)
+CFLAGS_OPTIMIZATION:=-O0 -g $(SSEFLAG) -fno-omit-frame-pointer
+else
+CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
 endif
 CXXFLAGS:=-fexceptions
 CFLAGS:= -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -Wl,-Bdynamic
