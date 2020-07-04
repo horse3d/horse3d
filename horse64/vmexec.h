@@ -49,7 +49,6 @@ typedef struct h64vmthread {
     h64vmfunctionframe *funcframe;
     int exceptionframe_count, exceptionframe_alloc;
     h64vmexceptioncatchframe *exceptionframe;
-    h64refvalue *caught_error;
 
     int execution_func_id;
     int execution_instruction_id;
