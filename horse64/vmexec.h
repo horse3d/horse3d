@@ -10,6 +10,7 @@
 
 #define MAX_STACK_FRAMES 10
 
+#include "bytecode.h"
 #include "compiler/main.h"
 
 typedef struct h64program h64program;
@@ -28,11 +29,12 @@ typedef struct h64vmfunctionframe {
 } h64vmfunctionframe;
 
 typedef struct h64vmexceptioncatchframe {
-    int function_frame_no;
+    int func_frame_no;
     int64_t catch_instruction_offset;
     int64_t finally_instruction_offset;
     int exception_obj_temporary_id;
     int triggered_catch, triggered_finally;
+    h64exceptioninfo storeddelayedexception;
 } h64vmexceptioncatchframe;
 
 
@@ -53,15 +55,6 @@ typedef struct h64vmthread {
     int execution_func_id;
     int execution_instruction_id;
 } h64vmthread;
-
-typedef struct h64exceptioninfo {
-    int stack_frame_count;
-    int stack_frame_funcid[MAX_STACK_FRAMES];
-    int64_t stack_frame_byteoffset[MAX_STACK_FRAMES];
-
-    int exception_class_id;
-    char *msg;
-} h64exceptioninfo;
 
 
 static inline int VMTHREAD_FUNCSTACKBOTTOM(h64vmthread *vmthread) {

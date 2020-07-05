@@ -208,9 +208,244 @@ static int pushexceptionframe(
         &vmthread->exceptionframe[vmthread->exceptionframe_count]
     );
     memset(newframe, 0, sizeof(*newframe));
+    newframe->storeddelayedexception.exception_class_id = -1;
     newframe->catch_instruction_offset = catch_instruction_offset;
     newframe->finally_instruction_offset = finally_instruction_offset;
     newframe->exception_obj_temporary_id = exception_obj_temporary_slot;
+    newframe->func_frame_no = vmthread->funcframe_count;
+    return 1;
+}
+
+static void popexceptionframe(h64vmthread *vmthread) {
+    assert(vmthread->exceptionframe_count >= 0);
+    vmthread->exceptionframe_count--;
+}
+
+static void vmthread_exceptions_ProceedToFinally(
+        h64vmthread *vmthread,
+        ATTR_UNUSED int64_t *current_func_id,  // unused in release builds
+        ptrdiff_t *current_exec_offset
+        ) {
+    assert(vmthread->exceptionframe_count > 0);
+    assert(vmthread->exceptionframe[
+        vmthread->exceptionframe_count - 1
+    ].triggered_catch);
+    assert(!vmthread->exceptionframe[
+        vmthread->exceptionframe_count - 1
+    ].triggered_finally);
+    assert(vmthread->exceptionframe[
+        vmthread->exceptionframe_count - 1
+    ].finally_instruction_offset >= 0);
+    vmthread->exceptionframe[
+        vmthread->exceptionframe_count - 1
+    ].triggered_finally = 1;
+    assert(vmthread->exceptionframe[
+        vmthread->exceptionframe_count - 1
+    ].func_frame_no == vmthread->funcframe_count - 1);
+    assert(vmthread->funcframe[
+           vmthread->funcframe_count - 1
+           ].func_id ==
+           *current_func_id);
+    *current_exec_offset = vmthread->exceptionframe[
+        vmthread->exceptionframe_count - 1
+    ].finally_instruction_offset;
+}
+
+static void vmthread_exceptions_EndFinally(
+        h64vmthread *vmthread,
+        int64_t *current_func_id, ptrdiff_t *current_exec_offset
+        ) {
+
+}
+
+static int vmthread_exceptions_Raise(
+        h64vmthread *vmthread, int64_t class_id,
+        int64_t *current_func_id, ptrdiff_t *current_exec_offset,
+        int canfailonoom,
+        int *returneduncaughtexception,
+        h64exceptioninfo *out_uncaughtexception,
+        const char *msg, ...
+        ) {
+    int bubble_up_exception_later = 0;
+    int unroll_to_frame = -1;
+    int exception_to_slot = -1;
+    int jump_to_finally = 0;
+
+    // Figure out from top-most catch frame what to do:
+    while (1) {
+        if (vmthread->exceptionframe_count > 0) {
+            // Get to which function frame we should unroll:
+            unroll_to_frame = vmthread->exceptionframe[
+                vmthread->exceptionframe_count - 1
+            ].func_frame_no;
+            exception_to_slot = vmthread->exceptionframe[
+                vmthread->exceptionframe_count - 1
+            ].exception_obj_temporary_id;
+            if (vmthread->exceptionframe[
+                    vmthread->exceptionframe_count - 1
+                    ].triggered_catch ||
+                    vmthread->exceptionframe[
+                        vmthread->exceptionframe_count - 1
+                    ].catch_instruction_offset < 0) {
+                // Wait, we ran into 'catch' already.
+                // But what about finally?
+                if (!vmthread->exceptionframe[
+                        vmthread->exceptionframe_count - 1
+                        ].triggered_finally) {
+                    // No finally yet. -> enter, but
+                    // bubble up exception later.
+                    bubble_up_exception_later = 1;
+                    exception_to_slot = -1;
+                    jump_to_finally = 1;
+                    break;  // done setting up, resume past loop
+                } else {
+                    // Finally was also entered, so we
+                    // failed while running it.
+                    //  -> this catch frame must be ignored
+                    bubble_up_exception_later = 0;
+                    unroll_to_frame = -1;
+                    exception_to_slot = -1;
+                    popexceptionframe(vmthread);
+                    continue;  // try next catch frame instead
+                }
+            }
+        }
+        break;
+    }
+
+    // Combine error info:
+    int buflen = strlen(msg) * 4;
+    if (buflen < 2048) buflen = 2048;
+    char *buf = NULL;
+    if ((exception_to_slot >= 0 || unroll_to_frame < 0) &&
+            !bubble_up_exception_later) {
+        buf = malloc(buflen);
+        if (!buf && canfailonoom)
+            return 0;
+        if (buf) {
+            va_list args;
+            va_start(args, msg);
+            vsnprintf(buf, buflen - 1, msg, args);
+            buf[buflen - 1] = '\0';
+            va_end(args);
+        }
+    }
+    h64exceptioninfo e = {0};
+    e.exception_class_id = class_id;
+    e.msg = buf;
+
+    // Extract backtrace:
+    int k = 1;
+    if (MAX_EXCEPTION_STACK_FRAMES >= 1) {
+        e.stack_frame_funcid[0] = *current_func_id;
+        e.stack_frame_byteoffset[0] = *current_exec_offset;
+    }
+    assert(vmthread->funcframe_count > unroll_to_frame);
+    int i = vmthread->funcframe_count - 1;
+    while (i > unroll_to_frame && i >= 0) {
+        if (k < MAX_EXCEPTION_STACK_FRAMES) {
+            e.stack_frame_funcid[k] = (
+                vmthread->funcframe[i].return_to_func_id
+            );
+            e.stack_frame_byteoffset[k] = (
+                vmthread->funcframe[i].return_to_execution_offset
+            );
+        }
+        popfuncframe(vmthread);
+        k++;
+    }
+
+    // If this is a final, uncaught exception, bail out here:
+    if (vmthread->exceptionframe_count <= 0 &&
+            !bubble_up_exception_later) {
+        if (returneduncaughtexception) *returneduncaughtexception = 1;
+        if (out_uncaughtexception) {
+            memcpy(out_uncaughtexception, &e, sizeof(e));
+        } else {
+            free(buf);
+        }
+        return 1;
+    }
+    // Write out exception to stack slot if needed:
+    if (exception_to_slot >= 0 && !bubble_up_exception_later) {
+        valuecontent *vc = STACK_ENTRY(
+            vmthread->stack, exception_to_slot
+        );
+        valuecontent_Free(vc);
+        memset(vc, 0, sizeof(*vc));
+        vc->type = H64VALTYPE_EXCEPTION;
+        vc->exception_class_id = class_id;
+        vc->einfo = malloc(sizeof(e));
+        if (!vc->einfo && canfailonoom) {
+            free(buf);
+            return 0;
+        }
+        memcpy(vc->einfo, &e, sizeof(e));
+    } else {
+        assert(buf == NULL || bubble_up_exception_later);
+    }
+
+    // Set proper execution position:
+    *current_func_id = vmthread->exceptionframe[
+        vmthread->exceptionframe_count - 1
+    ].func_frame_no;
+    int dontpop = 0;  // whether we need to keep the catch frame we used
+    if (vmthread->exceptionframe[
+            vmthread->exceptionframe_count - 1
+            ].catch_instruction_offset >= 0 &&
+            !vmthread->exceptionframe[
+                vmthread->exceptionframe_count - 1
+            ].triggered_catch) {
+        assert(
+            !vmthread->exceptionframe[
+                vmthread->exceptionframe_count - 1
+            ].triggered_catch
+        );
+        *current_exec_offset = vmthread->exceptionframe[
+            vmthread->exceptionframe_count - 1
+        ].catch_instruction_offset;
+        vmthread->exceptionframe[
+            vmthread->exceptionframe_count - 1
+        ].triggered_catch = 1;
+        if (vmthread->exceptionframe[
+                vmthread->exceptionframe_count - 1
+                ].finally_instruction_offset < 0) {
+            dontpop = 1;  // keep catch frame to run finally later
+        }
+    } else {
+        assert(
+            !vmthread->exceptionframe[
+                vmthread->exceptionframe_count - 1
+            ].triggered_finally
+        );
+        vmthread->exceptionframe[
+            vmthread->exceptionframe_count - 1
+        ].triggered_finally = 1;
+        *current_exec_offset = vmthread->exceptionframe[
+            vmthread->exceptionframe_count - 1
+        ].finally_instruction_offset;
+        if (bubble_up_exception_later) {
+            assert(
+                vmthread->exceptionframe[
+                    vmthread->exceptionframe_count - 1
+                ].storeddelayedexception.exception_class_id < 0
+            );
+            memcpy(
+                &vmthread->exceptionframe[
+                    vmthread->exceptionframe_count - 1
+                ].storeddelayedexception, &e, sizeof(e)
+            );
+            assert(
+                vmthread->exceptionframe[
+                    vmthread->exceptionframe_count - 1
+                ].storeddelayedexception.exception_class_id >= 0
+            );
+        }
+    }
+    assert(*current_exec_offset > 0);
+
+    if (!dontpop)
+        popexceptionframe(vmthread);
     return 1;
 }
 

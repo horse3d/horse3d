@@ -11,6 +11,8 @@
 
 #include "gcvalue.h"
 
+#define MAX_EXCEPTION_STACK_FRAMES 10
+
 typedef struct h64debugsymbols h64debugsymbols;
 typedef uint32_t unicodechar;
 
@@ -56,6 +58,14 @@ typedef struct storageref {
     int64_t id;
 } storageref;
 
+typedef struct h64exceptioninfo {
+    int stack_frame_count;
+    int64_t stack_frame_funcid[MAX_EXCEPTION_STACK_FRAMES];
+    int64_t stack_frame_byteoffset[MAX_EXCEPTION_STACK_FRAMES];
+    char *msg;
+    int64_t exception_class_id;
+} h64exceptioninfo;
+
 typedef enum valuetype {
     H64VALTYPE_INVALID = 0,
     H64VALTYPE_INT64 = 1,
@@ -91,6 +101,10 @@ typedef struct valuecontent {
         struct {
             unicodechar *constpreallocstr_value;
             int64_t constpreallocstr_len;
+        };
+        struct {
+            int64_t exception_class_id;
+            h64exceptioninfo *einfo;
         };
     };
 } __attribute__((packed)) valuecontent;
@@ -265,7 +279,7 @@ typedef struct h64globalvar {
 } h64globalvar;
 
 typedef struct h64program {
-    int globals_count;
+    int64_t globals_count;
     valuecontent *globals;
 
     int64_t classes_count;
@@ -274,8 +288,8 @@ typedef struct h64program {
     int64_t func_count;
     h64func *func;
 
-    int main_func_index;
-    int globalinit_func_index;
+    int64_t main_func_index;
+    int64_t globalinit_func_index;
     int64_t to_str_name_index;
     int64_t length_name_index;
     int64_t init_name_index;
