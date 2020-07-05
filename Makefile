@@ -94,7 +94,7 @@ datapak:
 	cd datapak && find . -name "*~" -type f -delete
 	cd datapak && find . -name "*.swp" -type f -delete
 	cd datapak && zip -r -9 ./coreapi.h64pak ./horse_modules_builtin/
-	mv datapak/coreapi.h64pak ./coreapi.h64pak
+	mv -f datapak/coreapi.h64pak ./coreapi.h64pak
 	rm -rf datapak
 release:
 	make clean
