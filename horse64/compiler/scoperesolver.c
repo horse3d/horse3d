@@ -376,23 +376,27 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
             expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
         h64scope *scope = ast_GetScope(expr, &atinfo->ast->scope);
         if (scope == NULL) {
-            char buf[256];
-            snprintf(buf, sizeof(buf) - 1,
-                "internal error: failed to obtain scope, "
-                "malformed AST? expr: %s, parent: %s",
-                ast_ExpressionTypeToStr(expr->type),
-                (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
-                 "none")
-            );
-            if (!result_AddMessage(
-                    &atinfo->ast->resultmsg,
-                    H64MSG_ERROR,
-                    buf,
-                    atinfo->ast->fileuri,
-                    expr->line, expr->column
-                    )) {
-                atinfo->hadoutofmemory = 1;
-                return 0;
+            if (atinfo->ast->resultmsg.success) {
+                // No error yet, so this can't be a follow-up issue
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "internal error: failed to obtain scope, "
+                    "malformed AST? expr: %s, parent: %s",
+                    ast_ExpressionTypeToStr(expr->type),
+                    (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
+                     "none")
+                );
+                atinfo->ast->resultmsg.success = 0;
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
             return 1;
         }
@@ -461,23 +465,27 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         assert(expr->identifierref.value != NULL);
         h64scope *scope = ast_GetScope(expr, &atinfo->ast->scope);
         if (scope == NULL) {
-            char buf[256];
-            snprintf(buf, sizeof(buf) - 1,
-                "internal error: failed to obtain scope, "
-                "malformed AST? expr: %s, parent: %s",
-                ast_ExpressionTypeToStr(expr->type),
-                (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
-                 "none")
-            );
-            if (!result_AddMessage(
-                    &atinfo->ast->resultmsg,
-                    H64MSG_ERROR,
-                    buf,
-                    atinfo->ast->fileuri,
-                    expr->line, expr->column
-                    )) {
-                atinfo->hadoutofmemory = 1;
-                return 0;
+            if (atinfo->ast->resultmsg.success) {
+                // No error yet, so this can't be a follow-up issue
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "internal error: failed to obtain scope, "
+                    "malformed AST? expr: %s, parent: %s",
+                    ast_ExpressionTypeToStr(expr->type),
+                    (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
+                     "none")
+                );
+                atinfo->ast->resultmsg.success = 0;
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
             return 1;
         }
@@ -524,6 +532,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     "or module not found",
                     _shortenedname(describebuf, expr->identifierref.value)
                 );
+                atinfo->ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &atinfo->ast->resultmsg,
                         H64MSG_ERROR,
