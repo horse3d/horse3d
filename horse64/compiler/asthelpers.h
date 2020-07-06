@@ -75,4 +75,14 @@ static int funcdef_has_parameter_with_name(
     }
 }
 
+h64expression *find_expr_by_tokenindex(
+    h64expression *search_in,
+    int64_t searchindex
+);
+
+void get_tokenindex_range(
+    h64expression *expr,
+    int64_t *lowest_seen_idx, int64_t *highest_seen_idx
+);
+
 #endif  // HORSE64_COMPILER_ASTHELPERS_H_
