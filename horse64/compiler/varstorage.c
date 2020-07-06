@@ -5,6 +5,7 @@
 #include "compileconfig.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -147,12 +148,20 @@ static void varstorage_ExpandToRealUsage(
     while (i < func->funcdef.stmt_count) {
         assert(func->funcdef.stmt[i]->tokenindex >= 0);
         if (func->funcdef.stmt[i]->tokenindex <= *tokenindex_start &&
+                *tokenindex_start >= 0 &&
                 (i + 1 >= func->funcdef.stmt_count ||
                  func->funcdef.stmt[i + 1]->
                      tokenindex > *tokenindex_start)) {
             h64expression *expr = find_expr_by_tokenindex(
                 func->funcdef.stmt[i], *tokenindex_start
             );
+            #ifndef NDEBUG
+            if (!expr)
+                fprintf(stderr, "failed to find expr for "
+                    "tokenindex %" PRId64 " "
+                    "in func %s\n", (int64_t)*tokenindex_start,
+                    func->funcdef.name);
+            #endif
             assert(expr != NULL);
             while (expr->parent != NULL) {
                 if (expr->parent->type == H64EXPRTYPE_FOR_STMT ||
@@ -168,12 +177,20 @@ static void varstorage_ExpandToRealUsage(
             }
         }
         if (func->funcdef.stmt[i]->tokenindex >= *tokenindex_end &&
+                *tokenindex_end >= 0 &&
                 (i - 1 < 0 ||
                  func->funcdef.stmt[i - 1]->
                      tokenindex < *tokenindex_end)) {
             h64expression *expr = find_expr_by_tokenindex(
                 func->funcdef.stmt[i], *tokenindex_start
             );
+            #ifndef NDEBUG
+            if (!expr)
+                fprintf(stderr, "failed to find expr "
+                    "for tokenindex %" PRId64 " "
+                    "in func %s\n", (int64_t)*tokenindex_end,
+                    func->funcdef.name);
+            #endif
             assert(expr != NULL);
             while (expr->parent != NULL) {
                 if (expr->parent->type == H64EXPRTYPE_FOR_STMT ||
