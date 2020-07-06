@@ -1429,22 +1429,36 @@ int _codegencallback_DoCodegen_visit_in(
                 return 0;
             i++;
         }
-        h64instruction_popcatchframe inst_popcatch = {0};
-        inst_popcatch.type = H64INST_POPCATCHFRAME;
-        if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_popcatch, sizeof(inst_popcatch))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
-        }
-        h64instruction_jump inst_jump = {0};
-        inst_jump.type = H64INST_JUMP;
-        inst_jump.jumpbytesoffset = jumpid_end;
-        if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jump, sizeof(inst_jump))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
+        if (!(inst_pushframe.mode | CATCHMODE_JUMPONFINALLY) != 0) {
+            h64instruction_popcatchframe inst_popcatch = {0};
+            inst_popcatch.type = H64INST_POPCATCHFRAME;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_popcatch, sizeof(inst_popcatch))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            if ((inst_pushframe.mode | CATCHMODE_JUMPONCATCH) != 0) {
+                h64instruction_jump inst_jump = {0};
+                inst_jump.type = H64INST_JUMP;
+                inst_jump.jumpbytesoffset = jumpid_end;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_jump, sizeof(inst_jump))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+        } else {
+            h64instruction_jump inst_jumptofinally = {0};
+            inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
+            inst_jumptofinally.jumpbytesoffset = jumpid_end;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_jumptofinally, sizeof(inst_jumptofinally))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
         }
 
         if ((inst_pushframe.mode | CATCHMODE_JUMPONCATCH) != 0) {
@@ -1472,6 +1486,17 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!result)
                     return 0;
                 i++;
+            }
+            if ((inst_pushframe.mode | CATCHMODE_JUMPONFINALLY) != 0) {
+                h64instruction_jump inst_jumptofinally = {0};
+                inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
+                inst_jumptofinally.jumpbytesoffset = jumpid_end;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_jumptofinally, sizeof(inst_jumptofinally))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
         }
 
