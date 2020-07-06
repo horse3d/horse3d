@@ -194,6 +194,7 @@ int _resolver_EnsureLocalDefStorage(
         ) {
     if (expr->storage.set)
         return 1;
+    // Look at all places where something is defined with local storage:
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_FOR_STMT ||
@@ -201,7 +202,7 @@ int _resolver_EnsureLocalDefStorage(
              expr->trystmt.exception_name != NULL)) {
         h64expression *func = surroundingfunc(expr);
         if (!func)
-            return 1;  // global, we don't care about that
+            return 1;  // global, we don't care about that (non-local)
         if (!func->funcdef._storageinfo) {
             rinfo->hadunexpectederror = 1;
             return 0;
