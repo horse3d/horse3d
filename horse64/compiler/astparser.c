@@ -1563,6 +1563,8 @@ int ast_ParseExprInline(
                     if (outofmemory) *outofmemory = 1;
                     return 0;
                 }
+            } else if (tokens[0].type == H64TK_CONSTANT_NONE) {
+                // Nothing to copy over
             } else {
                 // Should be impossible to reach!
                 fprintf(stderr, "horsec: error: UNHANDLED LITERAL TYPE\n");
