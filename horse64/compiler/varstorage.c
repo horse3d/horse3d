@@ -145,6 +145,7 @@ static void varstorage_ExpandToRealUsage(
            func->type == H64EXPRTYPE_INLINEFUNCDEF);
     int i = 0;
     while (i < func->funcdef.stmt_count) {
+        assert(func->funcdef.stmt[i]->tokenindex >= 0);
         if (func->funcdef.stmt[i]->tokenindex <= *tokenindex_start &&
                 (i + 1 >= func->funcdef.stmt_count ||
                  func->funcdef.stmt[i + 1]->
@@ -152,6 +153,7 @@ static void varstorage_ExpandToRealUsage(
             h64expression *expr = find_expr_by_tokenindex(
                 func->funcdef.stmt[i], *tokenindex_start
             );
+            assert(expr != NULL);
             while (expr->parent != NULL) {
                 if (expr->parent->type == H64EXPRTYPE_FOR_STMT ||
                         expr->parent->type == H64EXPRTYPE_WHILE_STMT) {
@@ -172,6 +174,7 @@ static void varstorage_ExpandToRealUsage(
             h64expression *expr = find_expr_by_tokenindex(
                 func->funcdef.stmt[i], *tokenindex_start
             );
+            assert(expr != NULL);
             while (expr->parent != NULL) {
                 if (expr->parent->type == H64EXPRTYPE_FOR_STMT ||
                         expr->parent->type == H64EXPRTYPE_WHILE_STMT) {
