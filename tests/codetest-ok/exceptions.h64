@@ -1,0 +1,15 @@
+func main {
+    var a = 5
+    var b
+    try {
+        a = a + none
+    } catch TypeError {
+        a = 6
+    } finally {
+        b = 7
+    }
+    if (a + b == 13) {
+        return 0  # sucess
+    }
+    return -1
+}
