@@ -14,21 +14,23 @@ int stderror(
 
 typedef enum stderrorclassnum {
     H64STDERROR_EXCEPTION = 0,
-    H64STDERROR_RUNTIMEERROR = 1,
+    H64STDERROR_RUNTIMEEXCEPTION = 1,
     H64STDERROR_OUTOFMEMORYERROR,
     H64STDERROR_OSERROR,
     H64STDERROR_IOERROR,
     H64STDERROR_ARGUMENTERROR,
+    H64STDERROR_TYPEERROR,
     H64STDERROR_TOTAL_COUNT
 } stderrorclassnum;
 
 static const char *stderrorclassnames[] = {
     "Exception",
-    "RuntimeError",
+    "RuntimeException",
     "OutOfMemoryError",
     "OSError",
     "IOError",
     "ArgumentError",
+    "TypeError",
     NULL
 };
 
