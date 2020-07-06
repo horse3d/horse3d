@@ -40,6 +40,7 @@ static char _name_itype_addcatchtypebyref[] = "addcatchtyperef";
 static char _name_itype_addcatchtype[] = "addcatchtype";
 static char _name_itype_popcatchframe[] = "popcatchframe";
 static char _name_itype_getmember[] = "getmember";
+static char _name_itype_jumptofinally[] = "jumptofinally";
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
     switch (itype) {
@@ -87,6 +88,8 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_popcatchframe;
     case H64INST_GETMEMBER:
         return _name_itype_getmember;
+    case H64INST_JUMPTOFINALLY:
+        return _name_itype_jumptofinally;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -414,6 +417,8 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_popcatchframe);
     case H64INST_GETMEMBER:
         return sizeof(h64instruction_getmember);
+    case H64INST_JUMPTOFINALLY:
+        return sizeof(h64instruction_jumptofinally);
     default:
         fprintf(
             stderr, "Invalid inst type for "

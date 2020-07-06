@@ -26,6 +26,8 @@ typedef struct h64stack {
     int64_t entry_total_count, alloc_total_count;
     int64_t current_func_floor;
     int64_t last_block_relative_floor;
+       // ^ current_func_floor as relative position from the last
+       //   block's starting offset
     int block_count;
     h64stackblock *block;
     h64stackblock *last_block;

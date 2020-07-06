@@ -69,8 +69,9 @@ void vmthread_WipeFuncStack(h64vmthread *vmthread);
 h64vmthread *vmthread_New();
 
 int vmthread_RunFunctionWithReturnInt(
-    h64vmthread *vmthread, int func_id,
-    h64exceptioninfo **einfo,
+    h64vmthread *vmthread, int64_t func_id,
+    int *returneduncaughtexception,
+    h64exceptioninfo *einfo,
     int *out_returnint
 );
 
