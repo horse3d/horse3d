@@ -378,14 +378,18 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
         if (scope == NULL) {
             if (atinfo->ast->resultmsg.success) {
                 // No error yet, so this can't be a follow-up issue
+                char *s = ast_ExpressionToJSONStr(
+                    expr, atinfo->ast->fileuri
+                );
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
                     "internal error: failed to obtain scope, "
-                    "malformed AST? expr: %s, parent: %s",
-                    ast_ExpressionTypeToStr(expr->type),
+                    "malformed AST? expr: %s/%s, parent: %s",
+                    ast_ExpressionTypeToStr(expr->type), s,
                     (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
                      "none")
                 );
+                free(s);
                 atinfo->ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &atinfo->ast->resultmsg,
@@ -467,14 +471,18 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         if (scope == NULL) {
             if (atinfo->ast->resultmsg.success) {
                 // No error yet, so this can't be a follow-up issue
+                char *s = ast_ExpressionToJSONStr(
+                    expr, atinfo->ast->fileuri
+                );
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
                     "internal error: failed to obtain scope, "
-                    "malformed AST? expr: %s, parent: %s",
-                    ast_ExpressionTypeToStr(expr->type),
+                    "malformed AST? expr: %s/%s, parent: %s",
+                    ast_ExpressionTypeToStr(expr->type), s,
                     (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
                      "none")
                 );
+                free(s);
                 atinfo->ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &atinfo->ast->resultmsg,
