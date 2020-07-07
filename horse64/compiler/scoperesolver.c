@@ -381,14 +381,23 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                 char *s = ast_ExpressionToJSONStr(
                     expr, atinfo->ast->fileuri
                 );
-                char buf[256];
-                snprintf(buf, sizeof(buf) - 1,
+                char _bufstack[1024];
+                int buflen = 1024;
+                char *_bufheap = malloc(strlen(s) + 2048);
+                char *buf = _bufstack;
+                if (_bufheap) {
+                    buflen = strlen(s) + 2048;
+                    buf = _bufheap;
+                }
+                snprintf(buf, buflen - 1,
                     "internal error: failed to obtain scope, "
                     "malformed AST? expr: %s/%s, parent: %s",
                     ast_ExpressionTypeToStr(expr->type), s,
                     (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
                      "none")
                 );
+                buf[buflen - 1] = '\0';
+                free(_bufheap);
                 free(s);
                 atinfo->ast->resultmsg.success = 0;
                 if (!result_AddMessage(
@@ -474,14 +483,23 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 char *s = ast_ExpressionToJSONStr(
                     expr, atinfo->ast->fileuri
                 );
-                char buf[256];
-                snprintf(buf, sizeof(buf) - 1,
+                char _bufstack[1024];
+                int buflen = 1024;
+                char *_bufheap = malloc(strlen(s) + 2048);
+                char *buf = _bufstack;
+                if (_bufheap) {
+                    buflen = strlen(s) + 2048;
+                    buf = _bufheap;
+                }
+                snprintf(buf, buflen - 1,
                     "internal error: failed to obtain scope, "
                     "malformed AST? expr: %s/%s, parent: %s",
                     ast_ExpressionTypeToStr(expr->type), s,
                     (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
                      "none")
                 );
+                buf[buflen - 1] = '\0';
+                free(_bufheap);
                 free(s);
                 atinfo->ast->resultmsg.success = 0;
                 if (!result_AddMessage(
