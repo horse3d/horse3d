@@ -173,7 +173,13 @@ static void varstorage_ExpandToRealUsage(
                     );
                     if (lowestidx >= 0 && lowestidx < *tokenindex_start)
                         *tokenindex_start = lowestidx;
+                    break;
                 }
+                if (expr->parent->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                        expr->parent->type == H64EXPRTYPE_INLINEFUNCDEF) {
+                    break;
+                }
+                expr = expr->parent;
             }
         }
         if (func->funcdef.stmt[i]->tokenindex >= *tokenindex_end &&
@@ -202,7 +208,13 @@ static void varstorage_ExpandToRealUsage(
                     );
                     if (highestidx >= 0 && highestidx > *tokenindex_end)
                         *tokenindex_end = highestidx;
+                    break;
                 }
+                if (expr->parent->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                        expr->parent->type == H64EXPRTYPE_INLINEFUNCDEF) {
+                    break;
+                }
+                expr = expr->parent;
             }
         }
         i++;
