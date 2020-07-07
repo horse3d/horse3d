@@ -30,9 +30,9 @@ int main(int argc, const char **argv) {
         }
         if (!doubledash_seen) {
             if (strcasecmp(argv[i], "-h") == 0 ||
-                    strcasecmp(argv[i], "--help") == 0 ||
-                    strcasecmp(argv[i], "-?") == 0 ||
-                    strcasecmp(argv[i], "/?") == 0) {
+                    strcmp(argv[i], "--help") == 0 ||
+                    strcmp(argv[i], "-?") == 0 ||
+                    strcmp(argv[i], "/?") == 0) {
                 printf("Usage: horsec [action] "
                        "[...options + arguments...]\n");
                 printf("\n");
@@ -50,8 +50,8 @@ int main(int argc, const char **argv) {
                        "run it immediately.\n");
                 return 0;
             }
-            if (strcasecmp(argv[i], "--version") == 0 ||
-                    strcasecmp(argv[i], "-V") == 0) {
+            if (strcmp(argv[i], "--version") == 0 ||
+                    strcmp(argv[i], "-V") == 0) {
                 printf(
                     "org.horse64.core with horsec/horsevm\n"
                     "\n"
