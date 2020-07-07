@@ -1674,7 +1674,7 @@ int _codegencallback_DoCodegen_visit_in(
         );
         func->funcdef._storageinfo->jump_targets_used++;
 
-        struct h64ifstmt *current_clause = &func->ifstmt;
+        struct h64ifstmt *current_clause = &expr->ifstmt;
         assert(current_clause->conditional != NULL);
         while (current_clause != NULL) {
             int32_t jumpid_nextclause = -1;
@@ -1686,6 +1686,7 @@ int _codegencallback_DoCodegen_visit_in(
             }
 
             rinfo->dont_descend_visitation = 0;
+            assert(current_clause->conditional->parent == expr);
             int result = ast_VisitExpression(
                 current_clause->conditional, expr,
                 &_codegencallback_DoCodegen_visit_in,
