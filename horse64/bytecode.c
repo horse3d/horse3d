@@ -425,6 +425,7 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
             "h64program_PtrToInstructionSize: %d\n",
             (int)inst->type
         );
+        assert(0);
     }
     return 0;
 }

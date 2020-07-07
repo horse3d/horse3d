@@ -132,6 +132,7 @@ int appendinstbyfuncid(
         ) {
     assert(id >= 0 && id < p->func_count);
     assert(!p->func[id].iscfunc);
+    assert(((h64instructionany *)ptr)->type != H64INST_INVALID);
     char *instructionsnew = realloc(
         p->func[id].instructions,
         sizeof(*p->func[id].instructions) *
@@ -349,6 +350,7 @@ int codegen_FinalBytecodeTransform(
             h64instructionany *inst = (
                 (h64instructionany *)((char*)pr->func[i].instructions + k)
             );
+            assert(inst->type != H64INST_INVALID);
             if (inst->type == H64INST_JUMPTARGET) {
                 if (jump_table_fill + 1 > jump_table_alloc) {
                     struct _jumpinfo *new_jump_info = realloc(
@@ -1450,9 +1452,8 @@ int _codegencallback_DoCodegen_visit_in(
                 }
             }
         } else {
-            h64instruction_jump inst_jumptofinally = {0};
+            h64instruction_jumptofinally inst_jumptofinally = {0};
             inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
-            inst_jumptofinally.jumpbytesoffset = jumpid_end;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
                     &inst_jumptofinally, sizeof(inst_jumptofinally))) {
@@ -1488,9 +1489,8 @@ int _codegencallback_DoCodegen_visit_in(
                 i++;
             }
             if ((inst_pushframe.mode | CATCHMODE_JUMPONFINALLY) != 0) {
-                h64instruction_jump inst_jumptofinally = {0};
+                h64instruction_jumptofinally inst_jumptofinally = {0};
                 inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
-                inst_jumptofinally.jumpbytesoffset = jumpid_end;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &inst_jumptofinally, sizeof(inst_jumptofinally))) {

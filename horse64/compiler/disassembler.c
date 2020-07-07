@@ -386,6 +386,14 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
+    case H64INST_JUMPTOFINALLY:
+        if (!disassembler_Write(di,
+                "    %s",
+                bytecode_InstructionTypeToStr(inst->type)
+                )) {
+            return 0;
+        }
+        break;
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>",
