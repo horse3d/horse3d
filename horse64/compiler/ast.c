@@ -36,6 +36,8 @@ h64scope *ast_GetScope(
     case H64EXPRTYPE_IF_STMT: ;
         struct h64ifstmt *curr_clause = &expr->ifstmt;
         while (curr_clause) {
+            if (curr_clause->conditional == child_expr)
+                return &curr_clause->scope;
             int i = 0;
             while (i < curr_clause->stmt_count) {
                 if (curr_clause->stmt[i] == child_expr) {
