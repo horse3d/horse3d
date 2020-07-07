@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "horse64/compiler/main.h"
+#include "horse64/packageversion.h"
 #include "filesys.h"
 #include "vfs.h"
 
@@ -20,7 +21,7 @@ int main(int argc, const char **argv) {
     const char *action = NULL;
     int action_offset = -1;
     const char *action_file = NULL;
-    int i = 0;
+    int i = 1;
     while (i < argc) {
         if (strcmp(argv[i], "--") == 0) {
             doubledash_seen = 1;
@@ -32,7 +33,7 @@ int main(int argc, const char **argv) {
                     strcasecmp(argv[i], "--help") == 0 ||
                     strcasecmp(argv[i], "-?") == 0 ||
                     strcasecmp(argv[i], "/?") == 0) {
-                printf("Usage: horsecc [action] "
+                printf("Usage: horsec [action] "
                        "[...options + arguments...]\n");
                 printf("\n");
                 printf("Available actions:\n");
@@ -49,6 +50,25 @@ int main(int argc, const char **argv) {
                        "run it immediately.\n");
                 return 0;
             }
+            if (strcasecmp(argv[i], "--version") == 0 ||
+                    strcasecmp(argv[i], "-V") == 0) {
+                printf(
+                    "org.horse64.core with horsec/horsevm\n"
+                    "\n"
+                    "   Corelib version:   %s\n"
+                    "   Build time:        %s\n"
+                    "   Compiler version:  %s%s\n",
+                    CORELIB_VERSION, BUILD_TIME,
+                    #if defined(__clang__)
+                    "clang-", __clang_version__
+                    #elif defined(__GNUC__) && !defined(__clang__)
+                    "gcc-", __VERSION__
+                    #else
+                    "unknown-", "unknown"
+                    #endif
+                );
+                return 0;
+            }
             if (!action && (strcmp(argv[i], "codeinfo") == 0 ||
                     strcmp(argv[i], "compile") == 0 ||
                     strcmp(argv[i], "to_asm") == 0 ||
@@ -59,6 +79,11 @@ int main(int argc, const char **argv) {
                 action = argv[i];
                 action_offset = i + 1;
                 break;
+            } else if (!action && argv[i][0] != '-' &&
+                       argv[i][0] != '/') {
+                fprintf(stderr, "horsecc: error: unknown action, "
+                    "try --help: \"%s\"\n", argv[i]);
+                return 1;
             }
         }
         i++;

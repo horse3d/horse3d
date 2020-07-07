@@ -22,7 +22,7 @@ else
 CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
 endif
 CXXFLAGS:=-fexceptions
-CFLAGS:= -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -Wl,-Bdynamic
+CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -Wl,-Bdynamic
 LDFLAGS:= -Wl,-Bstatic -lphysfs -Wl,-Bdynamic
 TEST_OBJECTS:=$(patsubst %.c, %.o, $(wildcard ./horse64/test_*.c) $(wildcard ./horse64/compiler/test_*.c))
 ALL_OBJECTS:=$(patsubst %.c, %.o, $(wildcard ./horse64/*.c) $(wildcard ./horse64/corelib/*.c) $(wildcard ./horse64/compiler/*.c)) vendor/siphash.o
@@ -54,7 +54,7 @@ CXX:=$(CROSSCOMPILEHOST)-g++
 endif
 endif
 
-.PHONY: test check-submodules datapak release debug
+.PHONY: test remove-main-o check-submodules datapak release debug
 
 debug: all
 showvariables:
@@ -65,11 +65,13 @@ showvariables:
 	@echo "Test objects: $(TEST_OBJECTS)"
 	@echo "Program objects: $(PROGRAM_OBJECTS)"
 	@echo "Cross-compile host: $(CROSSCOMPILEHOST)"
-all: check-submodules datapak $(PROGRAM_OBJECTS)
+all: remove-main-o check-submodules datapak $(PROGRAM_OBJECTS)
 	$(CXX) $(CFLAGS) -o ./"$(BINNAME)$(BINEXT)" $(PROGRAM_OBJECTS) $(LDFLAGS)
 ifneq ($(DEBUGGABLE),true)
 	$(STRIPTOOL) ./"$(BINNAME)$(BINEXT)"
 endif
+remove-main-o:
+	rm -f horse64/main.o
 %.o: %.c $.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 %.oxx: %.cpp
