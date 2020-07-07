@@ -175,10 +175,6 @@ static void varstorage_ExpandToRealUsage(
                         *tokenindex_start = lowestidx;
                     break;
                 }
-                if (expr->parent->type == H64EXPRTYPE_FUNCDEF_STMT ||
-                        expr->parent->type == H64EXPRTYPE_INLINEFUNCDEF) {
-                    break;
-                }
                 expr = expr->parent;
             }
         }
@@ -208,10 +204,6 @@ static void varstorage_ExpandToRealUsage(
                     );
                     if (highestidx >= 0 && highestidx > *tokenindex_end)
                         *tokenindex_end = highestidx;
-                    break;
-                }
-                if (expr->parent->type == H64EXPRTYPE_FUNCDEF_STMT ||
-                        expr->parent->type == H64EXPRTYPE_INLINEFUNCDEF) {
                     break;
                 }
                 expr = expr->parent;
