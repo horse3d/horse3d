@@ -83,7 +83,7 @@ int main(int argc, const char **argv) {
                        argv[i][0] != '/') {
                 fprintf(stderr, "horsecc: error: unknown action, "
                     "try --help: \"%s\"\n", argv[i]);
-                return 1;
+                return -1;
             }
         }
         i++;
@@ -91,26 +91,34 @@ int main(int argc, const char **argv) {
     if (!action) {
         fprintf(stderr, "horsecc: error: need action, "
             "like horsecc run. See horsecc --help\n");
-        return 1;
+        return -1;
     }
 
     if (strcmp(action, "codeinfo") == 0) {
-        return compiler_command_CodeInfo(argv, argc, action_offset);
+        if (!compiler_command_CodeInfo(argv, argc, action_offset))
+            return -1;
     } else if (strcmp(action, "compile") == 0) {
-        return compiler_command_Compile(argv, argc, action_offset);
+        if (!compiler_command_Compile(argv, argc, action_offset))
+            return -1;
     } else if (strcmp(action, "to_asm") == 0) {
-        return compiler_command_ToASM(argv, argc, action_offset);
+        if (!compiler_command_ToASM(argv, argc, action_offset))
+            return -1;
     } else if (strcmp(action, "get_ast") == 0) {
-        return compiler_command_GetAST(argv, argc, action_offset);
+        if (!compiler_command_GetAST(argv, argc, action_offset))
+            return -1;
     } else if (strcmp(action, "get_resolved_ast") == 0) {
-        return compiler_command_GetResolvedAST(argv, argc, action_offset);
+        if (!compiler_command_GetResolvedAST(argv, argc, action_offset))
+            return -1;
     } else if (strcmp(action, "get_tokens") == 0) {
-        return compiler_command_GetTokens(argv, argc, action_offset);
+        if (!compiler_command_GetTokens(argv, argc, action_offset))
+            return -1;
     } else if (strcmp(action, "run") == 0) {
-        return compiler_command_Run(argv, argc, action_offset);
+        if (!compiler_command_Run(argv, argc, action_offset))
+            return -1;
     } else {
-        return 1;
+        return -1;
     }
+    return 0;
 }
 
 
