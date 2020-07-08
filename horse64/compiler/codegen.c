@@ -328,6 +328,19 @@ static int _resolve_jumpid_to_jumpoffset(
 int codegen_FinalBytecodeTransform(
         h64compileproject *prj
         ) {
+    int haveerrors = 0;
+    {
+        int i = 0;
+        while (i < prj->resultmsg->message_count) {
+            if (prj->resultmsg->message[i].type == H64MSG_ERROR) {
+                haveerrors = 1;
+            }
+            i++;
+        }
+    }
+    if (!prj->resultmsg->success || haveerrors)
+        return 1;
+
     int jump_table_alloc = 0;
     int jump_table_fill = 0;
     struct _jumpinfo *jump_info = NULL;
@@ -680,7 +693,10 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         expr->storage.eval_temp_id = temp;
-    } else if (expr->type == H64EXPRTYPE_WHILE_STMT) {
+    } else if (expr->type == H64EXPRTYPE_WHILE_STMT ||
+            expr->type == H64EXPRTYPE_TRY_STMT ||
+            expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+            expr->type == H64EXPRTYPE_IF_STMT) {
         // Already handled in visit_in
     } else if (expr->type == H64EXPRTYPE_BINARYOP &&
             expr->op.optype == H64OP_MEMBERBYIDENTIFIER &&
@@ -1058,9 +1074,6 @@ int _codegencallback_DoCodegen_visit_out(
                 return 0;
             }
         }
-    } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
-            expr->type == H64EXPRTYPE_TRY_STMT) {
-        // Handled on _visit_in
     } else {
         char buf[256];
         snprintf(buf, sizeof(buf) - 1,
@@ -1744,7 +1757,7 @@ int _codegencallback_DoCodegen_visit_in(
 
             h64instruction_jumptarget inst_jumptarget = {0};
             inst_jumptarget.type = H64INST_JUMPTARGET;
-            if (current_clause->followup_clause != NULL) {
+            if (current_clause->followup_clause == NULL) {
                 inst_jumptarget.jumpid = jumpid_end;
             } else {
                 inst_jumptarget.jumpid = jumpid_nextclause;
