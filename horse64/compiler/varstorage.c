@@ -188,7 +188,7 @@ static void varstorage_ExpandToRealUsage(
             );
             #ifndef NDEBUG
             if (!expr)
-                fprintf(stderr, "failed to find expr "
+                fprintf(stderr, "ERROR: failed to find expr "
                     "for tokenindex %" PRId64 " "
                     "in func %s\n", (int64_t)*tokenindex_end,
                     func->funcdef.name);
