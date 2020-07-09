@@ -6,6 +6,8 @@
 #define HORSE64_COMPILER_ASTHELPERS_H_
 
 #include "compiler/ast.h"
+#include "compiler/astparser.h"
+
 
 static h64expression *surroundingfunc(h64expression *expr) {
     while (expr->parent) {
@@ -85,21 +87,7 @@ void get_tokenindex_range(
     int64_t *lowest_seen_idx, int64_t *highest_seen_idx
 );
 
-int execution_flow_backwards(
-    h64ast *ast, h64expression *expr,
-    int *out_prevstatement_count,
-    h64expression ***out_prevstatement
-);
-
 h64expression *get_containing_statement(
-    h64ast *ast, h64expression *expr
-);
-
-h64expression *statement_before(
-    h64ast *ast, h64expression *expr
-);
-
-h64expression *statement_after(
     h64ast *ast, h64expression *expr
 );
 

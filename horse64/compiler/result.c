@@ -85,6 +85,9 @@ int result_AddMessageEx(
             return 0;
         }
     }
+    if (type == H64MSG_ERROR) {
+        result->success = 0;
+    }
     result->message_count = newcount;
     return 1;
 }

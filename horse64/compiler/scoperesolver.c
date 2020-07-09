@@ -14,6 +14,7 @@
 #include "compiler/asthelpers.h"
 #include "compiler/astparser.h"
 #include "compiler/asttransform.h"
+#include "compiler/codeflow.h"
 #include "compiler/compileproject.h"
 #include "compiler/globallimits.h"
 #include "compiler/optimizer.h"
@@ -230,15 +231,19 @@ static int scoperesolver_ComputeItemStorage(
 
         // Assemble names and parameter info for the function:
         const char *name = expr->funcdef.name;
-        char **kwarg_names = malloc(
-            sizeof(*kwarg_names) * expr->funcdef.arguments.arg_count
-        );
-        if (!kwarg_names) {
-            if (outofmemory) *outofmemory = 1;
-            return 0;
+        assert( expr->funcdef.arguments.arg_count >= 0);
+        char **kwarg_names = NULL;
+        if (expr->funcdef.arguments.arg_count > 0) {
+            kwarg_names = malloc(
+                sizeof(*kwarg_names) * expr->funcdef.arguments.arg_count
+            );
+            if (!kwarg_names) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+            memset(kwarg_names, 0, sizeof(*kwarg_names) *
+                   expr->funcdef.arguments.arg_count);
         }
-        memset(kwarg_names, 0, sizeof(*kwarg_names) *
-               expr->funcdef.arguments.arg_count);
         int i = 0;
         while (i < expr->funcdef.arguments.arg_count) {
             if (expr->funcdef.arguments.arg_value[i]) {
@@ -1306,6 +1311,10 @@ int scoperesolver_ResolveAST(
                     ))
                 return 0;
         }
+    }
+    // If again no errors, set code flow information:
+    if (pr->resultmsg->success && unresolved_ast->resultmsg.success) {
+        codeflow_SetBeforeAfter(pr, unresolved_ast);
     }
     return 1;
 }
