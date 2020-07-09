@@ -568,6 +568,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 i + 1 < (int)size &&
                 nexttokenisdigit(buffer + i + 1, ((int)size) - i - 1)) ||
                 (c >= '0' && c <= '9')) {
+            // This is a number literal
             post_identifier_is_likely_func = 0;
             int64_t startline = line;
             int64_t startcolumn = column;
@@ -1034,29 +1035,6 @@ h64tokenizedfile lexer_ParseFromFile(
             column += 2;
             continue;
         }
-        // "@lib" special keyword:
-        if (c == '@' && i + 1 < (int)size && buffer[i + 1] == 'l' &&
-                i + 2 < (int)size && buffer[i + 2] == 'i' &&
-                i + 3 < (int)size && buffer[i + 3] == 'b' &&
-                (i + 4 >= (int)size ||
-                 !is_identifier_resume_char(buffer[i + 4]))) {
-            post_identifier_is_likely_func = 0;
-            result.token[result.token_count].type = H64TK_KEYWORD;
-            result.token[result.token_count].str_value = strdup("@lib");
-            if (!result.token[result.token_count].str_value) {
-                result_ErrorNoLoc(
-                    &result.resultmsg,
-                    "failed to allocate keyword, out of memory?",
-                    fileuri
-                );
-                free(buffer);
-                return result;
-            }
-            result.token_count++;
-            i += strlen("@lib");
-            column += strlen("@lib");
-            continue;
-        }
         // "and" operator:
         if (c == 'a' && i + 1 < (int)size && buffer[i + 1] == 'n' &&
                 i + 2 < (int)size && buffer[i + 2] == 'd' &&
@@ -1123,6 +1101,14 @@ h64tokenizedfile lexer_ParseFromFile(
 
         // Parse identifier and keywords:
         if (is_identifier_char(c)) {
+            int cancontaindots = (
+                result.token_count > 0 &&
+                result.token[result.token_count - 1].type ==
+                    H64TK_KEYWORD &&
+                strcmp(result.token[result.token_count - 1].str_value,
+                       "from") == 0
+            );
+
             int64_t columnstart = column;
             int hadlimiterror = 0;
             int hadinvalidcharerror = 0;
@@ -1133,7 +1119,8 @@ h64tokenizedfile lexer_ParseFromFile(
             int firstchar = 1;
             int ilen = 0;
             while (i < (int)size && (is_identifier_char(c) ||
-                    (!firstchar && c >= '0' && c <= '9'))) {
+                    (!firstchar && c >= '0' && c <= '9') ||
+                    (cancontaindots && c == '.'))) {
                 firstchar = 0;
                 unsigned int charlen = utf8_char_len((uint8_t*)buffer + i);
                 if (charlen > size - i)
@@ -1169,29 +1156,27 @@ h64tokenizedfile lexer_ParseFromFile(
                             totalchars < H64LIMIT_IDENTIFIERLEN) {
                         identifierbuf[ilen] = buffer[i + k];
                         ilen++;
-                    } else {
-                        if (!hadlimiterror) {
-                            hadlimiterror = 1;
-                            char buf[256];
-                            snprintf(buf, sizeof(buf) - 1,
-                                "invalid identifier exceeds maximum length "
-                                "of %d characters",
-                                (int)H64LIMIT_IDENTIFIERLEN
+                    } else if (!hadlimiterror) {
+                        hadlimiterror = 1;
+                        char buf[256];
+                        snprintf(buf, sizeof(buf) - 1,
+                            "invalid identifier exceeds maximum length "
+                            "of %d characters",
+                            (int)H64LIMIT_IDENTIFIERLEN
+                        );
+                        if (!result_AddMessage(
+                                &result.resultmsg,
+                                H64MSG_ERROR, buf, fileuri, line,
+                                columnstart
+                                )) {
+                            result_ErrorNoLoc(
+                                &result.resultmsg,
+                                "failed to add result message, "
+                                "out of memory?",
+                                fileuri
                             );
-                            if (!result_AddMessage(
-                                    &result.resultmsg,
-                                    H64MSG_ERROR, buf, fileuri, line,
-                                    columnstart
-                                    )) {
-                                result_ErrorNoLoc(
-                                    &result.resultmsg,
-                                    "failed to add result message, "
-                                    "out of memory?",
-                                    fileuri
-                                );
-                                free(buffer);
-                                return result;
-                            }
+                            free(buffer);
+                            return result;
                         }
                     }
                     k++;

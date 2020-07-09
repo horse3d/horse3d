@@ -43,11 +43,11 @@ START_TEST (test_scope_import_complex)
     createresult = filesys_CreateDirectory(".testdata-prj/horse_modules");
     ck_assert(createresult);
     createresult = filesys_CreateDirectory(
-        ".testdata-prj/horse_modules/mylib"
+        ".testdata-prj/horse_modules/my.lib"
     );
     ck_assert(createresult);
     createresult = filesys_CreateDirectory(
-        ".testdata-prj/horse_modules/mylib/mymodule"
+        ".testdata-prj/horse_modules/my.lib/mymodule"
     );
     ck_assert(createresult);
 
@@ -61,8 +61,8 @@ START_TEST (test_scope_import_complex)
         ck_assert(f != NULL);
         char s[] = (
             "# PERMITTED almost-duplicate import that diverges:\n"
-            "import mymodule.test1 @lib mylib\n"
-            "import mymodule.test2 @lib mylib\n"
+            "import mymodule.test1 from my.lib\n"
+            "import mymodule.test2 from my.lib\n"
             "class TestClass {"
             "    var v = 1.5 + 0xA + 0b10"
             "}"
@@ -75,7 +75,7 @@ START_TEST (test_scope_import_complex)
     }
     {
         FILE *f = fopen(
-            ".testdata-prj/horse_modules/mylib/mymodule/test1.h64",
+            ".testdata-prj/horse_modules/my.lib/mymodule/test1.h64",
             "wb"
         );
         ck_assert(f != NULL);
@@ -89,7 +89,7 @@ START_TEST (test_scope_import_complex)
     }
     {
         FILE *f = fopen(
-            ".testdata-prj/horse_modules/mylib/mymodule/test2.h64",
+            ".testdata-prj/horse_modules/my.lib/mymodule/test2.h64",
             "wb"
         );
         ck_assert(f != NULL);
@@ -128,8 +128,8 @@ START_TEST (test_scope_import_complex)
         ck_assert(f != NULL);
         char s[] = (
             "# INVALID duplicate import that should fail:\n"
-            "import mymodule.test1 @lib mylib\n"
-            "import mymodule.test1 @lib mylib\n"
+            "import mymodule.test1 from my.lib\n"
+            "import mymodule.test1 from my.lib\n"
             "class TestClass {"
             "    var v = 1.5 + 0xA + 0b10"
             "}"
@@ -176,7 +176,7 @@ START_TEST (test_scope_import_complex)
         ck_assert(f != NULL);
         char s[] = (
             "# VALID use of imported element:\n"
-            "import mymodule.test1 @lib mylib\n"
+            "import mymodule.test1 from my.lib\n"
             "func main {"
             "    var obj = mymodule.test1.test1_blobb()"
             "}"
@@ -213,7 +213,7 @@ START_TEST (test_scope_import_complex)
         ck_assert(f != NULL);
         char s[] = (
             "# INVALID use of function that is not in imported module:\n"
-            "import mymodule.test1 @lib mylib\n"
+            "import mymodule.test1 from my.lib\n"
             "func main {"
             "    var obj = mymodule.test1.no_such_function_invalid()"
             "}"

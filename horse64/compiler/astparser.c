@@ -4041,14 +4041,14 @@ int ast_ParseExprStmt(
 
         if (i < max_tokens_touse &&
                 tokens[i].type == H64TK_KEYWORD &&
-                strcmp(tokens[i].str_value, "@lib") == 0) {
+                strcmp(tokens[i].str_value, "from") == 0) {
             i++;
             if (i >= max_tokens_touse ||
                     tokens[i].type != H64TK_IDENTIFIER) {
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
-                    "expected identifier following \"@lib\" keyword",
+                    "expected identifier following \"from\" keyword",
                     _describetoken(
                         describebuf, context->tokenstreaminfo, tokens, i
                     )
