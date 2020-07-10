@@ -192,13 +192,41 @@ void codeflow_SetBeforeAfter(h64compileproject *pr, h64ast *ast) {
 
 int codeflow_FollowFlowBackwards(
         h64ast *ast, h64expression *expr,
+        int *inout_prevstatement_alloc,
         int *out_prevstatement_count,
-        h64expression ***out_prevstatement
+        h64expression ***inout_prevstatement
         ) {
     h64expression *stmt = get_containing_statement(ast, expr);
     h64expression *stmt_before = statement_before(ast, expr);
-    if (stmt_before) {
-
+    int count = 0;
+    if (stmt_before &&
+            (stmt_before->type == H64EXPRTYPE_WHILE_STMT ||
+             stmt_before->type == H64EXPRTYPE_FOR_STMT ||
+             stmt_before->type == H64EXPRTYPE_IF_STMT ||
+             stmt_before->type == H64EXPRTYPE_TRY_STMT)) {
+        // A statement that branches up.
+        int new_alloc = 2;
+        if (stmt_before->type == H64EXPRTYPE_IF_STMT) {
+            struct h64ifstmt *clause = &stmt_before->ifstmt;
+            while (clause->followup_clause) {
+                new_alloc++;
+                clause = clause->followup_clause;
+            }
+        }
+        if (new_alloc > *inout_prevstatement_alloc) {
+            h64expression **newprevstatement = realloc(
+                *inout_prevstatement,
+                sizeof(*newprevstatement) * new_alloc
+            );
+            if (!newprevstatement) {
+                *out_prevstatement_count = 0;
+                return 0;
+            }
+            *inout_prevstatement_alloc = new_alloc;
+            *inout_prevstatement = newprevstatement;
+        }
+        // FIXME: FINISH
+        //*inout_prevstatement[
     }
     return 0;
 }

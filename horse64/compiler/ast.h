@@ -71,6 +71,7 @@ struct h64ifstmt {
     struct h64ifstmt *followup_clause;
 };
 
+typedef struct h64scopedef h64scopedef;
 typedef struct h64ast h64ast;
 
 #define KNOWNVALUETYPE_KNOWNINT 2
@@ -91,6 +92,10 @@ typedef struct h64expression {
         int set;
         h64expression *prev, *next;
     } flow;
+    struct stmtvarusage {
+        int localusedvars_count;
+        h64scopedef *localusedvars_sdef;
+    } stmtvarusage;
     struct knownvalue {
         int type;
         union {
