@@ -94,26 +94,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
                 einfo->lstoreassign[einfo->lstoreassign_count].
                     vardef = einfo->closureboundvars[i];
                 einfo->lstoreassign[einfo->lstoreassign_count].
-                    use_start_token_index = (
-                    einfo->closureboundvars[i]->first_use_token_index
-                    );
-                if (!nosideeffectsdef(einfo->closureboundvars[i]->
-                                declarationexpr)) {
-                    if (einfo->closureboundvars[i]->declarationexpr->
-                            tokenindex <
-                            einfo->closureboundvars[i]->
-                            first_use_token_index) {
-                        einfo->lstoreassign[einfo->lstoreassign_count].
-                            use_start_token_index
-                            = (
-                            einfo->closureboundvars[i]->declarationexpr->
-                            tokenindex);
-                    }
-                }
-                einfo->lstoreassign[einfo->lstoreassign_count].
-                    use_end_token_index = (
-                    einfo->closureboundvars[i]->last_use_token_index
-                    );
+                    ever_used_closure = 1;
                 h64expression *vardefexpr = (
                     einfo->closureboundvars[i]->declarationexpr
                 );
@@ -275,65 +256,27 @@ int _resolver_EnsureLocalDefStorage(
             );
             scopedef->expanded_to_real_use_range = 1;
         }
-        if (expr->type == H64EXPRTYPE_FOR_STMT ||
-                expr->type == H64EXPRTYPE_TRY_STMT ||
-                !nosideeffectsdef(expr)) {
-            int definitionindex = expr->tokenindex;
-            if (expr->type == H64EXPRTYPE_TRY_STMT) {
-                if (expr->trystmt.catchstmt_count > 0) {
-                    definitionindex =
-                        expr->trystmt.catchstmt[0]->tokenindex;
-                } else {
-                    unused_catch_exception = 1;
-                }
+        int definitionindex = expr->tokenindex;
+        if (expr->type == H64EXPRTYPE_TRY_STMT) {
+            if (expr->trystmt.catchstmt_count > 0) {
+                definitionindex =
+                    expr->trystmt.catchstmt[0]->tokenindex;
+            } else {
+                unused_catch_exception = 1;
             }
-            if (definitionindex < own_token_start)
-                own_token_start = definitionindex;
         }
+        if (definitionindex < own_token_start)
+            own_token_start = definitionindex;
 
         // Determine temporary slot to be used:
         h64funcstorageextrainfo *einfo = func->funcdef._storageinfo;
         int besttemp = -1;
-        int besttemp_score = -1;
         int valueboxid = -1;
-        if (!unused_catch_exception && (
-                scopedef->everused ||
-                expr->type == H64EXPRTYPE_FOR_STMT ||
-                !nosideeffectsdef(
-                scopedef->declarationexpr))) {
-            int k = 0;
-            while (k < einfo->lstoreassign_count) {
-                int score = -1;
-                if (einfo->lstoreassign[k].use_end_token_index <
-                        own_token_start) {
-                    score = INT_MAX - (
-                        own_token_start -
-                        einfo->lstoreassign[k].use_end_token_index
-                    );
-                } else if (einfo->lstoreassign[k].use_start_token_index >
-                        own_token_end) {
-                    score = INT_MAX - (
-                        own_token_end -
-                        einfo->lstoreassign[k].use_start_token_index
-                    );
-                }
-                if (score > 0 && (
-                        score < besttemp_score ||
-                        besttemp < 0)) {
-                    besttemp = einfo->lstoreassign[k].valuetemporaryid;
-                    besttemp_score = score;
-                }
-                k++;
-            }
-            if (besttemp < 0) {
-                besttemp = einfo->lowest_guaranteed_free_temp;
-                einfo->lowest_guaranteed_free_temp++;
-            }
-            assert(besttemp >= 0);
-            if (scopedef->closurebound) {
-                valueboxid = einfo->lowest_guaranteed_free_temp;
-                einfo->lowest_guaranteed_free_temp++;
-            }
+        besttemp = einfo->lowest_guaranteed_free_temp;
+        einfo->lowest_guaranteed_free_temp++;
+        if (scopedef->closurebound) {
+            valueboxid = einfo->lowest_guaranteed_free_temp;
+            einfo->lowest_guaranteed_free_temp++;
         }
 
         // Insert actual temporary assignment:
@@ -357,10 +300,13 @@ int _resolver_EnsureLocalDefStorage(
             valueboxtemporaryid = valueboxid;
         einfo->lstoreassign[einfo->lstoreassign_count].
             vardef = scopedef;
-        einfo->lstoreassign[einfo->lstoreassign_count].
-            use_start_token_index = own_token_start;
-        einfo->lstoreassign[einfo->lstoreassign_count].
-            use_end_token_index = own_token_end;
+        if (valueboxid >= 0) {
+            einfo->lstoreassign[einfo->lstoreassign_count].
+                ever_used_closure = 1;
+        } else {
+            einfo->lstoreassign[einfo->lstoreassign_count].
+                ever_used_nonclosure = 1;
+        }
         h64expression *vardefexpr = (
             scopedef->declarationexpr
         );

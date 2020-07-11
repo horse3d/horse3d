@@ -88,14 +88,6 @@ typedef struct h64expression {
         storageref ref;
         int eval_temp_id;
     } storage;
-    struct flow {
-        int set;
-        h64expression *prev, *next;
-    } flow;
-    struct stmtvarusage {
-        int localusedvars_count;
-        h64scopedef *localusedvars_sdef;
-    } stmtvarusage;
     struct knownvalue {
         int type;
         union {

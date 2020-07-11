@@ -19,7 +19,6 @@ typedef struct h64localstorageassign {
     h64scopedef *vardef;  // the definition for this variable
 
     int ever_used_nonclosure, ever_used_closure;
-    int use_start_token_index, use_end_token_index;
 } h64localstorageassign;
 
 struct h64codegenstorageinfo {

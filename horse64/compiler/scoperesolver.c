@@ -14,7 +14,6 @@
 #include "compiler/asthelpers.h"
 #include "compiler/astparser.h"
 #include "compiler/asttransform.h"
-#include "compiler/codeflow.h"
 #include "compiler/compileproject.h"
 #include "compiler/globallimits.h"
 #include "compiler/optimizer.h"
@@ -1297,24 +1296,13 @@ int scoperesolver_ResolveAST(
     if (!transformresult)
         return 0;
 
-    // If so far we didn't have an error, optimize and do local storage:
+    // If so far we didn't have an error, do local storage:
     if (pr->resultmsg->success &&
             unresolved_ast->resultmsg.success) {
-        // Optimize constants away:
-        transformresult = optimizer_PreevaluateConstants(pr, unresolved_ast);
-        if (!transformresult)
+        if (!varstorage_AssignLocalStorage(
+                pr, unresolved_ast
+                ))
             return 0;
-        if (pr->resultmsg->success &&
-                unresolved_ast->resultmsg.success) {
-            if (!varstorage_AssignLocalStorage(
-                    pr, unresolved_ast
-                    ))
-                return 0;
-        }
-    }
-    // If again no errors, set code flow information:
-    if (pr->resultmsg->success && unresolved_ast->resultmsg.success) {
-        codeflow_SetBeforeAfter(pr, unresolved_ast);
     }
     return 1;
 }
