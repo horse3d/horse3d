@@ -8,12 +8,15 @@
 #include "json.h"
 
 typedef struct h64compilewarnconfig h64compilewarnconfig;
+typedef struct h64misccompileroptions h64misccompileroptions;
 
 jsonvalue *compiler_TokenizeToJSON(
+    h64misccompileroptions *moptions,
     const char *fileuri, h64compilewarnconfig *wconfig
 );
 
 jsonvalue *compiler_ParseASTToJSON(
+    h64misccompileroptions *moptions,
     const char *fileuri, h64compilewarnconfig *wconfig,
     int resolve_references
 );
@@ -48,6 +51,7 @@ int compiler_command_ToASM(
 
 typedef struct h64misccompileroptions {
     int vmexec_debug;
+    int compiler_stage_debug;
 } h64misccompileroptions;
 
 #endif  // HORSE64_COMPILER_MAIN_H_

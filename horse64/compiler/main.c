@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -34,6 +36,16 @@ static int _compileargparse(
             *fileuri = argv[i];
         } else if (strcmp(argv[i], "--") == 0) {
             doubledashed = 1;
+        } else if (strcmp(argv[i], "--help") == 0) {
+            printf("horsec %s [options]\n", argv[i]);
+            printf("\n");
+            printf("Available options:\n");
+            if (strcmp(cmd, "run") == 0) {
+                printf("  --vmexec-debug:          Print instructions "
+                       "as they run\n");
+            }
+            printf(    "  --compiler-stage-debug:  Print compiler stages info\n");
+            return 0;
         } else if (strcmp(cmd, "run") == 0 &&
                 strcmp(argv[i], "--vmexec-debug") == 0) {
             miscoptions->vmexec_debug = 1;
@@ -41,6 +53,8 @@ static int _compileargparse(
             fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
                 "output for --vmexec-debug not compiled in\n");
             #endif
+        } else if (strcmp(argv[i], "--compiler-stage-debug") == 0) {
+            miscoptions->compiler_stage_debug = 1;
         } else if (wconfig && argv[i][0] == '-' &&
                 argv[i][1] == 'W') {
             if (!warningconfig_CheckOption(
@@ -146,7 +160,7 @@ int compiler_command_CompileEx(
         return 0;
     }
     if (!compileproject_CompileAllToBytecode(
-            project, fileuri, &error
+            project, &moptions, fileuri, &error
             )) {
         fprintf(stderr, "horsec: error: %s: %s\n",
                 command, error);
@@ -280,6 +294,7 @@ int compiler_AddResultMessageAsJson(
 }
 
 jsonvalue *compiler_TokenizeToJSON(
+        ATTR_UNUSED h64misccompileroptions *moptions,
         const char *fileuri, h64compilewarnconfig *wconfig
         ) {
     h64tokenizedfile tfile = lexer_ParseFromFile(
@@ -387,7 +402,9 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
             ))
         return 0;
 
-    jsonvalue *v = compiler_TokenizeToJSON(fileuri, &wconfig);
+    jsonvalue *v = compiler_TokenizeToJSON(
+        &moptions, fileuri, &wconfig
+    );
     if (!v) {
         printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
@@ -411,7 +428,9 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
         return 0;
     assert(fileuri != NULL);
 
-    jsonvalue *v = compiler_ParseASTToJSON(fileuri, &wconfig, 0);
+    jsonvalue *v = compiler_ParseASTToJSON(
+        &moptions, fileuri, &wconfig, 0
+    );
     if (!v) {
         printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
@@ -437,7 +456,9 @@ int compiler_command_GetResolvedAST(
         return 0;
     assert(fileuri != NULL);
 
-    jsonvalue *v = compiler_ParseASTToJSON(fileuri, &wconfig, 1);
+    jsonvalue *v = compiler_ParseASTToJSON(
+        &moptions, fileuri, &wconfig, 1
+    );
     if (!v) {
         printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
@@ -451,6 +472,7 @@ int compiler_command_GetResolvedAST(
 }
 
 jsonvalue *compiler_ParseASTToJSON(
+        h64misccompileroptions *moptions,
         const char *fileuri, h64compilewarnconfig *wconfig,
         int resolve_references
         ) {
@@ -508,7 +530,7 @@ jsonvalue *compiler_ParseASTToJSON(
         goto failedproject;
     }
     if (resolve_references &&
-            !scoperesolver_ResolveAST(project, tast, 0)) {
+            !scoperesolver_ResolveAST(project, moptions, tast, 0)) {
         compileproject_Free(project);
         project = NULL;
         goto failedproject;

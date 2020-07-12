@@ -7,10 +7,11 @@
 
 typedef struct h64ast h64ast;
 typedef struct h64compileproject h64compileproject;
+typedef struct h64misccompileroptions h64misccompileroptions;
 
 int scoperesolver_ResolveAST(
-    h64compileproject *pr, h64ast *unresolved_ast,
-    int extract_program_main
+    h64compileproject *pr, h64misccompileroptions *miscoptions,
+    h64ast *unresolved_ast, int extract_program_main
 );
 
 #endif  // HORSE64_COMPILER_SCOPERESOLVER_H_

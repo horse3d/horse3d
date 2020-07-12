@@ -15,6 +15,7 @@
 #include "compiler/codegen.h"
 #include "compiler/codemodule.h"
 #include "compiler/compileproject.h"
+#include "compiler/main.h"
 #include "compiler/scoperesolver.h"
 #include "filesys.h"
 #include "hash.h"
@@ -304,24 +305,35 @@ char *compileproject_GetFileSubProjectPath(
         if (outofmemory && !relfilepathoom) *outofmemory = 0;
         return NULL;
     }
-    if (strlen(relfilepath) > strlen("horse_modules")) {
-        // If path starts with ./horse_modules/somemodule/.../ then
-        // we want to return ./horse_modules/somemodule/ as root:
+    // If path starts with ./horse_modules/somemodule/<stuff>/ then
+    // we want to return ./horse_modules/somemodule/ as root:
+    int i = 0;
+    while (i < 2) {
+        char hmodules_path[] = "horse_modules_builtin";
+        if (i == 1)
+            memcpy(hmodules_path, "horse_modules",
+                   strlen("horse_modules") + 1);
+        if (strlen(relfilepath) <= strlen(hmodules_path)) {
+            // Too short to have horse_modules + sub_folder in path.
+            i++;
+            continue;
+        }
+        // Verify it starts with correct path segment:
         char buf[64];
-        memcpy(buf, relfilepath, strlen("horse_modules"));
-        buf[strlen("horse_modules")] = '\0';
+        memcpy(buf, relfilepath, strlen(hmodules_path));
+        buf[strlen(hmodules_path)] = '\0';
         if (
                 #if defined(__linux__) || defined(__LINUX__) || defined(__ANDROID__)
-                strcmp(relfilepath, "horse_modules") == 0
+                strcmp(buf, hmodules_path) == 0
                 #else
-                strcasecmp(relfilepath, "horse_modules") == 0
+                strcasecmp(buf, hmodules_path) == 0
                 #endif
-                && (relfilepath[strlen("horse_modules")] == '/'
+                && (relfilepath[strlen(hmodules_path)] == '/'
                 #if defined(_WIN32) || defined(_WIN64)
-                || relfilepath[strlen("horse_modules")] == '\\'
+                || relfilepath[strlen(hmodules_path)] == '\\'
                 #endif
                 )) {
-            int k = strlen("horsemodules/");
+            int k = strlen(hmodules_path) + 1;  // path + '/'
             while (relfilepath[k] != '/' && relfilepath[k] != '\0'
                     #if defined(_WIN32) || defined(_WIN64)
                     && relfilepath[k] != '\\'
@@ -330,32 +342,60 @@ char *compileproject_GetFileSubProjectPath(
                 k++;
             if (relfilepath[k] != '\0') {
                 k++;  // go past dir separator
-                char *project_name = strdup(relfilepath + k);
-                if (!project_name) {
-                    free(relfilepath);
-                    if (outofmemory) *outofmemory = 1;
-                    return NULL;
-                } else {
-                    // Trim down to first path component:
-                    int j = strlen(project_name);
-                    while (j >= 0) {
-                        if (project_name[j] == '/'
-                                #if defined(_WIN32) || defined(_WIN64)
-                                || project_name[j] == '\\'
-                                #endif
-                                ) {
-                            project_name[j] = '\0';
-                        }
-                        j++;
-                    }
-                }
-                if (strlen(project_name) == 0) {
-                    free(project_name);
+                // Extract actual horse_modules/<name>/(REST CUT OFF) path:
+                char *relfilepath_shortened = strdup(relfilepath);
+                if (!relfilepath_shortened) {
                     free(relfilepath);
                     if (outofmemory) *outofmemory = 0;
                     return NULL;
                 }
-                char *result = filesys_ToAbsolutePath(relfilepath + k);
+                int firstslashindex = -1;
+                int secondslashindex = -1;
+                int slashcount = 0;
+                int j = 0;
+                while (j < (int)strlen(relfilepath_shortened)) {
+                    if (relfilepath_shortened[j] == '/'
+                            #if defined(_WIN32) || defined(_WIN64)
+                            || relfilepath_shortened[j] == '\\'
+                            #endif
+                            ) {
+                        slashcount++;
+                        if (slashcount == 1) {
+                            firstslashindex = j;
+                        } else if (slashcount == 2) {
+                            secondslashindex = j;
+                            relfilepath_shortened[j] = '\0';
+                            break;
+                        }
+                    }
+                    j++;
+                }
+                if (slashcount != 2 ||
+                        secondslashindex <= firstslashindex + 1) {
+                    free(relfilepath_shortened);
+                    free(relfilepath);
+                    if (outofmemory) *outofmemory = 0;
+                    return NULL;
+                }
+                // Extract project name from our cut off result path:
+                char *project_name = malloc(
+                    secondslashindex - firstslashindex
+                );
+                if (!project_name) {
+                    free(relfilepath_shortened);
+                    free(relfilepath);
+                    if (outofmemory) *outofmemory = 0;
+                    return NULL;
+                }
+                memcpy(
+                    project_name, relfilepath + firstslashindex + 1,
+                    secondslashindex - (firstslashindex + 1)
+                );
+                project_name[secondslashindex - (firstslashindex + 1)] = '\0';
+                // Turn relative project path into absolute one:
+                char *result = filesys_ToAbsolutePath(relfilepath_shortened);
+                free(relfilepath_shortened);
+                relfilepath_shortened = NULL;
                 if (result) {
                     char *resultold = result;
                     result = filesys_Normalize(resultold);
@@ -371,6 +411,8 @@ char *compileproject_GetFileSubProjectPath(
                 return result;
             }
         }
+        i++;
+        continue;
     }
     // Not inside horse_modules module folder, so just return the
     // regular project root:
@@ -895,6 +937,7 @@ typedef struct compileallinfo {
     const char *mainfileuri;
     int mainfileseen;
     h64compileproject *pr;
+    h64misccompileroptions *miscoptions;
 } compileallinfo;
 
 int _resolveallcb(
@@ -935,7 +978,7 @@ int _resolveallcb(
     if (fileismain)
         cinfo->mainfileseen = 1;
 
-    if (!scoperesolver_ResolveAST(pr, ast, fileismain))
+    if (!scoperesolver_ResolveAST(pr, cinfo->miscoptions, ast, fileismain))
         return 0;
     return 1;
 }
@@ -955,7 +998,9 @@ int _codegenallcb(
 }
 
 int compileproject_CompileAllToBytecode(
-        h64compileproject *project, const char *mainfileuri,
+        h64compileproject *project,
+        h64misccompileroptions *moptions,
+        const char *mainfileuri,
         char **error
         ) {
     assert(mainfileuri != NULL);
@@ -967,6 +1012,7 @@ int compileproject_CompileAllToBytecode(
     compileallinfo cinfo;
     memset(&cinfo, 0, sizeof(cinfo));
     cinfo.pr = project;
+    cinfo.miscoptions = moptions;
     cinfo.mainfileuri = mainfileuri;
     while (1) {
         int oldcount = project->astfilemap_count;

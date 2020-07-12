@@ -16,6 +16,7 @@
 #include "compiler/asttransform.h"
 #include "compiler/compileproject.h"
 #include "compiler/globallimits.h"
+#include "compiler/main.h"
 #include "compiler/optimizer.h"
 #include "compiler/scoperesolver.h"
 #include "compiler/scope.h"
@@ -953,11 +954,23 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
 }
 
 int scoperesolver_BuildASTGlobalStorage(
-        h64compileproject *pr, h64ast *unresolved_ast, int recursive,
+        h64compileproject *pr, h64misccompileroptions *miscoptions,
+        h64ast *unresolved_ast, int recursive,
         resolveinfo *rinfo
         ) {
     if (unresolved_ast->global_storage_built)
         return 1;
+
+    if (miscoptions->compiler_stage_debug) {
+        fprintf(
+            stderr, "horsec: debug: scoperesolver_BuildASTGlobalStorage "
+                "start on %s (pr->resultmsg.success: %d)\n",
+            unresolved_ast->fileuri, pr->resultmsg->success
+        );
+    }
+
+    // Mark done even if we fail:
+    unresolved_ast->global_storage_built = 1;
 
     // Set module path if missing:
     assert(unresolved_ast->fileuri != NULL);
@@ -1024,8 +1037,9 @@ int scoperesolver_BuildASTGlobalStorage(
         }
         module_path = new_module_path;
 
-        // If path has dots, then abort with error:
+        // If path has dots in later elements, then abort with error:
         unsigned int i = 0;
+        int in_first_element = 0;
         while (i < strlen(module_path)) {
             if (module_path[i] == '.') {
                 free(library_source);
@@ -1068,9 +1082,6 @@ int scoperesolver_BuildASTGlobalStorage(
             return 0;
         }
     }
-
-    // Mark done even if we fail:
-    unresolved_ast->global_storage_built = 1;
 
     // First, make sure all imports are loaded up:
     int i = 0;
@@ -1205,20 +1216,35 @@ int scoperesolver_BuildASTGlobalStorage(
                 memcpy(&rinfo2, rinfo, sizeof(*rinfo));
                 rinfo2.extract_main = 0;
                 if (!scoperesolver_BuildASTGlobalStorage(
-                        pr, expr->importstmt.referenced_ast, 0, &rinfo2
+                        pr, miscoptions,
+                        expr->importstmt.referenced_ast, 0, &rinfo2
                         )) {
+                    return 0;
+                }
+                if (!result_TransferMessages(
+                        &expr->importstmt.referenced_ast->resultmsg,
+                        pr->resultmsg)) {
                     return 0;
                 }
             }
             i++;
         }
     }
+
+    if (miscoptions->compiler_stage_debug) {
+        fprintf(
+            stderr, "horsec: debug: scoperesolver_BuildASTGlobalStorage "
+                "completed on %s (pr->resultmsg.success: %d)\n",
+            unresolved_ast->fileuri, pr->resultmsg->success
+        );
+    }
+
     return 1;
 }
 
 int scoperesolver_ResolveAST(
-        h64compileproject *pr, h64ast *unresolved_ast,
-        int extract_program_main
+        h64compileproject *pr, h64misccompileroptions *miscoptions,
+        h64ast *unresolved_ast, int extract_program_main
         ) {
     assert(unresolved_ast != NULL);
     if (unresolved_ast->identifiers_resolved)
@@ -1235,7 +1261,7 @@ int scoperesolver_ResolveAST(
     // Make sure global storage was assigned on this AST and all
     // referenced ones:
     if (!scoperesolver_BuildASTGlobalStorage(
-            pr, unresolved_ast, 1, &rinfo
+            pr, miscoptions, unresolved_ast, 1, &rinfo
             )) {
         pr->resultmsg->success = 0;
         unresolved_ast->resultmsg.success = 0;

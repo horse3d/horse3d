@@ -11,6 +11,7 @@
 typedef struct hashmap hashmap;
 typedef struct h64program h64program;
 typedef struct h64result h64result;
+typedef struct h64misccompileroptions h64misccompileroptions;
 
 
 typedef struct h64compileproject {
@@ -68,7 +69,9 @@ char *compileproject_ResolveImport(
 );
 
 int compileproject_CompileAllToBytecode(
-    h64compileproject *project, const char *mainfileuri,
+    h64compileproject *project,
+    h64misccompileroptions *moptions,
+    const char *mainfileuri,
     char **error
 );
 
