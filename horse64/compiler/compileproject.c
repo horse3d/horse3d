@@ -992,7 +992,7 @@ int _codegenallcb(
     h64ast *ast = (h64ast *)(uintptr_t)number;
     compileallinfo *cinfo = (compileallinfo *)userdata;
     h64compileproject *pr = cinfo->pr;
-    if (!codegen_GenerateBytecodeForFile(pr, ast))
+    if (!codegen_GenerateBytecodeForFile(pr, cinfo->miscoptions, ast))
         return 0;
     return 1;
 }

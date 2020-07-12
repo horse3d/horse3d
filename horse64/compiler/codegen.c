@@ -15,6 +15,7 @@
 #include "compiler/asttransform.h"
 #include "compiler/codegen.h"
 #include "compiler/compileproject.h"
+#include "compiler/main.h"
 #include "compiler/varstorage.h"
 #include "unicode.h"
 
@@ -1779,10 +1780,19 @@ int _codegencallback_DoCodegen_visit_in(
 }
 
 int codegen_GenerateBytecodeForFile(
-        h64compileproject *project, h64ast *resolved_ast
+        h64compileproject *project, h64misccompileroptions *miscoptions,
+        h64ast *resolved_ast
         ) {
     if (!project || !resolved_ast)
         return 0;
+
+    if (miscoptions->compiler_stage_debug) {
+        fprintf(
+            stderr, "horsec: debug: codegen_GenerateBytecodeForFile "
+                "start on %s (pr->resultmsg.success: %d)\n",
+            resolved_ast->fileuri, project->resultmsg->success
+        );
+    }
 
     // Do actual codegen step:
     int transformresult = asttransform_Apply(
@@ -1813,6 +1823,14 @@ int codegen_GenerateBytecodeForFile(
         }
         return 0;  // since always OOM if no major compiler bug,
                    // so return OOM indication
+    }
+
+    if (miscoptions->compiler_stage_debug) {
+        fprintf(
+            stderr, "horsec: debug: codegen_GenerateBytecodeForFile "
+                "completed on %s (pr->resultmsg.success: %d)\n",
+            resolved_ast->fileuri, project->resultmsg->success
+        );
     }
 
     return 1;

@@ -7,9 +7,13 @@
 
 typedef struct h64compileproject h64compileproject;
 typedef struct h64ast h64ast;
+typedef struct h64misccompileroptions h64misccompileroptions;
+
 
 int codegen_GenerateBytecodeForFile(
-    h64compileproject *project, h64ast *resolved_ast
+    h64compileproject *project,
+    h64misccompileroptions *miscoptions,
+    h64ast *resolved_ast
 );
 
 #endif  // HORSE64_COMPILER_CODEGEN_H_
