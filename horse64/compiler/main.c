@@ -37,7 +37,8 @@ static int _compileargparse(
         } else if (strcmp(argv[i], "--") == 0) {
             doubledashed = 1;
         } else if (strcmp(argv[i], "--help") == 0) {
-            printf("horsec %s [options]\n", argv[i]);
+            printf("horsec %s [options] file-path\n", cmd);
+            printf("   with file-path referring to a .h64 file.\n");
             printf("\n");
             printf("Available options:\n");
             if (strcmp(cmd, "run") == 0) {
@@ -118,13 +119,15 @@ int compiler_command_CompileEx(
         int mode, const char **argv, int argc, int argoffset
         ) {
     const char *fileuri = NULL;
-    const char *_name_mode_compile = "mode";
+    const char *_name_mode_compile = "compile";
     const char *_name_mode_run = "run";
     const char *_name_mode_cinfo = "codeinfo";
+    const char *_name_mode_toasm = "toasm";
     const char *command = (
         mode == COMPILEEX_MODE_COMPILE ? _name_mode_compile : (
-        mode == COMPILEEX_MODE_RUN ? _name_mode_run : _name_mode_cinfo
-        ));
+        mode == COMPILEEX_MODE_RUN ? _name_mode_run : (
+        mode == COMPILEEX_MODE_TOASM ? _name_mode_toasm :_name_mode_cinfo
+        )));
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
     if (!_compileargparse(
