@@ -11,6 +11,7 @@
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
+#include "compiler/main.h"
 #include "filesys.h"
 #include "compiler/scoperesolver.h"
 #include "vfs.h"
@@ -21,9 +22,8 @@ START_TEST (test_scope_import_complex)
 {
     vfs_Init(NULL);
 
-    h64compilewarnconfig wconfig;
-    memset(&wconfig, 0, sizeof(wconfig));
-    warningconfig_Init(&wconfig);
+    h64misccompileroptions moptions = {0};
+    h64compilewarnconfig wconfig = {0};
 
     char *cwd = filesys_GetCurrentDirectory();
     assert(cwd != NULL);
@@ -108,7 +108,9 @@ START_TEST (test_scope_import_complex)
         project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
+    ck_assert(scoperesolver_ResolveAST(
+        project, &moptions, ast, 0
+    ) != 0);
     if (ast->resultmsg.message_count > 0) {
         int i = 0;
         while (i < ast->resultmsg.message_count) {
@@ -149,7 +151,9 @@ START_TEST (test_scope_import_complex)
         project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
+    ck_assert(scoperesolver_ResolveAST(
+        project, &moptions, ast, 0
+    ) != 0);
     int founderror = 0;
     ck_assert(ast->resultmsg.message_count > 0);
     {
@@ -193,7 +197,9 @@ START_TEST (test_scope_import_complex)
         project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
+    ck_assert(scoperesolver_ResolveAST(
+        project, &moptions, ast, 0
+    ) != 0);
     if (ast->resultmsg.message_count > 0) {
         int i = 0;
         while (i < ast->resultmsg.message_count) {
@@ -230,7 +236,9 @@ START_TEST (test_scope_import_complex)
         project, ".testdata-prj/mainfile.h64", &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
+    ck_assert(scoperesolver_ResolveAST(
+        project, &moptions, ast, 0
+    ) != 0);
     founderror = 0;
     ck_assert(ast->resultmsg.message_count > 0);
     {
@@ -275,7 +283,9 @@ START_TEST (test_scope_import_complex)
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(ast->fileuri != NULL);
-    ck_assert(scoperesolver_ResolveAST(project, ast, 0) != 0);
+    ck_assert(scoperesolver_ResolveAST(
+        project, &moptions, ast, 0
+    ) != 0);
     if (ast->resultmsg.message_count > 0) {
         int i = 0;
         while (i < ast->resultmsg.message_count) {
