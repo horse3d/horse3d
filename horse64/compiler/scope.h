@@ -24,8 +24,7 @@ typedef struct h64scopedef {
     h64expression **additionaldecl;
 
     const char *identifier;
-    int everused, first_use_token_index, last_use_token_index,
-        closurebound, expanded_to_real_use_range;
+    int everused, closurebound, expanded_to_real_use_range;
     h64scope *scope;
 } h64scopedef;
 

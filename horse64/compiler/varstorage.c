@@ -115,85 +115,6 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
     return 1;
 }
 
-static void varstorage_ExpandToRealUsage(
-        h64expression *func,
-        int *tokenindex_start, int *tokenindex_end
-        ) {
-    // This ensures the first found use token index, and last found use
-    // token index actually cover the real places reachable through flow.
-
-    // FIXME: this is super crude. do proper flow analysis, some day
-    assert(func->type == H64EXPRTYPE_FUNCDEF_STMT ||
-           func->type == H64EXPRTYPE_INLINEFUNCDEF);
-    int i = 0;
-    while (i < func->funcdef.stmt_count) {
-        assert(func->funcdef.stmt[i]->tokenindex >= 0);
-        if (func->funcdef.stmt[i]->tokenindex <= *tokenindex_start &&
-                *tokenindex_start >= 0 &&
-                (i + 1 >= func->funcdef.stmt_count ||
-                 func->funcdef.stmt[i + 1]->
-                     tokenindex > *tokenindex_start)) {
-            h64expression *expr = find_expr_by_tokenindex(
-                func->funcdef.stmt[i], *tokenindex_start
-            );
-            #ifndef NDEBUG
-            if (!expr)
-                fprintf(stderr, "failed to find expr for "
-                    "tokenindex %" PRId64 " "
-                    "in func %s\n", (int64_t)*tokenindex_start,
-                    func->funcdef.name);
-            #endif
-            assert(expr != NULL);
-            while (expr->parent != NULL) {
-                if (expr->parent->type == H64EXPRTYPE_FOR_STMT ||
-                        expr->parent->type == H64EXPRTYPE_WHILE_STMT) {
-                    int64_t lowestidx = -1;
-                    int64_t highestidx = -1;
-                    get_tokenindex_range(
-                        expr, &lowestidx, &highestidx
-                    );
-                    if (lowestidx >= 0 && lowestidx < *tokenindex_start)
-                        *tokenindex_start = lowestidx;
-                    break;
-                }
-                expr = expr->parent;
-            }
-        }
-        if (func->funcdef.stmt[i]->tokenindex >= *tokenindex_end &&
-                *tokenindex_end >= 0 &&
-                (i - 1 < 0 ||
-                 func->funcdef.stmt[i - 1]->
-                     tokenindex < *tokenindex_end)) {
-            h64expression *expr = find_expr_by_tokenindex(
-                func->funcdef.stmt[i], *tokenindex_start
-            );
-            #ifndef NDEBUG
-            if (!expr)
-                fprintf(stderr, "ERROR: failed to find expr "
-                    "for tokenindex %" PRId64 " "
-                    "in func %s\n", (int64_t)*tokenindex_end,
-                    func->funcdef.name);
-            #endif
-            assert(expr != NULL);
-            while (expr->parent != NULL) {
-                if (expr->parent->type == H64EXPRTYPE_FOR_STMT ||
-                        expr->parent->type == H64EXPRTYPE_WHILE_STMT) {
-                    int64_t lowestidx = -1;
-                    int64_t highestidx = -1;
-                    get_tokenindex_range(
-                        expr, &lowestidx, &highestidx
-                    );
-                    if (highestidx >= 0 && highestidx > *tokenindex_end)
-                        *tokenindex_end = highestidx;
-                    break;
-                }
-                expr = expr->parent;
-            }
-        }
-        i++;
-    }
-}
-
 int _resolver_EnsureLocalDefStorage(
         asttransforminfo *rinfo, h64expression *expr
         ) {
@@ -245,28 +166,6 @@ int _resolver_EnsureLocalDefStorage(
         );
         assert(scopedef != NULL);
         assert(scopedef->declarationexpr == expr);
-        int unused_catch_exception = 0;
-        int own_token_start = scopedef->first_use_token_index;
-        int own_token_end = scopedef->last_use_token_index;
-        if (!scopedef->expanded_to_real_use_range) {
-            varstorage_ExpandToRealUsage(
-                func,
-                &scopedef->first_use_token_index,
-                &scopedef->last_use_token_index
-            );
-            scopedef->expanded_to_real_use_range = 1;
-        }
-        int definitionindex = expr->tokenindex;
-        if (expr->type == H64EXPRTYPE_TRY_STMT) {
-            if (expr->trystmt.catchstmt_count > 0) {
-                definitionindex =
-                    expr->trystmt.catchstmt[0]->tokenindex;
-            } else {
-                unused_catch_exception = 1;
-            }
-        }
-        if (definitionindex < own_token_start)
-            own_token_start = definitionindex;
 
         // Determine temporary slot to be used:
         h64funcstorageextrainfo *einfo = func->funcdef._storageinfo;

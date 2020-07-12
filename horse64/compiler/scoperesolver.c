@@ -606,14 +606,6 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     H64EXPRTYPE_FOR_STMT) {
                 // -> let's mark it as used from somewhere external:
                 def->everused = 1;
-                if ((def->first_use_token_index < 0 ||
-                        def->first_use_token_index < expr->tokenindex) &&
-                        expr->tokenindex >= 0)
-                    def->first_use_token_index = expr->tokenindex;
-                if ((def->last_use_token_index < 0 ||
-                        def->last_use_token_index > expr->tokenindex) &&
-                        expr->tokenindex >= 0)
-                    def->last_use_token_index = expr->tokenindex;
                 // If the referenced thing is a variable inside a func
                 // and we're closure, then mark as used in closure:
                 h64expression *localvarfunc = surroundingfunc(
@@ -914,14 +906,6 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             free(full_imp_path);
             full_imp_path = NULL;
             def->everused = 1;
-            if ((def->first_use_token_index < 0 ||
-                    def->first_use_token_index < expr->tokenindex) &&
-                    expr->tokenindex >= 0)
-                def->first_use_token_index = expr->tokenindex;
-            if ((def->last_use_token_index < 0 ||
-                    def->last_use_token_index > expr->tokenindex) &&
-                    expr->tokenindex >= 0)
-                def->last_use_token_index = expr->tokenindex;
             // FIXME: set storage on all import path items
         } else {
             char buf[256];

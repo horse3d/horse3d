@@ -137,8 +137,6 @@ int scope_AddItem(
         return 0;
     }
     memset(scope->definitionref[i], 0, sizeof(**scope->definitionref));
-    scope->definitionref[i]->first_use_token_index = -1;
-    scope->definitionref[i]->last_use_token_index = -1;
     scope->definitionref[i]->scope = scope;
     scope->definitionref[i]->identifier = identifier_ref;
     scope->definitionref[i]->declarationexpr = expr;
@@ -253,18 +251,6 @@ jsonvalue *scope_ScopeToJSON(
         }
         if (!json_SetDictBool(item, "everused",
                 scope->definitionref[i]->everused)) {
-            fail = 1;
-            json_Free(item);
-            break;
-        }
-        if (!json_SetDictInt(item, "first_use_token_index",
-                scope->definitionref[i]->first_use_token_index)) {
-            fail = 1;
-            json_Free(item);
-            break;
-        }
-        if (!json_SetDictInt(item, "last_use_token_index",
-                scope->definitionref[i]->last_use_token_index)) {
             fail = 1;
             json_Free(item);
             break;
