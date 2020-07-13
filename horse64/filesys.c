@@ -881,16 +881,10 @@ char *filesys_ParentdirOfItem(const char *path) {
 
 char *filesys_Join(const char *path1, const char *path2_orig) {
     // Quick result paths:
-    if (path2_orig && (
-            strcmp(path2_orig, ".") == 0 || strcmp(path2_orig, "") == 0
-            ))
-        path2_orig = NULL;
-    if (!path1 && path2_orig)
-        return strdup(path2_orig);
-    if (path1 && !path2_orig)
-        return strdup(path1);
-    if (!path1 && !path2_orig)
+    if (!path1 || !path2_orig)
         return NULL;
+    if (strcmp(path2_orig, ".") == 0 || strcmp(path2_orig, "") == 0)
+        return strdup(path1);
 
     // Clean up path2 for merging:
     char *path2 = strdup(path2_orig);
