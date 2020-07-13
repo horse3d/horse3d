@@ -1011,12 +1011,14 @@ int scoperesolver_BuildASTGlobalStorage(
                 snprintf(buf, sizeof(buf) - 1,
                     "failed to locate this file path inside project: "
                     "%s", unresolved_ast->fileuri);
-                result_AddMessage(
-                    &unresolved_ast->resultmsg,
-                    H64MSG_ERROR, buf,
-                    unresolved_ast->fileuri,
-                    -1, -1
-                );
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, buf,
+                        unresolved_ast->fileuri,
+                        -1, -1
+                        ))
+                    return 0;
+                return 1;
             }
             return 0;
         }

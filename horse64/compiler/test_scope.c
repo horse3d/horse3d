@@ -111,14 +111,14 @@ START_TEST (test_scope_import_complex)
     ck_assert(scoperesolver_ResolveAST(
         project, &moptions, ast, 0
     ) != 0);
-    if (ast->resultmsg.message_count > 0) {
+    if (project->resultmsg->message_count > 0) {
         int i = 0;
-        while (i < ast->resultmsg.message_count) {
-            if (ast->resultmsg.message[i].type == H64MSG_ERROR) {
+        while (i < project->resultmsg->message_count) {
+            if (project->resultmsg->message[i].type == H64MSG_ERROR) {
                 fprintf(stderr, "TEST UNEXPECTED FAIL: %s\n",
-                        ast->resultmsg.message[i].message);
+                        project->resultmsg->message[i].message);
             }
-            ck_assert(ast->resultmsg.message[i].type != H64MSG_ERROR);
+            ck_assert(project->resultmsg->message[i].type != H64MSG_ERROR);
             i++;
         }
     }
@@ -155,17 +155,18 @@ START_TEST (test_scope_import_complex)
         project, &moptions, ast, 0
     ) != 0);
     int founderror = 0;
-    ck_assert(ast->resultmsg.message_count > 0);
+    ck_assert(project->resultmsg->message_count > 0);
     {
         int i = 0;
-        while (i < ast->resultmsg.message_count) {
-            if (ast->resultmsg.message[i].type == H64MSG_ERROR) {
+        while (i < project->resultmsg->message_count) {
+            if (project->resultmsg->message[i].type == H64MSG_ERROR) {
                 founderror = 1;
                 ck_assert(strstr(
-                    ast->resultmsg.message[i].message, "duplicate"
+                    project->resultmsg->message[i].message, "duplicate"
                 ));
                 ck_assert(!strstr(
-                    ast->resultmsg.message[i].message, "randomnonsenseword"
+                    project->resultmsg->message[i].message,
+                    "randomnonsenseword"
                 ));
             }
             i++;
@@ -200,14 +201,14 @@ START_TEST (test_scope_import_complex)
     ck_assert(scoperesolver_ResolveAST(
         project, &moptions, ast, 0
     ) != 0);
-    if (ast->resultmsg.message_count > 0) {
+    if (project->resultmsg->message_count > 0) {
         int i = 0;
-        while (i < ast->resultmsg.message_count) {
-            if (ast->resultmsg.message[i].type == H64MSG_ERROR) {
+        while (i < project->resultmsg->message_count) {
+            if (project->resultmsg->message[i].type == H64MSG_ERROR) {
                 fprintf(stderr, "TEST UNEXPECTED FAIL: %s\n",
-                        ast->resultmsg.message[i].message);
+                        project->resultmsg->message[i].message);
             }
-            ck_assert(ast->resultmsg.message[i].type != H64MSG_ERROR);
+            ck_assert(project->resultmsg->message[i].type != H64MSG_ERROR);
             i++;
         }
     }
@@ -286,14 +287,14 @@ START_TEST (test_scope_import_complex)
     ck_assert(scoperesolver_ResolveAST(
         project, &moptions, ast, 0
     ) != 0);
-    if (ast->resultmsg.message_count > 0) {
+    if (project->resultmsg->message_count > 0) {
         int i = 0;
-        while (i < ast->resultmsg.message_count) {
-            if (ast->resultmsg.message[i].type == H64MSG_ERROR) {
+        while (i < project->resultmsg->message_count) {
+            if (project->resultmsg->message[i].type == H64MSG_ERROR) {
                 fprintf(stderr, "TEST UNEXPECTED FAIL: %s\n",
-                        ast->resultmsg.message[i].message);
+                        project->resultmsg->message[i].message);
             }
-            ck_assert(ast->resultmsg.message[i].type != H64MSG_ERROR);
+            ck_assert(project->resultmsg->message[i].type != H64MSG_ERROR);
             i++;
         }
     }
