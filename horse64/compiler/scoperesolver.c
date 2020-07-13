@@ -983,10 +983,12 @@ int scoperesolver_BuildASTGlobalStorage(
         if (!project_path) {
             assert(library_source == NULL);
             if (!pathoom) {
-                char buf[256];
+                char buf[2048];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected failure to locate file's project base: "
-                    "%s", unresolved_ast->fileuri);
+                    "%s - with overall project folder: %s",
+                    unresolved_ast->fileuri,
+                    pr->basefolder);
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, buf,
@@ -1002,15 +1004,17 @@ int scoperesolver_BuildASTGlobalStorage(
         char *module_path = compileproject_URIRelPath(
             project_path, unresolved_ast->fileuri, &modpathoom
         );
-        free(project_path);
-        project_path = NULL;
         if (!module_path) {
             free(library_source);
             if (!modpathoom) {
-                char buf[256];
+                char buf[2048];
                 snprintf(buf, sizeof(buf) - 1,
                     "failed to locate this file path inside project: "
-                    "%s", unresolved_ast->fileuri);
+                    "%s (file project base: %s, overall project base: %s)",
+                    unresolved_ast->fileuri, project_path,
+                    pr->basefolder);
+                free(project_path);
+                project_path = NULL;
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, buf,
@@ -1020,8 +1024,12 @@ int scoperesolver_BuildASTGlobalStorage(
                     return 0;
                 return 1;
             }
+            free(project_path);
+            project_path = NULL;
             return 0;
         }
+        free(project_path);
+        project_path = NULL;
 
         // Strip away file extension and normalize:
         if (strlen(module_path) > strlen(".h64") && (
