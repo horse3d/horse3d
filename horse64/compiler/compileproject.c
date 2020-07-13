@@ -287,6 +287,7 @@ char *compileproject_GetFileSubProjectPath(
         h64compileproject *pr, const char *sourcefileuri,
         char **subproject_name, int *outofmemory
         ) {
+    // Parse sourcefileuri given to us:
     uriinfo *uinfo = uri_ParseEx(sourcefileuri, "https");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             strcasecmp(uinfo->protocol, "file") != 0) {
@@ -295,6 +296,8 @@ char *compileproject_GetFileSubProjectPath(
         uri_Free(uinfo);
         return NULL;
     }
+
+    // Turn it into a relative path, which is relative to our main project:
     int relfilepathoom = 0;
     char *relfilepath = compileproject_ToProjectRelPath(
         pr, uinfo->path, &relfilepathoom
@@ -305,6 +308,7 @@ char *compileproject_GetFileSubProjectPath(
         if (outofmemory && !relfilepathoom) *outofmemory = 0;
         return NULL;
     }
+
     // If path starts with ./horse_modules/somemodule/<stuff>/ then
     // we want to return ./horse_modules/somemodule/ as root:
     int i = 0;
@@ -377,6 +381,7 @@ char *compileproject_GetFileSubProjectPath(
                     if (outofmemory) *outofmemory = 0;
                     return NULL;
                 }
+
                 // Extract project name from our cut off result path:
                 char *project_name = malloc(
                     secondslashindex - firstslashindex
@@ -392,8 +397,22 @@ char *compileproject_GetFileSubProjectPath(
                     secondslashindex - (firstslashindex + 1)
                 );
                 project_name[secondslashindex - (firstslashindex + 1)] = '\0';
+
                 // Turn relative project path into absolute one:
-                char *result = filesys_ToAbsolutePath(relfilepath_shortened);
+                char *parent_abs = filesys_ToAbsolutePath(
+                    pr->basefolder
+                );  // needs to be relative to main project path
+                if (!parent_abs) {
+                    free(relfilepath);
+                    free(relfilepath_shortened);
+                    if (outofmemory) *outofmemory = 0;
+                    return NULL;
+                }
+                char *result = filesys_Join(
+                    parent_abs, relfilepath_shortened
+                );
+                free(parent_abs);
+                parent_abs = NULL;
                 free(relfilepath_shortened);
                 relfilepath_shortened = NULL;
                 if (result) {
