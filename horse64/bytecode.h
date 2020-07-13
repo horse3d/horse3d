@@ -40,6 +40,8 @@ typedef enum instructiontype {
     H64INST_POPCATCHFRAME,
     H64INST_GETMEMBER,
     H64INST_JUMPTOFINALLY,
+    H64INST_NEWLIST,
+    H64INST_ADDTOLIST,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -237,6 +239,18 @@ typedef struct h64instruction_getmember {
 typedef struct h64instruction_jumptofinally {
     uint8_t type;
 } __attribute__ ((packed)) h64instruction_jumptofinally;
+
+typedef struct h64instruction_newlist {
+    uint8_t type;
+    int16_t slotto;
+} __attribute__ ((packed)) h64instruction_newlist;
+
+typedef struct h64instruction_addtolist {
+    uint8_t type;
+    int16_t slotlistto;
+    int16_t slotaddfrom;
+} __attribute__ ((packed)) h64instruction_addtolist;
+
 
 #define H64CLASS_HASH_SIZE 16
 #define H64CLASS_MAX_METHODS (INT_MAX / 4)

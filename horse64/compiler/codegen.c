@@ -595,7 +595,37 @@ int _codegencallback_DoCodegen_visit_out(
         }
     }
 
-    if (expr->type == H64EXPRTYPE_LITERAL) {
+    if (expr->type == H64EXPRTYPE_LIST) {
+        int listtmp = new1linetemp(
+            func, expr
+        );
+        h64instruction_newlist inst = {0};
+        inst.type = H64INST_NEWLIST;
+        inst.slotto = listtmp;
+        if (!appendinst(rinfo->pr->program, func, expr,
+                        &inst, sizeof(inst))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        int i = 0;
+        while (i < expr->constructorlist.entry_count) {
+            assert(expr->constructorlist.entry[i]->
+                   storage.eval_temp_id >= 0);
+            h64instruction_addtolist instadd = {0};
+            instadd.type = H64INST_ADDTOLIST;
+            instadd.slotlistto = listtmp;
+            instadd.slotaddfrom = (
+                expr->constructorlist.entry[i]->
+                    storage.eval_temp_id);
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &instadd, sizeof(instadd))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            i++;
+        }
+        expr->storage.eval_temp_id = listtmp;
+    } else if (expr->type == H64EXPRTYPE_LITERAL) {
         int temp = new1linetemp(func, expr);
         h64instruction_setconst inst = {0};
         inst.type = H64INST_SETCONST;
@@ -1571,36 +1601,25 @@ int _codegencallback_DoCodegen_visit_in(
             return 0;
         }
 
+        // Visit container value to get the slot of where it's stored:
+        rinfo->dont_descend_visitation = 0;
+        assert(expr->forstmt.iterated_container->
+               storage.eval_temp_id <= 0);
+        expr->forstmt.iterated_container->storage.eval_temp_id = -1;
+        int result = ast_VisitExpression(
+            expr->forstmt.iterated_container, expr,
+            &_codegencallback_DoCodegen_visit_in,
+            &_codegencallback_DoCodegen_visit_out,
+            _asttransform_cancel_visit_descend_callback,
+            rinfo
+        );
+        rinfo->dont_descend_visitation = 1;
         int containertemp = -1;
-        int freecontainertemp = 0;
-        assert(expr->forstmt.iterated_container->storage.set);
-        if (expr->forstmt.iterated_container->storage.ref.type ==
-                H64STORETYPE_STACKSLOT) {
-            containertemp = expr->forstmt.
-                iterated_container->storage.ref.id;
-        } else {
-            assert(
-                expr->forstmt.iterated_container->storage.ref.type ==
-                H64STORETYPE_GLOBALVARSLOT
-            );
-            freecontainertemp = 1;
-            containertemp = newmultilinetemp(func, expr);
-            if (containertemp < 0) {
-                rinfo->hadoutofmemory = 1;
-                return 0;
-            }
-            h64instruction_getglobal inst_getglobal = {0};
-            inst_getglobal.type = H64INST_GETGLOBAL;
-            inst_getglobal.slotto = containertemp;
-            inst_getglobal.globalfrom = expr->forstmt.
-                iterated_container->storage.ref.id;
-            if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_getglobal, sizeof(inst_getglobal))) {
-                rinfo->hadoutofmemory = 1;
-                return 0;
-            }
-        }
+        assert(expr->forstmt.iterated_container->
+                   storage.eval_temp_id >= 0);
+        containertemp = (
+            expr->forstmt.iterated_container->storage.eval_temp_id
+        );
 
         h64instruction_newiterator inst_newiter = {0};
         inst_newiter.type = H64INST_NEWITERATOR;
@@ -1677,8 +1696,6 @@ int _codegencallback_DoCodegen_visit_in(
         }
 
         freemultilinetemp(func, itertemp);
-        if (freecontainertemp)
-            freemultilinetemp(func, containertemp);
         rinfo->dont_descend_visitation = 1;
         return 1;
     } else if (expr->type == H64EXPRTYPE_IF_STMT) {
@@ -1699,39 +1716,44 @@ int _codegencallback_DoCodegen_visit_in(
                 func->funcdef._storageinfo->jump_targets_used++;
             }
 
-            rinfo->dont_descend_visitation = 0;
-            assert(current_clause->conditional->parent == expr);
-            int result = ast_VisitExpression(
-                current_clause->conditional, expr,
-                &_codegencallback_DoCodegen_visit_in,
-                &_codegencallback_DoCodegen_visit_out,
-                _asttransform_cancel_visit_descend_callback,
-                rinfo
+            assert(
+                !current_clause->conditional ||
+                current_clause->conditional->parent == expr
             );
-            rinfo->dont_descend_visitation = 1;
-            if (!result)
-                return 0;
+            if (current_clause->conditional) {
+                rinfo->dont_descend_visitation = 0;
+                int result = ast_VisitExpression(
+                    current_clause->conditional, expr,
+                    &_codegencallback_DoCodegen_visit_in,
+                    &_codegencallback_DoCodegen_visit_out,
+                    _asttransform_cancel_visit_descend_callback,
+                    rinfo
+                );
+                rinfo->dont_descend_visitation = 1;
+                if (!result)
+                    return 0;
 
-            h64instruction_condjump inst_condjump = {0};
-            inst_condjump.type = H64INST_CONDJUMP;
-            inst_condjump.conditionalslot = (
-                current_clause->conditional->storage.eval_temp_id
-            );
-            inst_condjump.jumpbytesoffset = (
-                current_clause->followup_clause != NULL ?
-                jumpid_nextclause : jumpid_end
-            );
-            if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_condjump, sizeof(inst_condjump))) {
-                rinfo->hadoutofmemory = 1;
-                return 0;
+                h64instruction_condjump inst_condjump = {0};
+                inst_condjump.type = H64INST_CONDJUMP;
+                inst_condjump.conditionalslot = (
+                    current_clause->conditional->storage.eval_temp_id
+                );
+                inst_condjump.jumpbytesoffset = (
+                    current_clause->followup_clause != NULL ?
+                    jumpid_nextclause : jumpid_end
+                );
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_condjump, sizeof(inst_condjump))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
 
             int i = 0;
             while (i < current_clause->stmt_count) {
                 rinfo->dont_descend_visitation = 0;
-                result = ast_VisitExpression(
+                int result = ast_VisitExpression(
                     current_clause->stmt[i], expr,
                     &_codegencallback_DoCodegen_visit_in,
                     &_codegencallback_DoCodegen_visit_out,

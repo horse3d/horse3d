@@ -143,7 +143,7 @@ int disassembler_PrintInstruction(
         dinfo *di, h64instructionany *inst, ptrdiff_t offset
         ) {
     switch (inst->type) {
-    case H64INST_SETCONST: ;
+    case H64INST_SETCONST: {
         h64instruction_setconst *inst_setconst =
             (h64instruction_setconst*)inst;
         char *s = disassembler_DumpValueContent(
@@ -161,7 +161,8 @@ int disassembler_PrintInstruction(
         }
         free(s);
         break;
-    case H64INST_SETTOP: ;
+    }
+    case H64INST_SETTOP: {
         h64instruction_settop *inst_settop =
             (h64instruction_settop *)inst;
         if (!disassembler_Write(di,
@@ -171,7 +172,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_GETGLOBAL: ;
+    }
+    case H64INST_GETGLOBAL: {
         h64instruction_getglobal *inst_getglobal =
             (h64instruction_getglobal *)inst;
         if (!disassembler_Write(di,
@@ -182,7 +184,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_SETGLOBAL: ;
+    }
+    case H64INST_SETGLOBAL: {
         h64instruction_setglobal *inst_setglobal =
             (h64instruction_setglobal *)inst;
         if (!disassembler_Write(di,
@@ -193,7 +196,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_GETFUNC: ;
+    }
+    case H64INST_GETFUNC: {
         h64instruction_getfunc *inst_getfunc =
             (h64instruction_getfunc *)inst;
         if (!disassembler_Write(di,
@@ -204,7 +208,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_GETCLASS: ;
+    }
+    case H64INST_GETCLASS: {
         h64instruction_getclass *inst_getclass =
             (h64instruction_getclass *)inst;
         if (!disassembler_Write(di,
@@ -215,7 +220,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_VALUECOPY: ;
+    }
+    case H64INST_VALUECOPY: {
         h64instruction_valuecopy *inst_vcopy =
             (h64instruction_valuecopy *)inst;
         if (!disassembler_Write(di,
@@ -226,7 +232,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_BINOP: ;
+    }
+    case H64INST_BINOP: {
         h64instruction_binop *inst_binop =
             (h64instruction_binop *)inst;
         if (!disassembler_Write(di,
@@ -239,7 +246,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_UNOP: ;
+    }
+    case H64INST_UNOP: {
         h64instruction_unop *inst_unop =
             (h64instruction_unop *)inst;
         if (!disassembler_Write(di,
@@ -251,7 +259,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_CALL: ;
+    }
+    case H64INST_CALL: {
         h64instruction_call *inst_call =
             (h64instruction_call *)inst;
         if (!disassembler_Write(di,
@@ -265,7 +274,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_RETURNVALUE: ;
+    }
+    case H64INST_RETURNVALUE: {
         h64instruction_returnvalue *inst_returnvalue =
             (h64instruction_returnvalue *)inst;
         if (!disassembler_Write(di,
@@ -275,7 +285,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_JUMPTARGET: ;
+    }
+    case H64INST_JUMPTARGET: {
         h64instruction_jumptarget *inst_jumptarget =
             (h64instruction_jumptarget *)inst;
         if (!disassembler_Write(di,
@@ -285,7 +296,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_CONDJUMP: ;
+    }
+    case H64INST_CONDJUMP: {
         h64instruction_condjump *inst_condjump =
             (h64instruction_condjump *)inst;
         if (!disassembler_Write(di,
@@ -297,7 +309,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_JUMP: ;
+    }
+    case H64INST_JUMP: {
         h64instruction_jump *inst_jump =
             (h64instruction_jump *)inst;
         if (!disassembler_Write(di,
@@ -308,7 +321,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_GETMEMBER: ;
+    }
+    case H64INST_GETMEMBER: {
         h64instruction_getmember *inst_getmember =
             (h64instruction_getmember *)inst;
         if (!disassembler_Write(di,
@@ -319,7 +333,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_PUSHCATCHFRAME: ;
+    }
+    case H64INST_PUSHCATCHFRAME: {
         h64instruction_pushcatchframe *inst_pushcatchframe =
             (h64instruction_pushcatchframe *)inst;
         char slotexceptionbuf[64] = "none";
@@ -356,7 +371,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_ADDCATCHTYPEBYREF: ;
+    }
+    case H64INST_ADDCATCHTYPEBYREF: {
         h64instruction_addcatchtypebyref *inst_addcatchtypebyref =
             (h64instruction_addcatchtypebyref *)inst;
         if (!disassembler_Write(di,
@@ -367,7 +383,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_ADDCATCHTYPE: ;
+    }
+    case H64INST_ADDCATCHTYPE: {
         h64instruction_addcatchtype *inst_addcatchtype =
             (h64instruction_addcatchtype *)inst;
         if (!disassembler_Write(di,
@@ -378,7 +395,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_POPCATCHFRAME:
+    }
+    case H64INST_POPCATCHFRAME: {
         if (!disassembler_Write(di,
                 "    %s",
                 bytecode_InstructionTypeToStr(inst->type)
@@ -386,7 +404,8 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
-    case H64INST_JUMPTOFINALLY:
+    }
+    case H64INST_JUMPTOFINALLY: {
         if (!disassembler_Write(di,
                 "    %s",
                 bytecode_InstructionTypeToStr(inst->type)
@@ -394,6 +413,32 @@ int disassembler_PrintInstruction(
             return 0;
         }
         break;
+    }
+    case H64INST_NEWLIST: {
+        h64instruction_newlist *inst_newlist =
+            (h64instruction_newlist *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_newlist->slotto
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_ADDTOLIST: {
+        h64instruction_addtolist *inst_addtolist =
+            (h64instruction_addtolist *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_addtolist->slotlistto,
+                (int)inst_addtolist->slotaddfrom
+                )) {
+            return 0;
+        }
+        break;
+    }
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>",
