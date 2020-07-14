@@ -439,6 +439,83 @@ int disassembler_PrintInstruction(
         }
         break;
     }
+    case H64INST_NEWSET: {
+        h64instruction_newset *inst_newset =
+            (h64instruction_newset *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_newset->slotto
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_ADDTOSET: {
+        h64instruction_addtoset *inst_addtoset =
+            (h64instruction_addtoset *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_addtoset->slotsetto,
+                (int)inst_addtoset->slotaddfrom
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_NEWVECTOR: {
+        h64instruction_newvector *inst_newvector =
+            (h64instruction_newvector *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_newvector->slotto
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_PUTVECTOR: {
+        h64instruction_putvector *inst_putvector =
+            (h64instruction_putvector *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d %" PRId64 " t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_putvector->slotvectorto,
+                (int)inst_putvector->putindex,
+                (int)inst_putvector->slotputfrom
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_NEWMAP: {
+        h64instruction_newmap *inst_newmap =
+            (h64instruction_newmap *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_newmap->slotto
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_PUTMAP: {
+        h64instruction_putmap *inst_putmap =
+            (h64instruction_putmap *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_putmap->slotmapto,
+                (int)inst_putmap->slotputkeyfrom,
+                (int)inst_putmap->slotputvaluefrom
+                )) {
+            return 0;
+        }
+        break;
+    }
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>",
