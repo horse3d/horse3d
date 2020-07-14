@@ -821,7 +821,8 @@ int _codegencallback_DoCodegen_visit_out(
     } else if (expr->type == H64EXPRTYPE_WHILE_STMT ||
             expr->type == H64EXPRTYPE_TRY_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
-            expr->type == H64EXPRTYPE_IF_STMT) {
+            expr->type == H64EXPRTYPE_IF_STMT ||
+            expr->type == H64EXPRTYPE_FOR_STMT) {
         // Already handled in visit_in
     } else if (expr->type == H64EXPRTYPE_BINARYOP &&
             expr->op.optype == H64OP_MEMBERBYIDENTIFIER &&
