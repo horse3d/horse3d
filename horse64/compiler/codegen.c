@@ -625,6 +625,100 @@ int _codegencallback_DoCodegen_visit_out(
             i++;
         }
         expr->storage.eval_temp_id = listtmp;
+    } else if (expr->type == H64EXPRTYPE_SET) {
+        int settmp = new1linetemp(
+            func, expr
+        );
+        h64instruction_newset inst = {0};
+        inst.type = H64INST_NEWSET;
+        inst.slotto = settmp;
+        if (!appendinst(rinfo->pr->program, func, expr,
+                        &inst, sizeof(inst))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        int i = 0;
+        while (i < expr->constructorset.entry_count) {
+            assert(expr->constructorset.entry[i]->
+                   storage.eval_temp_id >= 0);
+            h64instruction_addtoset instadd = {0};
+            instadd.type = H64INST_ADDTOSET;
+            instadd.slotsetto = settmp;
+            instadd.slotaddfrom = (
+                expr->constructorset.entry[i]->
+                    storage.eval_temp_id);
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &instadd, sizeof(instadd))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            i++;
+        }
+        expr->storage.eval_temp_id = settmp;
+    } else if (expr->type == H64EXPRTYPE_VECTOR) {
+        int vectortmp = new1linetemp(
+            func, expr
+        );
+        h64instruction_newvector inst = {0};
+        inst.type = H64INST_NEWVECTOR;
+        inst.slotto = vectortmp;
+        if (!appendinst(rinfo->pr->program, func, expr,
+                        &inst, sizeof(inst))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        int i = 0;
+        while (i < expr->constructorvector.entry_count) {
+            assert(expr->constructorvector.entry[i]->
+                   storage.eval_temp_id >= 0);
+            h64instruction_putvector instput = {0};
+            instput.type = H64INST_PUTVECTOR;
+            instput.slotvectorto = vectortmp;
+            instput.putindex = i;
+            instput.slotputfrom = (
+                expr->constructorvector.entry[i]->
+                    storage.eval_temp_id);
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &instput, sizeof(instput))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            i++;
+        }
+        expr->storage.eval_temp_id = vectortmp;
+    } else if (expr->type == H64EXPRTYPE_MAP) {
+        int maptmp = new1linetemp(
+            func, expr
+        );
+        h64instruction_newmap inst = {0};
+        inst.type = H64INST_NEWMAP;
+        inst.slotto = maptmp;
+        if (!appendinst(rinfo->pr->program, func, expr,
+                        &inst, sizeof(inst))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        int i = 0;
+        while (i < expr->constructorvector.entry_count) {
+            assert(expr->constructorvector.entry[i]->
+                   storage.eval_temp_id >= 0);
+            h64instruction_putmap instput = {0};
+            instput.type = H64INST_PUTMAP;
+            instput.slotmapto = maptmp;
+            instput.slotputkeyfrom = (
+                expr->constructormap.key[i]->
+                    storage.eval_temp_id);
+            instput.slotputvaluefrom = (
+                expr->constructormap.value[i]->
+                    storage.eval_temp_id);
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &instput, sizeof(instput))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            i++;
+        }
+        expr->storage.eval_temp_id = maptmp;
     } else if (expr->type == H64EXPRTYPE_LITERAL) {
         int temp = new1linetemp(func, expr);
         h64instruction_setconst inst = {0};

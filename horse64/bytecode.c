@@ -43,6 +43,12 @@ static char _name_itype_getmember[] = "getmember";
 static char _name_itype_jumptofinally[] = "jumptofinally";
 static char _name_itype_newlist[] = "newlist";
 static char _name_itype_addtolist[] = "addtolist";
+static char _name_itype_newset[] = "newset";
+static char _name_itype_addtoset[] = "addtoset";
+static char _name_itype_newvector[] = "newvector";
+static char _name_itype_putvector[] = "putvector";
+static char _name_itype_newmap[] = "newmap";
+static char _name_itype_putmap[] = "putmap";
 
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
@@ -97,6 +103,18 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_newlist;
     case H64INST_ADDTOLIST:
         return _name_itype_addtolist;
+    case H64INST_NEWSET:
+        return _name_itype_newset;
+    case H64INST_ADDTOSET:
+        return _name_itype_addtoset;
+    case H64INST_NEWVECTOR:
+        return _name_itype_newvector;
+    case H64INST_PUTVECTOR:
+        return _name_itype_putvector;
+    case H64INST_NEWMAP:
+        return _name_itype_newmap;
+    case H64INST_PUTMAP:
+        return _name_itype_putmap;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -430,6 +448,18 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_newlist);
     case H64INST_ADDTOLIST:
         return sizeof(h64instruction_addtolist);
+    case H64INST_NEWSET:
+        return sizeof(h64instruction_newset);
+    case H64INST_ADDTOSET:
+        return sizeof(h64instruction_addtoset);
+    case H64INST_NEWVECTOR:
+        return sizeof(h64instruction_newvector);
+    case H64INST_PUTVECTOR:
+        return sizeof(h64instruction_putvector);
+    case H64INST_NEWMAP:
+        return sizeof(h64instruction_newmap);
+    case H64INST_PUTMAP:
+        return sizeof(h64instruction_putmap);
     default:
         fprintf(
             stderr, "Invalid inst type for "
