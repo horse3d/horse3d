@@ -544,13 +544,17 @@ int hash_STSMapIterate(
                 );
                 if (!entries[found_entries].key)
                     goto allocfail;
-            }
-            if (bk->number != 0) {
-                entries[found_entries].value = strdup(
-                    (const char*)(uintptr_t)bk->number
-                );
-                if (!entries[found_entries].value)
-                    goto allocfail;
+                entries[found_entries].value = NULL;
+                if (bk->number != 0) {
+                    entries[found_entries].value = strdup(
+                        (const char*)(uintptr_t)bk->number
+                    );
+                    if (!entries[found_entries].value) {
+                        free(entries[found_entries].key);
+                        goto allocfail;
+                    }
+                }
+                found_entries++;
             }
             bk = bk->next;
         }
