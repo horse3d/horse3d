@@ -63,9 +63,13 @@ Help & Docs
 
 * [Help forum on Reddit](https://reddit.com/r/Horse64)
 
-* [Help chat on Discord](https://discord.gg/pevKEKY)
+* [Help & community chat on Matrix](
+    https://matrix.to/#/+horse64:matrix.org
+  )
 
-  [![chat icon](misc/logo_README_chat.png)](https://discord.gg/pevKEKY)
+  [![chat icon](misc/logo_README_chat.png)](
+    https://matrix.to/#/+horse64:matrix.org
+  )
 
 
 Should I switch to Horse64?
