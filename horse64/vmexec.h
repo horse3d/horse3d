@@ -35,6 +35,10 @@ typedef struct h64vmexceptioncatchframe {
     int exception_obj_temporary_id;
     int triggered_catch, triggered_finally;
     h64exceptioninfo storeddelayedexception;
+
+    int caught_types_count;
+    int64_t caught_types_firstfive[5];
+    int64_t *caught_types_more;
 } h64vmexceptioncatchframe;
 
 

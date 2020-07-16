@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "bytecode.h"
 #include "compiler/disassembler.h"
@@ -225,6 +226,16 @@ static void popexceptionframe(h64vmthread *vmthread) {
         free(vmthread->exceptionframe[
             vmthread->exceptionframe_count - 1
         ].storeddelayedexception.msg);
+    }
+    if (vmthread->exceptionframe[
+            vmthread->exceptionframe_count - 1
+            ].caught_types_more) {
+        assert(vmthread->exceptionframe[
+            vmthread->exceptionframe_count - 1
+            ].caught_types_count > 5);
+        free(vmthread->exceptionframe[
+             vmthread->exceptionframe_count - 1
+             ].caught_types_more);
     }
     vmthread->exceptionframe_count--;
 }
@@ -515,6 +526,46 @@ static void vmthread_exceptions_EndFinally(
     }
 }
 
+// RAISE_EXCEPTION is a shortcut to handle raising an exception.
+// It was made for use inside vmthread_RunFunction, its signature is:
+// (int64_t class_id, const char *msg, ...args for msg's formatters...)
+#define RAISE_EXCEPTION(class_id, ...) \
+    {\
+    ptrdiff_t offset = (p - pr->func[func_id].instructions);\
+    int returneduncaught = 0; \
+    h64exceptioninfo uncaughtexception = {0}; \
+    uncaughtexception.exception_class_id = -1; \
+    int raiseresult = vmthread_exceptions_Raise( \
+        vmthread, class_id, \
+        &func_id, &offset, \
+        (class_id != H64STDERROR_OUTOFMEMORYERROR), \
+        &returneduncaught, \
+        &uncaughtexception, __VA_ARGS__ \
+    );\
+    if (raiseresult && class_id != H64STDERROR_OUTOFMEMORYERROR) {\
+        memset(&uncaughtexception, 0, sizeof(uncaughtexception));\
+        uncaughtexception.exception_class_id = -1; \
+        raiseresult = vmthread_exceptions_Raise( \
+            vmthread, H64STDERROR_OUTOFMEMORYERROR, \
+            &func_id, &offset, 0, \
+            &returneduncaught, \
+            &uncaughtexception, "Allocation failure" \
+        );\
+    }\
+    if (!raiseresult) {\
+        fprintf(stderr, "Out of memory raising OutOfMemoryError.\n");\
+        _exit(1);\
+        return 0;\
+    }\
+    if (returneduncaught) {\
+        assert(uncaughtexception.exception_class_id < 0); \
+        *returneduncaughtexception = 1;\
+        memcpy(einfo, &uncaughtexception, sizeof(uncaughtexception));\
+        return 1;\
+    }\
+    p = (pr->func[func_id].instructions + offset);\
+    }
+
 int vmthread_RunFunction(
         h64vmthread *vmthread, int64_t func_id,
         int *returneduncaughtexception,
@@ -545,8 +596,9 @@ int vmthread_RunFunction(
         #if defined(DEBUGVMEXEC)
         fprintf(stderr, "horsevm: debug: vmexec triggeroom\n");
         #endif
-        fprintf(stderr, "oom exceptions not implemented\n");
-        return 0;
+        RAISE_EXCEPTION(H64STDERROR_OUTOFMEMORYERROR,
+                        "Allocation failure");
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_setconst: {
         h64instruction_setconst *inst = (h64instruction_setconst *)p;
@@ -1244,14 +1296,67 @@ int vmthread_RunFunction(
         }
 
         p += sizeof(h64instruction_pushcatchframe);
+        while (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE ||
+                ((h64instructionany *)p)->type == H64INST_ADDCATCHTYPEBYREF
+                ) {
+            int64_t class_id = -1;
+            if (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE) {
+                class_id = ((h64instruction_addcatchtype *)p)->classid;
+            } else {
+                int16_t slotfrom = (
+                    ((h64instruction_addcatchtypebyref *)p)->slotfrom
+                );
+                valuecontent *vc = STACK_ENTRY(stack, slotfrom);
+                if (vc->type == H64VALTYPE_CLASSREF) {
+                    int64_t _class_id = vc->int_value;
+                    assert(_class_id >= 0 &&
+                           _class_id < pr->classes_count);
+                    int64_t base_class = pr->classes[_class_id].\
+                        base_class_global_id;
+                    while (base_class > 0)
+                        base_class = pr->classes[base_class].\
+                            base_class_global_id;
+                    if (base_class == 0)  // is Exception-derived!
+                        class_id = _class_id;
+                }
+            }
+            if (class_id < 0) {
+                RAISE_EXCEPTION(H64STDERROR_TYPEERROR,
+                                "catch on non-Exception type");
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            h64vmexceptioncatchframe *topframe = &(vmthread->
+                exceptionframe[vmthread->exceptionframe_count - 1]);
+            if (topframe->caught_types_count + 1 > 5) {
+                int64_t *caught_types_more_new = malloc(
+                    sizeof(*caught_types_more_new) *
+                    ((topframe->caught_types_count + 1) - 5)
+                );
+                if (!caught_types_more_new)
+                    goto triggeroom;
+                topframe->caught_types_more = caught_types_more_new;
+            }
+            int index = topframe->caught_types_count;
+            if (index >= 5) {
+                topframe->caught_types_more[index - 5] = class_id;
+            } else {
+                topframe->caught_types_firstfive[index] = class_id;
+            }
+            topframe->caught_types_count++;
+            if (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE) {
+                p += sizeof(h64instruction_addcatchtype);
+            } else {
+                p += sizeof(h64instruction_addcatchtypebyref);
+            }
+        }
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_addcatchtypebyref: {
-        fprintf(stderr, "addcatchtypebyref not implemented\n");
+        fprintf(stderr, "INVALID isolated addcatchtypebyref!!\n");
         return 0;
     }
     inst_addcatchtype: {
-        fprintf(stderr, "addcatchtype not implemented\n");
+        fprintf(stderr, "INVALID isolated addcatchtype!!\n");
         return 0;
     }
     inst_popcatchframe: {
