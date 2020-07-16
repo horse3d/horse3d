@@ -215,6 +215,7 @@ static int pushexceptionframe(
     newframe->finally_instruction_offset = finally_instruction_offset;
     newframe->exception_obj_temporary_id = exception_obj_temporary_slot;
     newframe->func_frame_no = vmthread->funcframe_count;
+    vmthread->exceptionframe_count++;
     return 1;
 }
 
@@ -1283,6 +1284,9 @@ int vmthread_RunFunction(
                 !vmthread_PrintExec((void*)inst)) goto triggeroom;
         #endif
 
+        #ifndef NDEBUG
+        int previous_count = vmthread->exceptionframe_count;
+        #endif
         if (!pushexceptionframe(
                 vmthread,
                 ((inst->mode & CATCHMODE_JUMPONCATCH) != 0 ?
@@ -1294,6 +1298,10 @@ int vmthread_RunFunction(
                 inst->slotexceptionto)) {
             goto triggeroom;
         }
+        #ifndef NDEBUG
+        assert(vmthread->exceptionframe_count > 0 &&
+               vmthread->exceptionframe_count > previous_count);
+        #endif
 
         p += sizeof(h64instruction_pushcatchframe);
         while (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE ||
@@ -1325,6 +1333,7 @@ int vmthread_RunFunction(
                                 "catch on non-Exception type");
                 goto *jumptable[((h64instructionany *)p)->type];
             }
+            assert(vmthread->exceptionframe_count > 0);
             h64vmexceptioncatchframe *topframe = &(vmthread->
                 exceptionframe[vmthread->exceptionframe_count - 1]);
             if (topframe->caught_types_count + 1 > 5) {
