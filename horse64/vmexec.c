@@ -5,6 +5,7 @@
 #include "compileconfig.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -107,6 +108,7 @@ static int vmthread_PrintExec(
 #endif
 
 static inline void popfuncframe(h64vmthread *vt) {
+    assert(vt->funcframe_count > 0);
     int64_t new_floor = (
         vt->funcframe[vt->funcframe_count - 1].stack_bottom
     );
@@ -121,6 +123,14 @@ static inline void popfuncframe(h64vmthread *vt) {
         assert(result != 0);
     }
     vt->funcframe_count -= 1;
+    #ifndef NDEBUG
+    if (vt->moptions.vmexec_debug) {
+        fprintf(
+            stderr, "horsevm: debug: vmexec popfuncframe %d -> %d\n",
+            vt->funcframe_count + 1, vt->funcframe_count
+        );
+    }
+    #endif
     if (vt->funcframe_count <= 1) {
         vt->stack->current_func_floor = 0;
         stack_RelFloorUpdate(vt->stack);
@@ -131,6 +141,14 @@ static inline int pushfuncframe(
         h64vmthread *vt, int func_id, int return_slot,
         int return_to_func_id, ptrdiff_t return_to_execution_offset
         ) {
+    #ifndef NDEBUG
+    if (vt->moptions.vmexec_debug) {
+        fprintf(
+            stderr, "horsevm: debug: vmexec pushfuncframe %d -> %d\n",
+            vt->funcframe_count, vt->funcframe_count + 1
+        );
+    }
+    #endif
     if (vt->funcframe_count + 1 > vt->funcframe_alloc) {
         h64vmfunctionframe *new_funcframe = realloc(
             vt->funcframe, sizeof(*new_funcframe) *
@@ -366,6 +384,7 @@ static int vmthread_exceptions_Raise(
         }
         popfuncframe(vmthread);
         k++;
+        i--;
     }
 
     // If this is a final, uncaught exception, bail out here:
@@ -527,6 +546,31 @@ static void vmthread_exceptions_EndFinally(
     }
 }
 
+#ifdef NDEBUG
+#define CAN_PREEXCEPTION_PRINT_INFO 0
+#else
+#define CAN_PREEXCEPTION_PRINT_INFO 1
+#endif
+
+static void vmexec_PrintPreExceptionInfo(
+        h64vmthread *vmthread, int64_t class_id
+        ) {
+    fprintf(stderr,
+        "horsevm: debug: vmexec ** RAISING EXCEPTION %" PRId64
+        "\n", class_id
+    );
+    fprintf(stderr,
+        "horsevm: debug: vmexec ** stack total entries: %" PRId64
+        ", func stack bottom: %" PRId64 "\n",
+        vmthread->stack->entry_total_count,
+        vmthread->stack->current_func_floor
+    );
+    fprintf(stderr,
+        "horsevm: debug: vmexec ** func frame count: %d\n",
+        vmthread->funcframe_count
+    );
+}
+
 // RAISE_EXCEPTION is a shortcut to handle raising an exception.
 // It was made for use inside vmthread_RunFunction, its signature is:
 // (int64_t class_id, const char *msg, ...args for msg's formatters...)
@@ -536,6 +580,12 @@ static void vmthread_exceptions_EndFinally(
     int returneduncaught = 0; \
     h64exceptioninfo uncaughtexception = {0}; \
     uncaughtexception.exception_class_id = -1; \
+    if (CAN_PREEXCEPTION_PRINT_INFO &&\
+            vmthread->moptions.vmexec_debug) {\
+        vmexec_PrintPreExceptionInfo(\
+            vmthread, class_id\
+        );\
+    }\
     int raiseresult = vmthread_exceptions_Raise( \
         vmthread, class_id, \
         &func_id, &offset, \
@@ -567,7 +617,7 @@ static void vmthread_exceptions_EndFinally(
     p = (pr->func[func_id].instructions + offset);\
     }
 
-int vmthread_RunFunction(
+int _vmthread_RunFunction_NoPopFuncFrames(
         h64vmthread *vmthread, int64_t func_id,
         int *returneduncaughtexception,
         h64exceptioninfo *einfo
@@ -720,9 +770,6 @@ int vmthread_RunFunction(
         #endif
         int invalidtypes = 1;
         int divisionbyzero = 0;
-        char invalidtypesmsg[] = (
-            "operand not allowed for given types"
-        );
         goto *op_jumptable[inst->optype];
         binop_divide: {
             if (unlikely((v1->type != H64VALTYPE_INT64 &&
@@ -1102,9 +1149,19 @@ int vmthread_RunFunction(
             goto binop_done;
         }
         binop_done:
-        if (invalidtypes || divisionbyzero) {
-            fprintf(stderr, "binop error not implemented\n");
-            return 0;
+        if (invalidtypes) {
+            RAISE_EXCEPTION(
+                H64STDERROR_TYPEERROR,
+                "cannot apply %s operator to given types",
+                operator_OpPrintedAsStr(inst->optype)
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        } else if (divisionbyzero) {
+            RAISE_EXCEPTION(
+                H64STDERROR_MATHERROR,
+                "division by zero"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
         }
         if (copyatend) {
             valuecontent *target = STACK_ENTRY(stack, inst->slotto);
@@ -1307,6 +1364,10 @@ int vmthread_RunFunction(
         while (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE ||
                 ((h64instructionany *)p)->type == H64INST_ADDCATCHTYPEBYREF
                 ) {
+            #ifndef NDEBUG
+            if (vmthread->moptions.vmexec_debug &&
+                    !vmthread_PrintExec((void*)p)) goto triggeroom;
+            #endif
             int64_t class_id = -1;
             if (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE) {
                 class_id = ((h64instruction_addcatchtype *)p)->classid;
@@ -1468,6 +1529,24 @@ int vmthread_RunFunction(
 
     funcnestdepth++;
     goto *jumptable[((h64instructionany *)p)->type];
+}
+
+int vmthread_RunFunction(
+        h64vmthread *vmthread, int64_t func_id,
+        int *returneduncaughtexception,
+        h64exceptioninfo *einfo
+        ) {
+    int framesbefore = vmthread->funcframe_count;
+    int result = _vmthread_RunFunction_NoPopFuncFrames(
+        vmthread, func_id, returneduncaughtexception, einfo
+    );
+    assert(vmthread->funcframe_count >= framesbefore);
+    int i = vmthread->funcframe_count;
+    while (i > framesbefore) {
+        popfuncframe(vmthread);
+        i--;
+    }
+    return result;
 }
 
 int vmthread_RunFunctionWithReturnInt(
