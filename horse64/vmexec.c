@@ -232,7 +232,7 @@ static int pushexceptionframe(
     newframe->catch_instruction_offset = catch_instruction_offset;
     newframe->finally_instruction_offset = finally_instruction_offset;
     newframe->exception_obj_temporary_id = exception_obj_temporary_slot;
-    newframe->func_frame_no = vmthread->funcframe_count;
+    newframe->func_frame_no = vmthread->funcframe_count - 1;
     vmthread->exceptionframe_count++;
     return 1;
 }
@@ -301,6 +301,7 @@ static int vmthread_exceptions_Raise(
     int unroll_to_frame = -1;
     int exception_to_slot = -1;
     int jump_to_finally = 0;
+    if (returneduncaughtexception) *returneduncaughtexception = 0;
 
     // Figure out from top-most catch frame what to do:
     while (1) {
@@ -343,6 +344,9 @@ static int vmthread_exceptions_Raise(
         }
         break;
     }
+    if (unroll_to_frame < 0) {
+        unroll_to_frame = vmthread->funcframe_count - 1;
+    }
 
     // Combine error info:
     int buflen = strlen(msg) * 4;
@@ -351,8 +355,10 @@ static int vmthread_exceptions_Raise(
     if ((exception_to_slot >= 0 || unroll_to_frame < 0) &&
             !bubble_up_exception_later && msg) {
         buf = malloc(buflen);
-        if (!buf && canfailonoom)
+        if (!buf && canfailonoom) {
+            *returneduncaughtexception = 0;
             return 0;
+        }
         if (buf) {
             va_list args;
             va_start(args, msg);
@@ -371,7 +377,7 @@ static int vmthread_exceptions_Raise(
         e.stack_frame_funcid[0] = *current_func_id;
         e.stack_frame_byteoffset[0] = *current_exec_offset;
     }
-    assert(vmthread->funcframe_count > unroll_to_frame);
+    assert(unroll_to_frame < vmthread->funcframe_count);
     int i = vmthread->funcframe_count - 1;
     while (i > unroll_to_frame && i >= 0) {
         if (k < MAX_EXCEPTION_STACK_FRAMES) {
@@ -390,11 +396,15 @@ static int vmthread_exceptions_Raise(
     // If this is a final, uncaught exception, bail out here:
     if (vmthread->exceptionframe_count <= 0 &&
             !bubble_up_exception_later) {
+        assert(e.exception_class_id >= 0);
         if (returneduncaughtexception) *returneduncaughtexception = 1;
         if (out_uncaughtexception) {
             memcpy(out_uncaughtexception, &e, sizeof(e));
+            assert(out_uncaughtexception->exception_class_id >= 0);
         } else {
+            if (returneduncaughtexception) *returneduncaughtexception = 0;
             free(buf);
+            return 0;
         }
         return 1;
     }
@@ -609,7 +619,8 @@ static void vmexec_PrintPreExceptionInfo(
         return 0;\
     }\
     if (returneduncaught) {\
-        assert(uncaughtexception.exception_class_id < 0); \
+        assert(uncaughtexception.exception_class_id >= 0 &&\
+               "vmthread_exceptions_Raise must set uncaughtexception"); \
         *returneduncaughtexception = 1;\
         memcpy(einfo, &uncaughtexception, sizeof(uncaughtexception));\
         return 1;\
