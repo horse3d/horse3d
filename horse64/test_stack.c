@@ -15,8 +15,9 @@ START_TEST (test_stack)
     ck_assert(stack_ToSize(stack, 10, 0));
     ck_assert(STACK_TOTALSIZE(stack) == 10);
     ck_assert(STACK_ALLOC_SIZE(stack) >= 10 + ALLOC_OVERSHOOT);
-    ck_assert(stack->block_count > 0);
-    ck_assert(STACK_ENTRY(stack, 0) == &stack->block[0].entry[0]);
+    ck_assert(STACK_ENTRY(stack, 0) == &stack->entry[0]);
+    stack->current_func_floor = 1;
+    ck_assert(STACK_ENTRY(stack, 0) == &stack->entry[1]);
 
     stack_Free(stack);
 }
