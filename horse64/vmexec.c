@@ -61,6 +61,7 @@ void vmthread_Free(h64vmthread *vmthread) {
         stack_Free(vmthread->stack);
     }
     free(vmthread->funcframe);
+    free(vmthread->exceptionframe);
     if (vmthread->str_pile) {
         poolalloc_Destroy(vmthread->str_pile);
     }
@@ -639,6 +640,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     h64program *pr = vmthread->program;
 
+    #ifndef NDEBUG
+    if (vmthread->moptions.vmexec_debug)
+        fprintf(
+            stderr, "horsevm: debug: vmexec call "
+            "C->h64 func %" PRId64 "\n",
+            func_id
+        );
+    #endif
     assert(func_id >= 0 && func_id < pr->func_count);
     assert(!pr->func[func_id].iscfunc);
     char *p = pr->func[func_id].instructions;
@@ -653,6 +662,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     );
     stack->current_func_floor = original_stack_size;
     int funcnestdepth = 0;
+    #ifndef NDEBUG
+    if (vmthread->moptions.vmexec_debug)
+        fprintf(
+            stderr, "horsevm: debug: vmexec call "
+            "C->h64 has stack floor %" PRId64 "\n",
+            stack->current_func_floor
+        );
+    #endif
 
     goto setupinterpreter;
 
@@ -1570,20 +1587,28 @@ int vmthread_RunFunction(
         vmthread->program->func[func_id].input_stack_size
     );
     int64_t old_floor = vmthread->stack->current_func_floor;
-    int framesbefore = vmthread->funcframe_count;
+    int funcframesbefore = vmthread->funcframe_count;
+    int exceptionframesbefore = vmthread->exceptionframe_count;
     int inneruncaughtexception = 0;
     int result = _vmthread_RunFunction_NoPopFuncFrames(
         vmthread, func_id, &inneruncaughtexception, einfo
     );  // ^ run actual function
 
     // Make sure we don't leave excess func frames behind:
-    assert(vmthread->funcframe_count >= framesbefore);
+    assert(vmthread->funcframe_count >= funcframesbefore);
+    assert(vmthread->exceptionframe_count >= exceptionframesbefore);
     int i = vmthread->funcframe_count;
-    while (i > framesbefore) {
-        assert(inneruncaughtexception);  // only allow unclean stack if error
+    while (i > funcframesbefore) {
+        assert(inneruncaughtexception);  // only allow unclean frames if error
         popfuncframe(vmthread, 1);  // disable cleaning stack because ...
             // ... func stack bottoms might be nonsense, and this might
             // assert otherwise. We'll just wipe it manually later.
+        i--;
+    }
+    i = vmthread->exceptionframe_count;
+    while (i > exceptionframesbefore) {
+        assert(inneruncaughtexception);  // only allow unclean frames if error
+        popexceptionframe(vmthread);
         i--;
     }
     // Stack clean-up:
