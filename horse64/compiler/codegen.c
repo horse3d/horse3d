@@ -1636,6 +1636,15 @@ int _codegencallback_DoCodegen_visit_in(
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
+            } else {
+                h64instruction_popcatchframe inst_popcatch = {0};
+                inst_popcatch.type = H64INST_POPCATCHFRAME;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_popcatch, sizeof(inst_popcatch))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
         }
 
@@ -1664,6 +1673,14 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!result)
                     return 0;
                 i++;
+            }
+            h64instruction_popcatchframe inst_popcatch = {0};
+            inst_popcatch.type = H64INST_POPCATCHFRAME;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_popcatch, sizeof(inst_popcatch))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
             }
         }
 

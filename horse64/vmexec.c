@@ -1524,6 +1524,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vmthread->exceptionframe_count - 1
                 ].triggered_finally) {
             int64_t offset = (p - pr->func[func_id].instructions);
+            #ifndef NDEBUG
+            int64_t oldoffset = offset;
+            #endif
             int exitwithexception = 0;
             h64exceptioninfo e = {0};
             vmthread_exceptions_EndFinally(
@@ -1538,7 +1541,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 memcpy(einfo, &e, sizeof(e));
                 return 1;
             }
+            #ifndef NDEBUG
+            assert(offset != oldoffset);
+            #endif
             p = (pr->func[func_id].instructions + offset);
+        } else {
+            p += sizeof(h64instruction_popcatchframe);
         }
         goto *jumptable[((h64instructionany *)p)->type];
     }
