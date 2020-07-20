@@ -443,6 +443,7 @@ static int vmthread_exceptions_Raise(
             !vmthread->exceptionframe[
                 vmthread->exceptionframe_count - 1
             ].triggered_catch) {
+        // Go into catch clause.
         assert(
             !vmthread->exceptionframe[
                 vmthread->exceptionframe_count - 1
@@ -456,7 +457,7 @@ static int vmthread_exceptions_Raise(
         ].triggered_catch = 1;
         if (vmthread->exceptionframe[
                 vmthread->exceptionframe_count - 1
-                ].finally_instruction_offset < 0) {
+                ].finally_instruction_offset >= 0) {
             dontpop = 1;  // keep catch frame to run finally later
         }
     } else {
