@@ -568,9 +568,16 @@ static void vmthread_exceptions_EndFinally(
 static void vmexec_PrintPreExceptionInfo(
         h64vmthread *vmthread, int64_t class_id
         ) {
+    char buf[256] = "<custom user exception>";
+    if (class_id >= 0 && class_id < H64STDERROR_TOTAL_COUNT) {
+        snprintf(
+            buf, sizeof(buf) - 1,
+            "%s", stderrorclassnames[class_id]
+        );
+    }
     fprintf(stderr,
         "horsevm: debug: vmexec ** RAISING EXCEPTION %" PRId64
-        "\n", class_id
+        " (%s)\n", class_id, buf
     );
     fprintf(stderr,
         "horsevm: debug: vmexec ** stack total entries: %" PRId64
@@ -606,7 +613,7 @@ static void vmexec_PrintPreExceptionInfo(
         &returneduncaught, \
         &uncaughtexception, __VA_ARGS__ \
     );\
-    if (raiseresult && class_id != H64STDERROR_OUTOFMEMORYERROR) {\
+    if (!raiseresult && class_id != H64STDERROR_OUTOFMEMORYERROR) {\
         memset(&uncaughtexception, 0, sizeof(uncaughtexception));\
         uncaughtexception.exception_class_id = -1; \
         raiseresult = vmthread_exceptions_Raise( \
@@ -628,6 +635,7 @@ static void vmexec_PrintPreExceptionInfo(
         memcpy(einfo, &uncaughtexception, sizeof(uncaughtexception));\
         return 1;\
     }\
+    assert(pr->func[func_id].instructions != NULL);\
     p = (pr->func[func_id].instructions + offset);\
     }
 
