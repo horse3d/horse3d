@@ -431,9 +431,11 @@ static int vmthread_exceptions_Raise(
     }
 
     // Set proper execution position:
-    *current_func_id = vmthread->exceptionframe[
+    int frameid = vmthread->exceptionframe[
         vmthread->exceptionframe_count - 1
     ].func_frame_no;
+    assert(frameid >= 0 && frameid < vmthread->funcframe_count);
+    *current_func_id = vmthread->funcframe[frameid].func_id;
     int dontpop = 0;  // whether we need to keep the catch frame we used
     if (vmthread->exceptionframe[
             vmthread->exceptionframe_count - 1
@@ -566,7 +568,8 @@ static void vmthread_exceptions_EndFinally(
 #endif
 
 static void vmexec_PrintPreExceptionInfo(
-        h64vmthread *vmthread, int64_t class_id
+        h64vmthread *vmthread, int64_t class_id, int64_t func_id,
+        int64_t offset
         ) {
     char buf[256] = "<custom user exception>";
     if (class_id >= 0 && class_id < H64STDERROR_TOTAL_COUNT) {
@@ -577,7 +580,9 @@ static void vmexec_PrintPreExceptionInfo(
     }
     fprintf(stderr,
         "horsevm: debug: vmexec ** RAISING EXCEPTION %" PRId64
-        " (%s)\n", class_id, buf
+        " (%s) in func %" PRId64 " at offset %" PRId64 "\n",
+        class_id, buf, func_id,
+        (int64_t)offset
     );
     fprintf(stderr,
         "horsevm: debug: vmexec ** stack total entries: %" PRId64
@@ -588,6 +593,18 @@ static void vmexec_PrintPreExceptionInfo(
     fprintf(stderr,
         "horsevm: debug: vmexec ** func frame count: %d\n",
         vmthread->funcframe_count
+    );
+}
+
+static void vmexec_PrintPostExceptionInfo(
+        ATTR_UNUSED h64vmthread *vmthread, ATTR_UNUSED int64_t class_id,
+        int64_t func_id, int64_t offset
+        ) {
+    fprintf(stderr,
+        "horsevm: debug: vmexec ** RESUME post exception"
+        " in func %" PRId64 " at offset %" PRId64 "\n",
+        func_id,
+        (int64_t)offset
     );
 }
 
@@ -603,7 +620,8 @@ static void vmexec_PrintPreExceptionInfo(
     if (CAN_PREEXCEPTION_PRINT_INFO &&\
             vmthread->moptions.vmexec_debug) {\
         vmexec_PrintPreExceptionInfo(\
-            vmthread, class_id\
+            vmthread, class_id, func_id,\
+            (p - pr->func[func_id].instructions)\
         );\
     }\
     int raiseresult = vmthread_exceptions_Raise( \
@@ -634,6 +652,12 @@ static void vmexec_PrintPreExceptionInfo(
         *returneduncaughtexception = 1;\
         memcpy(einfo, &uncaughtexception, sizeof(uncaughtexception));\
         return 1;\
+    }\
+    if (CAN_PREEXCEPTION_PRINT_INFO &&\
+            vmthread->moptions.vmexec_debug) {\
+        vmexec_PrintPostExceptionInfo(\
+            vmthread, class_id, func_id, offset\
+        );\
     }\
     assert(pr->func[func_id].instructions != NULL);\
     p = (pr->func[func_id].instructions + offset);\
