@@ -559,6 +559,8 @@ static void vmthread_exceptions_EndFinally(
             );
             assert(result != 0);
         }
+    } else {
+        popexceptionframe(vmthread);
     }
 }
 
@@ -1524,15 +1526,13 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vmthread->exceptionframe_count - 1
                 ].triggered_finally) {
             int64_t offset = (p - pr->func[func_id].instructions);
-            #ifndef NDEBUG
             int64_t oldoffset = offset;
-            #endif
             int exitwithexception = 0;
             h64exceptioninfo e = {0};
             vmthread_exceptions_EndFinally(
                 vmthread, &func_id, &offset,
                 &exitwithexception, &e
-            );
+            );  // calls popexceptionframe
             if (exitwithexception) {
                 int result = stack_ToSize(stack, 0, 0);
                 stack->current_func_floor = 0;
@@ -1541,13 +1541,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 memcpy(einfo, &e, sizeof(e));
                 return 1;
             }
-            #ifndef NDEBUG
-            assert(offset != oldoffset);
-            #endif
+            if (offset == oldoffset) {
+                offset += sizeof(h64instruction_popcatchframe);
+            }
             p = (pr->func[func_id].instructions + offset);
         } else {
+            popexceptionframe(vmthread);
             p += sizeof(h64instruction_popcatchframe);
         }
+
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_getmember: {
