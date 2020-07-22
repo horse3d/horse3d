@@ -4,7 +4,7 @@ Horse64
 
 ![GitHub Workflow Status Badge (branch master)](https://img.shields.io/github/workflow/status/horse64/horse64/Basic%20build%20and%20test/master?label=build%20and%20tests&style=flat-square)
 
-Welcome to *Horse64*, an **clean & comprehensive programming
+Welcome to *Horse64*, a **simple & versatile programming
 language** for your applications.
 
 [![logo](misc/logo-readme.png)](https://horse64.org)
@@ -17,7 +17,7 @@ func main {
 
 **Features:**
 
-- **Elegant.** Very readable syntax with simple dynamic typing,
+- **Simple.** Readable syntax with intuitive dynamic typing,
   quick to get started in.
 
 - **Cross-platform.** Supports Windows and Linux, with easy support
@@ -26,9 +26,10 @@ func main {
 - **Self-contained tooling.** Single-binary compiler, no complex
   toolchains or giant IDEs. (unless you want them)
 
-- **Very maintainable.** Brings some order with static
-  imports and identifier checks, while keeping lean dynamic typing.
-  Ideal for maintainable large code bases despite its ease of use.
+- **Maintainable code.** Helps keep your code orderly with static
+  imports and compile-time identifier checks.
+  Ideal for maintainable large code bases, with the accessibility
+  full dynamic typing.
 
 - **Easy to ship.** Single-binary output with no non-system dependencies.
   No need to add an interpreter or separate libaries, making it
