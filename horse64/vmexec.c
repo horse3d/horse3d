@@ -1376,8 +1376,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vc->type == H64VALTYPE_EMPTYARG) {
             jumpevalvalue = 0;
         }
-
-        if (!jumpevalvalue) {
+        if (jumpevalvalue) {
             p += sizeof(h64instruction_condjump);
             goto *jumptable[((h64instructionany *)p)->type];
         }

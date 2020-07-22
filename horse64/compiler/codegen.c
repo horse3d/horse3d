@@ -1367,7 +1367,7 @@ int _codegencallback_DoCodegen_visit_in(
 
                 h64instruction_binop inst_binop = {0};
                 inst_binop.type = H64INST_BINOP;
-                inst_binop.optype = H64OP_CMP_NOTEQUAL;
+                inst_binop.optype = H64OP_CMP_EQUAL;
                 inst_binop.slotto = operand2tmp;
                 inst_binop.arg1slotfrom = argtmp;
                 inst_binop.arg2slotfrom = operand2tmp;
