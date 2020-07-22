@@ -1716,7 +1716,7 @@ int vmthread_RunFunctionWithReturnInt(
             *out_returnint = v;
             return result;
         } else if (vc->type == H64VALTYPE_BOOL) {
-            int64_t v = roundl(vc->float_value);
+            int64_t v = vc->int_value;
             *out_returnint = ((v != 0) ? 0 : -1);
             return result;
         }
