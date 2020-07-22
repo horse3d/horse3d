@@ -828,6 +828,7 @@ int ast_ParseExprInlineOperator_Recurse(
                 return 0;
             }
             memset(callexpr, 0, sizeof(*callexpr));
+            callexpr->storage.eval_temp_id = -1;
             callexpr->line = tokens[i - 1].line;
             callexpr->column = tokens[i - 1].column;
             callexpr->tokenindex = (i - 1) + (
@@ -987,6 +988,7 @@ int ast_ParseExprInlineOperator_Recurse(
             return 0;
         }
         memset(opexpr, 0, sizeof(*opexpr));
+        opexpr->storage.eval_temp_id = -1;
         opexpr->tokenindex = -1;
         opexpr->op.optype = tokens[optokenoffset].int_value;
         if (tokens[optokenoffset].type == H64TK_UNOPSYMBOL) {
@@ -1111,6 +1113,7 @@ int ast_ParseInlineFunc(
         return 0;
     }
     memset(expr, 0, sizeof(*expr));
+    expr->storage.eval_temp_id = -1;
     expr->type = H64EXPRTYPE_INLINEFUNCDEF;
     expr->funcdef.bytecode_func_id = -1;
     expr->line = _refline(context->tokenstreaminfo, tokens, 0);
@@ -1368,6 +1371,7 @@ int ast_ParseInlineFunc(
         return 0;
     }
     memset(returnstmt, 0, sizeof(*returnstmt));
+    expr->storage.eval_temp_id = -1;
     assert(!expr->funcdef.stmt);
     expr->funcdef.stmt = malloc(sizeof(
         *expr->funcdef.stmt
@@ -1443,6 +1447,7 @@ int ast_ParseExprInline(
         return 0;
     }
     memset(expr, 0, sizeof(*expr));
+    expr->storage.eval_temp_id = -1;
 
     expr->line = tokens[0].line;
     expr->column = tokens[0].column;
@@ -2871,6 +2876,7 @@ int ast_ParseExprStmt(
         return 0;
     }
     memset(expr, 0, sizeof(*expr));
+    expr->storage.eval_temp_id = -1;
 
     expr->line = tokens[0].line;
     expr->column = tokens[0].column;

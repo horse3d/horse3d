@@ -20,6 +20,7 @@ typedef enum stderrorclassnum {
     H64STDERROR_IOERROR,
     H64STDERROR_ARGUMENTERROR,
     H64STDERROR_TYPEERROR,
+    H64STDERROR_MATHERROR,
     H64STDERROR_TOTAL_COUNT
 } stderrorclassnum;
 
@@ -31,6 +32,7 @@ static const char *stderrorclassnames[] = {
     "IOError",
     "ArgumentError",
     "TypeError",
+    "MathError",
     NULL
 };
 

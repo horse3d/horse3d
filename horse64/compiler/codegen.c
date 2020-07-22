@@ -1088,7 +1088,9 @@ int _codegencallback_DoCodegen_visit_out(
     } else if (expr->type == H64EXPRTYPE_RETURN_STMT) {
         int returntemp = -1;
         if (expr->returnstmt.returned_expression) {
-            returntemp = expr->storage.eval_temp_id;
+            returntemp = expr->returnstmt.returned_expression->
+                storage.eval_temp_id;
+            assert(returntemp >= 0);
         } else {
             returntemp = new1linetemp(func, expr);
             h64instruction_setconst inst_setconst = {0};
@@ -1129,12 +1131,14 @@ int _codegencallback_DoCodegen_visit_out(
         if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
             assert(expr->storage.set);
             str = &expr->storage.ref;
+            assert(expr->vardef.value->storage.eval_temp_id >= 0);
             assignfromtemporary = expr->vardef.value->
-                storage.ref.id;
+                storage.eval_temp_id;
         } else if (expr->type == H64EXPRTYPE_ASSIGN_STMT) {
             get_assign_lvalue_storage(
                 expr, &str
             );
+            assert(str != NULL);
             assignfromtemporary = (
                 expr->assignstmt.rvalue->storage.eval_temp_id
             );
@@ -1363,7 +1367,7 @@ int _codegencallback_DoCodegen_visit_in(
 
                 h64instruction_binop inst_binop = {0};
                 inst_binop.type = H64INST_BINOP;
-                inst_binop.optype = H64OP_CMP_NOTEQUAL;
+                inst_binop.optype = H64OP_CMP_EQUAL;
                 inst_binop.slotto = operand2tmp;
                 inst_binop.arg1slotfrom = argtmp;
                 inst_binop.arg2slotfrom = operand2tmp;
@@ -1636,6 +1640,15 @@ int _codegencallback_DoCodegen_visit_in(
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
+            } else {
+                h64instruction_popcatchframe inst_popcatch = {0};
+                inst_popcatch.type = H64INST_POPCATCHFRAME;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_popcatch, sizeof(inst_popcatch))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
         }
 
@@ -1664,6 +1677,14 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!result)
                     return 0;
                 i++;
+            }
+            h64instruction_popcatchframe inst_popcatch = {0};
+            inst_popcatch.type = H64INST_POPCATCHFRAME;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_popcatch, sizeof(inst_popcatch))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
             }
         }
 

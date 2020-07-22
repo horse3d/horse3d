@@ -5,6 +5,7 @@
 #include "compileconfig.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -60,6 +61,7 @@ void vmthread_Free(h64vmthread *vmthread) {
         stack_Free(vmthread->stack);
     }
     free(vmthread->funcframe);
+    free(vmthread->exceptionframe);
     if (vmthread->str_pile) {
         poolalloc_Destroy(vmthread->str_pile);
     }
@@ -106,24 +108,36 @@ static int vmthread_PrintExec(
 }
 #endif
 
-static inline void popfuncframe(h64vmthread *vt) {
+static inline void popfuncframe(
+        h64vmthread *vt, int dontclearstack
+        ) {
+    assert(vt->funcframe_count > 0);
     int64_t new_floor = (
         vt->funcframe[vt->funcframe_count - 1].stack_bottom
     );
     int64_t prev_floor = vt->stack->current_func_floor;
-    assert(new_floor <= prev_floor);
+    #ifndef NDEBUG
+    if (!dontclearstack)
+        assert(new_floor <= prev_floor);
+    #endif
     vt->stack->current_func_floor = new_floor;
-    stack_RelFloorUpdate(vt->stack);
-    if (prev_floor < vt->stack->entry_total_count) {
+    if (prev_floor < vt->stack->entry_count && !dontclearstack) {
         int result = stack_ToSize(
             vt->stack, prev_floor, 0
         );
         assert(result != 0);
     }
     vt->funcframe_count -= 1;
+    #ifndef NDEBUG
+    if (vt->moptions.vmexec_debug) {
+        fprintf(
+            stderr, "horsevm: debug: vmexec popfuncframe %d -> %d\n",
+            vt->funcframe_count + 1, vt->funcframe_count
+        );
+    }
+    #endif
     if (vt->funcframe_count <= 1) {
         vt->stack->current_func_floor = 0;
-        stack_RelFloorUpdate(vt->stack);
     }
 }
 
@@ -131,6 +145,14 @@ static inline int pushfuncframe(
         h64vmthread *vt, int func_id, int return_slot,
         int return_to_func_id, ptrdiff_t return_to_execution_offset
         ) {
+    #ifndef NDEBUG
+    if (vt->moptions.vmexec_debug) {
+        fprintf(
+            stderr, "horsevm: debug: vmexec pushfuncframe %d -> %d\n",
+            vt->funcframe_count, vt->funcframe_count + 1
+        );
+    }
+    #endif
     if (vt->funcframe_count + 1 > vt->funcframe_alloc) {
         h64vmfunctionframe *new_funcframe = realloc(
             vt->funcframe, sizeof(*new_funcframe) *
@@ -148,7 +170,7 @@ static inline int pushfuncframe(
     #ifndef NDEBUG
     if (vt->funcframe_count > 0) {
         assert(
-            vt->stack->entry_total_count -
+            vt->stack->entry_count -
             vt->stack->current_func_floor >=
             vt->program->func[func_id].input_stack_size
         );
@@ -156,7 +178,7 @@ static inline int pushfuncframe(
     #endif
     assert(vt->program != NULL &&
            func_id >= 0 && func_id < vt->program->func_count);
-    int prevtop = vt->stack->entry_total_count;
+    int prevtop = vt->stack->entry_count;
     if (!stack_ToSize(
             vt->stack,
             (vt->funcframe_count == 0 ?
@@ -166,7 +188,7 @@ static inline int pushfuncframe(
         return 0;
     }
     vt->funcframe[vt->funcframe_count].stack_bottom = (
-        vt->stack->entry_total_count - (
+        vt->stack->entry_count - (
         vt->program->func[func_id].input_stack_size +
         vt->program->func[func_id].inner_stack_size)
     );
@@ -180,7 +202,6 @@ static inline int pushfuncframe(
     vt->stack->current_func_floor = (
         vt->funcframe[vt->funcframe_count - 1].stack_bottom
     );
-    stack_RelFloorUpdate(vt->stack);
     return 1;
 }
 
@@ -214,7 +235,7 @@ static int pushexceptionframe(
     newframe->catch_instruction_offset = catch_instruction_offset;
     newframe->finally_instruction_offset = finally_instruction_offset;
     newframe->exception_obj_temporary_id = exception_obj_temporary_slot;
-    newframe->func_frame_no = vmthread->funcframe_count;
+    newframe->func_frame_no = vmthread->funcframe_count - 1;
     vmthread->exceptionframe_count++;
     return 1;
 }
@@ -283,6 +304,7 @@ static int vmthread_exceptions_Raise(
     int unroll_to_frame = -1;
     int exception_to_slot = -1;
     int jump_to_finally = 0;
+    if (returneduncaughtexception) *returneduncaughtexception = 0;
 
     // Figure out from top-most catch frame what to do:
     while (1) {
@@ -325,6 +347,9 @@ static int vmthread_exceptions_Raise(
         }
         break;
     }
+    if (unroll_to_frame < 0) {
+        unroll_to_frame = vmthread->funcframe_count - 1;
+    }
 
     // Combine error info:
     int buflen = strlen(msg) * 4;
@@ -333,8 +358,10 @@ static int vmthread_exceptions_Raise(
     if ((exception_to_slot >= 0 || unroll_to_frame < 0) &&
             !bubble_up_exception_later && msg) {
         buf = malloc(buflen);
-        if (!buf && canfailonoom)
+        if (!buf && canfailonoom) {
+            *returneduncaughtexception = 0;
             return 0;
+        }
         if (buf) {
             va_list args;
             va_start(args, msg);
@@ -353,7 +380,7 @@ static int vmthread_exceptions_Raise(
         e.stack_frame_funcid[0] = *current_func_id;
         e.stack_frame_byteoffset[0] = *current_exec_offset;
     }
-    assert(vmthread->funcframe_count > unroll_to_frame);
+    assert(unroll_to_frame < vmthread->funcframe_count);
     int i = vmthread->funcframe_count - 1;
     while (i > unroll_to_frame && i >= 0) {
         if (k < MAX_EXCEPTION_STACK_FRAMES) {
@@ -364,18 +391,23 @@ static int vmthread_exceptions_Raise(
                 vmthread->funcframe[i].return_to_execution_offset
             );
         }
-        popfuncframe(vmthread);
+        popfuncframe(vmthread, 0);
         k++;
+        i--;
     }
 
     // If this is a final, uncaught exception, bail out here:
     if (vmthread->exceptionframe_count <= 0 &&
             !bubble_up_exception_later) {
+        assert(e.exception_class_id >= 0);
         if (returneduncaughtexception) *returneduncaughtexception = 1;
         if (out_uncaughtexception) {
             memcpy(out_uncaughtexception, &e, sizeof(e));
+            assert(out_uncaughtexception->exception_class_id >= 0);
         } else {
+            if (returneduncaughtexception) *returneduncaughtexception = 0;
             free(buf);
+            return 0;
         }
         return 1;
     }
@@ -399,9 +431,11 @@ static int vmthread_exceptions_Raise(
     }
 
     // Set proper execution position:
-    *current_func_id = vmthread->exceptionframe[
+    int frameid = vmthread->exceptionframe[
         vmthread->exceptionframe_count - 1
     ].func_frame_no;
+    assert(frameid >= 0 && frameid < vmthread->funcframe_count);
+    *current_func_id = vmthread->funcframe[frameid].func_id;
     int dontpop = 0;  // whether we need to keep the catch frame we used
     if (vmthread->exceptionframe[
             vmthread->exceptionframe_count - 1
@@ -409,6 +443,7 @@ static int vmthread_exceptions_Raise(
             !vmthread->exceptionframe[
                 vmthread->exceptionframe_count - 1
             ].triggered_catch) {
+        // Go into catch clause.
         assert(
             !vmthread->exceptionframe[
                 vmthread->exceptionframe_count - 1
@@ -422,7 +457,7 @@ static int vmthread_exceptions_Raise(
         ].triggered_catch = 1;
         if (vmthread->exceptionframe[
                 vmthread->exceptionframe_count - 1
-                ].finally_instruction_offset < 0) {
+                ].finally_instruction_offset >= 0) {
             dontpop = 1;  // keep catch frame to run finally later
         }
     } else {
@@ -524,7 +559,56 @@ static void vmthread_exceptions_EndFinally(
             );
             assert(result != 0);
         }
+    } else {
+        popexceptionframe(vmthread);
     }
+}
+
+#ifdef NDEBUG
+#define CAN_PREEXCEPTION_PRINT_INFO 0
+#else
+#define CAN_PREEXCEPTION_PRINT_INFO 1
+#endif
+
+static void vmexec_PrintPreExceptionInfo(
+        h64vmthread *vmthread, int64_t class_id, int64_t func_id,
+        int64_t offset
+        ) {
+    char buf[256] = "<custom user exception>";
+    if (class_id >= 0 && class_id < H64STDERROR_TOTAL_COUNT) {
+        snprintf(
+            buf, sizeof(buf) - 1,
+            "%s", stderrorclassnames[class_id]
+        );
+    }
+    fprintf(stderr,
+        "horsevm: debug: vmexec ** RAISING EXCEPTION %" PRId64
+        " (%s) in func %" PRId64 " at offset %" PRId64 "\n",
+        class_id, buf, func_id,
+        (int64_t)offset
+    );
+    fprintf(stderr,
+        "horsevm: debug: vmexec ** stack total entries: %" PRId64
+        ", func stack bottom: %" PRId64 "\n",
+        vmthread->stack->entry_count,
+        vmthread->stack->current_func_floor
+    );
+    fprintf(stderr,
+        "horsevm: debug: vmexec ** func frame count: %d\n",
+        vmthread->funcframe_count
+    );
+}
+
+static void vmexec_PrintPostExceptionInfo(
+        ATTR_UNUSED h64vmthread *vmthread, ATTR_UNUSED int64_t class_id,
+        int64_t func_id, int64_t offset
+        ) {
+    fprintf(stderr,
+        "horsevm: debug: vmexec ** RESUME post exception"
+        " in func %" PRId64 " at offset %" PRId64 "\n",
+        func_id,
+        (int64_t)offset
+    );
 }
 
 // RAISE_EXCEPTION is a shortcut to handle raising an exception.
@@ -536,6 +620,13 @@ static void vmthread_exceptions_EndFinally(
     int returneduncaught = 0; \
     h64exceptioninfo uncaughtexception = {0}; \
     uncaughtexception.exception_class_id = -1; \
+    if (CAN_PREEXCEPTION_PRINT_INFO &&\
+            vmthread->moptions.vmexec_debug) {\
+        vmexec_PrintPreExceptionInfo(\
+            vmthread, class_id, func_id,\
+            (p - pr->func[func_id].instructions)\
+        );\
+    }\
     int raiseresult = vmthread_exceptions_Raise( \
         vmthread, class_id, \
         &func_id, &offset, \
@@ -543,7 +634,7 @@ static void vmthread_exceptions_EndFinally(
         &returneduncaught, \
         &uncaughtexception, __VA_ARGS__ \
     );\
-    if (raiseresult && class_id != H64STDERROR_OUTOFMEMORYERROR) {\
+    if (!raiseresult && class_id != H64STDERROR_OUTOFMEMORYERROR) {\
         memset(&uncaughtexception, 0, sizeof(uncaughtexception));\
         uncaughtexception.exception_class_id = -1; \
         raiseresult = vmthread_exceptions_Raise( \
@@ -559,15 +650,23 @@ static void vmthread_exceptions_EndFinally(
         return 0;\
     }\
     if (returneduncaught) {\
-        assert(uncaughtexception.exception_class_id < 0); \
+        assert(uncaughtexception.exception_class_id >= 0 &&\
+               "vmthread_exceptions_Raise must set uncaughtexception"); \
         *returneduncaughtexception = 1;\
         memcpy(einfo, &uncaughtexception, sizeof(uncaughtexception));\
         return 1;\
     }\
+    if (CAN_PREEXCEPTION_PRINT_INFO &&\
+            vmthread->moptions.vmexec_debug) {\
+        vmexec_PrintPostExceptionInfo(\
+            vmthread, class_id, func_id, offset\
+        );\
+    }\
+    assert(pr->func[func_id].instructions != NULL);\
     p = (pr->func[func_id].instructions + offset);\
     }
 
-int vmthread_RunFunction(
+int _vmthread_RunFunction_NoPopFuncFrames(
         h64vmthread *vmthread, int64_t func_id,
         int *returneduncaughtexception,
         h64exceptioninfo *einfo
@@ -576,6 +675,14 @@ int vmthread_RunFunction(
         return 0;
     h64program *pr = vmthread->program;
 
+    #ifndef NDEBUG
+    if (vmthread->moptions.vmexec_debug)
+        fprintf(
+            stderr, "horsevm: debug: vmexec call "
+            "C->h64 func %" PRId64 "\n",
+            func_id
+        );
+    #endif
     assert(func_id >= 0 && func_id < pr->func_count);
     assert(!pr->func[func_id].iscfunc);
     char *p = pr->func[func_id].instructions;
@@ -585,7 +692,19 @@ int vmthread_RunFunction(
     memset(op_jumptable, 0, sizeof(*op_jumptable) * TOTAL_OP_COUNT);
     h64stack *stack = vmthread->stack;
     poolalloc *heap = vmthread->heap;
+    int64_t original_stack_size = (
+        stack->entry_count - pr->func[func_id].input_stack_size
+    );
+    stack->current_func_floor = original_stack_size;
     int funcnestdepth = 0;
+    #ifndef NDEBUG
+    if (vmthread->moptions.vmexec_debug)
+        fprintf(
+            stderr, "horsevm: debug: vmexec call "
+            "C->h64 has stack floor %" PRId64 "\n",
+            stack->current_func_floor
+        );
+    #endif
 
     goto setupinterpreter;
 
@@ -609,9 +728,9 @@ int vmthread_RunFunction(
         #endif
         assert(
             stack != NULL && inst->slot >= 0 &&
-            inst->slot < stack->entry_total_count -
+            inst->slot < stack->entry_count -
             stack->current_func_floor &&
-            stack->alloc_total_count >= stack->entry_total_count
+            stack->alloc_count >= stack->entry_count
         );
         valuecontent *vc = STACK_ENTRY(stack, inst->slot);
         valuecontent_Free(vc);
@@ -720,9 +839,6 @@ int vmthread_RunFunction(
         #endif
         int invalidtypes = 1;
         int divisionbyzero = 0;
-        char invalidtypesmsg[] = (
-            "operand not allowed for given types"
-        );
         goto *op_jumptable[inst->optype];
         binop_divide: {
             if (unlikely((v1->type != H64VALTYPE_INT64 &&
@@ -1102,9 +1218,19 @@ int vmthread_RunFunction(
             goto binop_done;
         }
         binop_done:
-        if (invalidtypes || divisionbyzero) {
-            fprintf(stderr, "binop error not implemented\n");
-            return 0;
+        if (invalidtypes) {
+            RAISE_EXCEPTION(
+                H64STDERROR_TYPEERROR,
+                "cannot apply %s operator to given types",
+                operator_OpPrintedAsStr(inst->optype)
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        } else if (divisionbyzero) {
+            RAISE_EXCEPTION(
+                H64STDERROR_MATHERROR,
+                "division by zero"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
         }
         if (copyatend) {
             valuecontent *target = STACK_ENTRY(stack, inst->slotto);
@@ -1154,31 +1280,41 @@ int vmthread_RunFunction(
         );
         #ifndef NDEBUG
         if (funcnestdepth <= 1 &&
-                stack->entry_total_count - current_stack_size != 0) {
+                stack->entry_count - current_stack_size != 0) {
             fprintf(
                 stderr, "horsevm: error: "
                 "stack total count %d, current func stack %d, "
                 "unwound last function should return this to 0 "
                 "and doesn't\n",
-                (int)stack->entry_total_count, (int)current_stack_size
+                (int)stack->entry_count, (int)current_stack_size
             );
         }
         #endif
-        assert(stack->entry_total_count >= current_stack_size);
+        assert(stack->entry_count >= current_stack_size);
         funcnestdepth--;
         if (funcnestdepth <= 0) {
-            assert(stack->entry_total_count - current_stack_size == 0);
+            popfuncframe(vmthread, 1);  // pop frame but leave stack!
+            func_id = -1;
+            assert(stack->entry_count - current_stack_size == 0);
             if (!stack_ToSize(
-                    stack, 1, 0
+                    stack, original_stack_size + 1, 0
                     )) {
                 if (vccopy.type == H64VALTYPE_GCVAL)
                     ((h64gcvalue *)vccopy.ptr_value)->externalreferencecount--;
-                goto triggeroom;
+
+                // Need to "manually" raise error since we're outside of any
+                // function at this point:
+                if (returneduncaughtexception)
+                    *returneduncaughtexception = 1;
+                memset(einfo, 0, sizeof(*einfo));
+                einfo->exception_class_id = H64STDERROR_OUTOFMEMORYERROR;
+                return 0;
             }
+            assert(stack->entry_count == original_stack_size + 1);
 
             // Place return value:
             valuecontent *newvc = stack_GetEntrySlow(
-                stack, 0
+                stack, original_stack_size
             );
             valuecontent_Free(newvc);
             memcpy(newvc, &vccopy, sizeof(vccopy));
@@ -1197,7 +1333,7 @@ int vmthread_RunFunction(
             vmthread->funcframe[vmthread->funcframe_count].
             return_to_execution_offset
         );
-        popfuncframe(vmthread);
+        popfuncframe(vmthread, 0);
 
         // Place return value:
         if (returnslot >= 0) {
@@ -1240,8 +1376,7 @@ int vmthread_RunFunction(
                 vc->type == H64VALTYPE_EMPTYARG) {
             jumpevalvalue = 0;
         }
-
-        if (!jumpevalvalue) {
+        if (jumpevalvalue) {
             p += sizeof(h64instruction_condjump);
             goto *jumptable[((h64instructionany *)p)->type];
         }
@@ -1307,6 +1442,10 @@ int vmthread_RunFunction(
         while (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE ||
                 ((h64instructionany *)p)->type == H64INST_ADDCATCHTYPEBYREF
                 ) {
+            #ifndef NDEBUG
+            if (vmthread->moptions.vmexec_debug &&
+                    !vmthread_PrintExec((void*)p)) goto triggeroom;
+            #endif
             int64_t class_id = -1;
             if (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE) {
                 class_id = ((h64instruction_addcatchtype *)p)->classid;
@@ -1386,23 +1525,30 @@ int vmthread_RunFunction(
                 vmthread->exceptionframe_count - 1
                 ].triggered_finally) {
             int64_t offset = (p - pr->func[func_id].instructions);
+            int64_t oldoffset = offset;
             int exitwithexception = 0;
             h64exceptioninfo e = {0};
             vmthread_exceptions_EndFinally(
                 vmthread, &func_id, &offset,
                 &exitwithexception, &e
-            );
+            );  // calls popexceptionframe
             if (exitwithexception) {
                 int result = stack_ToSize(stack, 0, 0);
                 stack->current_func_floor = 0;
-                stack_RelFloorUpdate(stack);
                 assert(result != 0);
                 *returneduncaughtexception = 1;
                 memcpy(einfo, &e, sizeof(e));
                 return 1;
             }
+            if (offset == oldoffset) {
+                offset += sizeof(h64instruction_popcatchframe);
+            }
             p = (pr->func[func_id].instructions + offset);
+        } else {
+            popexceptionframe(vmthread);
+            p += sizeof(h64instruction_popcatchframe);
         }
+
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_getmember: {
@@ -1465,9 +1611,69 @@ int vmthread_RunFunction(
     if (!pushfuncframe(vmthread, func_id, -1, -1, 0)) {
         goto triggeroom;
     }
+    vmthread->funcframe[vmthread->funcframe_count - 1].stack_bottom = (
+        original_stack_size
+    );
 
     funcnestdepth++;
     goto *jumptable[((h64instructionany *)p)->type];
+}
+
+int vmthread_RunFunction(
+        h64vmthread *vmthread, int64_t func_id,
+        int *returneduncaughtexception,
+        h64exceptioninfo *einfo
+        ) {
+    // Remember func frames & old stack we had before, then launch:
+    int64_t old_stack = vmthread->stack->entry_count - (
+        vmthread->program->func[func_id].input_stack_size
+    );
+    int64_t old_floor = vmthread->stack->current_func_floor;
+    int funcframesbefore = vmthread->funcframe_count;
+    int exceptionframesbefore = vmthread->exceptionframe_count;
+    int inneruncaughtexception = 0;
+    int result = _vmthread_RunFunction_NoPopFuncFrames(
+        vmthread, func_id, &inneruncaughtexception, einfo
+    );  // ^ run actual function
+
+    // Make sure we don't leave excess func frames behind:
+    assert(vmthread->funcframe_count >= funcframesbefore);
+    assert(vmthread->exceptionframe_count >= exceptionframesbefore);
+    int i = vmthread->funcframe_count;
+    while (i > funcframesbefore) {
+        assert(inneruncaughtexception);  // only allow unclean frames if error
+        popfuncframe(vmthread, 1);  // disable cleaning stack because ...
+            // ... func stack bottoms might be nonsense, and this might
+            // assert otherwise. We'll just wipe it manually later.
+        i--;
+    }
+    i = vmthread->exceptionframe_count;
+    while (i > exceptionframesbefore) {
+        assert(inneruncaughtexception);  // only allow unclean frames if error
+        popexceptionframe(vmthread);
+        i--;
+    }
+    // Stack clean-up:
+    assert(vmthread->stack->entry_count >= old_stack);
+    if (inneruncaughtexception) {
+        // An exception, so we need to do manual stack cleaning:
+        if (vmthread->stack->entry_count > old_stack) {
+            int _sizing_worked = stack_ToSize(vmthread->stack, old_stack, 0);
+            assert(_sizing_worked);
+        }
+        assert(vmthread->stack->entry_count == old_stack);
+        assert(old_floor <= vmthread->stack->current_func_floor);
+        vmthread->stack->current_func_floor = old_floor;
+    } else {
+        // No exception, so make sure stack was properly cleared:
+        assert(vmthread->stack->entry_count == old_stack + 1);
+        //   (old stack + return value on top)
+        // Set old function floor:
+        vmthread->stack->current_func_floor = old_floor;
+    }
+    if (returneduncaughtexception)
+        *returneduncaughtexception = inneruncaughtexception;
+    return result;
 }
 
 int vmthread_RunFunctionWithReturnInt(
@@ -1478,29 +1684,39 @@ int vmthread_RunFunctionWithReturnInt(
     if (!vmthread || !einfo || !out_returnint)
         return 0;
     int innerreturneduncaughtexception = 0;
+    int64_t old_stack_size = vmthread->stack->entry_count;
     int result = vmthread_RunFunction(
         vmthread, func_id, &innerreturneduncaughtexception, einfo
     );
-    assert(vmthread->stack->entry_total_count <= 1 || !result);
+    assert(
+        ((vmthread->stack->entry_count <= old_stack_size + 1) ||
+        !result) && vmthread->stack->entry_count >= old_stack_size
+    );
     if (innerreturneduncaughtexception) {
         *returneduncaughtexception = 1;
         return 1;
     }
-    if (!result || vmthread->stack->entry_total_count == 0) {
+    if (!result || vmthread->stack->entry_count <= old_stack_size) {
         *out_returnint = 0;
     } else {
-        valuecontent *vc = stack_GetEntrySlow(vmthread->stack, 0);
+        valuecontent *vc = STACK_ENTRY(
+            vmthread->stack, old_stack_size
+        );
         if (vc->type == H64VALTYPE_INT64) {
             int64_t v = vc->int_value;
             if (v > INT_MAX) v = INT_MAX;
             if (v < INT_MIN) v = INT_MIN;
-            *out_returnint = 1;
+            *out_returnint = v;
             return result;
         } else if (vc->type == H64VALTYPE_FLOAT64) {
             int64_t v = roundl(vc->float_value);
             if (v > INT_MAX) v = INT_MAX;
             if (v < INT_MIN) v = INT_MIN;
-            *out_returnint = 1;
+            *out_returnint = v;
+            return result;
+        } else if (vc->type == H64VALTYPE_BOOL) {
+            int64_t v = vc->int_value;
+            *out_returnint = ((v != 0) ? 0 : -1);
             return result;
         }
         *out_returnint = 0;
@@ -1541,6 +1757,8 @@ int vmexec_ExecuteProgram(
             vmthread_Free(mainthread);
             return -1;
         }
+        int result = stack_ToSize(mainthread->stack, 0, 0);
+        assert(result != 0);
     }
     haduncaughtexception = 0;
     rval = 0;
