@@ -1685,29 +1685,39 @@ int vmthread_RunFunctionWithReturnInt(
     if (!vmthread || !einfo || !out_returnint)
         return 0;
     int innerreturneduncaughtexception = 0;
+    int64_t old_stack_size = vmthread->stack->entry_count;
     int result = vmthread_RunFunction(
         vmthread, func_id, &innerreturneduncaughtexception, einfo
     );
-    assert(vmthread->stack->entry_count <= 1 || !result);
+    assert(
+        ((vmthread->stack->entry_count <= old_stack_size + 1) ||
+        !result) && vmthread->stack->entry_count >= old_stack_size
+    );
     if (innerreturneduncaughtexception) {
         *returneduncaughtexception = 1;
         return 1;
     }
-    if (!result || vmthread->stack->entry_count == 0) {
+    if (!result || vmthread->stack->entry_count <= old_stack_size) {
         *out_returnint = 0;
     } else {
-        valuecontent *vc = stack_GetEntrySlow(vmthread->stack, 0);
+        valuecontent *vc = STACK_ENTRY(
+            vmthread->stack, old_stack_size
+        );
         if (vc->type == H64VALTYPE_INT64) {
             int64_t v = vc->int_value;
             if (v > INT_MAX) v = INT_MAX;
             if (v < INT_MIN) v = INT_MIN;
-            *out_returnint = 1;
+            *out_returnint = v;
             return result;
         } else if (vc->type == H64VALTYPE_FLOAT64) {
             int64_t v = roundl(vc->float_value);
             if (v > INT_MAX) v = INT_MAX;
             if (v < INT_MIN) v = INT_MIN;
-            *out_returnint = 1;
+            *out_returnint = v;
+            return result;
+        } else if (vc->type == H64VALTYPE_BOOL) {
+            int64_t v = roundl(vc->float_value);
+            *out_returnint = ((v != 0) ? 0 : -1);
             return result;
         }
         *out_returnint = 0;
@@ -1748,6 +1758,8 @@ int vmexec_ExecuteProgram(
             vmthread_Free(mainthread);
             return -1;
         }
+        int result = stack_ToSize(mainthread->stack, 0, 0);
+        assert(result != 0);
     }
     haduncaughtexception = 0;
     rval = 0;
