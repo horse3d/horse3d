@@ -329,6 +329,8 @@ void varstorage_FreeExtraInfo(
         ) {
     if (!einfo)
         return;
+    free(einfo->codegen.extra_temps_used);
+    free(einfo->codegen.extra_temps_deletepastline);
     free(einfo->lstoreassign);
     free(einfo->closureboundvars);
     free(einfo);
