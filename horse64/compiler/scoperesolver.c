@@ -21,6 +21,7 @@
 #include "compiler/scoperesolver.h"
 #include "compiler/scope.h"
 #include "compiler/varstorage.h"
+#include "corelib/errors.h"
 #include "filesys.h"
 #include "hash.h"
 
@@ -540,12 +541,40 @@ int scoperesolver_EvaluteDerivedClassParent(
             ].base_class_global_id;
         }
     }
+
+    // Set base class id:
     assert(atinfo->pr->program->classes[
         expr->parent->classdef.bytecode_class_id
     ].base_class_global_id < 0);
     atinfo->pr->program->classes[
         expr->parent->classdef.bytecode_class_id
     ].base_class_global_id = expr->storage.ref.id;
+
+    // Mark chain as exceptions if deriving from 'Exception':
+    int exception_chain = 0;
+    {
+        int64_t cid = expr->parent->classdef.bytecode_class_id;
+        while (cid >= 0) {
+            if (cid == H64STDERROR_EXCEPTION) {
+                exception_chain = 1;
+                break;
+            }
+            cid = atinfo->pr->program->classes[
+                cid
+            ].base_class_global_id;
+        }
+    }
+    if (exception_chain) {
+        int64_t cid = expr->parent->classdef.bytecode_class_id;
+        while (cid >= 0) {
+            cid = atinfo->pr->program->classes[
+                cid
+            ].is_exception = 1;
+            cid = atinfo->pr->program->classes[
+                cid
+            ].base_class_global_id;
+        }
+    }
     return 1;
 }
 
