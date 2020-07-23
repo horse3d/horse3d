@@ -1578,8 +1578,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         int64_t nameidx = inst->nameidx;
         if (nameidx == vmthread->program->as_str_name_index
                 ) {  // .as_str
-            printf("AS STR\n");
-
             // See what this actually is as a string:
             unicodechar strvalue[128];
             int64_t strvaluelen = -1;
