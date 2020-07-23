@@ -1458,13 +1458,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     int64_t _class_id = vc->int_value;
                     assert(_class_id >= 0 &&
                            _class_id < pr->classes_count);
-                    int64_t base_class = pr->classes[_class_id].\
-                        base_class_global_id;
-                    while (base_class > 0)
-                        base_class = pr->classes[base_class].\
-                            base_class_global_id;
-                    if (base_class == 0)  // is Exception-derived!
+                    if (pr->classes[_class_id].is_exception) {
+                        // is Exception-derived!
                         class_id = _class_id;
+                    }
                 }
             }
             if (class_id < 0) {

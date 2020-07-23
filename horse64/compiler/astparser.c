@@ -3300,6 +3300,7 @@ int ast_ParseExprStmt(
             return 0;
         }
         expr->type = H64EXPRTYPE_CLASSDEF_STMT;
+        expr->classdef.bytecode_class_id = -1;
         expr->classdef.scope.parentscope = parsethis->scope;
         if (!scope_Init(&expr->classdef.scope)) {
             if (outofmemory) *outofmemory = 1;

@@ -64,6 +64,7 @@ int corelib_RegisterErrorClasses(
         );
         if (idx >= 0) {
             assert(p->classes_count - 1 == idx);
+            p->classes[i].is_exception = 1;
             if (idx > 0)
                 p->classes[i].base_class_global_id = (
                     0 // "Exception" is base classes

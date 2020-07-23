@@ -115,7 +115,7 @@ typedef struct h64expression {
             h64scope scope;
             h64scope *foundinscope;
             h64funcargs arguments;
-            int bytecode_func_id;
+            int64_t bytecode_func_id;
 
             h64funcstorageextrainfo *_storageinfo;
         } funcdef;
@@ -184,10 +184,13 @@ typedef struct h64expression {
             h64scope scope;
             char *name;
             h64expression *baseclass_ref;
+
             int vardef_count;
             h64expression **vardef;
             int funcdef_count;
             h64expression **funcdef;
+            int64_t bytecode_class_id;
+
             h64scope *foundinscope;
         } classdef;
         struct forstmt {

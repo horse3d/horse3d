@@ -467,6 +467,88 @@ static int funchasparamwithname(h64expression *expr, const char *param) {
     return 0;
 }
 
+int scoperesolver_EvaluteDerivedClassParent(
+        asttransforminfo *atinfo, h64expression *expr
+        ) {
+    if (expr->parent->type != H64EXPRTYPE_CLASSDEF_STMT ||
+            (expr->type != H64EXPRTYPE_IDENTIFIERREF &&
+             (expr->type != H64EXPRTYPE_BINARYOP ||
+              expr->op.optype != H64OP_MEMBERBYIDENTIFIER)) ||
+            expr->parent->classdef.baseclass_ref != expr)
+        return 1;
+
+    if (!expr->storage.set ||
+            expr->storage.ref.type != H64STORETYPE_GLOBALCLASSSLOT) {
+        // We can't set this as a base class.
+        if ((expr->storage.set &&
+                expr->storage.ref.type != H64STORETYPE_GLOBALCLASSSLOT) ||
+                (atinfo->ast->resultmsg.success &&
+                 atinfo->pr->resultmsg->success)) {
+            // Likely a user error and not just a follow-up problem
+            char buf[128] = "";
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected derived from expression, "
+                "must refer to another class"
+            );
+            atinfo->ast->resultmsg.success = 0;
+            if (!result_AddMessage(
+                    &atinfo->ast->resultmsg,
+                    H64MSG_ERROR,
+                    buf,
+                    atinfo->ast->fileuri,
+                    expr->line, expr->column
+                    )) {
+                atinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+        return 1;  // bail out
+    }
+    if (expr->parent->classdef.bytecode_class_id < 0) {
+        // There was an error that prevents us from completing this,
+        // bail out:
+        assert(!atinfo->ast->resultmsg.success ||
+               !atinfo->pr->resultmsg->success);
+        return 1;
+    }
+    assert(expr->storage.ref.id >= 0 &&
+           expr->storage.ref.id < atinfo->pr->program->classes_count);
+    { // Search for a cycle:
+        int64_t cid = expr->storage.ref.id;
+        while (cid >= 0) {
+            if (cid == expr->parent->classdef.bytecode_class_id) {
+                char buf[128] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected cycle in base classes, "
+                    "a class must not derive from itself"
+                );
+                atinfo->ast->resultmsg.success = 0;
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                return 1;
+            }
+            cid = atinfo->pr->program->classes[
+                cid
+            ].base_class_global_id;
+        }
+    }
+    assert(atinfo->pr->program->classes[
+        expr->parent->classdef.bytecode_class_id
+    ].base_class_global_id < 0);
+    atinfo->pr->program->classes[
+        expr->parent->classdef.bytecode_class_id
+    ].base_class_global_id = expr->storage.ref.id;
+    return 1;
+}
+
 int _resolvercallback_ResolveIdentifiers_visit_out(
         h64expression *expr, h64expression *parent, void *ud
         ) {
@@ -605,6 +687,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             if (!isexprchildof(expr, def->declarationexpr) ||
                     def->declarationexpr->type ==
                     H64EXPRTYPE_FOR_STMT) {
+                // Not our direct parent, so we're an external use.
                 // -> let's mark it as used from somewhere external:
                 def->everused = 1;
                 // If the referenced thing is a variable inside a func
@@ -669,6 +752,12 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 // so this shouldn't happen. Log as error:
                 atinfo->hadunexpectederror = 1;
             }
+            if (!scoperesolver_EvaluteDerivedClassParent(
+                    atinfo, expr
+                    )) {
+                atinfo->hadoutofmemory = 1;
+                return 0;
+            }
         } else if (def->declarationexpr->type ==
                 H64EXPRTYPE_IMPORT_STMT) {
             // Not a file-local, but instead an imported thing.
@@ -677,11 +766,16 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             // First, follow the tree to the full import path with dots:
             int accessed_elements_count = 1;
             int accessed_elements_alloc = H64LIMIT_IMPORTCHAINLEN + 1;
-            char **accessed_elements = alloca(
-                sizeof(*accessed_elements) * (
+            char **accessed_elements_str = alloca(
+                sizeof(*accessed_elements_str) * (
                 accessed_elements_alloc)
             );
-            accessed_elements[0] = expr->identifierref.value;
+            h64expression **accessed_elements_expr = alloca(
+                sizeof(*accessed_elements_expr) * (
+                accessed_elements_alloc)
+            );
+            accessed_elements_expr[0] = expr;
+            accessed_elements_str[0] = expr->identifierref.value;
             h64expression *pexpr = expr;
             while (pexpr->parent &&
                     pexpr->parent->type == H64EXPRTYPE_BINARYOP &&
@@ -698,8 +792,10 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     pexpr->parent->parent->op.value2->type ==
                         H64EXPRTYPE_IDENTIFIERREF) {
                 pexpr = pexpr->parent;
-                accessed_elements[accessed_elements_count] =
+                accessed_elements_str[accessed_elements_count] =
                     pexpr->op.value2->identifierref.value;
+                accessed_elements_expr[accessed_elements_count] =
+                    pexpr->op.value2;
                 accessed_elements_count++;
                 if (accessed_elements_count >= accessed_elements_alloc) {
                     char buf[256];
@@ -736,7 +832,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     int k = 0;
                     while (k < accessed_elements_count) {
                         if (strcmp(
-                                accessed_elements[k],
+                                accessed_elements_str[k],
                                 val->importstmt.import_elements[k]
                                 ) != 0) {
                             mismatch = 1;
@@ -758,7 +854,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 while (k < accessed_elements_count) {
                     if (k > 0)
                         full_imp_path_len++;
-                    full_imp_path_len += strlen(accessed_elements[k]);
+                    full_imp_path_len += strlen(accessed_elements_str[k]);
                     k++;
                 }
                 full_imp_path = malloc(full_imp_path_len + 1);
@@ -775,8 +871,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     }
                     memcpy(
                         full_imp_path + strlen(full_imp_path),
-                        accessed_elements[k],
-                        strlen(accessed_elements[k]) + 1
+                        accessed_elements_str[k],
+                        strlen(accessed_elements_str[k]) + 1
                     );
                     k++;
                 }
@@ -903,11 +999,50 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 expr->storage.set = 1;
             } else {
                 assert(!expr->storage.set);
+                assert(!atinfo->ast->resultmsg.success ||
+                       !atinfo->pr->resultmsg->success);
             }
             free(full_imp_path);
             full_imp_path = NULL;
             def->everused = 1;
-            // FIXME: set storage on all import path items
+
+            // Set storage on all import path items:
+            int k = 0;
+            while (k < accessed_elements_count) {
+                if (accessed_elements_expr[k] == expr) {
+                    k++;
+                    continue;
+                }
+                if (expr->storage.set) {
+                    assert(!accessed_elements_expr[k]->storage.set);
+                    memcpy(
+                        &accessed_elements_expr[k]->storage.ref,
+                        &expr->storage.ref,
+                        sizeof(expr->storage.ref)
+                    );
+                    accessed_elements_expr[k]->storage.set = 1;
+                }
+                k++;
+            }
+            if (expr->storage.set) {  // always true if we had no error
+                assert(!pexpr->parent->op.value2->
+                        storage.set);
+                memcpy(
+                    &pexpr->parent->op.value2->storage.ref,
+                    &expr->storage.ref,
+                    sizeof(expr->storage.ref)
+                );
+                pexpr->parent->op.value2->storage.set = 1;
+            }
+
+            // Evaluate the identifiers pointing to base classes,
+            // if this is any:
+            if (!scoperesolver_EvaluteDerivedClassParent(
+                    atinfo, pexpr->parent->op.value2
+                    )) {
+                atinfo->hadoutofmemory = 1;
+                return 0;
+            }
         } else {
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,

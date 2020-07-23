@@ -22,6 +22,8 @@ static char _name_itype_invalid[] = "invalid_instruction";
 static char _name_itype_setconst[] = "setconst";
 static char _name_itype_setglobal[] = "setglobal";
 static char _name_itype_getglobal[] = "getglobal";
+static char _name_itype_setbyindexexpr[] = "setbyindexexpr";
+static char _name_itype_setbymember[] = "setbymember";
 static char _name_itype_getfunc[] = "getfunc";
 static char _name_itype_getclass[] = "getclass";
 static char _name_itype_valuecopy[] = "valuecopy";
@@ -61,6 +63,10 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_setglobal;
     case H64INST_GETGLOBAL:
         return _name_itype_getglobal;
+    case H64INST_SETBYINDEXEXPR:
+        return _name_itype_setbyindexexpr;
+    case H64INST_SETBYMEMBER:
+        return _name_itype_setbymember;
     case H64INST_GETFUNC:
         return _name_itype_getfunc;
     case H64INST_GETCLASS:
@@ -399,6 +405,10 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_setglobal);
     case H64INST_GETGLOBAL:
         return sizeof(h64instruction_getglobal);
+    case H64INST_SETBYINDEXEXPR:
+        return sizeof(h64instruction_setbyindexexpr);
+    case H64INST_SETBYMEMBER:
+        return sizeof(h64instruction_setbymember);
     case H64INST_GETFUNC:
         return sizeof(h64instruction_getfunc);
     case H64INST_GETCLASS:

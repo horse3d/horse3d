@@ -21,6 +21,8 @@ typedef enum instructiontype {
     H64INST_SETCONST = 1,
     H64INST_SETGLOBAL,
     H64INST_GETGLOBAL,
+    H64INST_SETBYINDEXEXPR,
+    H64INST_SETBYMEMBER,
     H64INST_GETFUNC,
     H64INST_GETCLASS,
     H64INST_VALUECOPY,
@@ -134,6 +136,20 @@ typedef struct h64instruction_getglobal {
     int16_t slotto;
     int64_t globalfrom;
 } __attribute__((packed)) h64instruction_getglobal;
+
+typedef struct h64instruction_setbyindexexpr {
+    uint8_t type;
+    int16_t slotobjto;
+    int16_t slotindexto;
+    int16_t slotvaluefrom;
+} __attribute__((packed)) h64instruction_setbyindexexpr;
+
+typedef struct h64instruction_setbymember {
+    uint8_t type;
+    int16_t slotobjto;
+    int16_t slotmemberto;
+    int16_t slotvaluefrom;
+} __attribute__((packed)) h64instruction_setbymember;
 
 typedef struct h64instruction_getfunc {
     uint8_t type;
@@ -274,7 +290,8 @@ typedef struct h64class {
     int methods_count;
     int64_t *method_global_name_idx;
     int64_t *method_func_idx;
-    int base_class_global_id;
+    int64_t base_class_global_id;
+    int is_exception;
 
     int vars_count;
     int64_t *vars_global_name_idx;
