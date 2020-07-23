@@ -22,11 +22,10 @@ typedef struct h64localstorageassign {
 } h64localstorageassign;
 
 struct h64codegenstorageinfo {
-    int oneline_temps_used_now;
-    int max_oneline_slots;
+    int max_extra_stack;
 
-    int perm_temps_count;
-    int *perm_temps_used;
+    int extra_temps_count;
+    int *extra_temps_used, *extra_temps_deletepastline;
 };
 
 typedef struct h64funcstorageextrainfo {

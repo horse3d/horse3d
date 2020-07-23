@@ -1736,6 +1736,22 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         p = (pr->func[func_id].instructions + offset);
         goto *jumptable[((h64instructionany *)p)->type];
     }
+    inst_newlist: {
+        fprintf(stderr, "newlist not implemented\n");
+        return 0;
+    }
+    inst_newset: {
+        fprintf(stderr, "newset not implemented\n");
+        return 0;
+    }
+    inst_newmap: {
+        fprintf(stderr, "newmap not implemented\n");
+        return 0;
+    }
+    inst_newvector: {
+        fprintf(stderr, "newvector not implemented\n");
+        return 0;
+    }
 
     setupinterpreter:
     jumptable[H64INST_INVALID] = &&inst_invalid;
@@ -1761,6 +1777,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_POPCATCHFRAME] = &&inst_popcatchframe;
     jumptable[H64INST_GETMEMBER] = &&inst_getmember;
     jumptable[H64INST_JUMPTOFINALLY] = &&inst_jumptofinally;
+    jumptable[H64INST_NEWLIST] = &&inst_newlist;
+    jumptable[H64INST_NEWSET] = &&inst_newset;
+    jumptable[H64INST_NEWMAP] = &&inst_newmap;
+    jumptable[H64INST_NEWVECTOR] = &&inst_newvector;
     op_jumptable[H64OP_MATH_DIVIDE] = &&binop_divide;
     op_jumptable[H64OP_MATH_ADD] = &&binop_add;
     op_jumptable[H64OP_MATH_SUBSTRACT] = &&binop_substract;

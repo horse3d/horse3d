@@ -41,13 +41,9 @@ typedef enum instructiontype {
     H64INST_GETMEMBER,
     H64INST_JUMPTOFINALLY,
     H64INST_NEWLIST,
-    H64INST_ADDTOLIST,
     H64INST_NEWSET,
-    H64INST_ADDTOSET,
     H64INST_NEWMAP,
-    H64INST_PUTMAP,
     H64INST_NEWVECTOR,
-    H64INST_PUTVECTOR,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -250,46 +246,20 @@ typedef struct h64instruction_newlist {
     int16_t slotto;
 } __attribute__ ((packed)) h64instruction_newlist;
 
-typedef struct h64instruction_addtolist {
-    uint8_t type;
-    int16_t slotlistto;
-    int16_t slotaddfrom;
-} __attribute__ ((packed)) h64instruction_addtolist;
-
 typedef struct h64instruction_newset {
     uint8_t type;
     int16_t slotto;
 } __attribute__ ((packed)) h64instruction_newset;
-
-typedef struct h64instruction_addtoset {
-    uint8_t type;
-    int16_t slotsetto;
-    int16_t slotaddfrom;
-} __attribute__ ((packed)) h64instruction_addtoset;
 
 typedef struct h64instruction_newvector {
     uint8_t type;
     int16_t slotto;
 } __attribute__ ((packed)) h64instruction_newvector;
 
-typedef struct h64instruction_putvector {
-    uint8_t type;
-    int16_t slotvectorto;
-    int64_t putindex;
-    int16_t slotputfrom;
-} __attribute__ ((packed)) h64instruction_putvector;
-
 typedef struct h64instruction_newmap {
     uint8_t type;
     int16_t slotto;
 } __attribute__ ((packed)) h64instruction_newmap;
-
-typedef struct h64instruction_putmap {
-    uint8_t type;
-    int16_t slotmapto;
-    int16_t slotputkeyfrom;
-    int16_t slotputvaluefrom;
-} __attribute__ ((packed)) h64instruction_putmap;
 
 
 #define H64CLASS_HASH_SIZE 16
@@ -356,6 +326,7 @@ typedef struct h64program {
     int64_t clone_name_index;
     int64_t equals_name_index;
     int64_t hash_name_index;
+    int64_t add_name_index;
 
     int64_t globalvar_count;
     h64globalvar *globalvar;

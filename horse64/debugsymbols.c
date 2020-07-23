@@ -129,6 +129,8 @@ int64_t h64debugsymbols_MemberNameToMemberNameId(
                     symbols->program->equals_name_index = new_id;
                 } else if (strcmp(name, "hash") == 0) {
                     symbols->program->hash_name_index = new_id;
+                } else if (strcmp(name, "add") == 0) {
+                    symbols->program->add_name_index = new_id;
                 }
             }
             return new_id;

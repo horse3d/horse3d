@@ -101,20 +101,12 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_jumptofinally;
     case H64INST_NEWLIST:
         return _name_itype_newlist;
-    case H64INST_ADDTOLIST:
-        return _name_itype_addtolist;
     case H64INST_NEWSET:
         return _name_itype_newset;
-    case H64INST_ADDTOSET:
-        return _name_itype_addtoset;
     case H64INST_NEWVECTOR:
         return _name_itype_newvector;
-    case H64INST_PUTVECTOR:
-        return _name_itype_putvector;
     case H64INST_NEWMAP:
         return _name_itype_newmap;
-    case H64INST_PUTMAP:
-        return _name_itype_putmap;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -137,6 +129,7 @@ h64program *h64program_New() {
     p->clone_name_index = -1;
     p->equals_name_index = -1;
     p->hash_name_index = -1;
+    p->add_name_index = -1;
 
     p->symbols = h64debugsymbols_New();
     if (!p->symbols) {
@@ -446,20 +439,12 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_jumptofinally);
     case H64INST_NEWLIST:
         return sizeof(h64instruction_newlist);
-    case H64INST_ADDTOLIST:
-        return sizeof(h64instruction_addtolist);
     case H64INST_NEWSET:
         return sizeof(h64instruction_newset);
-    case H64INST_ADDTOSET:
-        return sizeof(h64instruction_addtoset);
     case H64INST_NEWVECTOR:
         return sizeof(h64instruction_newvector);
-    case H64INST_PUTVECTOR:
-        return sizeof(h64instruction_putvector);
     case H64INST_NEWMAP:
         return sizeof(h64instruction_newmap);
-    case H64INST_PUTMAP:
-        return sizeof(h64instruction_putmap);
     default:
         fprintf(
             stderr, "Invalid inst type for "

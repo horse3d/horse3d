@@ -39,32 +39,83 @@ static void get_assign_lvalue_storage(
     }
 }
 
-int newmultilinetemp(h64expression *func, ATTR_UNUSED h64expression *expr) {
-    assert(func->funcdef._storageinfo->codegen.oneline_temps_used_now == 0);
+static int _newtemp_ex(h64expression *func, int deletepastline) {
     int i = 0;
-    while (i < func->funcdef._storageinfo->codegen.perm_temps_count) {
-        if (!func->funcdef._storageinfo->codegen.perm_temps_used[i]) {
-            func->funcdef._storageinfo->codegen.perm_temps_used[i] = 1;
+    while (i < func->funcdef._storageinfo->codegen.extra_temps_count) {
+        if (!func->funcdef._storageinfo->codegen.extra_temps_used[i]) {
+            func->funcdef._storageinfo->codegen.extra_temps_used[i] = 1;
+            func->funcdef._storageinfo->codegen.
+                extra_temps_deletepastline[i] = (deletepastline != 0);
             return func->funcdef._storageinfo->
                 lowest_guaranteed_free_temp + i;
         }
         i++;
     }
     int *new_used = realloc(
-        func->funcdef._storageinfo->codegen.perm_temps_used,
-        sizeof(*func->funcdef._storageinfo->codegen.perm_temps_used) * (
-        func->funcdef._storageinfo->codegen.perm_temps_count + 1)
+        func->funcdef._storageinfo->codegen.extra_temps_used,
+        sizeof(*func->funcdef._storageinfo->codegen.extra_temps_used) * (
+        func->funcdef._storageinfo->codegen.extra_temps_count + 1)
     );
     if (!new_used)
         return -1;
-    func->funcdef._storageinfo->codegen.perm_temps_used = new_used;
-    func->funcdef._storageinfo->codegen.perm_temps_used[
-        func->funcdef._storageinfo->codegen.perm_temps_count
-    ] = 1;
-    func->funcdef._storageinfo->codegen.perm_temps_count++;
-    return func->funcdef._storageinfo->lowest_guaranteed_free_temp + (
-        func->funcdef._storageinfo->codegen.perm_temps_count - 1
+    func->funcdef._storageinfo->codegen.extra_temps_used = new_used;
+    int *new_deletepastline = realloc(
+        func->funcdef._storageinfo->codegen.extra_temps_deletepastline,
+        sizeof(*func->funcdef._storageinfo->
+               codegen.extra_temps_deletepastline) * (
+        func->funcdef._storageinfo->codegen.extra_temps_count + 1)
     );
+    if (!new_deletepastline)
+        return -1;
+    func->funcdef._storageinfo->codegen.extra_temps_deletepastline = (
+        new_deletepastline
+    );
+    func->funcdef._storageinfo->codegen.extra_temps_used[
+        func->funcdef._storageinfo->codegen.extra_temps_count
+    ] = 1;
+    func->funcdef._storageinfo->codegen.extra_temps_deletepastline[
+        func->funcdef._storageinfo->codegen.extra_temps_count
+    ] = (deletepastline != 0);
+    func->funcdef._storageinfo->codegen.extra_temps_count++;
+    if (func->funcdef._storageinfo->codegen.extra_temps_count >
+            func->funcdef._storageinfo->
+            codegen.max_extra_stack) {
+        func->funcdef._storageinfo->codegen.max_extra_stack = (
+            func->funcdef._storageinfo->codegen.extra_temps_count
+        );
+    }
+    return func->funcdef._storageinfo->lowest_guaranteed_free_temp + (
+        func->funcdef._storageinfo->codegen.extra_temps_count - 1
+    );
+}
+
+int newmultilinetemp(h64expression *func) {
+    return _newtemp_ex(func, 0);
+}
+
+void free1linetemps(h64expression *func) {
+    int i = 0;
+    while (i < func->funcdef._storageinfo->codegen.extra_temps_count) {
+        if (func->funcdef._storageinfo->codegen.extra_temps_used[i] &&
+                func->funcdef._storageinfo->codegen.
+                    extra_temps_deletepastline[i]) {
+            func->funcdef._storageinfo->codegen.extra_temps_used[i] = 0;
+        }
+        i++;
+    }
+}
+
+int funccurrentstacktop(h64expression *func) {
+    int _top = func->funcdef._storageinfo->lowest_guaranteed_free_temp;
+    int i = 0;
+    while (i < func->funcdef._storageinfo->codegen.extra_temps_count) {
+        if (func->funcdef._storageinfo->codegen.extra_temps_used[i]) {
+            _top = (func->funcdef._storageinfo->
+                    lowest_guaranteed_free_temp + i + 1);
+        }
+        i++;
+    }
+    return _top;
 }
 
 void freemultilinetemp(
@@ -72,9 +123,11 @@ void freemultilinetemp(
         ) {
     temp -= func->funcdef._storageinfo->lowest_guaranteed_free_temp;
     assert(temp >= 0 && temp <
-           func->funcdef._storageinfo->codegen.perm_temps_count);
-    assert(func->funcdef._storageinfo->codegen.perm_temps_used[temp]);
-    func->funcdef._storageinfo->codegen.perm_temps_used[temp] = 0;
+           func->funcdef._storageinfo->codegen.extra_temps_count);
+    assert(func->funcdef._storageinfo->codegen.extra_temps_used[temp]);
+    assert(func->funcdef._storageinfo->codegen.
+               extra_temps_deletepastline[temp] == 0);
+    func->funcdef._storageinfo->codegen.extra_temps_used[temp] = 0;
 }
 
 int new1linetemp(h64expression *func, h64expression *expr) {
@@ -114,16 +167,7 @@ int new1linetemp(h64expression *func, h64expression *expr) {
 
     // Get new free temporary:
     assert(func->funcdef._storageinfo != NULL);
-    func->funcdef._storageinfo->codegen.oneline_temps_used_now++;
-    if (func->funcdef._storageinfo->codegen.oneline_temps_used_now >
-            func->funcdef._storageinfo->codegen.max_oneline_slots)
-        func->funcdef._storageinfo->codegen.max_oneline_slots = (
-            func->funcdef._storageinfo->codegen.oneline_temps_used_now
-        );
-    return (
-        (func->funcdef._storageinfo->codegen.oneline_temps_used_now - 1) +
-        func->funcdef._storageinfo->lowest_guaranteed_free_temp
-    );
+    return _newtemp_ex(func, 1);
 }
 
 int appendinstbyfuncid(
@@ -175,8 +219,7 @@ void codegen_CalculateFinalFuncStack(
         program->symbols, expr->funcdef.bytecode_func_id
     );
     expr->funcdef._storageinfo->lowest_guaranteed_free_temp +=
-        expr->funcdef._storageinfo->codegen.max_oneline_slots +
-        expr->funcdef._storageinfo->codegen.perm_temps_count;
+        expr->funcdef._storageinfo->codegen.max_extra_stack;
     fsymbol->closure_bound_count =
         expr->funcdef._storageinfo->closureboundvars_count;
     fsymbol->stack_temporaries_count =
@@ -595,79 +638,134 @@ int _codegencallback_DoCodegen_visit_out(
         }
     }
 
-    if (expr->type == H64EXPRTYPE_LIST) {
+    if (expr->type == H64EXPRTYPE_LIST ||
+            expr->type == H64EXPRTYPE_SET) {
+        int isset = (expr->type == H64EXPRTYPE_SET);
         int listtmp = new1linetemp(
             func, expr
         );
-        h64instruction_newlist inst = {0};
-        inst.type = H64INST_NEWLIST;
-        inst.slotto = listtmp;
-        if (!appendinst(rinfo->pr->program, func, expr,
-                        &inst, sizeof(inst))) {
+        if (listtmp < 0) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-        int i = 0;
-        while (i < expr->constructorlist.entry_count) {
-            assert(expr->constructorlist.entry[i]->
-                   storage.eval_temp_id >= 0);
-            h64instruction_addtolist instadd = {0};
-            instadd.type = H64INST_ADDTOLIST;
-            instadd.slotlistto = listtmp;
-            instadd.slotaddfrom = (
-                expr->constructorlist.entry[i]->
-                    storage.eval_temp_id);
+        if (isset) {
+            h64instruction_newlist inst = {0};
+            inst.type = H64INST_NEWLIST;
+            inst.slotto = listtmp;
             if (!appendinst(rinfo->pr->program, func, expr,
-                            &instadd, sizeof(instadd))) {
+                            &inst, sizeof(inst))) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-            i++;
+        } else {
+            h64instruction_newset inst = {0};
+            inst.type = H64INST_NEWSET;
+            inst.slotto = listtmp;
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &inst, sizeof(inst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+        int64_t add_name_idx =
+            h64debugsymbols_MemberNameToMemberNameId(
+                rinfo->pr->program->symbols, "add", 1
+            );
+        if (expr->constructorlist.entry_count > 0) {
+            int addfunctemp = new1linetemp(
+                func, expr
+            );
+            if (addfunctemp < 0) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            h64instruction_getmember instgetmember = {0};
+            instgetmember.type = H64INST_GETMEMBER;
+            instgetmember.slotto = addfunctemp;
+            instgetmember.objslotfrom = listtmp;
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &instgetmember, sizeof(instgetmember))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            int argsfloor = funccurrentstacktop(func);
+            int i = 0;
+            while (i < expr->constructorlist.entry_count) {
+                assert(expr->constructorlist.entry[i]->
+                       storage.eval_temp_id >= 0);
+                h64instruction_valuecopy instvcopy = {0};
+                instvcopy.type = H64INST_VALUECOPY;
+                instvcopy.slotto = argsfloor;
+                instvcopy.slotfrom = (
+                    expr->constructorlist.entry[i]->
+                        storage.eval_temp_id);
+                if (!appendinst(rinfo->pr->program, func, expr,
+                                &instvcopy, sizeof(instvcopy))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                h64instruction_settop inststop = {0};
+                inststop.type = H64INST_SETTOP;
+                inststop.topto = argsfloor + 1;
+                if (!appendinst(rinfo->pr->program, func, expr,
+                                &inststop, sizeof(inststop))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                h64instruction_call instcall = {0};
+                instcall.type = H64INST_SETTOP;
+                instcall.returnto = argsfloor;
+                instcall.slotcalledfrom = addfunctemp;
+                instcall.posargs = 1;
+                instcall.kwargs = 0;
+                if (!appendinst(rinfo->pr->program, func, expr,
+                                &instcall, sizeof(instcall))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                i++;
+            }
+            if (argsfloor - func->funcdef._storageinfo->
+                    lowest_guaranteed_free_temp >
+                    func->funcdef._storageinfo->
+                    codegen.max_extra_stack) {
+                func->funcdef._storageinfo->codegen.max_extra_stack = (
+                    argsfloor - func->funcdef._storageinfo->
+                    lowest_guaranteed_free_temp
+                );
+            }
         }
         expr->storage.eval_temp_id = listtmp;
-    } else if (expr->type == H64EXPRTYPE_SET) {
-        int settmp = new1linetemp(
-            func, expr
-        );
-        h64instruction_newset inst = {0};
-        inst.type = H64INST_NEWSET;
-        inst.slotto = settmp;
-        if (!appendinst(rinfo->pr->program, func, expr,
-                        &inst, sizeof(inst))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
-        }
-        int i = 0;
-        while (i < expr->constructorset.entry_count) {
-            assert(expr->constructorset.entry[i]->
-                   storage.eval_temp_id >= 0);
-            h64instruction_addtoset instadd = {0};
-            instadd.type = H64INST_ADDTOSET;
-            instadd.slotsetto = settmp;
-            instadd.slotaddfrom = (
-                expr->constructorset.entry[i]->
-                    storage.eval_temp_id);
-            if (!appendinst(rinfo->pr->program, func, expr,
-                            &instadd, sizeof(instadd))) {
-                rinfo->hadoutofmemory = 1;
-                return 0;
-            }
-            i++;
-        }
-        expr->storage.eval_temp_id = settmp;
-    } else if (expr->type == H64EXPRTYPE_VECTOR) {
+    } else if (expr->type == H64EXPRTYPE_VECTOR ||
+               expr->type == H64EXPRTYPE_MAP) {
+        int ismap = (expr->type == H64EXPRTYPE_MAP);
         int vectortmp = new1linetemp(
             func, expr
         );
-        h64instruction_newvector inst = {0};
-        inst.type = H64INST_NEWVECTOR;
-        inst.slotto = vectortmp;
-        if (!appendinst(rinfo->pr->program, func, expr,
-                        &inst, sizeof(inst))) {
+        if (vectortmp < 0) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-        int i = 0;
+        if (ismap) {
+            h64instruction_newvector inst = {0};
+            inst.type = H64INST_NEWVECTOR;
+            inst.slotto = vectortmp;
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &inst, sizeof(inst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        } else {
+            h64instruction_newmap inst = {0};
+            inst.type = H64INST_NEWMAP;
+            inst.slotto = vectortmp;
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &inst, sizeof(inst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+        /*int i = 0;
         while (i < expr->constructorvector.entry_count) {
             assert(expr->constructorvector.entry[i]->
                    storage.eval_temp_id >= 0);
@@ -684,19 +782,6 @@ int _codegencallback_DoCodegen_visit_out(
                 return 0;
             }
             i++;
-        }
-        expr->storage.eval_temp_id = vectortmp;
-    } else if (expr->type == H64EXPRTYPE_MAP) {
-        int maptmp = new1linetemp(
-            func, expr
-        );
-        h64instruction_newmap inst = {0};
-        inst.type = H64INST_NEWMAP;
-        inst.slotto = maptmp;
-        if (!appendinst(rinfo->pr->program, func, expr,
-                        &inst, sizeof(inst))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
         }
         int i = 0;
         while (i < expr->constructorvector.entry_count) {
@@ -717,10 +802,14 @@ int _codegencallback_DoCodegen_visit_out(
                 return 0;
             }
             i++;
-        }
-        expr->storage.eval_temp_id = maptmp;
+        }*/
+        expr->storage.eval_temp_id = vectortmp;
     } else if (expr->type == H64EXPRTYPE_LITERAL) {
         int temp = new1linetemp(func, expr);
+        if (temp < 0) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
         h64instruction_setconst inst = {0};
         inst.type = H64INST_SETCONST;
         inst.slot = temp;
@@ -835,8 +924,13 @@ int _codegencallback_DoCodegen_visit_out(
             expr->op.value2->identifierref.value, 0
         );
         int temp = new1linetemp(func, expr);
+        if (temp < 0) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
         if (idx < 0) {
             // FIXME: hard-code an error raise
+            fprintf(stderr, "fix invalid member\n");
         } else {
             h64instruction_getmember inst_getmem = {0};
             inst_getmem.type = H64INST_GETMEMBER;
@@ -855,6 +949,10 @@ int _codegencallback_DoCodegen_visit_out(
             expr->op.optype != H64OP_MEMBERBYIDENTIFIER ||
             !expr->op.value1->storage.set)) {
         int temp = new1linetemp(func, expr);
+        if (temp < 0) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
         h64instruction_binop inst_binop = {0};
         inst_binop.type = H64INST_BINOP;
         inst_binop.optype = expr->op.optype;
@@ -872,10 +970,10 @@ int _codegencallback_DoCodegen_visit_out(
         int calledexprstoragetemp = (
             expr->inlinecall.value->storage.eval_temp_id
         );
-        int _argtemp = (
-            func->funcdef._storageinfo->codegen.oneline_temps_used_now
-        ) + func->funcdef._storageinfo->lowest_guaranteed_free_temp;
-        int preargs_tempceiling = _argtemp;
+        int _argtemp = funccurrentstacktop(func);
+        int preargs_tempceiling = _argtemp - (
+            func->funcdef._storageinfo->lowest_guaranteed_free_temp
+        );
         int posargcount = 0;
         int expandlastposarg = 0;
         int kwargcount = 0;
@@ -970,16 +1068,22 @@ int _codegencallback_DoCodegen_visit_out(
             }
             i++;
         }
-        int maxslotsused = (_argtemp - preargs_tempceiling);
+        int maxslotsused = _argtemp - (
+            func->funcdef._storageinfo->lowest_guaranteed_free_temp
+        );
         if (maxslotsused > func->funcdef._storageinfo->
-                codegen.max_oneline_slots)
-            func->funcdef._storageinfo->codegen.max_oneline_slots = (
+                codegen.max_extra_stack)
+            func->funcdef._storageinfo->codegen.max_extra_stack = (
                 maxslotsused
             );
         h64instruction_call inst_call = {0};
         inst_call.type = H64INST_CALL;
         inst_call.returnto = preargs_tempceiling;
         int temp = new1linetemp(func, expr);
+        if (temp < 0) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
         inst_call.returnto = temp;
         inst_call.slotcalledfrom = calledexprstoragetemp;
         inst_call.expandlastposarg = expandlastposarg;
@@ -1027,6 +1131,10 @@ int _codegencallback_DoCodegen_visit_out(
             expr->storage.eval_temp_id = expr->storage.ref.id;
         } else {
             int temp = new1linetemp(func, expr);
+            if (temp < 0) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
             expr->storage.eval_temp_id = temp;
             if (expr->storage.ref.type == H64STORETYPE_GLOBALVARSLOT) {
                 h64instruction_getglobal inst_getglobal = {0};
@@ -1093,6 +1201,10 @@ int _codegencallback_DoCodegen_visit_out(
             assert(returntemp >= 0);
         } else {
             returntemp = new1linetemp(func, expr);
+            if (returntemp < 0) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
             h64instruction_setconst inst_setconst = {0};
             inst_setconst.type = H64INST_SETCONST;
             inst_setconst.content.type = H64VALTYPE_NONE;
@@ -1146,6 +1258,10 @@ int _codegencallback_DoCodegen_visit_out(
                 int oldvaluetemp = -1;
                 if (str->type == H64STORETYPE_GLOBALVARSLOT) {
                     oldvaluetemp = new1linetemp(func, expr);
+                    if (oldvaluetemp < 0) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
                     h64instruction_getglobal inst = {0};
                     inst.type = H64INST_GETGLOBAL;
                     inst.globalfrom = str->id;
@@ -1222,9 +1338,8 @@ int _codegencallback_DoCodegen_visit_out(
         return 1;
     }
 
-    if (IS_STMT(expr->type)) {
-        func->funcdef._storageinfo->codegen.oneline_temps_used_now = 0;
-    }
+    if (IS_STMT(expr->type))
+        free1linetemps(func);
 
     return 1;
 }
@@ -1247,9 +1362,8 @@ int _codegencallback_DoCodegen_visit_in(
         }
     }
 
-    if (IS_STMT(expr->type)) {
-        func->funcdef._storageinfo->codegen.oneline_temps_used_now = 0;
-    }
+    if (IS_STMT(expr->type))
+        free1linetemps(func);
 
     if (expr->type == H64EXPRTYPE_WHILE_STMT) {
         rinfo->dont_descend_visitation = 1;
@@ -1359,6 +1473,10 @@ int _codegencallback_DoCodegen_visit_in(
                 int operand2tmp = new1linetemp(
                     func, expr
                 );
+                if (operand2tmp < 0) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
 
                 h64instruction_setconst inst_sconst = {0};
                 inst_sconst.type = H64INST_SETCONST;
@@ -1388,8 +1506,7 @@ int _codegencallback_DoCodegen_visit_in(
                     return 0;
                 }
 
-                func->funcdef._storageinfo->codegen.
-                    oneline_temps_used_now = 0;
+                free1linetemps(func);
 
                 rinfo->dont_descend_visitation = 0;
                 int result = ast_VisitExpression(
@@ -1417,8 +1534,7 @@ int _codegencallback_DoCodegen_visit_in(
                     return 0;
                 }
 
-                func->funcdef._storageinfo->codegen.
-                    oneline_temps_used_now = 0;
+                free1linetemps(func);
                 h64instruction_jumptarget jumpt = {0};
                 jumpt.type = H64INST_JUMPTARGET;
                 jumpt.jumpid = jump_past_id;
@@ -1432,8 +1548,7 @@ int _codegencallback_DoCodegen_visit_in(
             argtmp++;
             i++;
         }
-        func->funcdef._storageinfo->codegen.
-            oneline_temps_used_now = 0;
+        free1linetemps(func);
 
         i = 0;
         while (i < expr->funcdef.stmt_count) {
@@ -1532,6 +1647,10 @@ int _codegencallback_DoCodegen_visit_in(
                     exception_reuse_tmp = new1linetemp(
                         func, expr
                     );
+                    if (exception_reuse_tmp < 0) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
                 }
                 exception_tmp = exception_reuse_tmp;
                 h64instruction_getglobal inst_getglobal = {0};
@@ -1711,7 +1830,7 @@ int _codegencallback_DoCodegen_visit_in(
         );
         func->funcdef._storageinfo->jump_targets_used++;
 
-        int itertemp = newmultilinetemp(func, expr);
+        int itertemp = newmultilinetemp(func);
         if (itertemp < 0) {
             rinfo->hadoutofmemory = 1;
             return 0;
