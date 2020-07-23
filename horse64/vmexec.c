@@ -1578,7 +1578,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         int64_t nameidx = inst->nameidx;
         if (nameidx == vmthread->program->as_str_name_index
                 ) {  // .as_str
-            // See what this actually is as a string:
+            // See what this actually is as a string with .as_str:
             unicodechar strvalue[128];
             int64_t strvaluelen = -1;
             if (vc->type == H64VALTYPE_GCVAL) {
@@ -1667,6 +1667,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 strvalue[3] = (unicodechar)'e';
                 strvaluelen = 4;
             }
+            // If .as_str failed to run, abort with an error:
             if (strvaluelen < 0) {
                 RAISE_EXCEPTION(
                     H64STDERROR_RUNTIMEEXCEPTION,
@@ -1675,6 +1676,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
+            // Actually set string value that we obtained:
             target->type = H64VALTYPE_GCVAL;
             target->ptr_value = poolalloc_malloc(
                 heap, 0
