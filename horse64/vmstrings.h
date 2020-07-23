@@ -16,7 +16,7 @@ typedef struct h64stringval {
     int refcount;
 } h64stringval;
 
-int vmstrings_Set(
+int vmstrings_AllocBuffer(
     h64vmthread *vthread, h64stringval *v, uint64_t len
 );
 

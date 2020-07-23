@@ -12,7 +12,7 @@
 
 #define POOLEDSTRSIZE 64
 
-int vmstrings_Set(
+int vmstrings_AllocBuffer(
         h64vmthread *vthread,
         h64stringval *v, uint64_t len) {
     if (!vthread || !v)
@@ -29,6 +29,7 @@ int vmstrings_Set(
     } else {
         v->s = malloc(sizeof(unicodechar) * len);
     }
+    v->len = len;
     return (v->s != NULL);
 }
 

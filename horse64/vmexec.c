@@ -746,7 +746,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             gcval->heapreferencecount = 0;
             gcval->externalreferencecount = 1;
             memset(&gcval->str_val, 0, sizeof(gcval->str_val));
-            if (!vmstrings_Set(
+            if (!vmstrings_AllocBuffer(
                     vmthread, &gcval->str_val,
                     inst->content.constpreallocstr_len)) {
                 poolalloc_free(heap, gcval);
@@ -1687,7 +1687,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             gcval->type = H64GCVALUETYPE_STRING;
             gcval->heapreferencecount = 0;
             gcval->externalreferencecount = 1;
-            if (!vmstrings_Set(
+            if (!vmstrings_AllocBuffer(
                     vmthread, &gcval->str_val, strvaluelen)) {
                 poolalloc_free(heap, gcval);
                 target->ptr_value = NULL;
