@@ -1598,12 +1598,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     goto *jumptable[((h64instructionany *)p)->type];
                 }
             } else if (vc->type == H64VALTYPE_INT64) {
+                // Int to utf-8 string:
                 char intvalue[128];
                 snprintf(
                     intvalue, sizeof(intvalue) - 1,
                     "%" PRId64, vc->int_value
                 );
                 const int len = strlen(intvalue);
+                // Conversion to utf-32:
                 int i = 0;
                 while (i < len) {
                     strvalue[i] = (
@@ -1613,12 +1615,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 }
                 strvaluelen = len;
             } else if (vc->type == H64VALTYPE_FLOAT64) {
+                // Float to utf-8 string:
                 char floatvalue[128];
                 snprintf(
                     floatvalue, sizeof(floatvalue) - 1,
                     "%f", vc->float_value
                 );
                 int len = strlen(floatvalue);
+
+                // If we have trailing zeroes only, cut fractions off:
                 int dotpos = -1;
                 int nonzero_pastdot_digit = 0;
                 int i = 0;
@@ -1634,9 +1639,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     i++;
                 }
                 if (dotpos >= 0 && !nonzero_pastdot_digit) {
+                    // Confirmed fractional with only zeros -> remove
                     floatvalue[dotpos] = '\0';
                     len = dotpos;
                 }
+
+                // Conversion to utf-32:
                 i = 0;
                 while (i < len) {
                     strvalue[i] = (
