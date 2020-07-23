@@ -115,8 +115,8 @@ int64_t h64debugsymbols_MemberNameToMemberNameId(
                 return -1;
             }
             if (symbols->program) {
-                if (strcmp(name, "to_str") == 0) {
-                    symbols->program->to_str_name_index = new_id;
+                if (strcmp(name, "as_str") == 0) {
+                    symbols->program->as_str_name_index = new_id;
                 } else if (strcmp(name, "length") == 0) {
                     symbols->program->length_name_index = new_id;
                 } else if (strcmp(name, "init") == 0) {

@@ -1552,8 +1552,165 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_getmember: {
-        fprintf(stderr, "getmember not implemented\n");
-        return 0;
+        h64instruction_getmember *inst = (
+            (h64instruction_getmember *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        // Prepare target:
+        valuecontent _tmpbuf;
+        valuecontent *target =  (
+            STACK_ENTRY(stack, inst->slotto)
+        );
+        int copyatend = 0;
+        if (inst->slotto == inst->objslotfrom) {
+            target = &_tmpbuf;
+            memset(target, 0, sizeof(*target));
+            copyatend = 1;
+        } else {
+            valuecontent_Free(target);
+            memset(target, 0, sizeof(*target));
+        }
+        valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
+        int64_t nameidx = inst->nameidx;
+        if (nameidx == vmthread->program->as_str_name_index
+                ) {  // .as_str
+            printf("AS STR\n");
+
+            // See what this actually is as a string:
+            unicodechar strvalue[128];
+            int64_t strvaluelen = -1;
+            if (vc->type == H64VALTYPE_GCVAL) {
+                if (((h64gcvalue *)vc->ptr_value)->type ==
+                        H64GCVALUETYPE_STRING) {
+                    // Special case, just re-reference string:
+                    if (copyatend) {
+                        // Just leave as is, target and source are the same
+                        p += sizeof(*inst);
+                        goto *jumptable[((h64instructionany *)p)->type];
+                    }
+                    ((h64gcvalue *)vc->ptr_value)->
+                        externalreferencecount++;
+                    target->type = H64VALTYPE_GCVAL;
+                    target->ptr_value = vc->ptr_value;
+                    p += sizeof(*inst);
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+            } else if (vc->type == H64VALTYPE_INT64) {
+                char intvalue[128];
+                snprintf(
+                    intvalue, sizeof(intvalue) - 1,
+                    "%" PRId64, vc->int_value
+                );
+                const int len = strlen(intvalue);
+                int i = 0;
+                while (i < len) {
+                    strvalue[i] = (
+                        (unicodechar)(uint8_t)intvalue[i]
+                    );
+                    i++;
+                }
+                strvaluelen = len;
+            } else if (vc->type == H64VALTYPE_FLOAT64) {
+                char floatvalue[128];
+                snprintf(
+                    floatvalue, sizeof(floatvalue) - 1,
+                    "%f", vc->float_value
+                );
+                int len = strlen(floatvalue);
+                int dotpos = -1;
+                int nonzero_pastdot_digit = 0;
+                int i = 0;
+                while (i < len) {
+                    if (floatvalue[i] == '.') {
+                        assert(i > 0);
+                        dotpos = i;
+                    }
+                    if (dotpos >= 0 && floatvalue[i] >= '1') {
+                        nonzero_pastdot_digit = 1;
+                        break;
+                    }
+                    i++;
+                }
+                if (dotpos >= 0 && !nonzero_pastdot_digit) {
+                    floatvalue[dotpos] = '\0';
+                    len = dotpos;
+                }
+                i = 0;
+                while (i < len) {
+                    strvalue[i] = (
+                        (unicodechar)(uint8_t)floatvalue[i]
+                    );
+                    i++;
+                }
+                strvaluelen = len;
+            } else if (vc->type == H64VALTYPE_BOOL) {
+                if (vc->int_value != 0) {
+                    strvalue[0] = (unicodechar)'t';
+                    strvalue[1] = (unicodechar)'r';
+                    strvalue[2] = (unicodechar)'u';
+                    strvalue[3] = (unicodechar)'e';
+                    strvaluelen = 4;
+                } else {
+                    strvalue[0] = (unicodechar)'f';
+                    strvalue[1] = (unicodechar)'a';
+                    strvalue[2] = (unicodechar)'l';
+                    strvalue[3] = (unicodechar)'s';
+                    strvalue[4] = (unicodechar)'e';
+                    strvaluelen = 5;
+                }
+            } else if (vc->type == H64VALTYPE_NONE) {
+                strvalue[0] = (unicodechar)'n';
+                strvalue[1] = (unicodechar)'o';
+                strvalue[2] = (unicodechar)'n';
+                strvalue[3] = (unicodechar)'e';
+                strvaluelen = 4;
+            }
+            if (strvaluelen < 0) {
+                RAISE_EXCEPTION(
+                    H64STDERROR_RUNTIMEEXCEPTION,
+                    "internal error: as_str not "
+                    "implemented for this type"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            target->type = H64VALTYPE_GCVAL;
+            target->ptr_value = poolalloc_malloc(
+                heap, 0
+            );
+            if (!vc->ptr_value)
+                goto triggeroom;
+            h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+            gcval->type = H64GCVALUETYPE_STRING;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            if (!vmstrings_Set(
+                    vmthread, &gcval->str_val, strvaluelen)) {
+                poolalloc_free(heap, gcval);
+                target->ptr_value = NULL;
+                goto triggeroom;
+            }
+            memcpy(
+                gcval->str_val.s,
+                strvalue, strvaluelen
+            );
+            if (copyatend) {
+                valuecontent_Free(STACK_ENTRY(stack, inst->slotto));
+                memcpy(STACK_ENTRY(stack, inst->slotto),
+                       target, sizeof(*target));
+            }
+        } else {
+            RAISE_EXCEPTION(
+                H64STDERROR_MEMBERERROR,
+                "given member not present on this value"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_jumptofinally: {
         h64instruction_jumptofinally *inst = (
@@ -1704,14 +1861,14 @@ int vmthread_RunFunctionWithReturnInt(
         );
         if (vc->type == H64VALTYPE_INT64) {
             int64_t v = vc->int_value;
-            if (v > INT_MAX) v = INT_MAX;
-            if (v < INT_MIN) v = INT_MIN;
+            if (v > INT32_MAX) v = INT32_MAX;
+            if (v < INT32_MIN) v = INT32_MIN;
             *out_returnint = v;
             return result;
         } else if (vc->type == H64VALTYPE_FLOAT64) {
             int64_t v = roundl(vc->float_value);
-            if (v > INT_MAX) v = INT_MAX;
-            if (v < INT_MIN) v = INT_MIN;
+            if (v > INT32_MAX) v = INT32_MAX;
+            if (v < INT32_MIN) v = INT32_MIN;
             *out_returnint = v;
             return result;
         } else if (vc->type == H64VALTYPE_BOOL) {

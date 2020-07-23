@@ -1955,7 +1955,8 @@ int ast_ParseExprInline(
                     if (i < max_tokens_touse &&
                             tokens[i].type == H64TK_CONSTANT_INT &&
                             !vectorusesletters &&
-                            tokens[i].int_value < INT_MAX) {
+                            tokens[i].int_value >= 0 &&
+                            tokens[i].int_value < INT32_MAX) {
                         foundidx = tokens[i].int_value;
                     }
                     if (foundidx < 0 ||

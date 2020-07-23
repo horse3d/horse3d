@@ -841,7 +841,7 @@ int _codegencallback_DoCodegen_visit_out(
             h64instruction_getmember inst_getmem = {0};
             inst_getmem.type = H64INST_GETMEMBER;
             inst_getmem.slotto = temp;
-            inst_getmem.objslotfrom = expr->op.value1->storage.ref.id;
+            inst_getmem.objslotfrom = expr->op.value1->storage.eval_temp_id;
             inst_getmem.nameidx = idx;
             if (!appendinst(
                     rinfo->pr->program, func, expr,

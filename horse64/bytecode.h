@@ -349,7 +349,7 @@ typedef struct h64program {
 
     int64_t main_func_index;
     int64_t globalinit_func_index;
-    int64_t to_str_name_index;
+    int64_t as_str_name_index;
     int64_t length_name_index;
     int64_t init_name_index;
     int64_t destroy_name_index;

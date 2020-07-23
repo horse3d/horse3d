@@ -130,7 +130,7 @@ h64program *h64program_New() {
 
     p->main_func_index = -1;
     p->globalinit_func_index = -1;
-    p->to_str_name_index = -1;
+    p->as_str_name_index = -1;
     p->length_name_index = -1;
     p->init_name_index = -1;
     p->destroy_name_index = -1;

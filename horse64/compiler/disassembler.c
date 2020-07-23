@@ -620,9 +620,9 @@ int disassembler_Dump(
                 "MAINFUNC f%d\n", p->main_func_index))
             return 0;
     }
-    if (p->to_str_name_index >= 0) {
+    if (p->as_str_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d to_str\n", p->to_str_name_index))
+                "NAMEIDX %d to_str\n", p->as_str_name_index))
             return 0;
     }
     if (p->length_name_index >= 0) {
