@@ -658,7 +658,7 @@ int _codegencallback_DoCodegen_visit_out(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-        if (isset) {
+        if (!isset) {
             h64instruction_newlist inst = {0};
             inst.type = H64INST_NEWLIST;
             inst.slotto = listtmp;
