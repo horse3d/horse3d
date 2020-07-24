@@ -416,6 +416,7 @@ static int vmthread_exceptions_Raise(
         valuecontent *vc = STACK_ENTRY(
             vmthread->stack, exception_to_slot
         );
+        DELREF_NONHEAP(vc);
         valuecontent_Free(vc);
         memset(vc, 0, sizeof(*vc));
         vc->type = H64VALTYPE_EXCEPTION;
@@ -426,6 +427,7 @@ static int vmthread_exceptions_Raise(
             return 0;
         }
         memcpy(vc->einfo, &e, sizeof(e));
+        ADDREF_NONHEAP(vc);
     } else {
         assert(buf == NULL || bubble_up_exception_later);
     }
@@ -733,6 +735,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             stack->alloc_count >= stack->entry_count
         );
         valuecontent *vc = STACK_ENTRY(stack, inst->slot);
+        DELREF_NONHEAP(vc);
         valuecontent_Free(vc);
         if (inst->content.type == H64VALTYPE_CONSTPREALLOCSTR) {
             vc->type = H64VALTYPE_GCVAL;
@@ -783,6 +786,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
+        DELREF_NONHEAP(vc);
         valuecontent_Free(vc);
         vc->type = H64VALTYPE_CFUNCREF;
         vc->int_value = (int64_t)inst->funcfrom;
@@ -798,6 +802,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
+        DELREF_NONHEAP(vc);
         valuecontent_Free(vc);
         vc->type = H64VALTYPE_CLASSREF;
         vc->int_value = (int64_t)inst->classfrom;
@@ -824,6 +829,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             copyatend = 1;
             tmpresult = &_tmpresultbuf;
         } else {
+            DELREF_NONHEAP(tmpresult);
             valuecontent_Free(tmpresult);
             memset(tmpresult, 0, sizeof(*tmpresult));
         }
@@ -1239,6 +1245,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 ((h64gcvalue *)target->ptr_value)->
                     externalreferencecount++;
             }
+            DELREF_NONHEAP(target);
             valuecontent_Free(target);
             memcpy(target, tmpresult, sizeof(*tmpresult));
         }
@@ -1268,10 +1275,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         valuecontent *vc = STACK_ENTRY(stack, inst->returnslotfrom);
         valuecontent vccopy;
         memcpy(&vccopy, vc, sizeof(vccopy));
-        if (vccopy.type == H64VALTYPE_GCVAL) {
-            // Make sure it won't be GC'ed when stack is reduced
-            ((h64gcvalue *)vccopy.ptr_value)->externalreferencecount++;
-        }
+        ADDREF_NONHEAP(&vccopy);
 
         // Remove function stack:
         int current_stack_size = (
@@ -1299,8 +1303,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (!stack_ToSize(
                     stack, original_stack_size + 1, 0
                     )) {
-                if (vccopy.type == H64VALTYPE_GCVAL)
-                    ((h64gcvalue *)vccopy.ptr_value)->externalreferencecount--;
+                DELREF_NONHEAP(&vccopy);
 
                 // Need to "manually" raise error since we're outside of any
                 // function at this point:
@@ -1316,6 +1319,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             valuecontent *newvc = stack_GetEntrySlow(
                 stack, original_stack_size
             );
+            DELREF_NONHEAP(newvc);
             valuecontent_Free(newvc);
             memcpy(newvc, &vccopy, sizeof(vccopy));
             return 1;
@@ -1340,9 +1344,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             valuecontent *newvc = stack_GetEntrySlow(
                 stack, returnslot
             );
+            DELREF_NONHEAP(newvc);
             valuecontent_Free(newvc);
             memcpy(newvc, &vccopy, sizeof(vccopy));
         } else {
+            DELREF_NONHEAP(&vccopy);
             valuecontent_Free(&vccopy);
         }
 
@@ -1559,7 +1565,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         // Prepare target:
         valuecontent _tmpbuf;
-        valuecontent *target =  (
+        valuecontent *target = (
             STACK_ENTRY(stack, inst->slotto)
         );
         int copyatend = 0;
@@ -1568,6 +1574,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             memset(target, 0, sizeof(*target));
             copyatend = 1;
         } else {
+            DELREF_NONHEAP(target);
             valuecontent_Free(target);
             memset(target, 0, sizeof(*target));
         }
@@ -1702,7 +1709,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 gcval->str_val.s,
                 strvalue, strvaluelen
             );
+            ADDREF_NONHEAP(target);
             if (copyatend) {
+                DELREF_NONHEAP(STACK_ENTRY(stack, inst->slotto));
                 valuecontent_Free(STACK_ENTRY(stack, inst->slotto));
                 memcpy(STACK_ENTRY(stack, inst->slotto),
                        target, sizeof(*target));
@@ -1743,6 +1752,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
+        DELREF_NONHEAP(vc);
         valuecontent_Free(vc);
         memset(vc, 0, sizeof(*vc));
         vc->type = H64VALTYPE_GCVAL;

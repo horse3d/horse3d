@@ -510,9 +510,7 @@ void h64program_Free(h64program *p) {
     int i = 0;
     while (i < p->globalvar_count) {
         valuecontent *content = &p->globalvar[i].content;
-        if (content->type == H64VALTYPE_GCVAL) {
-            ((h64gcvalue *)content->ptr_value)->externalreferencecount--;
-        }
+        DELREF_NONHEAP(content);
         valuecontent_Free(content);
         i++;
     }

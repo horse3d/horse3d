@@ -105,10 +105,12 @@ typedef struct valuecontent {
         struct {
             unicodechar *constpreallocstr_value;
             int64_t constpreallocstr_len;
+            int constpreallocstr_refcount;
         };
         struct {
             int64_t exception_class_id;
             h64exceptioninfo *einfo;
+            int einfo_refcount;
         };
     };
 } __attribute__((packed)) valuecontent;
@@ -424,5 +426,46 @@ void h64program_Free(h64program *p);
 void h64program_PrintBytecodeStats(h64program *p);
 
 int bytecode_fileuriindex(h64program *p, const char *fileuri);
+
+static inline void DELREF_NONHEAP(valuecontent *content) {
+    if (content->type == H64VALTYPE_GCVAL) {
+        ((h64gcvalue *)content->ptr_value)->externalreferencecount--;
+    } else if (content->type == H64VALTYPE_EXCEPTION) {
+        content->einfo_refcount--;
+    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
+        content->constpreallocstr_refcount--;
+    }
+}
+
+static inline void ADDREF_NONHEAP(valuecontent *content) {
+    if (content->type == H64VALTYPE_GCVAL) {
+        ((h64gcvalue *)content->ptr_value)->externalreferencecount++;
+    } else if (content->type == H64VALTYPE_EXCEPTION) {
+        content->einfo_refcount++;
+    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
+        content->constpreallocstr_refcount++;
+    }
+}
+
+static inline void DELREF_HEAP(valuecontent *content) {
+    if (content->type == H64VALTYPE_GCVAL) {
+        ((h64gcvalue *)content->ptr_value)->heapreferencecount--;
+    } else if (content->type == H64VALTYPE_EXCEPTION) {
+        content->einfo_refcount--;
+    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
+        content->constpreallocstr_refcount--;
+    }
+}
+
+static inline void ADDREF_HEAP(valuecontent *content) {
+    if (content->type == H64VALTYPE_GCVAL) {
+        ((h64gcvalue *)content->ptr_value)->heapreferencecount++;
+    } else if (content->type == H64VALTYPE_EXCEPTION) {
+        content->einfo_refcount++;
+    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
+        content->constpreallocstr_refcount++;
+    }
+}
+
 
 #endif  // HORSE64_BYTECODE_H_
