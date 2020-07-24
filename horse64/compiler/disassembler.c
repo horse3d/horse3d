@@ -197,6 +197,32 @@ int disassembler_PrintInstruction(
         }
         break;
     }
+    case H64INST_SETBYINDEXEXPR: {
+        h64instruction_setbyindexexpr *inst_setbyindexexpr =
+            (h64instruction_setbyindexexpr *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_setbyindexexpr->slotobjto,
+                (int)inst_setbyindexexpr->slotindexto,
+                (int)inst_setbyindexexpr->slotvaluefrom)) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_SETBYMEMBER: {
+        h64instruction_setbymember *inst_setbymember =
+            (h64instruction_setbymember *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_setbymember->slotobjto,
+                (int)inst_setbymember->slotmemberto,
+                (int)inst_setbymember->slotvaluefrom)) {
+            return 0;
+        }
+        break;
+    }
     case H64INST_GETFUNC: {
         h64instruction_getfunc *inst_getfunc =
             (h64instruction_getfunc *)inst;
@@ -566,9 +592,14 @@ int disassembler_Dump(
                 "MAINFUNC f%d\n", p->main_func_index))
             return 0;
     }
+    if (p->add_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX %d add\n", p->add_name_index))
+            return 0;
+    }
     if (p->as_str_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d to_str\n", p->as_str_name_index))
+                "NAMEIDX %d as_str\n", p->as_str_name_index))
             return 0;
     }
     if (p->length_name_index >= 0) {

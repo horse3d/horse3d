@@ -73,11 +73,10 @@ typedef struct h64exceptioninfo {
 } h64exceptioninfo;
 
 typedef enum valuetype {
-    H64VALTYPE_INVALID = 0,
+    H64VALTYPE_NONE = 0,
     H64VALTYPE_INT64 = 1,
     H64VALTYPE_FLOAT64,
     H64VALTYPE_BOOL,
-    H64VALTYPE_NONE,
     H64VALTYPE_CFUNCREF,
     H64VALTYPE_CLASSREF,
     H64VALTYPE_SIMPLEFUNCREF,

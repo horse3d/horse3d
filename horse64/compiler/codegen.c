@@ -34,8 +34,18 @@ static void get_assign_lvalue_storage(
             expr->assignstmt.lvalue->op.value2->storage.ref
         );
     } else {
-        assert(expr->assignstmt.lvalue->storage.set);
-        *out_storageref = &expr->assignstmt.lvalue->storage.ref;
+        if (expr->assignstmt.lvalue->storage.set) {
+            *out_storageref = &expr->assignstmt.lvalue->storage.ref;
+        } else {
+            assert(
+                expr->assignstmt.lvalue->type == H64EXPRTYPE_BINARYOP &&
+                (expr->assignstmt.lvalue->op.optype ==
+                     H64OP_MEMBERBYIDENTIFIER ||
+                 expr->assignstmt.lvalue->op.optype ==
+                     H64OP_INDEXBYEXPR)
+            );
+            *out_storageref = NULL;
+        }
     }
 }
 
@@ -720,7 +730,7 @@ int _codegencallback_DoCodegen_visit_out(
                     return 0;
                 }
                 h64instruction_call instcall = {0};
-                instcall.type = H64INST_SETTOP;
+                instcall.type = H64INST_CALL;
                 instcall.returnto = argsfloor;
                 instcall.slotcalledfrom = addfunctemp;
                 instcall.posargs = 1;
@@ -933,9 +943,12 @@ int _codegencallback_DoCodegen_visit_out(
         // Already handled in visit_in
     } else if (expr->type == H64EXPRTYPE_BINARYOP &&
             expr->op.optype == H64OP_MEMBERBYIDENTIFIER &&
-            (expr->op.value1->storage.set ||
-             !expr->op.value2->storage.set)
+            (expr->parent == NULL ||
+             expr->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
+             expr->parent->assignstmt.lvalue != expr)
             ) {
+        // Regular get by member that needs to be evaluated at runtime:
+        assert(!expr->op.value2->storage.set);
         assert(expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF);
         int64_t idx = h64debugsymbols_MemberNameToMemberNameId(
             rinfo->pr->program->symbols,
@@ -963,9 +976,28 @@ int _codegencallback_DoCodegen_visit_out(
             }
         }
         expr->storage.eval_temp_id = temp;
-    } else if (expr->type == H64EXPRTYPE_BINARYOP && (
-            expr->op.optype != H64OP_MEMBERBYIDENTIFIER ||
-            !expr->op.value1->storage.set)) {
+    } else if (expr->type == H64EXPRTYPE_BINARYOP) {
+        // Other binary op instances that aren't get by member,
+        // unless it doesn't need to be handled anyway:
+        if (expr->op.optype == H64OP_MEMBERBYIDENTIFIER) {
+            assert(
+                (expr->storage.set &&
+                 expr->storage.eval_temp_id >= 0) || (
+                expr->parent != NULL &&
+                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+                expr->parent->assignstmt.lvalue == expr
+                )
+            );
+            return 1;  // bail out, handled by parent assign statement
+        }
+        if (expr->op.optype == H64OP_INDEXBYEXPR) {
+            if (expr->parent != NULL &&
+                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+                expr->parent->assignstmt.lvalue == expr) {
+                return 1;  // similar to getbymember this is
+                           // handled by parent assign statement
+            }
+        }
         int temp = new1linetemp(func, expr);
         if (temp < 0) {
             rinfo->hadoutofmemory = 1;
@@ -1242,8 +1274,7 @@ int _codegencallback_DoCodegen_visit_out(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-    } else if ((expr->type == H64EXPRTYPE_VARDEF_STMT &&
-                expr->vardef.value != NULL) ||
+    } else if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             (expr->type == H64EXPRTYPE_ASSIGN_STMT && (
              expr->assignstmt.lvalue->type ==
                 H64EXPRTYPE_IDENTIFIERREF ||
@@ -1253,21 +1284,77 @@ int _codegencallback_DoCodegen_visit_out(
                   H64OP_MEMBERBYIDENTIFIER &&
               expr->assignstmt.lvalue->op.value2->type ==
                   H64EXPRTYPE_IDENTIFIERREF &&
-              expr->assignstmt.lvalue->op.value2->storage.set)))) {
+              expr->assignstmt.lvalue->op.value2->storage.set) ||
+             (expr->assignstmt.lvalue->type ==
+                  H64EXPRTYPE_BINARYOP &&
+              expr->assignstmt.lvalue->op.optype ==
+                  H64OP_INDEXBYEXPR &&
+              expr->assignstmt.lvalue->op.value1->
+                  storage.eval_temp_id >= 0 &&
+              expr->assignstmt.lvalue->op.value2->
+                  storage.eval_temp_id >= 0)))) {
         // Assigning directly to a variable (rather than a member,
         // map value, or the like)
         int assignfromtemporary = -1;
         storageref *str = NULL;
+        int complexsetter_tmp = -1;
         if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
             assert(expr->storage.set);
             str = &expr->storage.ref;
-            assert(expr->vardef.value->storage.eval_temp_id >= 0);
-            assignfromtemporary = expr->vardef.value->
-                storage.eval_temp_id;
+            if (expr->vardef.value != NULL) {
+                assert(expr->vardef.value->storage.eval_temp_id >= 0);
+                assignfromtemporary = expr->vardef.value->
+                    storage.eval_temp_id;
+            } else {
+                assignfromtemporary = new1linetemp(func, expr);
+                if (assignfromtemporary < 0) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                h64instruction_setconst inst = {0};
+                inst.type = H64INST_SETCONST;
+                inst.slot = assignfromtemporary;
+                inst.content.type = H64VALTYPE_NONE;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst, sizeof(inst))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
         } else if (expr->type == H64EXPRTYPE_ASSIGN_STMT) {
             get_assign_lvalue_storage(
                 expr, &str
-            );
+            );  // Get the storage info of our assignment target
+            storageref _complexsetter_buf = {0};
+            if (str == NULL) {  // No storage, must be complex assign:
+                assert(
+                    expr->assignstmt.lvalue->type ==
+                        H64EXPRTYPE_BINARYOP && (
+                    expr->assignstmt.lvalue->op.optype ==
+                        H64OP_MEMBERBYIDENTIFIER ||
+                    expr->assignstmt.lvalue->op.optype == H64OP_INDEXBYEXPR
+                    )
+                );
+                // This assigns to a member or indexed thing,
+                // e.g. a[b] = c  or  a.b = c.
+                //
+                // -> We need an extra temporary to hold the in-between
+                // value for this case, since there is no real target
+                // storage ready. (Since we'll assign it with a special
+                // setbymember/setbyindexexpr instruction, rather than
+                // by copying directly into the target.)
+                assert(!expr->assignstmt.lvalue->storage.set);
+                assert(expr->assignstmt.lvalue->storage.eval_temp_id < 0);
+                complexsetter_tmp = new1linetemp(func, expr);
+                if (complexsetter_tmp < 0) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                _complexsetter_buf.type = H64STORETYPE_STACKSLOT;
+                _complexsetter_buf.id = complexsetter_tmp;
+                str = &_complexsetter_buf;
+            }
             assert(str != NULL);
             assignfromtemporary = (
                 expr->assignstmt.rvalue->storage.eval_temp_id
@@ -1326,16 +1413,79 @@ int _codegencallback_DoCodegen_visit_out(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-        } else if (assignfromtemporary != str->id) {
+        } else if (assignfromtemporary != str->id ||
+                complexsetter_tmp >= 0) {
             assert(str->type == H64STORETYPE_STACKSLOT);
-            h64instruction_valuecopy inst = {0};
-            inst.type = H64INST_VALUECOPY;
-            inst.slotto = str->id;
-            inst.slotfrom = assignfromtemporary;
-            if (!appendinst(rinfo->pr->program, func, expr,
+            if (complexsetter_tmp >= 0) {
+                // This assigns to a member or indexed thing,
+                // e.g. a[b] = c  or  a.b = c
+                //
+                // (Please note this excludes cases where a.b refers
+                // to an import since those have storage 'flattened'
+                // and set directly by the scope resolver. Therefore,
+                // this code path is only cases where a.b needs to be
+                // a true dynamic runtime getmember.)
+                assert(expr->assignstmt.lvalue->type ==
+                       H64EXPRTYPE_BINARYOP);
+                if (expr->assignstmt.lvalue->op.optype ==
+                        H64OP_MEMBERBYIDENTIFIER) {
+                    h64instruction_setbymember inst = {0};
+                    inst.type = H64INST_SETBYMEMBER;
+                    assert(expr->assignstmt.lvalue->
+                           op.value1->storage.eval_temp_id >= 0);
+                    inst.slotobjto = (
+                        expr->assignstmt.lvalue->op.value1->
+                        storage.eval_temp_id
+                    );
+                    assert(expr->assignstmt.lvalue->
+                           op.value2->storage.eval_temp_id >= 0);
+                    inst.slotmemberto = (
+                        expr->assignstmt.lvalue->op.value2->
+                        storage.eval_temp_id
+                    );
+                    inst.slotvaluefrom = str->id;
+                    if (!appendinst(
+                            rinfo->pr->program, func, expr,
                             &inst, sizeof(inst))) {
-                rinfo->hadoutofmemory = 1;
-                return 0;
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                } else {
+                    assert(expr->assignstmt.lvalue->op.optype ==
+                           H64OP_INDEXBYEXPR);
+                    h64instruction_setbyindexexpr inst = {0};
+                    inst.type = H64INST_SETBYINDEXEXPR;
+                    assert(expr->assignstmt.lvalue->
+                           op.value1->storage.eval_temp_id >= 0);
+                    inst.slotobjto = (
+                        expr->assignstmt.lvalue->op.value1->
+                        storage.eval_temp_id
+                    );
+                    assert(expr->assignstmt.lvalue->
+                           op.value2->storage.eval_temp_id >= 0);
+                    inst.slotindexto = (
+                        expr->assignstmt.lvalue->op.value2->
+                        storage.eval_temp_id
+                    );
+                    inst.slotvaluefrom = str->id;
+                    if (!appendinst(
+                            rinfo->pr->program, func, expr,
+                            &inst, sizeof(inst))) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                }
+            } else {
+                // Simple assignment of form a = b
+                h64instruction_valuecopy inst = {0};
+                inst.type = H64INST_VALUECOPY;
+                inst.slotto = str->id;
+                inst.slotfrom = assignfromtemporary;
+                if (!appendinst(rinfo->pr->program, func, expr,
+                                &inst, sizeof(inst))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
         }
     } else {

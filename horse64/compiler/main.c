@@ -122,7 +122,7 @@ int compiler_command_CompileEx(
     const char *_name_mode_compile = "compile";
     const char *_name_mode_run = "run";
     const char *_name_mode_cinfo = "codeinfo";
-    const char *_name_mode_toasm = "toasm";
+    const char *_name_mode_toasm = "to_asm";
     const char *command = (
         mode == COMPILEEX_MODE_COMPILE ? _name_mode_compile : (
         mode == COMPILEEX_MODE_RUN ? _name_mode_run : (
