@@ -817,6 +817,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 !vmthread_PrintExec((void*)inst)) goto triggeroom;
         #endif
 
+        assert(STACK_ENTRY(stack, inst->slotfrom)->type !=
+               H64VALTYPE_CONSTPREALLOCSTR);
+
         if (inst->slotto != inst->slotfrom) {
             valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
             DELREF_NONHEAP(vc);
