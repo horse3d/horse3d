@@ -62,8 +62,6 @@ Help & Docs
     https://horse64.org/docs
   )
 
-* [Help forum on Reddit](https://reddit.com/r/Horse64)
-
 * [Help & community chat on Matrix](
     https://matrix.to/#/+horse64:matrix.org
   )
