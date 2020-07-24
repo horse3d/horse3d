@@ -632,7 +632,7 @@ int disassembler_Dump(
                 "NAMEIDX %d hash\n", p->hash_name_index))
             return 0;
     }
-    int i = 0;
+    int64_t i = 0;
     while (i < p->classes_count) {
         char symbolinfo[H64LIMIT_IDENTIFIERLEN * 2 + 1024] = "";
         if (p->symbols) {
@@ -640,7 +640,7 @@ int disassembler_Dump(
                 p->symbols, i
             );
             h64modulesymbols *msymbols = (
-                h64debugsymbols_GetModuleSymbolsByFuncId(
+                h64debugsymbols_GetModuleSymbolsByClassId(
                     p->symbols, i
                 ));
             if (csymbol && msymbols) {
@@ -658,8 +658,9 @@ int disassembler_Dump(
         }
         char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
         snprintf(linebuf, sizeof(linebuf) - 1,
-            "CLASS %" PRId64 "",
-            (int64_t)i
+            "CLASS %" PRId64 " %" PRId64 " %d",
+            (int64_t)i, p->classes[i].base_class_global_id,
+            p->classes[i].is_exception
         );
         if (!disassembler_Write(di,
                 "%s%s\n", linebuf, symbolinfo))

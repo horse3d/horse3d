@@ -111,15 +111,19 @@ void h64debugsymbols_Free(h64debugsymbols *symbols);
 h64debugsymbols *h64debugsymbols_New();
 
 h64modulesymbols *h64debugsymbols_GetModuleSymbolsByFuncId(
-    h64debugsymbols *symbols, int funcid
+    h64debugsymbols *symbols, int64_t funcid
+);
+
+h64modulesymbols *h64debugsymbols_GetModuleSymbolsByClassId(
+    h64debugsymbols *symbols, int64_t classid
 );
 
 h64funcsymbol *h64debugsymbols_GetFuncSymbolById(
-    h64debugsymbols *symbols, int funcid
+    h64debugsymbols *symbols, int64_t funcid
 );
 
 h64classsymbol *h64debugsymbols_GetClassSymbolById(
-    h64debugsymbols *symbols, int classid
+    h64debugsymbols *symbols, int64_t classid
 );
 
 #endif  // HORSE64_DEBUGSYMBOLS_H_

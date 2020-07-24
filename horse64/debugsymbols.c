@@ -363,7 +363,7 @@ h64debugsymbols *h64debugsymbols_New() {
 }
 
 h64classsymbol *h64debugsymbols_GetClassSymbolById(
-        h64debugsymbols *symbols, int classid
+        h64debugsymbols *symbols, int64_t classid
         ) {
     uint64_t msymbols_index = 0;
     if (!hash_IntMapGet(
@@ -389,7 +389,7 @@ h64classsymbol *h64debugsymbols_GetClassSymbolById(
 }
 
 h64modulesymbols *h64debugsymbols_GetModuleSymbolsByFuncId(
-        h64debugsymbols *symbols, int funcid
+        h64debugsymbols *symbols, int64_t funcid
         ) {
     uint64_t msymbols_index = 0;
     if (!hash_IntMapGet(
@@ -403,8 +403,23 @@ h64modulesymbols *h64debugsymbols_GetModuleSymbolsByFuncId(
     ];
 }
 
+h64modulesymbols *h64debugsymbols_GetModuleSymbolsByClassId(
+        h64debugsymbols *symbols, int64_t classid
+        ) {
+    uint64_t msymbols_index = 0;
+    if (!hash_IntMapGet(
+            symbols->class_id_to_module_symbols_index,
+            classid, &msymbols_index)) {
+        return NULL;
+    }
+    assert((int)msymbols_index < symbols->module_count);
+    return symbols->module_symbols[
+        msymbols_index
+    ];
+}
+
 h64funcsymbol *h64debugsymbols_GetFuncSymbolById(
-        h64debugsymbols *symbols, int funcid
+        h64debugsymbols *symbols, int64_t funcid
         ) {
     uint64_t msymbols_index = 0;
     if (!hash_IntMapGet(
