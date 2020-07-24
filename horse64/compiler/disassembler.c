@@ -633,6 +633,43 @@ int disassembler_Dump(
             return 0;
     }
     int i = 0;
+    while (i < p->classes_count) {
+        char symbolinfo[H64LIMIT_IDENTIFIERLEN * 2 + 1024] = "";
+        if (p->symbols) {
+            h64classsymbol *csymbol = h64debugsymbols_GetClassSymbolById(
+                p->symbols, i
+            );
+            h64modulesymbols *msymbols = (
+                h64debugsymbols_GetModuleSymbolsByFuncId(
+                    p->symbols, i
+                ));
+            if (csymbol && msymbols) {
+                snprintf(
+                    symbolinfo, sizeof(symbolinfo) - 1,
+                    "\n    # Name: \"%s\" Module: %s\n"
+                    "    # Library: \"%s\"",
+                    (csymbol->name ? csymbol->name : "(unnamed)"),
+                    (msymbols->module_path ? msymbols->module_path :
+                     "$$builtin"),
+                    (msymbols->library_name ? msymbols->library_name :
+                     "")
+                );
+            }
+        }
+        char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
+        snprintf(linebuf, sizeof(linebuf) - 1,
+            "CLASS %" PRId64 "",
+            (int64_t)i
+        );
+        if (!disassembler_Write(di,
+                "%s%s\n", linebuf, symbolinfo))
+            return 0;
+        if (!disassembler_Write(di,
+                "ENDCLASS\n"))
+            return 0;
+        i++;
+    }
+    i = 0;
     while (i < p->func_count) {
         char clsinfo[64] = "";
         if (p->func[i].associated_class_index >= 0) {
@@ -649,9 +686,8 @@ int disassembler_Dump(
         }
         char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
         snprintf(linebuf, sizeof(linebuf) - 1,
-            "%sFUNC%s %" PRId64 " %d %d%s%s",
-            (p->func[i].iscfunc ? "C" : ""),
-            (p->func[i].iscfunc ? "REF" : ""),
+            "FUNC%s %" PRId64 " %d %d%s%s",
+            (p->func[i].iscfunc ? "CREF" : ""),
             (int64_t)i,
             p->func[i].input_stack_size,
             p->func[i].inner_stack_size,
