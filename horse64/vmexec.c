@@ -1734,8 +1734,36 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_newlist: {
-        fprintf(stderr, "newlist not implemented\n");
-        return 0;
+        h64instruction_newlist *inst = (
+            (h64instruction_newlist *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
+        valuecontent_Free(vc);
+        memset(vc, 0, sizeof(*vc));
+        vc->type = H64VALTYPE_GCVAL;
+        vc->ptr_value = poolalloc_malloc(
+            heap, 0
+        );
+        if (!vc->ptr_value)
+            goto triggeroom;
+        h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+        gcval->type = H64GCVALUETYPE_LIST;
+        gcval->heapreferencecount = 0;
+        gcval->externalreferencecount = 1;
+        gcval->list_values = vmlist_New();
+        if (!gcval->list_values) {
+            poolalloc_free(heap, vc->ptr_value);
+            vc->ptr_value = NULL;
+            goto triggeroom;
+        }
+
+        p += sizeof(h64instruction_newlist);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_newset: {
         fprintf(stderr, "newset not implemented\n");

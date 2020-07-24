@@ -9,12 +9,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "gcvalue.h"
-
 #define MAX_EXCEPTION_STACK_FRAMES 10
 
 typedef struct h64debugsymbols h64debugsymbols;
 typedef uint32_t unicodechar;
+typedef struct h64gcvalue h64gcvalue;
 
 typedef enum instructiontype {
     H64INST_INVALID = 0,
@@ -358,17 +357,7 @@ size_t h64program_PtrToInstructionSize(
     char *ptr
 );
 
-static inline void h64program_ClearValueContent(
-        valuecontent *content, int referencedfromnonheap
-        ) {
-    if (content->type == H64VALTYPE_GCVAL) {
-        if (referencedfromnonheap) {
-            ((h64gcvalue *)content->ptr_value)->externalreferencecount--;
-        } else {
-            ((h64gcvalue *)content->ptr_value)->heapreferencecount--;
-        }
-    }
-}
+#include "gcvalue.h"  // Keep it here since valuecontent def must come before
 
 void valuecontent_Free(valuecontent *content);
 

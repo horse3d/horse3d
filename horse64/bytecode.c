@@ -509,9 +509,11 @@ void h64program_Free(h64program *p) {
     free(p->func);
     int i = 0;
     while (i < p->globalvar_count) {
-        h64program_ClearValueContent(
-            &p->globalvar[i].content, 0
-        );
+        valuecontent *content = &p->globalvar[i].content;
+        if (content->type == H64VALTYPE_GCVAL) {
+            ((h64gcvalue *)content->ptr_value)->externalreferencecount--;
+        }
+        valuecontent_Free(content);
         i++;
     }
     free(p->globalvar);
