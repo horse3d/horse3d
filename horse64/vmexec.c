@@ -811,8 +811,25 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_valuecopy: {
-        fprintf(stderr, "valuecopy not implemented\n");
-        return 0;
+        h64instruction_valuecopy *inst = (h64instruction_valuecopy *)p;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        if (inst->slotto != inst->slotfrom) {
+            valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
+            DELREF_NONHEAP(vc);
+            valuecontent_Free(vc);
+            memcpy(
+                vc,
+                STACK_ENTRY(stack, inst->slotfrom), sizeof(*vc)
+            );
+            ADDREF_NONHEAP(vc);
+        }
+
+        p += sizeof(h64instruction_valuecopy);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_binop: {
         h64instruction_binop *inst = (h64instruction_binop *)p;

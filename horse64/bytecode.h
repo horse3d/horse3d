@@ -427,6 +427,8 @@ void h64program_PrintBytecodeStats(h64program *p);
 
 int bytecode_fileuriindex(h64program *p, const char *fileuri);
 
+#include "gcvalue.h"
+
 static inline void DELREF_NONHEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->externalreferencecount--;

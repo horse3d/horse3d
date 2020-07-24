@@ -2,6 +2,7 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "bytecode.h"
 #include "gcvalue.h"
 
 

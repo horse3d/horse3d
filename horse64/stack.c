@@ -26,6 +26,7 @@ h64stack *stack_New() {
 
 void stack_FreeEntry(h64stack *st, int slot) {
     assert(st->entry[slot].type != H64VALTYPE_CONSTPREALLOCSTR);
+    DELREF_NONHEAP(&st->entry[slot]);
     valuecontent_Free(&st->entry[slot]);
 }
 
