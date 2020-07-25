@@ -18,7 +18,7 @@ typedef enum gcvaluetype {
     H64GCVALUETYPE_INVALID = 0,
     H64GCVALUETYPE_CLASSINSTANCE = 1,
     H64GCVALUETYPE_ERRORCLASSINSTANCE,
-    H64GCVALUETYPE_CFUNCREF,
+    H64GCVALUETYPE_FUNCREF_CLOSURE,
     H64GCVALUETYPE_EMPTYARG,
     H64GCVALUETYPE_ERROR,
     H64GCVALUETYPE_STRING,
@@ -28,6 +28,13 @@ typedef enum gcvaluetype {
     H64GCVALUETYPE_MAP,
     H64GCVALUETYPE_TOTAL_COUNT
 } gcvaluetype;
+
+typedef struct h64closureinfo {
+    int64_t closure_func_id;
+    h64gcvalue *closure_self;
+    int closure_vbox_count;
+    h64gcvalue *closure_vbox;
+} h64closureinfo;
 
 
 typedef struct h64gcvalue {
@@ -53,6 +60,9 @@ typedef struct h64gcvalue {
         struct {
             int vector_len;
             vectorentry *vector_values;
+        };
+        struct {
+            h64closureinfo *closure_info;
         };
     };
 } h64gcvalue;

@@ -76,9 +76,8 @@ typedef enum valuetype {
     H64VALTYPE_INT64 = 1,
     H64VALTYPE_FLOAT64,
     H64VALTYPE_BOOL,
-    H64VALTYPE_CFUNCREF,
+    H64VALTYPE_FUNCREF,
     H64VALTYPE_CLASSREF,
-    H64VALTYPE_SIMPLEFUNCREF,
     H64VALTYPE_CLOSUREFUNCREF,
     H64VALTYPE_EMPTYARG,
     H64VALTYPE_EXCEPTION,
@@ -336,6 +335,9 @@ typedef struct h64program {
 
     int64_t main_func_index;
     int64_t globalinit_func_index;
+    int64_t print_func_index;
+    int64_t containeradd_func_index;
+
     int64_t as_str_name_index;
     int64_t length_name_index;
     int64_t init_name_index;

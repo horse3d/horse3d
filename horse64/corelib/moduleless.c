@@ -18,7 +18,22 @@
 #include "vmexec.h"
 
 
-int corelib_print(h64vmthread *vmthread) {
+int corelib_containeradd(  // $$builtin.$$containeradd
+        h64vmthread *vmthread
+        ) {
+    if (STACK_TOP(vmthread->stack) == 0) {
+        return stderror(
+            vmthread, H64STDERROR_ARGUMENTERROR,
+            "missing argument for add call"
+        );
+    }
+
+    return 0;
+}
+
+int corelib_print(  // $$builtin.print
+        h64vmthread *vmthread
+        ) {
     if (STACK_TOP(vmthread->stack) == 0) {
         return stderror(
             vmthread, H64STDERROR_ARGUMENTERROR,
@@ -93,10 +108,20 @@ int corelib_print(h64vmthread *vmthread) {
 }
 
 int corelib_RegisterFuncs(h64program *p) {
-    if (h64program_RegisterCFunction(
-            p, "print", &corelib_print,
-            NULL, 1, NULL, 1, NULL, NULL, 1, -1
-            ) < 0)
+    int64_t idx;
+    idx = h64program_RegisterCFunction(
+        p, "print", &corelib_print,
+        NULL, 1, NULL, 1, NULL, NULL, 1, -1
+    );
+    if (idx < 0)
         return 0;
+    p->print_func_index = idx;
+    idx = h64program_RegisterCFunction(
+        p, "$$containeradd", &corelib_containeradd,
+        NULL, 1, NULL, 0, NULL, NULL, 1, -1
+    );
+    if (idx < 0)
+        return 0;
+    p->containeradd_func_index = idx;
     return 1;
 }

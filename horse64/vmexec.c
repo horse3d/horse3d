@@ -788,7 +788,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
         DELREF_NONHEAP(vc);
         valuecontent_Free(vc);
-        vc->type = H64VALTYPE_CFUNCREF;
+        vc->type = H64VALTYPE_FUNCREF;
         vc->int_value = (int64_t)inst->funcfrom;
 
         p += sizeof(h64instruction_getfunc);
@@ -1281,8 +1281,24 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     inst_settop: {
-        fprintf(stderr, "settop not implemented\n");
-        return 0;
+        h64instruction_settop *inst = (h64instruction_settop *)p;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        assert(inst->topto >= 0);
+        int64_t newtop = (int64_t)inst->topto + stack->current_func_floor;
+        if (newtop != stack->entry_count) {
+            if (stack_ToSize(
+                    stack, newtop, 0
+                    ) < 0) {
+                goto triggeroom;
+            }
+        }
+
+        p += sizeof(h64instruction_settop);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_returnvalue: {
         h64instruction_returnvalue *inst = (h64instruction_returnvalue *)p;
@@ -1735,6 +1751,47 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 valuecontent_Free(STACK_ENTRY(stack, inst->slotto));
                 memcpy(STACK_ENTRY(stack, inst->slotto),
                        target, sizeof(*target));
+            }
+        } else if (nameidx == vmthread->program->add_name_index
+                ) {  // .add
+            if (vc->type == H64VALTYPE_GCVAL && (
+                    ((h64gcvalue *)vc->ptr_value)->type ==
+                    H64GCVALUETYPE_LIST ||
+                    ((h64gcvalue *)vc->ptr_value)->type ==
+                    H64GCVALUETYPE_SET)) {
+                target->type = H64VALTYPE_GCVAL;
+                target->ptr_value = poolalloc_malloc(
+                    heap, 0
+                );
+                if (!vc->ptr_value)
+                    goto triggeroom;
+                h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+                gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
+                gcval->heapreferencecount = 0;
+                gcval->externalreferencecount = 1;
+                gcval->closure_info = (
+                    malloc(sizeof(*gcval->closure_info))
+                );
+                if (!gcval->closure_info) {
+                    poolalloc_free(heap, gcval);
+                    target->ptr_value = NULL;
+                    goto triggeroom;
+                }
+                memset(gcval->closure_info, 0,
+                       sizeof(*gcval->closure_info));
+                gcval->closure_info->closure_func_id = (
+                    vmthread->program->containeradd_func_index
+                );
+                gcval->closure_info->closure_self = (
+                    (h64gcvalue *)vc->ptr_value
+                );
+                ((h64gcvalue *)vc->ptr_value)->heapreferencecount++;
+            } else {
+                RAISE_EXCEPTION(
+                    H64STDERROR_MEMBERERROR,
+                    "given member not present on this value"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
             }
         } else {
             RAISE_EXCEPTION(
