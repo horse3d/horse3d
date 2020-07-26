@@ -1274,7 +1274,51 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     inst_call: {
-        fprintf(stderr, "call not implemented\n");
+        h64instruction_call *inst = (h64instruction_call *)p;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        int64_t stacktop = STACK_TOP(stack);
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotcalledfrom);
+        if (vc->type != H64VALTYPE_FUNCREF && (
+                vc->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue *)vc->ptr_value)->type !=
+                H64GCVALUETYPE_FUNCREF_CLOSURE ||
+                ((h64gcvalue *)vc->ptr_value)->closure_info == NULL
+                )) {
+            RAISE_EXCEPTION(H64STDERROR_TYPEERROR,
+                            "not a callable object type");
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        int64_t targetfuncid = -1;
+        h64closureinfo *cinfo = NULL;
+        if (vc->type == H64VALTYPE_FUNCREF) {
+            targetfuncid = vc->int_value;
+        } else {
+            cinfo = ((h64gcvalue *)vc->ptr_value)->closure_info;
+            targetfuncid = cinfo->closure_func_id;
+        }
+        assert(targetfuncid >= 0);
+        int effective_posarg_count = inst->posargs;
+        if (inst->expandlastposarg) {
+            effective_posarg_count--;
+            valuecontent *lastposarg = (
+                STACK_ENTRY(stack, stacktop - 1 - inst->kwargs)
+            );
+            if (lastposarg->type != H64VALTYPE_GCVAL ||
+                    ((h64gcvalue *)vc->ptr_value)->type !=
+                    H64GCVALUETYPE_LIST) {
+                RAISE_EXCEPTION(H64STDERROR_TYPEERROR,
+                                "multiarg parameter must be a list");
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            effective_posarg_count += (
+                vmlist_Count(((h64gcvalue *)vc->ptr_value)->list_values)
+            );
+        }
+
         return 0;
     }
     inst_settop: {
@@ -1394,7 +1438,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_jumptarget: {
-        fprintf(stderr, "jumptarget not implemented\n");
+        fprintf(stderr, "jumptarget instruction "
+            "not valid in final bytecode\n");
         return 0;
     }
     inst_condjump: {

@@ -506,6 +506,7 @@ void h64program_Free(h64program *p) {
                     p->func[i].instructions_bytes
                 );
             }
+            free(p->func[i].kwargnameindexes);
             i++;
         }
     }
@@ -654,6 +655,8 @@ int h64program_RegisterCFunction(
         ) {
     assert(p != NULL && p->symbols != NULL);
     assert(name != NULL || associated_class_index < 0);
+    int kwarg_count = 0;
+    int64_t *kwarg_indexes = NULL;
     h64func *new_func = realloc(
         p->func, sizeof(*p->func) * (p->func_count + 1)
     );
@@ -749,6 +752,7 @@ int h64program_RegisterCFunction(
         h64debugsymbols_ClearFuncSymbol(
             &msymbols->func_symbols[msymbols->func_count]
         );
+        free(kwarg_indexes);
         return -1;
     }
     msymbols->func_symbols[msymbols->func_count].has_self_arg = (
@@ -779,6 +783,25 @@ int h64program_RegisterCFunction(
                     msymbols->func_symbols[msymbols->func_count].
                     arg_kwarg_name[i] == NULL)
                 goto funcsymboloom;
+            if (arg_kwarg_name && arg_kwarg_name[i]) {
+                if (!p->symbols)  // we need it for name indexes
+                    goto funcsymboloom;
+                kwarg_count++;
+                int64_t *kwarg_indexes_new = realloc(
+                    kwarg_indexes, sizeof(*kwarg_indexes_new) *
+                        (kwarg_count + 1)
+                );
+                if (!kwarg_indexes_new)
+                    goto funcsymboloom;
+                kwarg_indexes = kwarg_indexes_new;
+                kwarg_indexes[kwarg_count] = (
+                    h64debugsymbols_MemberNameToMemberNameId(
+                        p->symbols, arg_kwarg_name[i], 1
+                    )
+                );
+                if (kwarg_indexes[kwarg_count])
+                    goto funcsymboloom;
+            }
             i++;
         }
     }
@@ -825,6 +848,9 @@ int h64program_RegisterCFunction(
     );
     p->func[p->func_count].cfunclookup = cfunclookup;
     p->func[p->func_count].cfunc_ptr = func;
+    p->func[p->func_count].last_posarg_is_multiarg = last_is_multiarg;
+    p->func[p->func_count].kwarg_count = kwarg_count;
+    p->func[p->func_count].kwargnameindexes = kwarg_indexes;
     msymbols->func_symbols[msymbols->func_count].global_id = p->func_count;
     msymbols->func_symbols[msymbols->func_count].arg_count = arg_count;
     msymbols->func_symbols[msymbols->func_count].

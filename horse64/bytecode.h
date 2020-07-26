@@ -79,7 +79,6 @@ typedef enum valuetype {
     H64VALTYPE_BOOL,
     H64VALTYPE_FUNCREF,
     H64VALTYPE_CLASSREF,
-    H64VALTYPE_CLOSUREFUNCREF,
     H64VALTYPE_EMPTYARG,
     H64VALTYPE_EXCEPTION,
     H64VALTYPE_GCVAL,
@@ -304,6 +303,9 @@ typedef struct h64class {
 typedef struct h64func {
     int input_stack_size, inner_stack_size;
     int iscfunc, is_threadable;
+    int last_posarg_is_multiarg;
+    int kwarg_count;
+    int64_t *kwargnameindexes;
 
     char *cfunclookup;  // path to identify C extension func
 
