@@ -1301,6 +1301,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             targetfuncid = cinfo->closure_func_id;
         }
         assert(targetfuncid >= 0);
+
+        // Validate that the positional argument count fits:
         int effective_posarg_count = inst->posargs;
         if (inst->expandlastposarg) {
             effective_posarg_count--;
@@ -1318,7 +1320,116 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vmlist_Count(((h64gcvalue *)vc->ptr_value)->list_values)
             );
         }
+        int func_posargs = pr->func[targetfuncid].input_stack_size - (
+            pr->func[targetfuncid].kwarg_count - cinfo->closure_vbox_count -
+            (cinfo->closure_self != NULL ? 1 : 0)
+        );
+        assert(func_posargs >= 0);
+        int func_lastposargismultiarg = (
+            pr->func[targetfuncid].last_posarg_is_multiarg
+        );
+        if (effective_posarg_count < func_posargs -
+                (func_lastposargismultiarg ? 1 : 0)) {
+            RAISE_EXCEPTION(
+                H64STDERROR_ARGUMENTERROR,
+                "called func requires more positional arguments"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        if (effective_posarg_count > func_posargs &&
+                !func_lastposargismultiarg) {
+            RAISE_EXCEPTION(
+                H64STDERROR_ARGUMENTERROR,
+                "called func cannot take this many positional arguments"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
 
+        // Make sure stack is large enough to enter function:
+        int64_t stack_args_bottom = (
+            stacktop - inst->posargs - inst->kwargs * 2
+        );
+        int64_t required_new_stack_size = (
+            stack_args_bottom +
+            (int64_t)pr->func[targetfuncid].input_stack_size
+        );
+        if (required_new_stack_size > STACK_TOTALSIZE(stack)) {
+            int resize_result = stack_ToSize(
+                stack, required_new_stack_size, 0
+            );
+            if (!resize_result)
+                goto triggeroom;
+        }
+
+        // See how many positional args we can definitely leave on the
+        // stack as-is:
+        int leftalone_args = func_posargs - (func_lastposargismultiarg ? 1 : 0);
+        if (inst->posargs - (inst->expandlastposarg ? 1 : 0) > leftalone_args)
+            leftalone_args = inst->posargs - (inst->expandlastposarg ? 1 : 0);
+        if (leftalone_args < 0)
+            leftalone_args = 0;
+        int kwargs_needed_space = (
+            inst->kwargs * 2
+        );
+        int reformat_argslots = (
+            effective_posarg_count - leftalone_args
+        ) + kwargs_needed_space;
+        int temp_slots_needed = reformat_argslots + inst->kwargs;
+        if (temp_slots_needed > vmthread->arg_reorder_space_count) {
+            valuecontent *new_space = realloc(
+                vmthread->arg_reorder_space,
+                sizeof(*new_space) * temp_slots_needed
+            );
+            if (!new_space)
+                goto triggeroom;
+            vmthread->arg_reorder_space = new_space;
+        }
+        int k = 0;
+        int i = effective_posarg_count - leftalone_args;
+        while (i < inst->posargs) {
+            if (i == inst->posargs - 1 && inst->expandlastposarg) {
+                valuecontent *vlist = STACK_ENTRY(
+                    stack, (int64_t)i + stack_args_bottom
+                );
+                assert(
+                    vlist->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue *)vlist->ptr_value)->type ==
+                        H64GCVALUETYPE_LIST
+                );
+                genericlist *l = (
+                    ((h64gcvalue *)vlist->ptr_value)->list_values
+                );
+
+                int64_t count = vmlist_Count(l);
+                int64_t k2 = 0;
+                while (k2 < count) {
+                    valuecontent *vlistentry = vmlist_Get(
+                        l, k2
+                    );
+                    assert(vlistentry != NULL);
+                    memcpy(
+                        &vmthread->arg_reorder_space[k], vlistentry,
+                        sizeof(valuecontent)
+                    );
+                    ADDREF_NONHEAP(
+                        &vmthread->arg_reorder_space[k]
+                    );
+                    k2++;
+                }
+            } else {
+                memcpy(
+                    &vmthread->arg_reorder_space[k],
+                    STACK_ENTRY(stack, (int64_t)i + stack_args_bottom),
+                    sizeof(valuecontent)
+                );
+                memset(
+                    STACK_ENTRY(stack, (int64_t)i + stack_args_bottom),
+                    0, sizeof(valuecontent)
+                );
+            }
+            i++;
+            k++;
+        }
         return 0;
     }
     inst_settop: {

@@ -98,4 +98,8 @@ int vmlist_Add(
     genericlist *l, valuecontent *vc
 );
 
+static valuecontent *vmlist_Get(genericlist *l, int64_t i) {
+    return NULL;
+}
+
 #endif  // HORSE64_VMLIST_H_
