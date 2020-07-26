@@ -67,7 +67,8 @@ typedef struct storageref {
 typedef struct h64exceptioninfo {
     int64_t stack_frame_funcid[MAX_EXCEPTION_STACK_FRAMES];
     int64_t stack_frame_byteoffset[MAX_EXCEPTION_STACK_FRAMES];
-    char *msg;
+    unicodechar *msg;
+    int64_t msglen;
     int64_t exception_class_id;
 } h64exceptioninfo;
 

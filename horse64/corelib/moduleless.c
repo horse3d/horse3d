@@ -16,30 +16,40 @@
 #include "stack.h"
 #include "unicode.h"
 #include "vmexec.h"
+#include "vmlist.h"
 
 
 int corelib_containeradd(  // $$builtin.$$containeradd
         h64vmthread *vmthread
         ) {
-    if (STACK_TOP(vmthread->stack) == 0) {
-        return stderror(
-            vmthread, H64STDERROR_ARGUMENTERROR,
-            "missing argument for add call"
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    assert(vc->type == H64VALTYPE_GCVAL);
+    h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
+    if (gcvalue->type == H64GCVALUETYPE_LIST) {
+        if (!vmlist_Add(
+                gcvalue->list_values, STACK_ENTRY(vmthread->stack, 0)
+                )) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "alloc failure extending container"
+            );
+        }
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "cannot .add() on this container type"
         );
     }
 
-    return 0;
+    return 1;
 }
 
 int corelib_print(  // $$builtin.print
         h64vmthread *vmthread
         ) {
-    if (STACK_TOP(vmthread->stack) == 0) {
-        return stderror(
-            vmthread, H64STDERROR_ARGUMENTERROR,
-            "missing argument for print call"
-        );
-    }
+    assert(STACK_TOP(vmthread->stack) == 1);
     char *buf = alloca(256);
     uint64_t buflen = 256;
     int buffree = 0;
@@ -104,7 +114,7 @@ int corelib_print(  // $$builtin.print
         }
         i++;
     }
-    return 0;
+    return 1;
 }
 
 int corelib_RegisterFuncs(h64program *p) {

@@ -5,6 +5,7 @@
 #ifndef HORSE64_VMEXEC_H_
 #define HORSE64_VMEXEC_H_
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -83,6 +84,11 @@ void vmthread_Free(h64vmthread *vmthread);
 
 int vmexec_ExecuteProgram(
     h64program *pr, h64misccompileroptions *moptions
+);
+
+int vmexec_ReturnFuncError(
+    h64vmthread *vmthread, int64_t error_id,
+    const char *msg, ...
 );
 
 #endif  // HORSE64_VMEXEC_H_

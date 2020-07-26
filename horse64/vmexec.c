@@ -21,6 +21,7 @@
 #include "gcvalue.h"
 #include "poolalloc.h"
 #include "stack.h"
+#include "unicode.h"
 #include "vmexec.h"
 
 #define DEBUGVMEXEC
@@ -352,27 +353,25 @@ static int vmthread_exceptions_Raise(
     }
 
     // Combine error info:
-    int buflen = strlen(msg) * 4;
-    if (buflen < 2048) buflen = 2048;
+    int buflen = 2048;
+    char _bufalloc[2048] = "";
     char *buf = NULL;
     if ((exception_to_slot >= 0 || unroll_to_frame < 0) &&
             !bubble_up_exception_later && msg) {
-        buf = malloc(buflen);
-        if (!buf && canfailonoom) {
-            *returneduncaughtexception = 0;
-            return 0;
-        }
-        if (buf) {
-            va_list args;
-            va_start(args, msg);
-            vsnprintf(buf, buflen - 1, msg, args);
-            buf[buflen - 1] = '\0';
-            va_end(args);
-        }
+        buf = _bufalloc;
+        va_list args;
+        va_start(args, msg);
+        vsnprintf(buf, buflen - 1, msg, args);
+        buf[buflen - 1] = '\0';
+        va_end(args);
     }
     h64exceptioninfo e = {0};
     e.exception_class_id = class_id;
-    e.msg = buf;
+    if (buf) {
+        e.msg = utf8_to_utf32(
+            buf, strlen(buf), NULL, NULL, &e.msglen
+        );
+    }
 
     // Extract backtrace:
     int k = 1;
@@ -406,7 +405,6 @@ static int vmthread_exceptions_Raise(
             assert(out_uncaughtexception->exception_class_id >= 0);
         } else {
             if (returneduncaughtexception) *returneduncaughtexception = 0;
-            free(buf);
             return 0;
         }
         return 1;
@@ -423,7 +421,6 @@ static int vmthread_exceptions_Raise(
         vc->exception_class_id = class_id;
         vc->einfo = malloc(sizeof(e));
         if (!vc->einfo && canfailonoom) {
-            free(buf);
             return 0;
         }
         memcpy(vc->einfo, &e, sizeof(e));
@@ -2079,4 +2076,34 @@ int vmexec_ExecuteProgram(
     }
     vmthread_Free(mainthread);
     return rval;
+}
+
+int vmexec_ReturnFuncError(
+        h64vmthread *vmthread, int64_t error_id,
+        const char *msg, ...
+        ) {
+    assert(STACK_TOP(vmthread->stack) > 0);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vc);
+    valuecontent_Free(vc);
+    memset(vc, 0, sizeof(*vc));
+    vc->type = H64VALTYPE_EXCEPTION;
+    vc->exception_class_id = error_id;
+    vc->einfo = malloc(sizeof(*vc->einfo));
+    if (vc->einfo) {
+        memset(vc->einfo, 0, sizeof(*vc->einfo));
+        vc->einfo->exception_class_id = error_id;
+        char buf[4096];
+        va_list args;
+        va_start(args, msg);
+        vsnprintf(buf, sizeof(buf) - 1, msg, args);
+        va_end(args);
+        vc->einfo->msg = utf8_to_utf32(
+            buf, strlen(buf), NULL, NULL, &vc->einfo->msglen
+        );
+        if (!vc->einfo->msg)
+            vc->einfo->msglen = 0;
+    }
+    ADDREF_NONHEAP(vc);
+    return 0;
 }

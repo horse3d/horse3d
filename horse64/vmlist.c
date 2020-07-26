@@ -47,9 +47,7 @@ int vmlist_Add(
         &l->last_block->entry_values[l->last_block->entry_count],
         vc, sizeof(*vc)
     );
-    if (vc->type == H64VALTYPE_GCVAL) {
-        ((h64gcvalue*)vc)->heapreferencecount++;
-    }
+    ADDREF_HEAP(vc);
     l->last_block->entry_count++;
     l->list_total_entry_count++;
     return 1;

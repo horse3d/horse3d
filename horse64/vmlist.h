@@ -94,7 +94,7 @@ static inline void vmlist_GetEntryBlock(
     *out_block_offset = 0;
 }
 
-int vmlist_Append(
+int vmlist_Add(
     genericlist *l, valuecontent *vc
 );
 
