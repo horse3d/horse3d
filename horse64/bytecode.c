@@ -771,37 +771,79 @@ int h64program_RegisterCFunction(
             msymbols->func_symbols[msymbols->func_count].
             arg_kwarg_name, 0,
             sizeof(*msymbols->func_symbols[msymbols->func_count].
-                arg_kwarg_name) * arg_count);
+                arg_kwarg_name) * arg_count
+        );
+        // See how many keyword arguments we actually got:
+        int first_kwarg = -1;
         int i = 0;
         while (i < arg_count) {
-            msymbols->func_symbols[msymbols->func_count].
-                arg_kwarg_name[i] = (
-                (arg_kwarg_name && arg_kwarg_name[i]) ?
-                 strdup(arg_kwarg_name[i]) : NULL
-                );
-            if (arg_kwarg_name && arg_kwarg_name[i] &&
-                    msymbols->func_symbols[msymbols->func_count].
-                    arg_kwarg_name[i] == NULL)
-                goto funcsymboloom;
             if (arg_kwarg_name && arg_kwarg_name[i]) {
-                if (!p->symbols)  // we need it for name indexes
-                    goto funcsymboloom;
-                kwarg_count++;
-                int64_t *kwarg_indexes_new = realloc(
-                    kwarg_indexes, sizeof(*kwarg_indexes_new) *
-                        (kwarg_count + 1)
-                );
-                if (!kwarg_indexes_new)
-                    goto funcsymboloom;
-                kwarg_indexes = kwarg_indexes_new;
-                kwarg_indexes[kwarg_count] = (
-                    h64debugsymbols_MemberNameToMemberNameId(
-                        p->symbols, arg_kwarg_name[i], 1
-                    )
-                );
-                if (kwarg_indexes[kwarg_count])
-                    goto funcsymboloom;
+                first_kwarg = i;
+                break;
             }
+            i++;
+        }
+        if (first_kwarg >= 0) {
+            kwarg_count = (arg_count - first_kwarg);
+            kwarg_indexes = malloc(
+                sizeof(*kwarg_indexes) * kwarg_count
+            );
+            if (!kwarg_indexes)
+                goto funcsymboloom;
+            i = 0;
+            while (i < kwarg_count) {
+                kwarg_indexes[i] = -1;
+                i++;
+            }
+        }
+        // Copy & resort all the keyword arg names and ids:
+        i = first_kwarg;
+        while (i >= 0 && i < arg_count) {
+            assert(arg_kwarg_name && arg_kwarg_name[i]);
+            // Allocate name and get name index:
+            char *argname = (
+                strdup(arg_kwarg_name[i])
+            );
+            if (!argname)
+                goto funcsymboloom;
+            int64_t nameid = h64debugsymbols_MemberNameToMemberNameId(
+                p->symbols, arg_kwarg_name[i], 1
+            );
+            if (nameid < 0)
+                goto funcsymboloom;
+            // Find out where to insert it to maintain sorting:
+            int insert_index = -1;
+            int k = 0;
+            while (k <= kwarg_count) {
+                if ((k <= 0 || kwarg_indexes[k] <= nameid) &&
+                        (k >= kwarg_count ||
+                         kwarg_indexes[k] > nameid)) {
+                    insert_index = k;
+                    break;
+                }
+                k++;
+            }
+            assert(insert_index >= 0);
+            // Make space in insert slot, and put it in:
+            if (insert_index < kwarg_count - 1) {
+                memmove(
+                    &kwarg_indexes[insert_index + 1],
+                    &kwarg_indexes[insert_index],
+                    (kwarg_count - insert_index - 1) *
+                    sizeof(*kwarg_indexes)
+                );
+                memmove(
+                    &msymbols->func_symbols[msymbols->func_count].
+                        arg_kwarg_name[first_kwarg + insert_index + 1],
+                    &msymbols->func_symbols[msymbols->func_count].
+                        arg_kwarg_name[first_kwarg + insert_index],
+                    (kwarg_count - insert_index - 1) *
+                    sizeof(char*)
+                );
+            }
+            msymbols->func_symbols[msymbols->func_count].
+                arg_kwarg_name[first_kwarg + insert_index] = argname;
+            kwarg_indexes[insert_index] = nameid;
             i++;
         }
     }

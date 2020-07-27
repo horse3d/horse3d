@@ -33,7 +33,7 @@ typedef struct h64closureinfo {
     int64_t closure_func_id;
     h64gcvalue *closure_self;
     int closure_vbox_count;
-    h64gcvalue *closure_vbox;
+    h64gcvalue **closure_vbox;
 } h64closureinfo;
 
 

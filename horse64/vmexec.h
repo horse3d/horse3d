@@ -49,6 +49,8 @@ typedef struct h64vmthread {
     int can_access_globals;
     int can_call_unthreadable;
 
+    int kwarg_index_track_count;
+    int64_t *kwarg_index_track_map;
     int arg_reorder_space_count;
     valuecontent *arg_reorder_space;
 

@@ -47,7 +47,7 @@ static inline valuecontent *stack_GetEntrySlow(
     )
 #define STACK_ALLOC_SIZE(stack) ((int64_t)stack->alloc_count)
 #define STACK_ENTRY(stack, no) (\
-    &stack->entry[no + stack->current_func_floor]\
+    &stack->entry[(int64_t)(no) + stack->current_func_floor]\
     )
 
 #endif  // HORSE64_STACK_H_
