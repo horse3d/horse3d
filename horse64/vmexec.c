@@ -1354,25 +1354,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             goto *jumptable[((h64instructionany *)p)->type];
         }
 
-        // Make sure stack is large enough to enter function:
+        // See where stack part we care about starts:
         int64_t stack_args_bottom = (
             stacktop - inst->posargs - inst->kwargs * 2
         );
-        int64_t required_new_stack_size = (
-            stack_args_bottom +
-            (int64_t)pr->func[target_func_id].input_stack_size
-        );
-        assert(required_new_stack_size >= 0);
         assert(stack->current_func_floor >= 0);
-        if (required_new_stack_size +
-                stack->current_func_floor > STACK_TOTALSIZE(stack)) {
-            int resize_result = stack_ToSize(
-                stack, required_new_stack_size +
-                stack->current_func_floor, 0
-            );
-            if (!resize_result)
-                goto triggeroom;
-        }
+        assert(stack_args_bottom >= 0);
 
         // Make sure keyword arguments are actually known to target,
         // and do assert()s that keyword args are sorted:
