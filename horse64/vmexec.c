@@ -122,7 +122,9 @@ static inline void popfuncframe(
         ) {
     assert(vt->funcframe_count > 0);
     int64_t new_floor = (
-        vt->funcframe[vt->funcframe_count - 1].stack_bottom
+        vt->funcframe_count > 1 ?
+        vt->funcframe[vt->funcframe_count - 2].stack_bottom :
+        0
     );
     int64_t prev_floor = vt->stack->current_func_floor;
     #ifndef NDEBUG
@@ -152,7 +154,8 @@ static inline void popfuncframe(
 
 static inline int pushfuncframe(
         h64vmthread *vt, int func_id, int return_slot,
-        int return_to_func_id, ptrdiff_t return_to_execution_offset
+        int return_to_func_id, ptrdiff_t return_to_execution_offset,
+        int64_t new_func_floor
         ) {
     #ifndef NDEBUG
     if (vt->moptions.vmexec_debug) {
@@ -187,20 +190,17 @@ static inline int pushfuncframe(
     #endif
     assert(vt->program != NULL &&
            func_id >= 0 && func_id < vt->program->func_count);
-    int prevtop = vt->stack->entry_count;
+    assert(new_func_floor >= 0);
     if (!stack_ToSize(
             vt->stack,
+            new_func_floor +
             (vt->funcframe_count == 0 ?
              vt->program->func[func_id].input_stack_size : 0) +
-            vt->program->func[func_id].inner_stack_size, 0
+             vt->program->func[func_id].inner_stack_size, 0
             )) {
         return 0;
     }
-    vt->funcframe[vt->funcframe_count].stack_bottom = (
-        vt->stack->entry_count - (
-        vt->program->func[func_id].input_stack_size +
-        vt->program->func[func_id].inner_stack_size)
-    );
+    vt->funcframe[vt->funcframe_count].stack_bottom = new_func_floor;
     vt->funcframe[vt->funcframe_count].func_id = func_id;
     vt->funcframe[vt->funcframe_count].return_slot = return_slot;
     vt->funcframe[vt->funcframe_count].
@@ -1773,11 +1773,43 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 pr->func[target_func_id].cfunclookup
             );
             assert(cfunc != NULL);
-
+            int64_t old_floor = stack->current_func_floor;
+            stack->current_func_floor = new_func_floor;
+            int result = cfunc(vmthread);
+            stack->current_func_floor = old_floor;
+            assert(new_func_floor + 1 <= STACK_TOTALSIZE(stack));
+            int shrinkresult = stack_ToSize(
+                stack, new_func_floor + 1, 0
+            );
+            assert(shrinkresult != 0);
+            int returnslot = (
+                (int64_t)(new_func_floor + 1) - stack->current_func_floor
+            );
+            if (!result) {
+                // Handle error
+                // FIXME:
+            } else {
+                if (returnslot != inst->returnto) {
+                    // Copy over result:
+                    // FIXME
+                }
+            }
+            p += sizeof(h64instruction_call);
+            goto *jumptable[((h64instructionany *)p)->type];
         } else {
-
+            int64_t offset = (ptrdiff_t)(
+                p - pr->func[func_id].instructions
+            );
+            if (!pushfuncframe(vmthread, target_func_id,
+                    inst->returnto, func_id, offset,
+                    new_func_floor
+                    )) {
+                goto triggeroom;
+            }
+            func_id = target_func_id;
+            p = pr->func[func_id].instructions;
+            goto *jumptable[((h64instructionany *)p)->type];
         }
-        return 0;
     }
     inst_settop: {
         h64instruction_settop *inst = (h64instruction_settop *)p;
@@ -2405,7 +2437,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     op_jumptable[H64OP_CMP_LARGER] = &&binop_cmp_larger;
     op_jumptable[H64OP_CMP_SMALLER] = &&binop_cmp_smaller;
     assert(stack != NULL);
-    if (!pushfuncframe(vmthread, func_id, -1, -1, 0)) {
+    if (!pushfuncframe(vmthread, func_id, -1, -1, 0, 0)) {
         goto triggeroom;
     }
     vmthread->funcframe[vmthread->funcframe_count - 1].stack_bottom = (
