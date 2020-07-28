@@ -307,6 +307,7 @@ static int vmthread_exceptions_Raise(
         int canfailonoom,
         int *returneduncaughtexception,
         h64exceptioninfo *out_uncaughtexception,
+        int utf32,
         const char *msg, ...
         ) {
     int bubble_up_exception_later = 0;
@@ -361,24 +362,42 @@ static int vmthread_exceptions_Raise(
     }
 
     // Combine error info:
-    int buflen = 2048;
-    char _bufalloc[2048] = "";
-    char *buf = NULL;
-    if ((exception_to_slot >= 0 || unroll_to_frame < 0) &&
-            !bubble_up_exception_later && msg) {
-        buf = _bufalloc;
-        va_list args;
-        va_start(args, msg);
-        vsnprintf(buf, buflen - 1, msg, args);
-        buf[buflen - 1] = '\0';
-        va_end(args);
-    }
     h64exceptioninfo e = {0};
     e.exception_class_id = class_id;
-    if (buf) {
-        e.msg = utf8_to_utf32(
-            buf, strlen(buf), NULL, NULL, &e.msglen
-        );
+    int storemsg = (
+        (exception_to_slot >= 0 || unroll_to_frame < 0) &&
+        !bubble_up_exception_later && msg
+    );
+    if (!utf32) {
+        int buflen = 2048;
+        char _bufalloc[2048] = "";
+        char *buf = NULL;
+        if (storemsg) {
+            buf = _bufalloc;
+            va_list args;
+            va_start(args, msg);
+            vsnprintf(buf, buflen - 1, msg, args);
+            buf[buflen - 1] = '\0';
+            va_end(args);
+        }
+        if (buf) {
+            e.msg = utf8_to_utf32(
+                buf, strlen(buf), NULL, NULL, &e.msglen
+            );
+        }
+    } else {
+        if (storemsg) {
+            va_list args;
+            va_start(args, msg);
+            int len = va_arg(args, int);
+            va_end(args);
+            e.msg = malloc(len * sizeof(unicodechar));
+            if (!e.msg) {
+                e.msglen = 0;
+            } else {
+                memcpy(e.msg, msg, e.msglen * sizeof(unicodechar));
+            }
+        }
     }
 
     // Extract backtrace:
@@ -434,7 +453,7 @@ static int vmthread_exceptions_Raise(
         memcpy(vc->einfo, &e, sizeof(e));
         ADDREF_NONHEAP(vc);
     } else {
-        assert(buf == NULL || bubble_up_exception_later);
+        assert(e.msglen == 0 || !storemsg);
     }
 
     // Set proper execution position:
@@ -544,7 +563,7 @@ static void vmthread_exceptions_EndFinally(
                 current_func_id, current_exec_offset,
                 !wasoom, returneduncaughtexception,
                 out_uncaughtexception,
-                (e.msg ? "%s" : NULL), e.msg
+                1, (const char *)e.msg, (int)e.msglen
             );
         } else {
             result = vmthread_exceptions_Raise(
@@ -552,7 +571,7 @@ static void vmthread_exceptions_EndFinally(
                 current_func_id, current_exec_offset,
                 !wasoom, returneduncaughtexception,
                 out_uncaughtexception,
-                NULL
+                1, NULL, (int)0
             );
         }
         if (!result) {
@@ -562,7 +581,7 @@ static void vmthread_exceptions_EndFinally(
                 current_func_id, current_exec_offset,
                 0, returneduncaughtexception,
                 out_uncaughtexception,
-                NULL
+                1, NULL, (int)0
             );
             assert(result != 0);
         }
@@ -621,7 +640,7 @@ static void vmexec_PrintPostExceptionInfo(
 // RAISE_EXCEPTION is a shortcut to handle raising an exception.
 // It was made for use inside vmthread_RunFunction, its signature is:
 // (int64_t class_id, const char *msg, ...args for msg's formatters...)
-#define RAISE_EXCEPTION(class_id, ...) \
+#define RAISE_EXCEPTION_EX(class_id, is_u32, ...) \
     {\
     ptrdiff_t offset = (p - pr->func[func_id].instructions);\
     int returneduncaught = 0; \
@@ -639,7 +658,7 @@ static void vmexec_PrintPostExceptionInfo(
         &func_id, &offset, \
         (class_id != H64STDERROR_OUTOFMEMORYERROR), \
         &returneduncaught, \
-        &uncaughtexception, __VA_ARGS__ \
+        &uncaughtexception, is_u32, __VA_ARGS__ \
     );\
     if (!raiseresult && class_id != H64STDERROR_OUTOFMEMORYERROR) {\
         memset(&uncaughtexception, 0, sizeof(uncaughtexception));\
@@ -648,7 +667,7 @@ static void vmexec_PrintPostExceptionInfo(
             vmthread, H64STDERROR_OUTOFMEMORYERROR, \
             &func_id, &offset, 0, \
             &returneduncaught, \
-            &uncaughtexception, "Allocation failure" \
+            &uncaughtexception, is_u32, "Allocation failure" \
         );\
     }\
     if (!raiseresult) {\
@@ -672,6 +691,15 @@ static void vmexec_PrintPostExceptionInfo(
     assert(pr->func[func_id].instructions != NULL);\
     p = (pr->func[func_id].instructions + offset);\
     }
+
+// RAISE_EXCEPTION is a shortcut to handle raising an exception.
+// It was made for use inside vmthread_RunFunction, its signature is:
+// (int64_t class_id, const char *msg, ...args for msg's formatters...)
+#define RAISE_EXCEPTION(class_id, ...)\
+    RAISE_EXCEPTION_EX(class_id, 0, __VA_ARGS__)
+
+#define RAISE_EXCEPTION_U32(class_id, msg, msglen) \
+    RAISE_EXCEPTION_EX(class_id, 1, (const char *)msg, (int)msglen)
 
 int _vmthread_RunFunction_NoPopFuncFrames(
         h64vmthread *vmthread, int64_t func_id,
@@ -1787,11 +1815,30 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
             if (!result) {
                 // Handle error
-                // FIXME:
+                assert(STACK_ENTRY(vmthread->stack, 0)->type ==
+                       H64VALTYPE_EXCEPTION);
+                valuecontent *eobj = STACK_ENTRY(vmthread->stack, 0);
+                RAISE_EXCEPTION_U32(
+                    eobj->exception_class_id,
+                    (const char *)(
+                        eobj->einfo ? eobj->einfo->msg : (unicodechar *)NULL
+                    ),
+                    (eobj->einfo ? (int)eobj->einfo->msglen : 0)
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
             } else {
-                if (returnslot != inst->returnto) {
+                if (returnslot != inst->returnto &&
+                        inst->returnto >= 0) {
                     // Copy over result:
-                    // FIXME
+                    assert(inst->returnto < STACK_TOP(stack));
+                    DELREF_NONHEAP(STACK_ENTRY(stack, inst->returnto));
+                    valuecontent_Free(STACK_ENTRY(stack, inst->returnto));
+                    memcpy(
+                        STACK_ENTRY(stack, inst->returnto),
+                        STACK_ENTRY(stack, returnslot),
+                        sizeof(valuecontent)
+                    );
+                    ADDREF_NONHEAP(STACK_ENTRY(stack, returnslot));
                 }
             }
             p += sizeof(h64instruction_call);
@@ -2617,7 +2664,10 @@ int vmexec_ReturnFuncError(
         h64vmthread *vmthread, int64_t error_id,
         const char *msg, ...
         ) {
-    assert(STACK_TOP(vmthread->stack) > 0);
+    if (STACK_TOP(vmthread->stack) == 0) {
+        if (!stack_ToSize(vmthread->stack, 1, 1))
+            return 0;
+    }
     valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vc);
     valuecontent_Free(vc);
