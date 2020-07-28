@@ -2600,6 +2600,38 @@ int vmthread_RunFunctionWithReturnInt(
     return result;
 }
 
+static void _printuncaughtexception(
+        h64program *pr, h64exceptioninfo *einfo
+        ) {
+    fprintf(stderr, "Uncaught %s: ",
+        (pr->symbols ?
+         _classnamelookup(pr, einfo->exception_class_id) :
+         "Exception"));
+    if (einfo->msg) {
+        char *buf = malloc(einfo->msglen * 5 + 2);
+        if (!buf) {
+            fprintf(stderr, "<utf8 buf alloc failure>");
+        } else {
+            int64_t outlen = 0;
+            int result = utf32_to_utf8(
+                einfo->msg, einfo->msglen,
+                buf, einfo->msglen * 5 + 1,
+                &outlen, 1
+            );
+            if (!result) {
+                fprintf(stderr, "<utf8 conversion failure>");
+            } else {
+                buf[outlen] = '\0';
+                fprintf(stderr, "%s", buf);
+            }
+            free(buf);
+        }
+    } else {
+        fprintf(stderr, "<no message>");
+    }
+    fprintf(stderr, "\n");
+}
+
 int vmexec_ExecuteProgram(
         h64program *pr, h64misccompileroptions *moptions
         ) {
@@ -2626,10 +2658,7 @@ int vmexec_ExecuteProgram(
         }
         if (haduncaughtexception) {
             assert(einfo.exception_class_id >= 0);
-            fprintf(stderr, "Uncaught %s\n",
-                (pr->symbols ?
-                 _classnamelookup(pr, einfo.exception_class_id) :
-                 "Exception"));
+            _printuncaughtexception(pr, &einfo);
             vmthread_Free(mainthread);
             return -1;
         }
@@ -2649,10 +2678,7 @@ int vmexec_ExecuteProgram(
     }
     if (haduncaughtexception) {
         assert(einfo.exception_class_id >= 0);
-        fprintf(stderr, "Uncaught %s\n",
-            (pr->symbols ?
-             _classnamelookup(pr, einfo.exception_class_id) :
-             "Exception"));
+        _printuncaughtexception(pr, &einfo);
         vmthread_Free(mainthread);
         return -1;
     }
