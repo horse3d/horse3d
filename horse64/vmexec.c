@@ -2338,12 +2338,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 strvalue, strvaluelen
             );
             ADDREF_NONHEAP(target);
-            if (copyatend) {
-                DELREF_NONHEAP(STACK_ENTRY(stack, inst->slotto));
-                valuecontent_Free(STACK_ENTRY(stack, inst->slotto));
-                memcpy(STACK_ENTRY(stack, inst->slotto),
-                       target, sizeof(*target));
-            }
         } else if (nameidx == vmthread->program->add_name_index
                 ) {  // .add
             if (vc->type == H64VALTYPE_GCVAL && (
@@ -2391,6 +2385,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 "given member not present on this value"
             );
             goto *jumptable[((h64instructionany *)p)->type];
+        }
+        if (copyatend) {
+            DELREF_NONHEAP(STACK_ENTRY(stack, inst->slotto));
+            valuecontent_Free(STACK_ENTRY(stack, inst->slotto));
+            memcpy(STACK_ENTRY(stack, inst->slotto),
+                   target, sizeof(*target));
         }
         p += sizeof(*inst);
         goto *jumptable[((h64instructionany *)p)->type];
