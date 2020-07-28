@@ -354,6 +354,9 @@ static int vmthread_exceptions_Raise(
                     continue;  // try next catch frame instead
                 }
             }
+        } else {
+            // Uncaught exceptions must go to stack slot 0:
+            exception_to_slot = 0;
         }
         break;
     }
@@ -399,6 +402,16 @@ static int vmthread_exceptions_Raise(
             }
         }
     }
+    #ifndef NDEBUG
+    if (vmthread->moptions.vmexec_debug) {
+        fprintf(stderr,
+            "horsevm: debug: vmexec vmthread_exceptions_Raise -> "
+            "error class %" PRId64 " with msglen=%d "
+            "storemsg=%d\n",
+            (int64_t)class_id, (int)e.msglen, (int)storemsg
+        );
+    }
+    #endif
 
     // Extract backtrace:
     int k = 1;
