@@ -609,7 +609,7 @@ static void vmthread_errors_EndFinally(
 #define CAN_PREERROR_PRINT_INFO 1
 #endif
 
-static void vmexec_PrintPreExceptionInfo(
+static void vmexec_PrintPreErrorInfo(
         h64vmthread *vmthread, int64_t class_id, int64_t func_id,
         int64_t offset
         ) {
@@ -638,7 +638,7 @@ static void vmexec_PrintPreExceptionInfo(
     );
 }
 
-static void vmexec_PrintPostExceptionInfo(
+static void vmexec_PrintPostErrorInfo(
         ATTR_UNUSED h64vmthread *vmthread, ATTR_UNUSED int64_t class_id,
         int64_t func_id, int64_t offset
         ) {
@@ -661,7 +661,7 @@ static void vmexec_PrintPostExceptionInfo(
     uncaughterror.error_class_id = -1; \
     if (CAN_PREERROR_PRINT_INFO &&\
             vmthread->moptions.vmexec_debug) {\
-        vmexec_PrintPreExceptionInfo(\
+        vmexec_PrintPreErrorInfo(\
             vmthread, class_id, func_id,\
             (p - pr->func[func_id].instructions)\
         );\
@@ -697,7 +697,7 @@ static void vmexec_PrintPostExceptionInfo(
     }\
     if (CAN_PREERROR_PRINT_INFO &&\
             vmthread->moptions.vmexec_debug) {\
-        vmexec_PrintPostExceptionInfo(\
+        vmexec_PrintPostErrorInfo(\
             vmthread, class_id, func_id, offset\
         );\
     }\
@@ -2093,14 +2093,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     assert(_class_id >= 0 &&
                            _class_id < pr->classes_count);
                     if (pr->classes[_class_id].is_error) {
-                        // is Exception-derived!
+                        // is Error-derived!
                         class_id = _class_id;
                     }
                 }
             }
             if (class_id < 0) {
                 RAISE_ERROR(H64STDERROR_TYPEERROR,
-                                "catch on non-Exception type");
+                                "catch on non-Error type");
                 goto *jumptable[((h64instructionany *)p)->type];
             }
             assert(vmthread->errorframe_count > 0);
@@ -2619,7 +2619,7 @@ static void _printuncaughterror(
     fprintf(stderr, "Uncaught %s: ",
         (pr->symbols ?
          _classnamelookup(pr, einfo->error_class_id) :
-         "Exception"));
+         "Error"));
     if (einfo->msg) {
         char *buf = malloc(einfo->msglen * 5 + 2);
         if (!buf) {
