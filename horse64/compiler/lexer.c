@@ -99,6 +99,50 @@ char *lexer_ParseStringLiteral(
                     p[k] = '"'; k++;
                 } else if (literal[i] == '\'') {
                     p[k] = '\''; k++;
+                } else if (literal[i] == 'x') {
+                    char hexnum[3] = "";
+                    if (i + 1 < (int)strlen(literal) - 1 &&
+                            ((literal[i + 1] >= '0' &&
+                              literal[i + 1] <= '9') ||
+                             (literal[i + 1] >= 'a' &&
+                              literal[i + 1] <= 'f') ||
+                             (literal[i + 1] >= 'A' &&
+                              literal[i + 1] <= 'F'))) {
+                        hexnum[1] = '\0';
+                        hexnum[0] = literal[i + 1];
+                        i++;
+                        if (i + 1 < (int)strlen(literal) - 1 &&
+                                 ((literal[i + 1] >= '0' &&
+                                   literal[i + 1] <= '9') ||
+                                  (literal[i + 1] >= 'a' &&
+                                   literal[i + 1] <= 'f') ||
+                                  (literal[i + 1] >= 'A' &&
+                                   literal[i + 1] <= 'F'))) {
+                             hexnum[2] = '\0';
+                             hexnum[1] = literal[i + 1];
+                             i++;
+                         }
+                    }
+                    if (strlen(hexnum) == 0) {
+                        char buf[512];
+                        snprintf(buf, sizeof(buf) - 1,
+                            "invalid escape \"\\x\" not followed "
+                            "by hex number was ignored "
+                            "[-Wunrecognized-escape-sequences]");
+                        if (!result_AddMessage(
+                                result,
+                                H64MSG_WARNING, buf,
+                                fileuri, line, column
+                                )) {
+                            free(p);
+                            return NULL;
+                        }
+                    } else {
+                        int number = (int)strtol(hexnum, 0, 16);
+                        assert(number >= 0 && number < 256);
+                        p[k] = number;
+                        k++;
+                    }
                 } else {
                     if (result && wconfig &&
                             wconfig->warn_unrecognized_escape_sequences) {
@@ -113,7 +157,8 @@ char *lexer_ParseStringLiteral(
                         char buf[512];
                         snprintf(buf, sizeof(buf) - 1,
                             "unrecognized escape sequence '\\' followed "
-                            "by %s [-Wunrecognized-escape-sequences]", s);
+                            "by %s was ignored "
+                            "[-Wunrecognized-escape-sequences]", s);
                         if (!result_AddMessage(
                                 result,
                                 H64MSG_WARNING, buf,

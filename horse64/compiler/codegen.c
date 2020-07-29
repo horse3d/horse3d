@@ -905,6 +905,7 @@ int _codegencallback_DoCodegen_visit_out(
                     result, out_len * sizeof(*result)
                 );
                 inst.content.type = H64VALTYPE_SHORTSTR;
+                inst.content.shortstr_len = out_len;
             } else {
                 inst.content.type = H64VALTYPE_CONSTPREALLOCSTR;
                 inst.content.constpreallocstr_value = malloc(

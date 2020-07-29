@@ -77,18 +77,19 @@ char *disassembler_DumpValueContent(valuecontent *vs) {
         } else {
             totallen = (int)vs->shortstr_len;
         }
-        alloclen = totallen * 2 + 2;
+        alloclen = totallen * 12 + 3;  // 1x int32 char -> \uXXXXXXXXXX
         char *outbuf = malloc(alloclen);
         outbuf[0] = '\"';
         int outfill = 1;
         int k = 0;
-        while (k < vs->constpreallocstr_len) {
+        while (k < totallen) {
             uint64_t c = 0;
             if (vs->type == H64VALTYPE_CONSTPREALLOCSTR) {
                 c = vs->constpreallocstr_value[k];
             } else {
                 c = vs->shortstr_value[k];
             }
+            assert(c < INT32_MAX);
             if (outfill + 16 >= alloclen) {
                 char *newoutbuf = realloc(
                     outbuf, outfill + 64
@@ -133,7 +134,9 @@ char *disassembler_DumpValueContent(valuecontent *vs) {
         outbuf[outfill] = '"';
         outfill++;
         outbuf[outfill] = '\0';
-        return outbuf;
+        char *result = strdup(outbuf);  // shrink allocation
+        free(outbuf);
+        return result;
     default:
         return strdup("<unknown valuecontent type>");
     }

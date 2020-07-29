@@ -607,7 +607,9 @@ char *json_Dump(jsonvalue *jv) {
     if (jv->type == JSON_VALUE_STR) {
         if (!jv->value_str)
             return NULL;
-        char *resultbuf = malloc(3 + strlen(jv->value_str) * 2);
+        char *resultbuf = malloc(
+            3 + strlen(jv->value_str) * 6
+        );
         if (!resultbuf)
             return NULL;
         resultbuf[0] = '"';
@@ -622,6 +624,22 @@ char *json_Dump(jsonvalue *jv) {
                     c = 'n';
                 else if (c == '\r')
                     c = 'r';
+            } else if (c < 32) {
+                char escaped[10] = "";
+                snprintf(
+                    escaped, sizeof(escaped) - 1,
+                    "00%x", c
+                );
+                while (strlen(escaped) < 4) {
+                    memmove(escaped + 1, escaped, strlen(escaped) + 1);
+                    escaped[0] = '0';
+                }
+                memcpy(resultbuf + fill, "\\u", strlen("\\u"));
+                fill += strlen("\\u");
+                memcpy(resultbuf + fill, escaped, strlen(escaped));
+                fill += strlen(escaped);
+                i++;
+                continue;
             }
             resultbuf[fill] = c;
             fill++;
