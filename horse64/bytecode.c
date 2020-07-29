@@ -23,7 +23,7 @@ static char _name_itype_setconst[] = "setconst";
 static char _name_itype_setglobal[] = "setglobal";
 static char _name_itype_getglobal[] = "getglobal";
 static char _name_itype_setbyindexexpr[] = "setbyindexexpr";
-static char _name_itype_setbymember[] = "setbymember";
+static char _name_itype_setbyattribute[] = "setbyattribute";
 static char _name_itype_getfunc[] = "getfunc";
 static char _name_itype_getclass[] = "getclass";
 static char _name_itype_valuecopy[] = "valuecopy";
@@ -41,7 +41,7 @@ static char _name_itype_pushcatchframe[] = "pushcatchframe";
 static char _name_itype_addcatchtypebyref[] = "addcatchtyperef";
 static char _name_itype_addcatchtype[] = "addcatchtype";
 static char _name_itype_popcatchframe[] = "popcatchframe";
-static char _name_itype_getmember[] = "getmember";
+static char _name_itype_getattribute[] = "getattribute";
 static char _name_itype_jumptofinally[] = "jumptofinally";
 static char _name_itype_newlist[] = "newlist";
 static char _name_itype_addtolist[] = "addtolist";
@@ -65,8 +65,8 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_getglobal;
     case H64INST_SETBYINDEXEXPR:
         return _name_itype_setbyindexexpr;
-    case H64INST_SETBYMEMBER:
-        return _name_itype_setbymember;
+    case H64INST_SETBYATTRIBUTE:
+        return _name_itype_setbyattribute;
     case H64INST_GETFUNC:
         return _name_itype_getfunc;
     case H64INST_GETCLASS:
@@ -101,8 +101,8 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_addcatchtype;
     case H64INST_POPCATCHFRAME:
         return _name_itype_popcatchframe;
-    case H64INST_GETMEMBER:
-        return _name_itype_getmember;
+    case H64INST_GETATTRIBUTE:
+        return _name_itype_getattribute;
     case H64INST_JUMPTOFINALLY:
         return _name_itype_jumptofinally;
     case H64INST_NEWLIST:
@@ -159,7 +159,7 @@ h64program *h64program_New() {
     return p;
 }
 
-int h64program_RegisterClassMemberEx(
+int h64program_RegisterClassAttributeEx(
         h64program *p,
         int64_t class_id,
         const char *name,
@@ -168,7 +168,7 @@ int h64program_RegisterClassMemberEx(
     if (!p || !p->symbols)
         return 0;
 
-    int64_t nameid = h64debugsymbols_MemberNameToMemberNameId(
+    int64_t nameid = h64debugsymbols_AttributeNameToAttributeNameId(
         p->symbols, name, 1
     );
     if (nameid < 0)
@@ -177,23 +177,23 @@ int h64program_RegisterClassMemberEx(
     // Allocate bucket slot:
     assert(class_id >= 0 && class_id < p->classes_count);
     assert(p->classes[class_id].
-           global_name_to_member_hashmap != NULL);
+           global_name_to_attribute_hashmap != NULL);
     int bucketindex = (nameid % (int64_t)H64CLASS_HASH_SIZE);
-    h64classmemberinfo *buckets =
+    h64classattributeinfo *buckets =
         (p->classes[class_id].
-            global_name_to_member_hashmap[bucketindex]);
+            global_name_to_attribute_hashmap[bucketindex]);
     int buckets_count = 0;
     while (buckets[buckets_count].nameid >= 0) {
         if (buckets[buckets_count].nameid == nameid)
             return 0;
         buckets_count++;
     }
-    h64classmemberinfo *new_buckets = realloc(
+    h64classattributeinfo *new_buckets = realloc(
         buckets, sizeof(*new_buckets) * (buckets_count + 2)
     );
     if (!new_buckets)
         return 0;
-    p->classes[class_id].global_name_to_member_hashmap[
+    p->classes[class_id].global_name_to_attribute_hashmap[
         bucketindex
     ] = new_buckets;
     buckets = new_buckets;
@@ -264,47 +264,50 @@ int h64program_RegisterClassMemberEx(
     return 1;
 }
 
-void h64program_LookupClassMember(
+void h64program_LookupClassAttribute(
         h64program *p, int64_t class_id, int64_t nameid,
-        int *out_membervarid, int *out_memberfuncid
+        int *out_attributevarid, int *out_attributefuncid
         ) {
     assert(p != NULL && p->symbols != NULL);
     int bucketindex = (nameid % (int64_t)H64CLASS_HASH_SIZE);
-    h64classmemberinfo *buckets =
+    h64classattributeinfo *buckets =
         (p->classes[class_id].
-            global_name_to_member_hashmap[bucketindex]);
+            global_name_to_attribute_hashmap[bucketindex]);
     int i = 0;
     while (buckets[i].nameid >= 0) {
         if (buckets[i].nameid == nameid) {
             int64_t result = buckets[i].methodorvaridx;
             if (result < H64CLASS_MAX_METHODS) {
-                *out_memberfuncid = result;
-                *out_membervarid = -1;
+                *out_attributefuncid = result;
+                *out_attributevarid = -1;
             } else {
-                *out_memberfuncid = -1;
-                *out_membervarid = (result - H64CLASS_MAX_METHODS);
+                *out_attributefuncid = -1;
+                *out_attributevarid = (
+                    result - H64CLASS_MAX_METHODS
+                );
             }
             return;
         }
         i++;
     }
-    *out_memberfuncid = -1;
-    *out_membervarid = -1;
+    *out_attributefuncid = -1;
+    *out_attributevarid = -1;
 }
 
-void h64program_LookupClassMemberByname(
+void h64program_LookupClassAttributeByname(
         h64program *p, int64_t class_id, const char *name,
-        int *out_membervarid, int *out_memberfuncid
+        int *out_attributevarid, int *out_attributefuncid
         ) {
-    int64_t nameid = h64debugsymbols_MemberNameToMemberNameId(
+    int64_t nameid = h64debugsymbols_AttributeNameToAttributeNameId(
         p->symbols, name, 0
     );
     if (nameid < 0) {
-        *out_membervarid = -1;
-        *out_memberfuncid = -1;
+        *out_attributevarid = -1;
+        *out_attributefuncid = -1;
     }
-    return h64program_LookupClassMember(
-        p, class_id, nameid, out_membervarid, out_memberfuncid
+    return h64program_LookupClassAttribute(
+        p, class_id, nameid,
+        out_attributevarid, out_attributefuncid
     );
 }
 
@@ -410,8 +413,8 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_getglobal);
     case H64INST_SETBYINDEXEXPR:
         return sizeof(h64instruction_setbyindexexpr);
-    case H64INST_SETBYMEMBER:
-        return sizeof(h64instruction_setbymember);
+    case H64INST_SETBYATTRIBUTE:
+        return sizeof(h64instruction_setbyattribute);
     case H64INST_GETFUNC:
         return sizeof(h64instruction_getfunc);
     case H64INST_GETCLASS:
@@ -446,8 +449,8 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_addcatchtype);
     case H64INST_POPCATCHFRAME:
         return sizeof(h64instruction_popcatchframe);
-    case H64INST_GETMEMBER:
-        return sizeof(h64instruction_getmember);
+    case H64INST_GETATTRIBUTE:
+        return sizeof(h64instruction_getattribute);
     case H64INST_JUMPTOFINALLY:
         return sizeof(h64instruction_jumptofinally);
     case H64INST_NEWLIST:
@@ -478,14 +481,14 @@ void h64program_Free(h64program *p) {
     if (p->classes) {
         int i = 0;
         while (i < p->classes_count) {
-            if (p->classes[i].global_name_to_member_hashmap) {
+            if (p->classes[i].global_name_to_attribute_hashmap) {
                 int k = 0;
                 while (k < H64CLASS_HASH_SIZE) {
                     free(p->classes[i].
-                         global_name_to_member_hashmap[k]);
+                         global_name_to_attribute_hashmap[k]);
                     k++;
                 }
-                free(p->classes[i].global_name_to_member_hashmap);
+                free(p->classes[i].global_name_to_attribute_hashmap);
             }
             free(p->classes[i].method_func_idx);
             free(p->classes[i].method_global_name_idx);
@@ -806,7 +809,7 @@ int h64program_RegisterCFunction(
             );
             if (!argname)
                 goto funcsymboloom;
-            int64_t nameid = h64debugsymbols_MemberNameToMemberNameId(
+            int64_t nameid = h64debugsymbols_AttributeNameToAttributeNameId(
                 p->symbols, arg_kwarg_name[i], 1
             );
             if (nameid < 0)
@@ -871,7 +874,7 @@ int h64program_RegisterCFunction(
 
     // Register function as class method if it is one:
     if (associated_class_index >= 0) {
-        if (!h64program_RegisterClassMemberEx(
+        if (!h64program_RegisterClassAttributeEx(
                 p, associated_class_index,
                 name, p->func_count
                 )) {
@@ -993,15 +996,16 @@ int h64program_AddClass(
                 p->func_count
             );
         }
-        if (p->classes[p->classes_count].global_name_to_member_hashmap) {
+        if (p->classes[p->classes_count].
+                global_name_to_attribute_hashmap) {
             int i = 0;
             while (i < H64CLASS_HASH_SIZE) {
                 free(p->classes[p->classes_count].
-                     global_name_to_member_hashmap[i]);
+                     global_name_to_attribute_hashmap[i]);
                 i++;
             }
             free(p->classes[p->classes_count].
-                 global_name_to_member_hashmap);
+                 global_name_to_attribute_hashmap);
         }
         h64debugsymbols_ClearClassSymbol(
             &msymbols->classes_symbols[msymbols->classes_count]
@@ -1033,34 +1037,36 @@ int h64program_AddClass(
     }
 
     // Add actual class entry:
-    p->classes[p->classes_count].global_name_to_member_hashmap = malloc(
-        H64CLASS_HASH_SIZE * sizeof(
-            *p->classes[p->classes_count].global_name_to_member_hashmap
-        )
-    );
-    if (!p->classes[p->classes_count].global_name_to_member_hashmap)
+    p->classes[p->classes_count].
+        global_name_to_attribute_hashmap = malloc(
+            H64CLASS_HASH_SIZE * sizeof(
+            *p->classes[p->classes_count].global_name_to_attribute_hashmap
+            )
+        );
+    if (!p->classes[p->classes_count].
+            global_name_to_attribute_hashmap)
         goto classsymboloom;
     memset(
-        p->classes[p->classes_count].global_name_to_member_hashmap,
+        p->classes[p->classes_count].global_name_to_attribute_hashmap,
         0, H64CLASS_HASH_SIZE * sizeof(
-            *p->classes[p->classes_count].global_name_to_member_hashmap
+            *p->classes[p->classes_count].global_name_to_attribute_hashmap
         )
     );
     int i = 0;
     while (i < H64CLASS_HASH_SIZE) {
-        p->classes[p->classes_count].global_name_to_member_hashmap[i] =
+        p->classes[p->classes_count].global_name_to_attribute_hashmap[i] =
             malloc(
                 sizeof(**(p->classes[p->classes_count].
-                global_name_to_member_hashmap))
+                global_name_to_attribute_hashmap))
             );
         if (!p->classes[p->classes_count].
-                global_name_to_member_hashmap[i]) {
+                global_name_to_attribute_hashmap[i]) {
             goto classsymboloom;
         }
         p->classes[p->classes_count].
-            global_name_to_member_hashmap[i][0].nameid = -1;
+            global_name_to_attribute_hashmap[i][0].nameid = -1;
         p->classes[p->classes_count].
-            global_name_to_member_hashmap[i][0].methodorvaridx = -1;
+            global_name_to_attribute_hashmap[i][0].methodorvaridx = -1;
         i++;
     }
 
@@ -1075,7 +1081,7 @@ int h64program_RegisterClassVariable(
         int64_t class_id,
         const char *name
         ) {
-    return h64program_RegisterClassMemberEx(
+    return h64program_RegisterClassAttributeEx(
         p, class_id, name, -1
     );
 }

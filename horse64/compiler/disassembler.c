@@ -210,15 +210,15 @@ int disassembler_PrintInstruction(
         }
         break;
     }
-    case H64INST_SETBYMEMBER: {
-        h64instruction_setbymember *inst_setbymember =
-            (h64instruction_setbymember *)inst;
+    case H64INST_SETBYATTRIBUTE: {
+        h64instruction_setbyattribute *inst_setbyattribute =
+            (h64instruction_setbyattribute *)inst;
         if (!disassembler_Write(di,
                 "    %s t%d t%d t%d",
                 bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_setbymember->slotobjto,
-                (int)inst_setbymember->slotmemberto,
-                (int)inst_setbymember->slotvaluefrom)) {
+                (int)inst_setbyattribute->slotobjto,
+                (int)inst_setbyattribute->slotattributeto,
+                (int)inst_setbyattribute->slotvaluefrom)) {
             return 0;
         }
         break;
@@ -348,14 +348,15 @@ int disassembler_PrintInstruction(
         }
         break;
     }
-    case H64INST_GETMEMBER: {
-        h64instruction_getmember *inst_getmember =
-            (h64instruction_getmember *)inst;
+    case H64INST_GETATTRIBUTE: {
+        h64instruction_getattribute *inst_getattribute =
+            (h64instruction_getattribute *)inst;
         if (!disassembler_Write(di,
                 "    %s t%d t%d %" PRId64,
                 bytecode_InstructionTypeToStr(inst->type),
-                inst_getmember->slotto, inst_getmember->objslotfrom,
-                inst_getmember->nameidx)) {
+                inst_getattribute->slotto,
+                inst_getattribute->objslotfrom,
+                inst_getattribute->nameidx)) {
             return 0;
         }
         break;

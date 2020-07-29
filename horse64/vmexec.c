@@ -2182,9 +2182,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         goto *jumptable[((h64instructionany *)p)->type];
     }
-    inst_getmember: {
-        h64instruction_getmember *inst = (
-            (h64instruction_getmember *)p
+    inst_getattribute: {
+        h64instruction_getattribute *inst = (
+            (h64instruction_getattribute *)p
         );
         #ifndef NDEBUG
         if (vmthread->moptions.vmexec_debug &&
@@ -2374,15 +2374,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 ((h64gcvalue *)vc->ptr_value)->heapreferencecount++;
             } else {
                 RAISE_EXCEPTION(
-                    H64STDERROR_MEMBERERROR,
-                    "given member not present on this value"
+                    H64STDERROR_ATTRIBUTEERROR,
+                    "given attribute not present on this value"
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
         } else {
             RAISE_EXCEPTION(
-                H64STDERROR_MEMBERERROR,
-                "given member not present on this value"
+                H64STDERROR_ATTRIBUTEERROR,
+                "given attribute not present on this value"
             );
             goto *jumptable[((h64instructionany *)p)->type];
         }
@@ -2479,7 +2479,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_ADDCATCHTYPEBYREF] = &&inst_addcatchtypebyref;
     jumptable[H64INST_ADDCATCHTYPE] = &&inst_addcatchtype;
     jumptable[H64INST_POPCATCHFRAME] = &&inst_popcatchframe;
-    jumptable[H64INST_GETMEMBER] = &&inst_getmember;
+    jumptable[H64INST_GETATTRIBUTE] = &&inst_getattribute;
     jumptable[H64INST_JUMPTOFINALLY] = &&inst_jumptofinally;
     jumptable[H64INST_NEWLIST] = &&inst_newlist;
     jumptable[H64INST_NEWSET] = &&inst_newset;

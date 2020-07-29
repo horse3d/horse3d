@@ -21,7 +21,7 @@ typedef enum instructiontype {
     H64INST_SETGLOBAL,
     H64INST_GETGLOBAL,
     H64INST_SETBYINDEXEXPR,
-    H64INST_SETBYMEMBER,
+    H64INST_SETBYATTRIBUTE,
     H64INST_GETFUNC,
     H64INST_GETCLASS,
     H64INST_VALUECOPY,
@@ -39,7 +39,7 @@ typedef enum instructiontype {
     H64INST_ADDCATCHTYPEBYREF,
     H64INST_ADDCATCHTYPE,
     H64INST_POPCATCHFRAME,
-    H64INST_GETMEMBER,
+    H64INST_GETATTRIBUTE,
     H64INST_JUMPTOFINALLY,
     H64INST_NEWLIST,
     H64INST_NEWSET,
@@ -143,12 +143,12 @@ typedef struct h64instruction_setbyindexexpr {
     int16_t slotvaluefrom;
 } __attribute__((packed)) h64instruction_setbyindexexpr;
 
-typedef struct h64instruction_setbymember {
+typedef struct h64instruction_setbyattribute {
     uint8_t type;
     int16_t slotobjto;
-    int16_t slotmemberto;
+    int16_t slotattributeto;
     int16_t slotvaluefrom;
-} __attribute__((packed)) h64instruction_setbymember;
+} __attribute__((packed)) h64instruction_setbyattribute;
 
 typedef struct h64instruction_getfunc {
     uint8_t type;
@@ -245,12 +245,12 @@ typedef struct h64instruction_popcatchframe {
     uint8_t type;
 } __attribute__ ((packed)) h64instruction_popcatchframe;
 
-typedef struct h64instruction_getmember {
+typedef struct h64instruction_getattribute {
     uint8_t type;
     int16_t slotto;
     int16_t objslotfrom;
     int64_t nameidx;
-} __attribute__ ((packed)) h64instruction_getmember;
+} __attribute__ ((packed)) h64instruction_getattribute;
 
 typedef struct h64instruction_jumptofinally {
     uint8_t type;
@@ -280,10 +280,10 @@ typedef struct h64instruction_newmap {
 #define H64CLASS_HASH_SIZE 16
 #define H64CLASS_MAX_METHODS (INT_MAX / 4)
 
-typedef struct h64classmemberinfo {
+typedef struct h64classattributeinfo {
     int64_t nameid;
     int methodorvaridx;  // vars have H64CLASS_MAX_METHODS offset
-} h64classmemberinfo;
+} h64classattributeinfo;
 
 typedef struct h64class {
     int methods_count;
@@ -295,7 +295,7 @@ typedef struct h64class {
     int vars_count;
     int64_t *vars_global_name_idx;
 
-    h64classmemberinfo **global_name_to_member_hashmap;
+    h64classattributeinfo **global_name_to_attribute_hashmap;
 
     int hasvarinitfunc;
 } h64class;
@@ -372,9 +372,9 @@ void h64program_FreeInstructions(
     char *instructionbytes, int instructionbytes_len
 );
 
-void h64program_LookupClassMember(
+void h64program_LookupClassAttribute(
     h64program *p, int64_t class_id, int64_t nameid,
-    int *out_membervarid, int *out_memberfuncid
+    int *out_attributevarid, int *out_attributefuncid
 );
 
 int h64program_RegisterClassVariable(

@@ -45,8 +45,8 @@ static char h64opprinted_boolcond_and[] = "and";
 static char h64opprinted_boolcond_or[] = "or";
 static char h64opprinted_boolcond_not[] = "not";
 static char h64opprinted_boolcond_in[] = "in";
-static char h64opprinted_memberbyidentifier[] = ".";
-static char h64opprinted_memberbyexpr[] = "[";
+static char h64opprinted_attributebyidentifier[] = ".";
+static char h64opprinted_indexbyexpr[] = "[";
 static char h64opprinted_call[] = "(";
 static char h64opprinted_new[] = "new";
 
@@ -123,10 +123,10 @@ const char *operator_OpPrintedAsStr(h64optype type) {
         return h64opprinted_boolcond_not;
     case H64OP_BOOLCOND_IN:
         return h64opprinted_boolcond_in;
-    case H64OP_MEMBERBYIDENTIFIER:
-        return h64opprinted_memberbyidentifier;
+    case H64OP_ATTRIBUTEBYIDENTIFIER:
+        return h64opprinted_attributebyidentifier;
     case H64OP_INDEXBYEXPR:
-        return h64opprinted_memberbyexpr;
+        return h64opprinted_indexbyexpr;
     case H64OP_CALL:
         return h64opprinted_call;
     case H64OP_NEW:
@@ -140,7 +140,8 @@ const char *operator_OpPrintedAsStr(h64optype type) {
 static char h64opname_invalid[] = "H64OP_INVALID";
 static char h64opname_math_divide[] = "H64OP_MATH_DIVIDE";
 static char h64opname_math_addition[] = "H64OP_MATH_ADD";
-static char h64opname_math_unarysubstract[] = "H64OP_MATH_UNARYSUBSTRACT";
+static char h64opname_math_unarysubstract[] =
+    "H64OP_MATH_UNARYSUBSTRACT";
 static char h64opname_math_substract[] = "H64OP_MATH_SUBSTRACT";
 static char h64opname_math_multiply[] = "H64OP_MATH_MULTIPLY";
 static char h64opname_math_modulo[] = "H64OP_MATH_MODULO";
@@ -152,15 +153,19 @@ static char h64opname_math_binshiftleft[] = "H64OP_MATH_BINSHIFTLEFT";
 static char h64opname_math_binshiftright[] = "H64OP_MATH_BINSHIFTRIGHT";
 static char h64opname_assignmath_divide[] = "H64OP_ASSIGNMATH_DIVIDE";
 static char h64opname_assignmath_add[] = "H64OP_ASSIGNMATH_ADD";
-static char h64opname_assignmath_substract[] = "H64OP_ASSIGNMATH_SUBSTRACT";
-static char h64opname_assignmath_multiply[] = "H64OP_ASSIGNMATH_MULTIPLY";
+static char h64opname_assignmath_substract[] =
+    "H64OP_ASSIGNMATH_SUBSTRACT";
+static char h64opname_assignmath_multiply[] =
+    "H64OP_ASSIGNMATH_MULTIPLY";
 static char h64opname_assignmath_modulo[] = "H64OP_ASSIGNMATH_MODULO";
 static char h64opname_assignmath_binor[] = "H64OP_ASSIGNMATH_BINOR";
 static char h64opname_assignmath_binand[] = "H64OP_ASSIGNMATH_BINAND";
 static char h64opname_assignmath_binxor[] = "H64OP_ASSIGNMATH_BINXOR";
 static char h64opname_assignmath_binnot[] = "H64OP_ASSIGNMATH_BINNOT";
-static char h64opname_assignmath_binshiftleft[] = "H64OP_ASSIGNMATH_BINSHIFTLEFT";
-static char h64opname_assignmath_binshiftright[] = "H64OP_ASSIGNMATH_BINSHIFTRIGHT";
+static char h64opname_assignmath_binshiftleft[] =
+    "H64OP_ASSIGNMATH_BINSHIFTLEFT";
+static char h64opname_assignmath_binshiftright[] =
+    "H64OP_ASSIGNMATH_BINSHIFTRIGHT";
 static char h64opname_assign[] = "H64OP_ASSIGN";
 static char h64opname_cmp_equal[] = "H64OP_CMP_EQUAL";
 static char h64opname_cmp_notequal[] = "H64OP_CMP_NOTEQUAL";
@@ -172,8 +177,9 @@ static char h64opname_boolcond_and[] = "H64OP_BOOLCOND_AND";
 static char h64opname_boolcond_or[] = "H64OP_BOOLCOND_OR";
 static char h64opname_boolcond_not[] = "H64OP_BOOLCOND_NOT";
 static char h64opname_boolcond_in[] = "H64OP_BOOLCOND_IN";
-static char h64opname_memberbyidentifier[] = "H64OP_MEMBERBYIDENTIFIER";
-static char h64opname_memberbyexpr[] = "H64OP_INDEXBYEXPR";
+static char h64opname_attributebyidentifier[] =
+    "H64OP_ATTRIBUTEBYIDENTIFIER";
+static char h64opname_indexbyexpr[] = "H64OP_INDEXBYEXPR";
 static char h64opname_call[] = "H64OP_CALL";
 static char h64opname_new[] = "H64OP_NEW";
 
@@ -305,10 +311,10 @@ const char *operator_OpTypeToStr(h64optype type) {
         return h64opname_boolcond_not;
     case H64OP_BOOLCOND_IN:
         return h64opname_boolcond_in;
-    case H64OP_MEMBERBYIDENTIFIER:
-        return h64opname_memberbyidentifier;
+    case H64OP_ATTRIBUTEBYIDENTIFIER:
+        return h64opname_attributebyidentifier;
     case H64OP_INDEXBYEXPR:
-        return h64opname_memberbyexpr;
+        return h64opname_indexbyexpr;
     case H64OP_CALL:
         return h64opname_call;
     case H64OP_NEW:

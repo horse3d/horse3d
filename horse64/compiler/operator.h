@@ -47,7 +47,7 @@ typedef enum h64optype {
     H64OP_BOOLCOND_OR,
     H64OP_BOOLCOND_NOT,
     H64OP_BOOLCOND_IN,
-    H64OP_MEMBERBYIDENTIFIER,
+    H64OP_ATTRIBUTEBYIDENTIFIER,
     H64OP_INDEXBYEXPR,
     H64OP_CALL,
     H64OP_NEW,
@@ -76,7 +76,7 @@ static int operator_PrecedenceByType(int type) {
     if (IS_ASSIGN_OP(type))
         return 10;
     switch (type) {
-    case H64OP_MEMBERBYIDENTIFIER: return 0;
+    case H64OP_ATTRIBUTEBYIDENTIFIER: return 0;
     case H64OP_INDEXBYEXPR: return 0;
     case H64OP_CALL: return 0;
     case H64OP_NEW: return 1;

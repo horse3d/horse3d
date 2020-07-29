@@ -28,7 +28,7 @@ static void get_assign_lvalue_storage(
     if (expr->assignstmt.lvalue->type ==
             H64EXPRTYPE_BINARYOP &&
             expr->assignstmt.lvalue->op.optype ==
-                H64OP_MEMBERBYIDENTIFIER &&
+                H64OP_ATTRIBUTEBYIDENTIFIER &&
             expr->assignstmt.lvalue->op.value2->storage.set) {
         *out_storageref = &(
             expr->assignstmt.lvalue->op.value2->storage.ref
@@ -40,7 +40,7 @@ static void get_assign_lvalue_storage(
             assert(
                 expr->assignstmt.lvalue->type == H64EXPRTYPE_BINARYOP &&
                 (expr->assignstmt.lvalue->op.optype ==
-                     H64OP_MEMBERBYIDENTIFIER ||
+                     H64OP_ATTRIBUTEBYIDENTIFIER ||
                  expr->assignstmt.lvalue->op.optype ==
                      H64OP_INDEXBYEXPR)
             );
@@ -682,7 +682,7 @@ int _codegencallback_DoCodegen_visit_out(
             expr->constructorlist.entry_count
         );
         int64_t add_name_idx =
-            h64debugsymbols_MemberNameToMemberNameId(
+            h64debugsymbols_AttributeNameToAttributeNameId(
                 rinfo->pr->program->symbols, "add", 1
             );
         if (entry_count > 0) {
@@ -693,12 +693,12 @@ int _codegencallback_DoCodegen_visit_out(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-            h64instruction_getmember instgetmember = {0};
-            instgetmember.type = H64INST_GETMEMBER;
-            instgetmember.slotto = addfunctemp;
-            instgetmember.objslotfrom = listtmp;
+            h64instruction_getattribute instgetattr = {0};
+            instgetattr.type = H64INST_GETATTRIBUTE;
+            instgetattr.slotto = addfunctemp;
+            instgetattr.objslotfrom = listtmp;
             if (!appendinst(rinfo->pr->program, func, expr,
-                            &instgetmember, sizeof(instgetmember))) {
+                            &instgetattr, sizeof(instgetattr))) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -942,7 +942,7 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_FOR_STMT) {
         // Already handled in visit_in
     } else if (expr->type == H64EXPRTYPE_BINARYOP &&
-            expr->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+            expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
             (expr->parent == NULL ||
              expr->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
              expr->parent->assignstmt.lvalue != expr)
@@ -950,7 +950,7 @@ int _codegencallback_DoCodegen_visit_out(
         // Regular get by member that needs to be evaluated at runtime:
         assert(!expr->op.value2->storage.set);
         assert(expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF);
-        int64_t idx = h64debugsymbols_MemberNameToMemberNameId(
+        int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
             rinfo->pr->program->symbols,
             expr->op.value2->identifierref.value, 0
         );
@@ -963,14 +963,14 @@ int _codegencallback_DoCodegen_visit_out(
             // FIXME: hard-code an error raise
             fprintf(stderr, "fix invalid member\n");
         } else {
-            h64instruction_getmember inst_getmem = {0};
-            inst_getmem.type = H64INST_GETMEMBER;
-            inst_getmem.slotto = temp;
-            inst_getmem.objslotfrom = expr->op.value1->storage.eval_temp_id;
-            inst_getmem.nameidx = idx;
+            h64instruction_getattribute inst_getattr = {0};
+            inst_getattr.type = H64INST_GETATTRIBUTE;
+            inst_getattr.slotto = temp;
+            inst_getattr.objslotfrom = expr->op.value1->storage.eval_temp_id;
+            inst_getattr.nameidx = idx;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
-                    &inst_getmem, sizeof(inst_getmem))) {
+                    &inst_getattr, sizeof(inst_getattr))) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -979,7 +979,7 @@ int _codegencallback_DoCodegen_visit_out(
     } else if (expr->type == H64EXPRTYPE_BINARYOP) {
         // Other binary op instances that aren't get by member,
         // unless it doesn't need to be handled anyway:
-        if (expr->op.optype == H64OP_MEMBERBYIDENTIFIER) {
+        if (expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER) {
             assert(
                 (expr->storage.set &&
                  expr->storage.eval_temp_id >= 0) || (
@@ -1046,7 +1046,7 @@ int _codegencallback_DoCodegen_visit_out(
                 kwargcount++;
                 assert(expr->inlinecall.arguments.arg_name[i] != NULL);
                 int64_t kwnameidx = (
-                    h64debugsymbols_MemberNameToMemberNameId(
+                    h64debugsymbols_AttributeNameToAttributeNameId(
                         rinfo->pr->program->symbols,
                         expr->inlinecall.arguments.arg_name[i],
                         0
@@ -1155,7 +1155,7 @@ int _codegencallback_DoCodegen_visit_out(
                 (expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
                  expr->parent->assignstmt.lvalue == expr) ||
                 (expr->parent->type == H64EXPRTYPE_BINARYOP &&
-                 expr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+                 expr->parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
                  expr->parent->op.value2 == expr &&
                  !expr->storage.set &&
                  expr->parent->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
@@ -1165,7 +1165,7 @@ int _codegencallback_DoCodegen_visit_out(
             return 1;
         } else if (expr->parent != NULL &&
                 expr->parent->type == H64EXPRTYPE_BINARYOP &&
-                expr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+                expr->parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
                 expr->parent->op.value2 == expr &&
                 !expr->storage.set
                 ) {
@@ -1281,7 +1281,7 @@ int _codegencallback_DoCodegen_visit_out(
              (expr->assignstmt.lvalue->type ==
                   H64EXPRTYPE_BINARYOP &&
               expr->assignstmt.lvalue->op.optype ==
-                  H64OP_MEMBERBYIDENTIFIER &&
+                  H64OP_ATTRIBUTEBYIDENTIFIER &&
               expr->assignstmt.lvalue->op.value2->type ==
                   H64EXPRTYPE_IDENTIFIERREF &&
               expr->assignstmt.lvalue->op.value2->storage.set) ||
@@ -1332,7 +1332,7 @@ int _codegencallback_DoCodegen_visit_out(
                     expr->assignstmt.lvalue->type ==
                         H64EXPRTYPE_BINARYOP && (
                     expr->assignstmt.lvalue->op.optype ==
-                        H64OP_MEMBERBYIDENTIFIER ||
+                        H64OP_ATTRIBUTEBYIDENTIFIER ||
                     expr->assignstmt.lvalue->op.optype == H64OP_INDEXBYEXPR
                     )
                 );
@@ -1428,9 +1428,9 @@ int _codegencallback_DoCodegen_visit_out(
                 assert(expr->assignstmt.lvalue->type ==
                        H64EXPRTYPE_BINARYOP);
                 if (expr->assignstmt.lvalue->op.optype ==
-                        H64OP_MEMBERBYIDENTIFIER) {
-                    h64instruction_setbymember inst = {0};
-                    inst.type = H64INST_SETBYMEMBER;
+                        H64OP_ATTRIBUTEBYIDENTIFIER) {
+                    h64instruction_setbyattribute inst = {0};
+                    inst.type = H64INST_SETBYATTRIBUTE;
                     assert(expr->assignstmt.lvalue->
                            op.value1->storage.eval_temp_id >= 0);
                     inst.slotobjto = (
@@ -1439,7 +1439,7 @@ int _codegencallback_DoCodegen_visit_out(
                     );
                     assert(expr->assignstmt.lvalue->
                            op.value2->storage.eval_temp_id >= 0);
-                    inst.slotmemberto = (
+                    inst.slotattributeto = (
                         expr->assignstmt.lvalue->op.value2->
                         storage.eval_temp_id
                     );

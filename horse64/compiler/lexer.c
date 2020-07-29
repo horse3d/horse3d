@@ -864,7 +864,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 optype = H64OP_INDEXBYEXPR;
                 break;
             case '.':
-                optype = H64OP_MEMBERBYIDENTIFIER;
+                optype = H64OP_ATTRIBUTEBYIDENTIFIER;
                 break;
             case '=':
                 if (i + 1 < (int)size && buffer[i + 1] == '=') {

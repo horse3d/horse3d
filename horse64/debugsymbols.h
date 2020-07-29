@@ -67,9 +67,9 @@ typedef struct h64debugsymbols {
     int module_count;
     h64modulesymbols **module_symbols;
 
-    hashmap *member_name_to_global_member_id;
-    int64_t global_member_count;
-    char **global_member_name;
+    hashmap *attribute_name_to_global_attribute_id;
+    int64_t global_attribute_count;
+    char **global_attribute_name;
 
     hashmap *func_id_to_module_symbols_index;
     hashmap *func_id_to_module_symbols_func_subindex;
@@ -77,7 +77,7 @@ typedef struct h64debugsymbols {
     hashmap *class_id_to_module_symbols_class_subindex;
 } h64debugsymbols;
 
-int64_t h64debugsymbols_MemberNameToMemberNameId(
+int64_t h64debugsymbols_AttributeNameToAttributeNameId(
     h64debugsymbols *symbols, const char *name,
     int addifnotpresent
 );

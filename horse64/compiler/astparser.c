@@ -3510,19 +3510,21 @@ int ast_ParseExprStmt(
             int64_t nameindex = -1;
             if (stmt[k]->type == H64EXPRTYPE_VARDEF_STMT) {
                 if (stmt[k]->vardef.identifier != NULL) {
-                    nameindex = h64debugsymbols_MemberNameToMemberNameId(
-                        context->project->program->symbols,
-                        stmt[k]->vardef.identifier, 1
-                    );
+                    nameindex = (
+                        h64debugsymbols_AttributeNameToAttributeNameId(
+                            context->project->program->symbols,
+                            stmt[k]->vardef.identifier, 1
+                        ));
                     if (nameindex < 0) nameoom = 1;
                 }
                 vardefcount++;
             } else {
                 if (stmt[k]->funcdef.name != NULL) {
-                    nameindex = h64debugsymbols_MemberNameToMemberNameId(
-                        context->project->program->symbols,
-                        stmt[k]->funcdef.name, 1
-                    );
+                    nameindex = (
+                        h64debugsymbols_AttributeNameToAttributeNameId(
+                            context->project->program->symbols,
+                            stmt[k]->funcdef.name, 1
+                        ));
                     if (nameindex < 0) nameoom = 1;
                 }
                 funcdefcount++;
@@ -3530,7 +3532,7 @@ int ast_ParseExprStmt(
             k++;
         }
         if (nameoom) {
-            // Got out of memory trying to map member name to index:
+            // Got out of memory trying to map attribute name to index:
             if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 0;
             goto classparsefail;

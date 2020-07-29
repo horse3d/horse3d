@@ -17,11 +17,11 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
 
     free(symbols->mainfile_module_path);
     int i = 0;
-    while (i < symbols->global_member_count) {
-        free(symbols->global_member_name[i]);
+    while (i < symbols->global_attribute_count) {
+        free(symbols->global_attribute_name[i]);
         i++;
     }
-    free(symbols->global_member_name);
+    free(symbols->global_attribute_name);
     i = 0;
     while (i < symbols->module_count) {
         h64debugsymbols_ClearModule(symbols->module_symbols[i]);
@@ -46,8 +46,8 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
         hash_FreeMap(symbols->class_id_to_module_symbols_class_subindex);
     if (symbols->modulelibpath_to_modulesymbol_id)
         hash_FreeMap(symbols->modulelibpath_to_modulesymbol_id);
-    if (symbols->member_name_to_global_member_id)
-        hash_FreeMap(symbols->member_name_to_global_member_id);
+    if (symbols->attribute_name_to_global_attribute_id)
+        hash_FreeMap(symbols->attribute_name_to_global_attribute_id);
     free(symbols);
 }
 
@@ -83,7 +83,7 @@ void h64debugsymbols_ClearFuncSymbol(
     free(fsymbol->arg_kwarg_name);
 }
 
-int64_t h64debugsymbols_MemberNameToMemberNameId(
+int64_t h64debugsymbols_AttributeNameToAttributeNameId(
         h64debugsymbols *symbols, const char *name,
         int addifnotpresent
         ) {
@@ -91,27 +91,27 @@ int64_t h64debugsymbols_MemberNameToMemberNameId(
         return -1;
     uint64_t number = 0;
     if (!hash_StringMapGet(
-            symbols->member_name_to_global_member_id,
+            symbols->attribute_name_to_global_attribute_id,
             name, &number)) {
         if (addifnotpresent) {
-            int64_t new_id = symbols->global_member_count;
+            int64_t new_id = symbols->global_attribute_count;
             char **new_name_list = realloc(
-                symbols->global_member_name,
-                sizeof(*symbols->global_member_name) *
-                (symbols->global_member_count + 1)
+                symbols->global_attribute_name,
+                sizeof(*symbols->global_attribute_name) *
+                (symbols->global_attribute_count + 1)
             );
             if (!new_name_list)
                 return -1;
-            symbols->global_member_name = new_name_list;
-            symbols->global_member_name[new_id] = strdup(name);
-            if (!symbols->global_member_name[new_id])
+            symbols->global_attribute_name = new_name_list;
+            symbols->global_attribute_name[new_id] = strdup(name);
+            if (!symbols->global_attribute_name[new_id])
                 return -1;
-            symbols->global_member_count++;
+            symbols->global_attribute_count++;
             if (!hash_StringMapSet(
-                    symbols->member_name_to_global_member_id,
+                    symbols->attribute_name_to_global_attribute_id,
                     name, (uint64_t)new_id)) {
-                free(symbols->global_member_name[new_id]);
-                symbols->global_member_count--;
+                free(symbols->global_attribute_name[new_id]);
+                symbols->global_attribute_count--;
                 return -1;
             }
             if (symbols->program) {
@@ -317,8 +317,10 @@ h64debugsymbols *h64debugsymbols_New() {
         return NULL;
     }
 
-    symbols->member_name_to_global_member_id = hash_NewStringMap(1024 * 5);
-    if (!symbols->member_name_to_global_member_id) {
+    symbols->attribute_name_to_global_attribute_id = (
+        hash_NewStringMap(1024 * 5)
+    );
+    if (!symbols->attribute_name_to_global_attribute_id) {
         h64debugsymbols_Free(symbols);
         return NULL;
     }

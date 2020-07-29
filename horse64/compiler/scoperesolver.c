@@ -139,7 +139,7 @@ static int scoperesolver_ComputeItemStorage(
             return 1;
         }
     }
-    // Handle class members:
+    // Handle class attributes:
     if (!scope->is_global && expr->type == H64EXPRTYPE_VARDEF_STMT) {
         h64expression *owningclass = expr->parent;
         while (owningclass) {
@@ -363,7 +363,7 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                 i++;
                 continue;
             }
-            int64_t idx = h64debugsymbols_MemberNameToMemberNameId(
+            int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
                 atinfo->pr->program->symbols,
                 expr->funcdef.arguments.arg_name[i], 1
             );
@@ -474,7 +474,7 @@ int scoperesolver_EvaluteDerivedClassParent(
     if (expr->parent->type != H64EXPRTYPE_CLASSDEF_STMT ||
             (expr->type != H64EXPRTYPE_IDENTIFIERREF &&
              (expr->type != H64EXPRTYPE_BINARYOP ||
-              expr->op.optype != H64OP_MEMBERBYIDENTIFIER)) ||
+              expr->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER)) ||
             expr->parent->classdef.baseclass_ref != expr)
         return 1;
 
@@ -588,9 +588,9 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             (parent == NULL ||
              parent->type != H64EXPRTYPE_BINARYOP ||
              parent->op.value1 == expr ||
-             parent->op.optype != H64OP_MEMBERBYIDENTIFIER)) {
-        // This actually refers to an item itself, rather than
-        // just being the name of a member obtained at runtime -> resolve
+             parent->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER)) {
+        // This actually refers to an item itself, rather than just
+        // being the name of an attribute obtained at runtime -> resolve
         assert(expr->identifierref.value != NULL);
         h64scope *scope = ast_GetScope(expr, &atinfo->ast->scope);
         if (scope == NULL) {
@@ -808,14 +808,15 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             h64expression *pexpr = expr;
             while (pexpr->parent &&
                     pexpr->parent->type == H64EXPRTYPE_BINARYOP &&
-                    pexpr->parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+                    pexpr->parent->op.optype ==
+                        H64OP_ATTRIBUTEBYIDENTIFIER &&
                     pexpr->parent->op.value1 == pexpr &&
                     pexpr->parent->op.value2 != NULL &&
                     pexpr->parent->op.value2->type ==
                         H64EXPRTYPE_IDENTIFIERREF &&
                     pexpr->parent->parent &&
                     pexpr->parent->parent->op.optype ==
-                        H64OP_MEMBERBYIDENTIFIER &&
+                        H64OP_ATTRIBUTEBYIDENTIFIER &&
                     pexpr->parent->parent->op.value1 == pexpr->parent &&
                     pexpr->parent->parent->op.value2 != NULL &&
                     pexpr->parent->parent->op.value2->type ==
@@ -931,14 +932,14 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             }
             expr->identifierref.resolved_to_expr = _mapto;
 
-            // Resolve the member access that is done on top of this
+            // Resolve the attribute access that is done on top of this
             // module path (or error if there is none which is invalid,
             // modules cannot be referenced in any other way):
             assert(_mapto != NULL && pexpr != NULL);
             if (pexpr->parent == NULL ||
                     pexpr->parent->type != H64EXPRTYPE_BINARYOP ||
                     pexpr->parent->op.optype !=
-                        H64OP_MEMBERBYIDENTIFIER ||
+                        H64OP_ATTRIBUTEBYIDENTIFIER ||
                     pexpr->parent->op.value1 != pexpr ||
                     pexpr->parent->op.value2 == NULL ||
                     pexpr->parent->op.value2->type !=
@@ -972,7 +973,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 pexpr->parent->op.value2->identifierref.value
             );
             if (!refitemname) {
-                // Oops, the accessed member on the module is NULL.
+                // Oops, the accessed attribute on the module is NULL.
                 // Likely an error in a previous stage (e.g. parser).
                 // Mark as error in any case, to make sure we return
                 // an error message always:
@@ -1097,14 +1098,14 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         }
     }
 
-    // Resolve member by identifier names to ids:
+    // Resolve attribute by identifier names to ids:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             parent != NULL &&
             parent->type == H64EXPRTYPE_BINARYOP &&
             parent->op.value2 == expr &&
-            parent->op.optype == H64OP_MEMBERBYIDENTIFIER &&
+            parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
             !expr->storage.set) {
-        int64_t idx = h64debugsymbols_MemberNameToMemberNameId(
+        int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
             atinfo->pr->program->symbols,
             expr->identifierref.value, 1
         );
