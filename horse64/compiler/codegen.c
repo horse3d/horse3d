@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <signal.h>
 #include <string.h>
 
 #include "compiler/ast.h"
@@ -140,37 +141,42 @@ void freemultilinetemp(
     func->funcdef._storageinfo->codegen.extra_temps_used[temp] = 0;
 }
 
-int new1linetemp(h64expression *func, h64expression *expr) {
-    // Use temporary 'mandated' by parent if any:
-    storageref *parent_store = NULL;
-    if (expr && expr->parent &&
-            expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
-            expr->parent->assignstmt.assignop == H64OP_ASSIGN) {
-        get_assign_lvalue_storage(expr->parent, &parent_store);
-    } else if (expr && expr->parent &&
-            expr->parent->type == H64EXPRTYPE_VARDEF_STMT) {
-        assert(expr->parent->storage.set);
-        if (expr->parent->storage.ref.type == H64STORETYPE_STACKSLOT)
-            return (int)expr->parent->storage.ref.id;
-    }
-    if (parent_store && parent_store->type ==
-            H64STORETYPE_STACKSLOT)
-        return parent_store->id;
-
-    // If a binary or unary operator, see if we can reuse child storage:
-    if (expr && (expr->type == H64EXPRTYPE_BINARYOP ||
-                 expr->type == H64EXPRTYPE_UNARYOP)) {
-        assert(expr->op.value1 != NULL);
-        if (expr->op.value1->storage.eval_temp_id >=
-                func->funcdef._storageinfo->lowest_guaranteed_free_temp) {
-            return expr->op.value1->storage.eval_temp_id;
+int new1linetemp(
+        h64expression *func, h64expression *expr, int ismainitem
+        ) {
+    if (ismainitem) {
+        // Use temporary 'mandated' by parent if any:
+        storageref *parent_store = NULL;
+        if (expr && expr->parent &&
+                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+                expr->parent->assignstmt.assignop == H64OP_ASSIGN) {
+            get_assign_lvalue_storage(expr->parent, &parent_store);
+        } else if (expr && expr->parent &&
+                expr->parent->type == H64EXPRTYPE_VARDEF_STMT) {
+            assert(expr->parent->storage.set);
+            if (expr->parent->storage.ref.type == H64STORETYPE_STACKSLOT)
+                return (int)expr->parent->storage.ref.id;
         }
-        if (expr->type == H64EXPRTYPE_BINARYOP) {
-            assert(expr->op.value2 != NULL);
-            if (expr->op.value2->storage.eval_temp_id >=
+        if (parent_store && parent_store->type ==
+                H64STORETYPE_STACKSLOT)
+            return parent_store->id;
+
+        // If a binary or unary operator, see if we can reuse child storage:
+        if (expr && (expr->type == H64EXPRTYPE_BINARYOP ||
+                     expr->type == H64EXPRTYPE_UNARYOP)) {
+            assert(expr->op.value1 != NULL);
+            if (expr->op.value1->storage.eval_temp_id >=
                     func->funcdef._storageinfo->
-                        lowest_guaranteed_free_temp) {
-                return expr->op.value2->storage.eval_temp_id;
+                    lowest_guaranteed_free_temp) {
+                return expr->op.value1->storage.eval_temp_id;
+            }
+            if (expr->type == H64EXPRTYPE_BINARYOP) {
+                assert(expr->op.value2 != NULL);
+                if (expr->op.value2->storage.eval_temp_id >=
+                        func->funcdef._storageinfo->
+                            lowest_guaranteed_free_temp) {
+                    return expr->op.value2->storage.eval_temp_id;
+                }
             }
         }
     }
@@ -652,7 +658,7 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_SET) {
         int isset = (expr->type == H64EXPRTYPE_SET);
         int listtmp = new1linetemp(
-            func, expr
+            func, expr, 1
         );
         if (listtmp < 0) {
             rinfo->hadoutofmemory = 1;
@@ -687,8 +693,10 @@ int _codegencallback_DoCodegen_visit_out(
             );
         if (entry_count > 0) {
             int addfunctemp = new1linetemp(
-                func, expr
+                func, expr, 0
             );
+            assert(addfunctemp >= func->funcdef._storageinfo->
+                   lowest_guaranteed_free_temp);
             if (addfunctemp < 0) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
@@ -697,8 +705,11 @@ int _codegencallback_DoCodegen_visit_out(
             instgetattr.type = H64INST_GETATTRIBUTE;
             instgetattr.slotto = addfunctemp;
             instgetattr.objslotfrom = listtmp;
-            if (!appendinst(rinfo->pr->program, func, expr,
-                            &instgetattr, sizeof(instgetattr))) {
+            instgetattr.nameidx = add_name_idx;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &instgetattr, sizeof(instgetattr)
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -757,7 +768,7 @@ int _codegencallback_DoCodegen_visit_out(
                expr->type == H64EXPRTYPE_MAP) {
         int ismap = (expr->type == H64EXPRTYPE_MAP);
         int vectortmp = new1linetemp(
-            func, expr
+            func, expr, 1
         );
         if (vectortmp < 0) {
             rinfo->hadoutofmemory = 1;
@@ -789,7 +800,7 @@ int _codegencallback_DoCodegen_visit_out(
         int keytmp = -1;
         if (ismap) {
             keytmp = new1linetemp(
-                func, expr
+                func, expr, 0
             );
             if (keytmp < 0) {
                 rinfo->hadoutofmemory = 1;
@@ -833,7 +844,7 @@ int _codegencallback_DoCodegen_visit_out(
         }
         expr->storage.eval_temp_id = vectortmp;
     } else if (expr->type == H64EXPRTYPE_LITERAL) {
-        int temp = new1linetemp(func, expr);
+        int temp = new1linetemp(func, expr, 1);
         if (temp < 0) {
             rinfo->hadoutofmemory = 1;
             return 0;
@@ -954,7 +965,7 @@ int _codegencallback_DoCodegen_visit_out(
             rinfo->pr->program->symbols,
             expr->op.value2->identifierref.value, 0
         );
-        int temp = new1linetemp(func, expr);
+        int temp = new1linetemp(func, expr, 1);
         if (temp < 0) {
             rinfo->hadoutofmemory = 1;
             return 0;
@@ -998,7 +1009,7 @@ int _codegencallback_DoCodegen_visit_out(
                            // handled by parent assign statement
             }
         }
-        int temp = new1linetemp(func, expr);
+        int temp = new1linetemp(func, expr, 1);
         if (temp < 0) {
             rinfo->hadoutofmemory = 1;
             return 0;
@@ -1129,7 +1140,7 @@ int _codegencallback_DoCodegen_visit_out(
         h64instruction_call inst_call = {0};
         inst_call.type = H64INST_CALL;
         inst_call.returnto = preargs_tempceiling;
-        int temp = new1linetemp(func, expr);
+        int temp = new1linetemp(func, expr, 1);
         if (temp < 0) {
             rinfo->hadoutofmemory = 1;
             return 0;
@@ -1180,7 +1191,7 @@ int _codegencallback_DoCodegen_visit_out(
         if (expr->storage.ref.type == H64STORETYPE_STACKSLOT) {
             expr->storage.eval_temp_id = expr->storage.ref.id;
         } else {
-            int temp = new1linetemp(func, expr);
+            int temp = new1linetemp(func, expr, 1);
             if (temp < 0) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
@@ -1250,7 +1261,7 @@ int _codegencallback_DoCodegen_visit_out(
                 storage.eval_temp_id;
             assert(returntemp >= 0);
         } else {
-            returntemp = new1linetemp(func, expr);
+            returntemp = new1linetemp(func, expr, 1);
             if (returntemp < 0) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
@@ -1306,7 +1317,7 @@ int _codegencallback_DoCodegen_visit_out(
                 assignfromtemporary = expr->vardef.value->
                     storage.eval_temp_id;
             } else {
-                assignfromtemporary = new1linetemp(func, expr);
+                assignfromtemporary = new1linetemp(func, expr, 1);
                 if (assignfromtemporary < 0) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -1346,7 +1357,7 @@ int _codegencallback_DoCodegen_visit_out(
                 // by copying directly into the target.)
                 assert(!expr->assignstmt.lvalue->storage.set);
                 assert(expr->assignstmt.lvalue->storage.eval_temp_id < 0);
-                complexsetter_tmp = new1linetemp(func, expr);
+                complexsetter_tmp = new1linetemp(func, expr, 0);
                 if (complexsetter_tmp < 0) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -1362,7 +1373,7 @@ int _codegencallback_DoCodegen_visit_out(
             if (expr->assignstmt.assignop != H64OP_ASSIGN) {
                 int oldvaluetemp = -1;
                 if (str->type == H64STORETYPE_GLOBALVARSLOT) {
-                    oldvaluetemp = new1linetemp(func, expr);
+                    oldvaluetemp = new1linetemp(func, expr, 0);
                     if (oldvaluetemp < 0) {
                         rinfo->hadoutofmemory = 1;
                         return 0;
@@ -1639,7 +1650,7 @@ int _codegencallback_DoCodegen_visit_in(
                 func->funcdef._storageinfo->jump_targets_used++;
 
                 int operand2tmp = new1linetemp(
-                    func, expr
+                    func, expr, 0
                 );
                 if (operand2tmp < 0) {
                     rinfo->hadoutofmemory = 1;
@@ -1813,7 +1824,7 @@ int _codegencallback_DoCodegen_visit_in(
                        H64STORETYPE_GLOBALVARSLOT);
                 if (error_reuse_tmp < 0) {
                     error_reuse_tmp = new1linetemp(
-                        func, expr
+                        func, expr, 0
                     );
                     if (error_reuse_tmp < 0) {
                         rinfo->hadoutofmemory = 1;

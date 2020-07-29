@@ -1811,7 +1811,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         if (likely(pr->func[target_func_id].iscfunc)) {
             int (*cfunc)(h64vmthread *vmthread) = (
                 (int (*)(h64vmthread *vmthread))
-                pr->func[target_func_id].cfunclookup
+                pr->func[target_func_id].cfunc_ptr
             );
             assert(cfunc != NULL);
             int64_t old_floor = stack->current_func_floor;
@@ -1819,7 +1819,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             #ifndef NDEBUG
             if (vmthread->moptions.vmexec_debug)
                 fprintf(
-                    stderr, "horsevm: debug: vmexec: jump into cfunc "
+                    stderr, "horsevm: debug: vmexec jump into cfunc "
                     "%" PRId64 "/addr=%p\n",
                     target_func_id, cfunc
                 );
@@ -1877,7 +1877,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             #ifndef NDEBUG
             if (vmthread->moptions.vmexec_debug)
                 fprintf(
-                    stderr, "horsevm: debug: vmexec: jump into "
+                    stderr, "horsevm: debug: vmexec jump into "
                     "h64 func %" PRId64 "\n",
                     (int64_t)target_func_id
                 );
