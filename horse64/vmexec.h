@@ -29,18 +29,18 @@ typedef struct h64vmfunctionframe {
     ptrdiff_t return_to_execution_offset;
 } h64vmfunctionframe;
 
-typedef struct h64vmexceptioncatchframe {
+typedef struct h64vmerrorcatchframe {
     int func_frame_no;
     int64_t catch_instruction_offset;
     int64_t finally_instruction_offset;
-    int exception_obj_temporary_id;
+    int error_obj_temporary_id;
     int triggered_catch, triggered_finally;
-    h64exceptioninfo storeddelayedexception;
+    h64errorinfo storeddelayederror;
 
     int caught_types_count;
     int64_t caught_types_firstfive[5];
     int64_t *caught_types_more;
-} h64vmexceptioncatchframe;
+} h64vmerrorcatchframe;
 
 
 typedef struct h64vmthread {
@@ -59,8 +59,8 @@ typedef struct h64vmthread {
 
     int funcframe_count, funcframe_alloc;
     h64vmfunctionframe *funcframe;
-    int exceptionframe_count, exceptionframe_alloc;
-    h64vmexceptioncatchframe *exceptionframe;
+    int errorframe_count, errorframe_alloc;
+    h64vmerrorcatchframe *errorframe;
 
     int execution_func_id;
     int execution_instruction_id;
@@ -80,8 +80,8 @@ h64vmthread *vmthread_New();
 
 int vmthread_RunFunctionWithReturnInt(
     h64vmthread *vmthread, int64_t func_id,
-    int *returneduncaughtexception,
-    h64exceptioninfo *einfo,
+    int *returneduncaughterror,
+    h64errorinfo *einfo,
     int *out_returnint
 );
 

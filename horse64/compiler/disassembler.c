@@ -364,11 +364,11 @@ int disassembler_PrintInstruction(
     case H64INST_PUSHCATCHFRAME: {
         h64instruction_pushcatchframe *inst_pushcatchframe =
             (h64instruction_pushcatchframe *)inst;
-        char slotexceptionbuf[64] = "none";
-        if (inst_pushcatchframe->slotexceptionto >= 0) {
+        char sloterrorbuf[64] = "none";
+        if (inst_pushcatchframe->sloterrorto >= 0) {
             snprintf(
-                slotexceptionbuf, sizeof(slotexceptionbuf) - 1,
-                "t%d", inst_pushcatchframe->slotexceptionto
+                sloterrorbuf, sizeof(sloterrorbuf) - 1,
+                "t%d", inst_pushcatchframe->sloterrorto
             );
         }
         char catchjumpbuf[64] = "none";
@@ -393,7 +393,7 @@ int disassembler_PrintInstruction(
                 "    %s %d %s %s %s",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_pushcatchframe->mode,
-                slotexceptionbuf, catchjumpbuf, finallyjumpbuf
+                sloterrorbuf, catchjumpbuf, finallyjumpbuf
                 )) {
             return 0;
         }
@@ -661,7 +661,7 @@ int disassembler_Dump(
         snprintf(linebuf, sizeof(linebuf) - 1,
             "CLASS %" PRId64 " %" PRId64 " %d",
             (int64_t)i, p->classes[i].base_class_global_id,
-            p->classes[i].is_exception
+            p->classes[i].is_error
         );
         if (!disassembler_Write(di,
                 "%s%s\n", linebuf, symbolinfo))

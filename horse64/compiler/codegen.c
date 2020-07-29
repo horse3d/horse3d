@@ -1748,18 +1748,18 @@ int _codegencallback_DoCodegen_visit_in(
 
         h64instruction_pushcatchframe inst_pushframe = {0};
         inst_pushframe.type = H64INST_PUSHCATCHFRAME;
-        inst_pushframe.slotexceptionto = -1;
+        inst_pushframe.sloterrorto = -1;
         inst_pushframe.jumponcatch = -1;
         inst_pushframe.jumponfinally = -1;
-        if (expr->trystmt.exceptions_count > 0) {
+        if (expr->trystmt.errors_count > 0) {
             assert(!expr->storage.set ||
                    expr->storage.ref.type ==
                    H64STORETYPE_STACKSLOT);
-            int exception_tmp = -1;
+            int error_tmp = -1;
             if (expr->storage.set) {
-                exception_tmp = expr->storage.ref.id;
+                error_tmp = expr->storage.ref.id;
             }
-            inst_pushframe.slotexceptionto = exception_tmp;
+            inst_pushframe.sloterrorto = error_tmp;
             inst_pushframe.mode |= CATCHMODE_JUMPONCATCH;
             jumpid_catch = (
                 func->funcdef._storageinfo->jump_targets_used
@@ -1782,22 +1782,22 @@ int _codegencallback_DoCodegen_visit_in(
             return 0;
         }
 
-        int exception_reuse_tmp = -1;
+        int error_reuse_tmp = -1;
         int i = 0;
-        while (i < expr->trystmt.exceptions_count) {
-            assert(expr->trystmt.exceptions[i]->storage.set);
-            int exception_tmp = -1;
-            if (expr->trystmt.exceptions[i]->storage.ref.type ==
+        while (i < expr->trystmt.errors_count) {
+            assert(expr->trystmt.errors[i]->storage.set);
+            int error_tmp = -1;
+            if (expr->trystmt.errors[i]->storage.ref.type ==
                     H64STORETYPE_STACKSLOT) {
-                exception_tmp = (int)(
-                    expr->trystmt.exceptions[i]->storage.ref.id
+                error_tmp = (int)(
+                    expr->trystmt.errors[i]->storage.ref.id
                 );
-            } else if (expr->trystmt.exceptions[i]->storage.ref.type ==
+            } else if (expr->trystmt.errors[i]->storage.ref.type ==
                        H64STORETYPE_GLOBALCLASSSLOT) {
                 h64instruction_addcatchtype addctype = {0};
                 addctype.type = H64INST_ADDCATCHTYPE;
                 addctype.classid = (
-                    expr->trystmt.exceptions[i]->
+                    expr->trystmt.errors[i]->
                         storage.ref.id
                 );
                 if (!appendinst(
@@ -1809,22 +1809,22 @@ int _codegencallback_DoCodegen_visit_in(
                 i++;
                 continue;
             } else {
-                assert(expr->trystmt.exceptions[i]->storage.ref.type ==
+                assert(expr->trystmt.errors[i]->storage.ref.type ==
                        H64STORETYPE_GLOBALVARSLOT);
-                if (exception_reuse_tmp < 0) {
-                    exception_reuse_tmp = new1linetemp(
+                if (error_reuse_tmp < 0) {
+                    error_reuse_tmp = new1linetemp(
                         func, expr
                     );
-                    if (exception_reuse_tmp < 0) {
+                    if (error_reuse_tmp < 0) {
                         rinfo->hadoutofmemory = 1;
                         return 0;
                     }
                 }
-                exception_tmp = exception_reuse_tmp;
+                error_tmp = error_reuse_tmp;
                 h64instruction_getglobal inst_getglobal = {0};
                 inst_getglobal.type = H64INST_GETGLOBAL;
-                inst_getglobal.slotto = exception_tmp;
-                inst_getglobal.globalfrom = expr->trystmt.exceptions[i]->
+                inst_getglobal.slotto = error_tmp;
+                inst_getglobal.globalfrom = expr->trystmt.errors[i]->
                     storage.ref.id;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
@@ -1833,10 +1833,10 @@ int _codegencallback_DoCodegen_visit_in(
                     return 0;
                 }
             }
-            assert(exception_tmp >= 0);
+            assert(error_tmp >= 0);
             h64instruction_addcatchtypebyref addctyperef = {0};
             addctyperef.type = H64INST_ADDCATCHTYPEBYREF;
-            addctyperef.slotfrom = exception_tmp;
+            addctyperef.slotfrom = error_tmp;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
                     &addctyperef, sizeof(addctyperef))) {

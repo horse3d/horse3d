@@ -212,9 +212,9 @@ typedef struct h64expression {
             h64expression **trystmt;
             h64scope tryscope;
 
-            int exceptions_count;
-            h64expression **exceptions;
-            char *exception_name;
+            int errors_count;
+            h64expression **errors;
+            char *error_name;
             int catchstmt_count;
             h64expression **catchstmt;
             h64scope catchscope;

@@ -58,8 +58,8 @@ h64scope *ast_GetScope(
             i++;
         }
         i = 0;
-        while (i < expr->trystmt.exceptions_count) {
-            if (expr->trystmt.exceptions[i] == child_expr)
+        while (i < expr->trystmt.errors_count) {
+            if (expr->trystmt.errors[i] == child_expr)
                 return ast_GetScope(expr, global_scope);
             i++;
         }
@@ -300,9 +300,9 @@ int ast_VisitExpression(
             i++;
         }
         i = 0;
-        while (i < expr->trystmt.exceptions_count) {
+        while (i < expr->trystmt.errors_count) {
             if (!ast_VisitExpression(
-                    expr->trystmt.exceptions[i], expr,
+                    expr->trystmt.errors[i], expr,
                     visit_in, visit_out,
                     cancel_visit_descend_callback, ud
                     ))
@@ -575,12 +575,12 @@ void ast_FreeExpression(h64expression *expr) {
         }
         free(expr->trystmt.trystmt);
         i = 0;
-        while (i < expr->trystmt.exceptions_count) {
-            ast_FreeExpression(expr->trystmt.exceptions[i]);
+        while (i < expr->trystmt.errors_count) {
+            ast_FreeExpression(expr->trystmt.errors[i]);
             i++;
         }
-        free(expr->trystmt.exceptions);
-        free(expr->trystmt.exception_name);
+        free(expr->trystmt.errors);
+        free(expr->trystmt.error_name);
         scope_FreeData(&expr->trystmt.catchscope);
         i = 0;
         while (i < expr->trystmt.catchstmt_count) {
@@ -1026,9 +1026,9 @@ jsonvalue *ast_ExpressionToJSON(
         }
         jsonvalue *catchtypes = json_List();
         i = 0;
-        while (i < e->trystmt.exceptions_count) {
+        while (i < e->trystmt.errors_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->trystmt.exceptions[i], fileuri
+                e->trystmt.errors[i], fileuri
             );
             if (!json_AddToList(catchtypes, stmtjson)) {
                 json_Free(stmtjson);
@@ -1037,16 +1037,16 @@ jsonvalue *ast_ExpressionToJSON(
             }
             i++;
         }
-        if (!json_SetDict(v, "exceptions", catchtypes)) {
+        if (!json_SetDict(v, "errors", catchtypes)) {
             json_Free(catchtypes);
             fail = 1;
         }
-        if (e->trystmt.exception_name) {
+        if (e->trystmt.error_name) {
             if (!json_SetDictStr(
-                    v, "exception-name", e->trystmt.exception_name))
+                    v, "error-name", e->trystmt.error_name))
                 fail = 1;
         } else {
-            if (!json_SetDictNull(v, "exception-name"))
+            if (!json_SetDictNull(v, "error-name"))
                 fail = 1;
         }
         jsonvalue *catchsection = json_List();

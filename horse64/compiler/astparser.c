@@ -2285,7 +2285,7 @@ int ast_CanBeLValue(h64expression *e) {
     if (e->type == H64EXPRTYPE_IDENTIFIERREF) {
         return 1;
     } else if (e->type == H64EXPRTYPE_BINARYOP) {
-        if (e->op.optype != H64OP_MEMBERBYIDENTIFIER &&
+        if (e->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER &&
                 e->op.optype != H64OP_CALL &&
                 e->op.optype != H64OP_INDEXBYEXPR)
             return 0;
@@ -2301,7 +2301,7 @@ int ast_CanBeClassRef(h64expression *e) {
     if (e->type == H64EXPRTYPE_IDENTIFIERREF) {
         return 1;
     } else if (e->type == H64EXPRTYPE_BINARYOP) {
-        if (e->op.optype != H64OP_MEMBERBYIDENTIFIER)
+        if (e->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER)
             return 0;
         if (!ast_CanBeClassRef(e->op.value1))
             return 0;
@@ -2489,7 +2489,7 @@ static const char _defnamefunc[] = "function";
 static const char _defnamefuncparam[] = "function parameter";
 static const char _defnameclass[] = "class";
 static const char _defnameforloop[] = "for loop iterator";
-static const char _defnamecatch[] = "caught exception";
+static const char _defnamecatch[] = "caught error";
 
 const char *_identifierdeclarationname(
         h64expression *expr, const char *identifier
@@ -2561,7 +2561,7 @@ int ast_CanAddNameToScopeCheck(
     } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
         exprname = expr->forstmt.iterator_identifier;
     } else if (expr->type == H64EXPRTYPE_TRY_STMT) {
-        exprname = expr->trystmt.exception_name;
+        exprname = expr->trystmt.error_name;
     } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
         if (expr->importstmt.import_as != NULL) {
             exprname = expr->importstmt.import_as;
@@ -3763,23 +3763,23 @@ int ast_ParseExprStmt(
                 }
                 i += tlen;
 
-                h64expression **new_exceptions = realloc(
-                    expr->trystmt.exceptions,
-                    sizeof(*new_exceptions) *
+                h64expression **new_errors = realloc(
+                    expr->trystmt.errors,
+                    sizeof(*new_errors) *
                     (expr->trystmt.trystmt_count + 1)
                 );
-                if (!new_exceptions) {
+                if (!new_errors) {
                     if (parsefail) *parsefail = 0;
                     if (outofmemory) *outofmemory = 1;
                     ast_FreeExpression(innerexpr);
                     ast_FreeExpression(expr);
                     return 0;
                 }
-                expr->trystmt.exceptions = new_exceptions;
-                expr->trystmt.exceptions[
-                    expr->trystmt.exceptions_count
+                expr->trystmt.errors = new_errors;
+                expr->trystmt.errors[
+                    expr->trystmt.errors_count
                 ] = innerexpr;
-                expr->trystmt.exceptions_count++;
+                expr->trystmt.errors_count++;
 
                 if (i < max_tokens_touse &&
                         tokens[i].type == H64TK_COMMA) {
@@ -3845,10 +3845,10 @@ int ast_ParseExprStmt(
                 return 0;
             }
             if (named_error) {
-                expr->trystmt.exception_name = strdup(
+                expr->trystmt.error_name = strdup(
                     tokens[i].str_value
                 );
-                if (!expr->trystmt.exception_name) {
+                if (!expr->trystmt.error_name) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
                     ast_FreeExpression(expr);
@@ -3858,7 +3858,7 @@ int ast_ParseExprStmt(
                     int newidentifieroom = 0;
                     if (!ast_ProcessNewScopeIdentifier(
                             context, parsethis, expr,
-                            expr->trystmt.exception_name, i - 1,
+                            expr->trystmt.error_name, i - 1,
                             &expr->trystmt.catchscope,
                             &newidentifieroom
                             )) {
@@ -4044,7 +4044,7 @@ int ast_ParseExprStmt(
             if (i >= max_tokens_touse ||
                     tokens[i].type != H64TK_BINOPSYMBOL ||
                     tokens[i].int_value !=
-                    H64OP_MEMBERBYIDENTIFIER)
+                    H64OP_ATTRIBUTEBYIDENTIFIER)
                 break;
             i++;  // skip past dot and continue
         }

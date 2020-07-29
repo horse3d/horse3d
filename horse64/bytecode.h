@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define MAX_EXCEPTION_STACK_FRAMES 10
+#define MAX_ERROR_STACK_FRAMES 10
 
 typedef struct h64debugsymbols h64debugsymbols;
 typedef uint32_t unicodechar;
@@ -64,13 +64,13 @@ typedef struct storageref {
     int64_t id;
 } storageref;
 
-typedef struct h64exceptioninfo {
-    int64_t stack_frame_funcid[MAX_EXCEPTION_STACK_FRAMES];
-    int64_t stack_frame_byteoffset[MAX_EXCEPTION_STACK_FRAMES];
+typedef struct h64errorinfo {
+    int64_t stack_frame_funcid[MAX_ERROR_STACK_FRAMES];
+    int64_t stack_frame_byteoffset[MAX_ERROR_STACK_FRAMES];
     unicodechar *msg;
     int64_t msglen;
-    int64_t exception_class_id;
-} h64exceptioninfo;
+    int64_t error_class_id;
+} h64errorinfo;
 
 typedef enum valuetype {
     H64VALTYPE_NONE = 0,
@@ -80,7 +80,7 @@ typedef enum valuetype {
     H64VALTYPE_FUNCREF,
     H64VALTYPE_CLASSREF,
     H64VALTYPE_EMPTYARG,
-    H64VALTYPE_EXCEPTION,
+    H64VALTYPE_ERROR,
     H64VALTYPE_GCVAL,
     H64VALTYPE_SHORTSTR,
     H64VALTYPE_CONSTPREALLOCSTR,
@@ -107,8 +107,8 @@ typedef struct valuecontent {
             int constpreallocstr_refcount;
         };
         struct {
-            int64_t exception_class_id;
-            h64exceptioninfo *einfo;
+            int64_t error_class_id;
+            h64errorinfo *einfo;
             int einfo_refcount;
         };
     };
@@ -228,7 +228,7 @@ typedef struct h64instruction_iterate {
 typedef struct h64instruction_pushcatchframe {
     uint8_t type;
     uint8_t mode;
-    int16_t slotexceptionto, jumponcatch, jumponfinally;
+    int16_t sloterrorto, jumponcatch, jumponfinally;
 } __attribute__ ((packed)) h64instruction_pushcatchframe;
 
 typedef struct h64instruction_addcatchtypebyref {
@@ -290,7 +290,7 @@ typedef struct h64class {
     int64_t *method_global_name_idx;
     int64_t *method_func_idx;
     int64_t base_class_global_id;
-    int is_exception;
+    int is_error;
 
     int vars_count;
     int64_t *vars_global_name_idx;
@@ -437,7 +437,7 @@ int bytecode_fileuriindex(h64program *p, const char *fileuri);
 static inline void DELREF_NONHEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->externalreferencecount--;
-    } else if (content->type == H64VALTYPE_EXCEPTION) {
+    } else if (content->type == H64VALTYPE_ERROR) {
         content->einfo_refcount--;
     } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
         content->constpreallocstr_refcount--;
@@ -447,7 +447,7 @@ static inline void DELREF_NONHEAP(valuecontent *content) {
 static inline void ADDREF_NONHEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->externalreferencecount++;
-    } else if (content->type == H64VALTYPE_EXCEPTION) {
+    } else if (content->type == H64VALTYPE_ERROR) {
         content->einfo_refcount++;
     } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
         content->constpreallocstr_refcount++;
@@ -457,7 +457,7 @@ static inline void ADDREF_NONHEAP(valuecontent *content) {
 static inline void DELREF_HEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->heapreferencecount--;
-    } else if (content->type == H64VALTYPE_EXCEPTION) {
+    } else if (content->type == H64VALTYPE_ERROR) {
         content->einfo_refcount--;
     } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
         content->constpreallocstr_refcount--;
@@ -467,7 +467,7 @@ static inline void DELREF_HEAP(valuecontent *content) {
 static inline void ADDREF_HEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->heapreferencecount++;
-    } else if (content->type == H64VALTYPE_EXCEPTION) {
+    } else if (content->type == H64VALTYPE_ERROR) {
         content->einfo_refcount++;
     } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
         content->constpreallocstr_refcount++;

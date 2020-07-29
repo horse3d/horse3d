@@ -550,13 +550,13 @@ int scoperesolver_EvaluteDerivedClassParent(
         expr->parent->classdef.bytecode_class_id
     ].base_class_global_id = expr->storage.ref.id;
 
-    // Mark chain as exceptions if deriving from 'Exception':
-    int exception_chain = 0;
+    // Mark chain as errors if deriving from 'Exception':
+    int error_chain = 0;
     {
         int64_t cid = expr->parent->classdef.bytecode_class_id;
         while (cid >= 0) {
-            if (cid == H64STDERROR_EXCEPTION) {
-                exception_chain = 1;
+            if (cid == H64STDERROR_ERROR) {
+                error_chain = 1;
                 break;
             }
             cid = atinfo->pr->program->classes[
@@ -564,12 +564,12 @@ int scoperesolver_EvaluteDerivedClassParent(
             ].base_class_global_id;
         }
     }
-    if (exception_chain) {
+    if (error_chain) {
         int64_t cid = expr->parent->classdef.bytecode_class_id;
         while (cid >= 0) {
             cid = atinfo->pr->program->classes[
                 cid
-            ].is_exception = 1;
+            ].is_error = 1;
             cid = atinfo->pr->program->classes[
                 cid
             ].base_class_global_id;

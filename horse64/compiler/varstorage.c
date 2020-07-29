@@ -125,7 +125,7 @@ int _resolver_EnsureLocalDefStorage(
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_FOR_STMT ||
             (expr->type == H64EXPRTYPE_TRY_STMT &&
-             expr->trystmt.exception_name != NULL)) {
+             expr->trystmt.error_name != NULL)) {
         h64expression *func = surroundingfunc(expr);
         if (!func)
             return 1;  // global, we don't care about that (non-local)
@@ -149,7 +149,7 @@ int _resolver_EnsureLocalDefStorage(
         assert(expr->type != H64EXPRTYPE_FUNCDEF_STMT ||
                expr->funcdef.name != NULL);
         assert(expr->type != H64EXPRTYPE_TRY_STMT ||
-               expr->trystmt.exception_name != NULL);
+               expr->trystmt.error_name != NULL);
         assert(expr->type != H64EXPRTYPE_FOR_STMT ||
                expr->forstmt.iterator_identifier != NULL);
         #endif
@@ -160,7 +160,7 @@ int _resolver_EnsureLocalDefStorage(
              expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
              expr->funcdef.name : (
              (expr->type == H64EXPRTYPE_TRY_STMT ?
-              expr->trystmt.exception_name :
+              expr->trystmt.error_name :
               expr->forstmt.iterator_identifier)))),
             0
         );
@@ -369,7 +369,7 @@ jsonvalue *varstorage_ExtraInfoToJSON(
             } else if (einfo->lstoreassign[k].vardef->
                     declarationexpr->type == H64EXPRTYPE_TRY_STMT) {
                 name = (einfo->lstoreassign[k].vardef->
-                    declarationexpr->trystmt.exception_name);
+                    declarationexpr->trystmt.error_name);
             }
             if ((name && !json_SetDictStr(item, "name", name)) ||
                     (!name && !json_SetDictNull(item, "name"))) {
