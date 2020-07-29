@@ -1370,8 +1370,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
         }
         int func_posargs = pr->func[target_func_id].input_stack_size - (
-            pr->func[target_func_id].kwarg_count -
-            cinfo->closure_vbox_count -
+            pr->func[target_func_id].kwarg_count +
+            cinfo->closure_vbox_count +
             (cinfo->closure_self != NULL ? 1 : 0)
         );
         assert(func_posargs >= 0);
@@ -1816,6 +1816,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             assert(cfunc != NULL);
             int64_t old_floor = stack->current_func_floor;
             stack->current_func_floor = new_func_floor;
+            #ifndef NDEBUG
+            if (vmthread->moptions.vmexec_debug)
+                fprintf(
+                    stderr, "horsevm: debug: vmexec: jump into cfunc "
+                    "%" PRId64 "/addr=%p\n",
+                    target_func_id, cfunc
+                );
+            #endif
             int result = cfunc(vmthread);
             stack->current_func_floor = old_floor;
             assert(new_func_floor + 1 <= STACK_TOTALSIZE(stack));
@@ -1866,6 +1874,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     )) {
                 goto triggeroom;
             }
+            #ifndef NDEBUG
+            if (vmthread->moptions.vmexec_debug)
+                fprintf(
+                    stderr, "horsevm: debug: vmexec: jump into "
+                    "h64 func %" PRId64 "\n",
+                    (int64_t)target_func_id
+                );
+            #endif
             func_id = target_func_id;
             p = pr->func[func_id].instructions;
             goto *jumptable[((h64instructionany *)p)->type];

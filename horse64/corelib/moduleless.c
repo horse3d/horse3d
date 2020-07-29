@@ -132,6 +132,7 @@ int corelib_RegisterFuncs(h64program *p) {
     );
     if (idx < 0)
         return 0;
+    p->func[idx].input_stack_size++;  // for 'self'
     p->containeradd_func_index = idx;
     return 1;
 }
