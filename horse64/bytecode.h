@@ -29,6 +29,7 @@ typedef enum instructiontype {
     H64INST_UNOP,
     H64INST_CALL,
     H64INST_SETTOP,
+    H64INST_CALLSETTOP,
     H64INST_RETURNVALUE,
     H64INST_JUMPTARGET,
     H64INST_CONDJUMP,
@@ -185,6 +186,11 @@ typedef struct h64instruction_call {
     uint8_t expandlastposarg;
     int16_t posargs, kwargs;
 } __attribute__((packed)) h64instruction_call;
+
+typedef struct h64instruction_callsettop {
+    uint8_t type;
+    int16_t topto;
+} __attribute__((packed)) h64instruction_callsettop;
 
 typedef struct h64instruction_settop {
     uint8_t type;

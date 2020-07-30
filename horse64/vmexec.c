@@ -44,6 +44,7 @@ h64vmthread *vmthread_New() {
         vmthread_Free(vmthread);
         return NULL;
     }
+    vmthread->call_settop_reverse = -1;
 
     return vmthread;
 }
@@ -117,8 +118,8 @@ static int vmthread_PrintExec(
 }
 #endif
 
-static inline void popfuncframe(
-        h64vmthread *vt, int dontclearstack
+static inline int popfuncframe(
+        h64vmthread *vt, int dontresizestack
         ) {
     assert(vt->funcframe_count > 0);
     int64_t new_floor = (
@@ -127,16 +128,30 @@ static inline void popfuncframe(
         0
     );
     int64_t prev_floor = vt->stack->current_func_floor;
+    int64_t new_top = prev_floor;
+    if (new_top < vt->funcframe[vt->funcframe_count - 1].
+            required_stack_top) {
+        new_top = vt->funcframe[vt->funcframe_count - 1].
+                  required_stack_top;
+    }
     #ifndef NDEBUG
-    if (!dontclearstack)
+    if (!dontresizestack)
         assert(new_floor <= prev_floor);
     #endif
     vt->stack->current_func_floor = new_floor;
-    if (prev_floor < vt->stack->entry_count && !dontclearstack) {
-        int result = stack_ToSize(
-            vt->stack, prev_floor, 0
-        );
-        assert(result != 0);
+    if (!dontresizestack) {
+        if (new_top < vt->stack->entry_count) {
+            int result = stack_ToSize(
+                vt->stack, new_top, 0
+            );
+            assert(result != 0);
+        } else {
+            int result = stack_ToSize(
+                vt->stack, new_top, 0
+            );
+            if (!result)
+                return 0;
+        }
     }
     vt->funcframe_count -= 1;
     #ifndef NDEBUG
@@ -150,6 +165,7 @@ static inline void popfuncframe(
     if (vt->funcframe_count <= 1) {
         vt->stack->current_func_floor = 0;
     }
+    return 1;
 }
 
 static inline int pushfuncframe(
@@ -202,6 +218,10 @@ static inline int pushfuncframe(
     }
     vt->funcframe[vt->funcframe_count].stack_bottom = new_func_floor;
     vt->funcframe[vt->funcframe_count].func_id = func_id;
+    vt->funcframe[vt->funcframe_count].required_stack_top = (
+        vt->program->func[func_id].input_stack_size +
+        vt->program->func[func_id].inner_stack_size
+    );
     vt->funcframe[vt->funcframe_count].return_slot = return_slot;
     vt->funcframe[vt->funcframe_count].
             return_to_func_id = return_to_func_id;
@@ -211,6 +231,7 @@ static inline int pushfuncframe(
     vt->stack->current_func_floor = (
         vt->funcframe[vt->funcframe_count - 1].stack_bottom
     );
+    vt->call_settop_reverse = -1;
     return 1;
 }
 
@@ -246,6 +267,7 @@ static int pusherrorframe(
     newframe->error_obj_temporary_id = error_obj_temporary_slot;
     newframe->func_frame_no = vmthread->funcframe_count - 1;
     vmthread->errorframe_count++;
+    vmthread->call_settop_reverse = -1;
     return 1;
 }
 
@@ -269,6 +291,7 @@ static void poperrorframe(h64vmthread *vmthread) {
              ].caught_types_more);
     }
     vmthread->errorframe_count--;
+    vmthread->call_settop_reverse = -1;
 }
 
 static void vmthread_errors_ProceedToFinally(
@@ -310,6 +333,8 @@ static int vmthread_errors_Raise(
         int utf32,
         const char *msg, ...
         ) {
+    if (vmthread->call_settop_reverse)
+        vmthread->call_settop_reverse = -1;
     int bubble_up_error_later = 0;
     int unroll_to_frame = -1;
     int error_to_slot = -1;
@@ -420,6 +445,7 @@ static int vmthread_errors_Raise(
         e.stack_frame_byteoffset[0] = *current_exec_offset;
     }
     assert(unroll_to_frame < vmthread->funcframe_count);
+    int fataloom = 0;
     int i = vmthread->funcframe_count - 1;
     while (i > unroll_to_frame && i >= 0) {
         if (k < MAX_ERROR_STACK_FRAMES) {
@@ -430,9 +456,19 @@ static int vmthread_errors_Raise(
                 vmthread->funcframe[i].return_to_execution_offset
             );
         }
-        popfuncframe(vmthread, 0);
+        if (!popfuncframe(vmthread, 0) &&
+                (i - 1 < 0 || i - 1 == unroll_to_frame)) {
+            fataloom = 1;
+        }
         k++;
         i--;
+    }
+
+    // If we do a fatal oom here, that's no good:
+    if (fataloom) {
+        // Can't really recover from that:
+        if (returneduncaughterror) *returneduncaughterror = 0;
+        return 0;
     }
 
     // If this is a final, uncaught error, bail out here:
@@ -533,6 +569,17 @@ static int vmthread_errors_Raise(
 
     if (!dontpop)
         poperrorframe(vmthread);
+    return 1;
+}
+
+int vmthread_ResetCallTempStack(h64vmthread *vmthread) {
+    if (vmthread->call_settop_reverse >= 0) {
+        vmthread->call_settop_reverse = -1;
+        if (!stack_ToSize(vmthread->stack,
+                vmthread->call_settop_reverse, 1)) {
+            return 0;
+        }
+    }
     return 1;
 }
 
@@ -867,6 +914,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                H64VALTYPE_CONSTPREALLOCSTR);
 
         if (inst->slotto != inst->slotfrom) {
+            #ifndef NDEBUG
+            assert(inst->slotto < STACK_TOP(stack));
+            assert(inst->slotfrom < STACK_TOP(stack));
+            #endif
             valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
             DELREF_NONHEAP(vc);
             valuecontent_Free(vc);
@@ -1326,7 +1377,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_call *inst = (h64instruction_call *)p;
         #ifndef NDEBUG
         if (vmthread->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec((void*)inst)) {
+            if (!vmthread_ResetCallTempStack(vmthread)) {
+                if (returneduncaughterror)
+                    *returneduncaughterror = 0;
+                return 0;
+            }
+            goto triggeroom;
+        }
         #endif
 
         int64_t stacktop = STACK_TOP(stack);
@@ -1337,6 +1395,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 H64GCVALUETYPE_FUNCREF_CLOSURE ||
                 ((h64gcvalue *)vc->ptr_value)->closure_info == NULL
                 )) {
+            if (!vmthread_ResetCallTempStack(vmthread)) {
+                if (returneduncaughterror)
+                    *returneduncaughterror = 0;
+                return 0;
+            }
             RAISE_ERROR(H64STDERROR_TYPEERROR,
                             "not a callable object type");
             goto *jumptable[((h64instructionany *)p)->type];
@@ -1361,6 +1424,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (lastposarg->type != H64VALTYPE_GCVAL ||
                     ((h64gcvalue *)vc->ptr_value)->type !=
                     H64GCVALUETYPE_LIST) {
+                if (!vmthread_ResetCallTempStack(vmthread)) {
+                    if (returneduncaughterror)
+                        *returneduncaughterror = 0;
+                    return 0;
+                }
                 RAISE_ERROR(H64STDERROR_TYPEERROR,
                                 "multiarg parameter must be a list");
                 goto *jumptable[((h64instructionany *)p)->type];
@@ -1380,6 +1448,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         if (effective_posarg_count < func_posargs -
                 (func_lastposargismultiarg ? 1 : 0)) {
+            if (!vmthread_ResetCallTempStack(vmthread)) {
+                if (returneduncaughterror)
+                    *returneduncaughterror = 0;
+                return 0;
+            }
             RAISE_ERROR(
                 H64STDERROR_ARGUMENTERROR,
                 "called func requires more positional arguments"
@@ -1388,6 +1461,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
         if (effective_posarg_count > func_posargs &&
                 !func_lastposargismultiarg) {
+            if (!vmthread_ResetCallTempStack(vmthread)) {
+                if (returneduncaughterror)
+                    *returneduncaughterror = 0;
+                return 0;
+            }
             RAISE_ERROR(
                 H64STDERROR_ARGUMENTERROR,
                 "called func cannot take this many positional arguments"
@@ -1445,6 +1523,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     k++;
                 }
                 if (!found) {
+                    if (!vmthread_ResetCallTempStack(vmthread)) {
+                        if (returneduncaughterror)
+                            *returneduncaughterror = 0;
+                        return 0;
+                    }
                     RAISE_ERROR(
                         H64STDERROR_ARGUMENTERROR,
                         "called func does not recognize all passed "
@@ -1488,8 +1571,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     vmthread->arg_reorder_space,
                     sizeof(*new_space) * reformat_argslots
                 );
-                if (!new_space)
+                if (!new_space) {
+                    if (!vmthread_ResetCallTempStack(vmthread)) {
+                        if (returneduncaughterror)
+                            *returneduncaughterror = 0;
+                        return 0;
+                    }
                     goto triggeroom;
+                }
                 vmthread->arg_reorder_space = new_space;
                 vmthread->arg_reorder_space_count = reformat_argslots;
             }
@@ -1630,6 +1719,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     );
                 }
                 // Trigger out of memory:
+                if (!vmthread_ResetCallTempStack(vmthread)) {
+                    if (returneduncaughterror)
+                        *returneduncaughterror = 0;
+                    return 0;
+                }
                 goto triggeroom;
             }
             // Make space below positional arguments for closure args:
@@ -1699,8 +1793,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         poolalloc_malloc(
                             heap, 0
                         );
-                    if (!multiarglist->ptr_value)
+                    if (!multiarglist->ptr_value) {
+                        if (!vmthread_ResetCallTempStack(vmthread)) {
+                            if (returneduncaughterror)
+                                *returneduncaughterror = 0;
+                            return 0;
+                        }
                         goto triggeroom;
+                    }
                     h64gcvalue *gcval = (h64gcvalue *)multiarglist->ptr_value;
                     gcval->type = H64GCVALUETYPE_LIST;
                     gcval->heapreferencecount = 0;
@@ -1709,6 +1809,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     if (!gcval->list_values) {
                         poolalloc_free(heap, multiarglist->ptr_value);
                         multiarglist->ptr_value = NULL;
+                        if (!vmthread_ResetCallTempStack(vmthread)) {
+                            if (returneduncaughterror)
+                                *returneduncaughterror = 0;
+                            return 0;
+                        }
                         goto oom_with_sortinglist;
                     }
                     while (posarg < full_posargs) {
@@ -1717,8 +1822,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                             gcval->list_values,
                             &vmthread->arg_reorder_space[reorderslot]
                         );
-                        if (!addresult)
+                        if (!addresult) {
+                            if (!vmthread_ResetCallTempStack(vmthread)) {
+                                if (returneduncaughterror)
+                                    *returneduncaughterror = 0;
+                                return 0;
+                            }
                             goto oom_with_sortinglist;
+                        }
                         DELREF_NONHEAP(&vmthread->
                                        arg_reorder_space[reorderslot]);
                         valuecontent_Free(
@@ -1766,8 +1877,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     poolalloc_malloc(
                         heap, 0
                     );
-                if (!closurearg->ptr_value)
+                if (!closurearg->ptr_value) {
+                    if (!vmthread_ResetCallTempStack(vmthread)) {
+                        if (returneduncaughterror)
+                            *returneduncaughterror = 0;
+                        return 0;
+                    }
                     goto triggeroom;
+                }
                 memcpy(
                     closurearg->ptr_value,
                     cinfo->closure_self,
@@ -1791,8 +1908,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     poolalloc_malloc(
                         heap, 0
                     );
-                if (!closurearg->ptr_value)
+                if (!closurearg->ptr_value) {
+                    if (!vmthread_ResetCallTempStack(vmthread)) {
+                        if (returneduncaughterror)
+                            *returneduncaughterror = 0;
+                        return 0;
+                    }
                     goto triggeroom;
+                }
                 memcpy(
                     closurearg->ptr_value,
                     (void*)cinfo->closure_vbox[closureargid],
@@ -1825,6 +1948,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
             #endif
             int result = cfunc(vmthread);
+            if (!vmthread_ResetCallTempStack(vmthread)) {
+                if (returneduncaughterror)
+                    *returneduncaughterror = 0;
+                return 0;
+            }
             stack->current_func_floor = old_floor;
             assert(new_func_floor + 1 <= STACK_TOTALSIZE(stack));
             int shrinkresult = stack_ToSize(
@@ -1883,6 +2011,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
             #endif
             func_id = target_func_id;
+            vmthread->call_settop_reverse = -1;
             p = pr->func[func_id].instructions;
             goto *jumptable[((h64instructionany *)p)->type];
         }
@@ -1903,6 +2032,28 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 goto triggeroom;
             }
         }
+
+        p += sizeof(h64instruction_settop);
+        goto *jumptable[((h64instructionany *)p)->type];
+    }
+    inst_callsettop: {
+        h64instruction_callsettop *inst = (h64instruction_callsettop *)p;
+        #ifndef NDEBUG
+        if (vmthread->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        assert(inst->topto >= 0);
+        int64_t oldtop = stack->entry_count;
+        int64_t newtop = (int64_t)inst->topto + stack->current_func_floor;
+        if (newtop != stack->entry_count) {
+            if (stack_ToSize(
+                    stack, newtop, 0
+                    ) < 0) {
+                goto triggeroom;
+            }
+        }
+        vmthread->call_settop_reverse = oldtop;
 
         p += sizeof(h64instruction_settop);
         goto *jumptable[((h64instructionany *)p)->type];
@@ -1940,7 +2091,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         assert(stack->entry_count >= current_stack_size);
         funcnestdepth--;
         if (funcnestdepth <= 0) {
-            popfuncframe(vmthread, 1);  // pop frame but leave stack!
+            int result = popfuncframe(vmthread, 1);
+                    // ^ pop frame but leave stack!
+            assert(result != 0);
             func_id = -1;
             assert(stack->entry_count - current_stack_size == 0);
             if (!stack_ToSize(
@@ -1980,7 +2133,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             vmthread->funcframe[vmthread->funcframe_count].
             return_to_execution_offset
         );
-        popfuncframe(vmthread, 0);
+        if (!popfuncframe(vmthread, 0)) {
+            // We cannot really recover from this.
+            if (returneduncaughterror)
+                *returneduncaughterror = 0;
+            return 0;
+        }
 
         // Place return value:
         if (returnslot >= 0) {
@@ -2485,6 +2643,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_UNOP] = &&inst_unop;
     jumptable[H64INST_CALL] = &&inst_call;
     jumptable[H64INST_SETTOP] = &&inst_settop;
+    jumptable[H64INST_CALLSETTOP] = &&inst_callsettop;
     jumptable[H64INST_RETURNVALUE] = &&inst_returnvalue;
     jumptable[H64INST_JUMPTARGET] = &&inst_jumptarget;
     jumptable[H64INST_CONDJUMP] = &&inst_condjump;
@@ -2547,9 +2706,10 @@ int vmthread_RunFunction(
     int i = vmthread->funcframe_count;
     while (i > funcframesbefore) {
         assert(inneruncaughterror);  // only allow unclean frames if error
-        popfuncframe(vmthread, 1);  // disable cleaning stack because ...
+        int r = popfuncframe(vmthread, 1);  // don't clean stack because ...
             // ... func stack bottoms might be nonsense, and this might
             // assert otherwise. We'll just wipe it manually later.
+        assert(r != 0);
         i--;
     }
     i = vmthread->errorframe_count;

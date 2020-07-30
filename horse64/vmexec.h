@@ -22,7 +22,8 @@ typedef struct h64refvalue h64refvalue;
 
 
 typedef struct h64vmfunctionframe {
-    int stack_bottom;
+    int64_t stack_bottom;
+    int64_t required_stack_top;
     int func_id;
     int return_slot;
     int return_to_func_id;
@@ -54,6 +55,7 @@ typedef struct h64vmthread {
     int arg_reorder_space_count;
     valuecontent *arg_reorder_space;
 
+    int64_t call_settop_reverse;
     h64stack *stack;
     poolalloc *heap, *str_pile;
 
