@@ -1033,22 +1033,30 @@ int _codegencallback_DoCodegen_visit_out(
             expr->inlinecall.value->storage.eval_temp_id
         );
         int _argtemp = funccurrentstacktop(func);
-        int preargs_tempceiling = _argtemp - (
-            func->funcdef._storageinfo->lowest_guaranteed_free_temp
-        );
         int posargcount = 0;
         int expandlastposarg = 0;
         int kwargcount = 0;
         int _reachedkwargs = 0;
-        h64instruction_settop inst_settop = {0};
-        inst_settop.type = H64INST_SETTOP;
-        inst_settop.topto = _argtemp;
+        h64instruction_callsettop inst_callsettop = {0};
+        inst_callsettop.type = H64INST_CALLSETTOP;
+        inst_callsettop.topto = _argtemp;
         if (!appendinst(
                 rinfo->pr->program, func, expr,
-                &inst_settop, sizeof(inst_settop))) {
+                &inst_callsettop, sizeof(inst_callsettop))) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
+        h64instruction_callsettop *ref_settop = (
+            (h64instruction_callsettop *)(
+                rinfo->pr->program->func[
+                    func->funcdef.bytecode_func_id
+                ].instructions +
+                rinfo->pr->program->func[
+                    func->funcdef.bytecode_func_id
+                ].instructions_bytes -
+                sizeof(*ref_settop)
+            )
+        );
         int i = 0;
         while (i < expr->inlinecall.arguments.arg_count) {
             if (expr->inlinecall.arguments.arg_name[i])
@@ -1092,6 +1100,7 @@ int _codegencallback_DoCodegen_visit_out(
                     return 0;
                 }
                 _argtemp++;
+                ref_settop->topto++;
                 h64instruction_valuecopy inst_vc = {0};
                 inst_vc.type = H64INST_VALUECOPY;
                 inst_vc.slotto = _argtemp;
@@ -1099,6 +1108,7 @@ int _codegencallback_DoCodegen_visit_out(
                     expr->inlinecall.arguments.arg_value[i]->
                         storage.eval_temp_id);
                 _argtemp++;
+                ref_settop->topto++;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &inst_vc, sizeof(inst_vc))) {
@@ -1118,6 +1128,7 @@ int _codegencallback_DoCodegen_visit_out(
                     expr->inlinecall.arguments.arg_value[i]->
                         storage.eval_temp_id);
                 _argtemp++;
+                ref_settop->topto++;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &inst_vc, sizeof(inst_vc))) {
@@ -1140,7 +1151,6 @@ int _codegencallback_DoCodegen_visit_out(
             );
         h64instruction_call inst_call = {0};
         inst_call.type = H64INST_CALL;
-        inst_call.returnto = preargs_tempceiling;
         int temp = new1linetemp(func, expr, 1);
         if (temp < 0) {
             rinfo->hadoutofmemory = 1;

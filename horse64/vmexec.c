@@ -574,11 +574,12 @@ static int vmthread_errors_Raise(
 
 int vmthread_ResetCallTempStack(h64vmthread *vmthread) {
     if (vmthread->call_settop_reverse >= 0) {
-        vmthread->call_settop_reverse = -1;
         if (!stack_ToSize(vmthread->stack,
                 vmthread->call_settop_reverse, 1)) {
+            vmthread->call_settop_reverse = -1;
             return 0;
         }
+        vmthread->call_settop_reverse = -1;
     }
     return 1;
 }
@@ -1308,7 +1309,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             goto binop_done;
         }
         binop_cmp_smaller: {
-            if (likely((v1->type != H64VALTYPE_INT64 &&
+            if (unlikely((v1->type != H64VALTYPE_INT64 &&
                     v1->type != H64VALTYPE_FLOAT64) ||
                     (v2->type != H64VALTYPE_INT64 &&
                     v2->type != H64VALTYPE_FLOAT64))) {
@@ -1337,6 +1338,47 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         v1->int_value < v2->int_value
                     );
                 }
+            }
+            goto binop_done;
+        }
+        binop_indexbyexpr: {
+            if (unlikely(v2->type != H64VALTYPE_INT64 &&
+                    v2->type != H64VALTYPE_FLOAT64)) {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "cannot index using a non-number type"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            int64_t index_by = -1;
+            if (likely(v2->type == H64VALTYPE_INT64)) {
+                index_by = v2->int_value;
+            } else {
+                assert(v2->type == H64VALTYPE_FLOAT64);
+                index_by = roundl(v2->float_value);
+            }
+            if (v1->type == H64VALTYPE_GCVAL && (
+                    ((h64gcvalue *)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_LIST
+                    )) {
+                valuecontent *v = vmlist_Get(
+                    ((h64gcvalue *)v1->ptr_value)->list_values, index_by
+                );
+                if (!v) {
+                    RAISE_ERROR(
+                        H64STDERROR_INDEXERROR,
+                        "index %" PRId64 " is out of range",
+                        (int64_t)index_by
+                    );
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+                memcpy(tmpresult, v, sizeof(*v));
+                ADDREF_NONHEAP(tmpresult);
+            } else {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "object of this type cannot be indexed"
+                );
             }
             goto binop_done;
         }
@@ -2671,6 +2713,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     op_jumptable[H64OP_CMP_SMALLEROREQUAL] = &&binop_cmp_smallerorequal;
     op_jumptable[H64OP_CMP_LARGER] = &&binop_cmp_larger;
     op_jumptable[H64OP_CMP_SMALLER] = &&binop_cmp_smaller;
+    op_jumptable[H64OP_INDEXBYEXPR] = &&binop_indexbyexpr;
     assert(stack != NULL);
     if (!pushfuncframe(vmthread, func_id, -1, -1, 0, 0)) {
         goto triggeroom;

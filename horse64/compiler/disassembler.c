@@ -176,6 +176,17 @@ int disassembler_PrintInstruction(
         }
         break;
     }
+    case H64INST_CALLSETTOP: {
+        h64instruction_callsettop *inst_callsettop =
+            (h64instruction_callsettop *)inst;
+        if (!disassembler_Write(di,
+                "    %s %d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_callsettop->topto)) {
+            return 0;
+        }
+        break;
+    }
     case H64INST_GETGLOBAL: {
         h64instruction_getglobal *inst_getglobal =
             (h64instruction_getglobal *)inst;
