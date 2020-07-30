@@ -1357,6 +1357,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 assert(v2->type == H64VALTYPE_FLOAT64);
                 index_by = roundl(v2->float_value);
             }
+            invalidtypes = 0;
             if (v1->type == H64VALTYPE_GCVAL && (
                     ((h64gcvalue *)v1->ptr_value)->type ==
                     H64GCVALUETYPE_LIST
@@ -1379,6 +1380,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     H64STDERROR_TYPEERROR,
                     "object of this type cannot be indexed"
                 );
+                goto *jumptable[((h64instructionany *)p)->type];
             }
             goto binop_done;
         }

@@ -70,7 +70,7 @@ static inline void vmlist_GetEntryBlock(
     if (l->last_accessed_block_offset < entry_no &&
             l->last_accessed_block != NULL &&
             l->last_accessed_block->entry_count +
-            l->last_accessed_block_offset > entry_no) {
+            l->last_accessed_block_offset >= entry_no) {
         *out_block = l->last_accessed_block;
         *out_block_offset = *out_block_offset;
         return;
@@ -79,8 +79,8 @@ static inline void vmlist_GetEntryBlock(
     int64_t offset = 0;
     listblock *block = l->first_block;
     while (block) {
-        if (offset <= entry_no &&
-                block->entry_count + offset > entry_no) {
+        if (offset < entry_no &&
+                block->entry_count + offset >= entry_no) {
             l->last_accessed_block = block;
             l->last_accessed_block_offset = offset;
             *out_block = block;
@@ -91,7 +91,7 @@ static inline void vmlist_GetEntryBlock(
         block = block->next_block;
     }
     *out_block = NULL;
-    *out_block_offset = 0;
+    *out_block_offset = -1;
 }
 
 int vmlist_Add(
@@ -99,7 +99,17 @@ int vmlist_Add(
 );
 
 static valuecontent *vmlist_Get(genericlist *l, int64_t i) {
-    return NULL;
+    if (i < 1 || i > l->list_total_entry_count)
+        return NULL;
+    int64_t blockoffset = -1;
+    listblock *block = NULL;
+    vmlist_GetEntryBlock(
+        l, i, &block, &blockoffset
+    );
+    assert(block != NULL && blockoffset >= 0);
+    i -= blockoffset;
+    assert(i >= 1 && i <= block->entry_count);
+    return &block->entry_values[i - 1];
 }
 
 #endif  // HORSE64_VMLIST_H_
