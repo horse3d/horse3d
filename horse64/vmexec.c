@@ -1009,19 +1009,99 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     v1->type != H64VALTYPE_FLOAT64) ||
                     (v2->type != H64VALTYPE_INT64 &&
                     v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else if (unlikely((
-                    ((v1->type == H64VALTYPE_GCVAL &&
-                     ((h64gcvalue *)v1->ptr_value)->type ==
-                        H64GCVALUETYPE_STRING) ||
-                     v1->type == H64VALTYPE_SHORTSTR)) &&
-                    ((v2->type == H64VALTYPE_GCVAL &&
-                     ((h64gcvalue *)v2->ptr_value)->type ==
-                        H64GCVALUETYPE_STRING) ||
-                     v2->type == H64VALTYPE_SHORTSTR))) {
-                fprintf(stderr, "string concatenation not implemented\n");
-                return 0;
-            } else {
+                if (likely((
+                        ((v1->type == H64VALTYPE_GCVAL &&
+                         ((h64gcvalue *)v1->ptr_value)->type ==
+                            H64GCVALUETYPE_STRING) ||
+                         v1->type == H64VALTYPE_SHORTSTR)) &&
+                        ((v2->type == H64VALTYPE_GCVAL &&
+                         ((h64gcvalue *)v2->ptr_value)->type ==
+                            H64GCVALUETYPE_STRING) ||
+                         v2->type == H64VALTYPE_SHORTSTR))) { // string concat
+                    invalidtypes = 0;
+                    int64_t len1 = -1;
+                    char *ptr1 = NULL;
+                    if (v1->type == H64VALTYPE_SHORTSTR) {
+                        len1 = v1->shortstr_len;
+                        ptr1 = (char*)v1->shortstr_value;
+                    } else {
+                        len1 = (
+                            (int64_t)((h64gcvalue *)v1->ptr_value)->
+                            str_val.len
+                        );
+                        ptr1 = (char*)(
+                            (int64_t)((h64gcvalue *)v1->ptr_value)->
+                            str_val.s
+                        );
+                    }
+                    int64_t len2 = -1;
+                    char *ptr2 = NULL;
+                    if (v2->type == H64VALTYPE_SHORTSTR) {
+                        len2 = v2->shortstr_len;
+                        ptr2 = (char*)v2->shortstr_value;
+                    } else {
+                        len2 = (
+                            (int64_t)((h64gcvalue *)v2->ptr_value)->
+                            str_val.len
+                        );
+                        ptr2 = (char*)(
+                            (int64_t)((h64gcvalue *)v2->ptr_value)->
+                            str_val.s
+                        );
+                    }
+                    if (len1 + len2 <= VALUECONTENT_SHORTSTRLEN) {
+                        tmpresult->type = H64VALTYPE_SHORTSTR;
+                        tmpresult->shortstr_len = len1 + len2;
+                        if (len1 > 0) {
+                            memcpy(
+                                tmpresult->shortstr_value,
+                                ptr1, len1 * sizeof(unicodechar)
+                            );
+                        }
+                        if (len2 > 0) {
+                            memcpy(
+                                tmpresult->shortstr_value +
+                                len1 * sizeof(unicodechar),
+                                ptr2, len2 * sizeof(unicodechar)
+                            );
+                        }
+                    } else {
+                        tmpresult->type = H64VALTYPE_GCVAL;
+                        h64gcvalue *gcval = poolalloc_malloc(
+                            heap, 0
+                        );
+                        if (!gcval) {
+                            tmpresult->ptr_value = NULL;
+                            goto triggeroom;
+                        }
+                        tmpresult->ptr_value = gcval;
+                        gcval->type = H64GCVALUETYPE_STRING;
+                        gcval->heapreferencecount = 0;
+                        gcval->externalreferencecount = 1;
+                        memset(&gcval->str_val, 0,
+                               sizeof(gcval->str_val));
+                        if (!vmstrings_AllocBuffer(
+                                vmthread, &gcval->str_val,
+                                len1 + len2)) {
+                            poolalloc_free(heap, gcval);
+                            tmpresult->ptr_value = NULL;
+                            goto triggeroom;
+                        }
+                        if (len1 > 0) {
+                            memcpy(gcval->str_val.s,
+                                   ptr1, len1 * sizeof(unicodechar));
+                        }
+                        if (len2 > 0) {
+                            memcpy(
+                                gcval->str_val.s + len1 * sizeof(unicodechar),
+                                ptr2, len2 * sizeof(unicodechar)
+                            );
+                        }
+                    }
+                } else {
+                    // invalid
+                }
+            } else {  // number addition
                 invalidtypes = 0;
                 if (v1->type == H64VALTYPE_FLOAT64 ||
                         v2->type == H64VALTYPE_FLOAT64) {
@@ -1401,11 +1481,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
         if (copyatend) {
             valuecontent *target = STACK_ENTRY(stack, inst->slotto);
-            if (target->type == H64VALTYPE_GCVAL) {
-                // prevent actual value from being free'd
-                ((h64gcvalue *)target->ptr_value)->
-                    externalreferencecount++;
-            }
             DELREF_NONHEAP(target);
             valuecontent_Free(target);
             memcpy(target, tmpresult, sizeof(*tmpresult));
@@ -1420,14 +1495,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     inst_call: {
         h64instruction_call *inst = (h64instruction_call *)p;
         #ifndef NDEBUG
-        if (vmthread->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) {
-            if (!vmthread_ResetCallTempStack(vmthread)) {
-                if (returneduncaughterror)
-                    *returneduncaughterror = 0;
-                return 0;
+        if (vmthread->moptions.vmexec_debug) {
+            if (!vmthread_PrintExec((void*)inst)) {
+                if (!vmthread_ResetCallTempStack(vmthread)) {
+                    if (returneduncaughterror)
+                        *returneduncaughterror = 0;
+                    return 0;
+                }
+                goto triggeroom;
             }
-            goto triggeroom;
         }
         #endif
 
@@ -1790,7 +1866,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     memmove(
                         STACK_ENTRY(stack, new_bottom),
                         STACK_ENTRY(stack, old_bottom),
-                        leftalone_args
+                        leftalone_args * sizeof(valuecontent)
                     );
                 memset(
                     STACK_ENTRY(stack, old_bottom),
@@ -1908,6 +1984,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         (reformat_slots_used)
                 );
             }
+
             // Set closure args:
             int i = stack_args_bottom;
             if (cinfo && cinfo->closure_self) {
@@ -1987,40 +2064,51 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (vmthread->moptions.vmexec_debug)
                 fprintf(
                     stderr, "horsevm: debug: vmexec jump into cfunc "
-                    "%" PRId64 "/addr=%p\n",
-                    target_func_id, cfunc
+                    "%" PRId64 "/addr=%p with floor %" PRId64 "\n",
+                    target_func_id, cfunc, new_func_floor
                 );
             #endif
-            int result = cfunc(vmthread);
+            int64_t oldtop = vmthread->call_settop_reverse;
+            int result = cfunc(vmthread);  // DO ACTUAL CALL
+            int64_t return_value_gslot = new_func_floor + 1LL;
+            valuecontent retval = {0};
+            if (return_value_gslot >= 0 &&
+                    return_value_gslot < STACK_TOTALSIZE(stack)) {
+                memcpy(&retval, &stack->entry[return_value_gslot],
+                       sizeof(retval));
+                ADDREF_NONHEAP(&retval);
+            }
+            vmthread->call_settop_reverse = oldtop;
+            assert(vmthread->stack == stack);
+            stack->current_func_floor = old_floor;
             if (!vmthread_ResetCallTempStack(vmthread)) {
                 if (returneduncaughterror)
                     *returneduncaughterror = 0;
+                DELREF_NONHEAP(&retval);
+                valuecontent_Free(&retval);
                 return 0;
             }
-            stack->current_func_floor = old_floor;
-            assert(new_func_floor + 1 <= STACK_TOTALSIZE(stack));
-            int shrinkresult = stack_ToSize(
-                stack, new_func_floor + 1, 0
-            );
-            assert(shrinkresult != 0);
-            int returnslot = (
-                (int64_t)(new_func_floor + 1) - stack->current_func_floor
-            );
             if (!result) {
                 // Handle error
-                assert(STACK_ENTRY(vmthread->stack, 0)->type ==
-                       H64VALTYPE_ERROR);
-                valuecontent *eobj = STACK_ENTRY(vmthread->stack, 0);
+                valuecontent oome = {0};
+                oome.type = H64VALTYPE_ERROR;
+                oome.error_class_id = H64STDERROR_OUTOFMEMORYERROR;
+                valuecontent *eobj = &oome;
+                if (retval.type == H64VALTYPE_ERROR)
+                    eobj = &retval;
                 RAISE_ERROR_U32(
                     eobj->error_class_id,
                     (const char *)(
                         eobj->einfo ? eobj->einfo->msg : (unicodechar *)NULL
                     ),
                     (eobj->einfo ? (int)eobj->einfo->msglen : 0)
-                );
+                );  // FIXME: carry over inner stack trace
+                DELREF_NONHEAP(&retval);
+                valuecontent_Free(&retval);
                 goto *jumptable[((h64instructionany *)p)->type];
             } else {
-                if (returnslot != inst->returnto &&
+                if (return_value_gslot != stack->current_func_floor +
+                        (int64_t)inst->returnto &&
                         inst->returnto >= 0) {
                     // Copy over result:
                     assert(inst->returnto < STACK_TOP(stack));
@@ -2028,11 +2116,13 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     valuecontent_Free(STACK_ENTRY(stack, inst->returnto));
                     memcpy(
                         STACK_ENTRY(stack, inst->returnto),
-                        STACK_ENTRY(stack, returnslot),
+                        &retval,
                         sizeof(valuecontent)
                     );
-                    ADDREF_NONHEAP(STACK_ENTRY(stack, returnslot));
+                    ADDREF_NONHEAP(STACK_ENTRY(stack, inst->returnto));
                 }
+                DELREF_NONHEAP(&retval);
+                valuecontent_Free(&retval);
             }
             p += sizeof(h64instruction_call);
             goto *jumptable[((h64instructionany *)p)->type];
@@ -2086,6 +2176,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->moptions.vmexec_debug &&
                 !vmthread_PrintExec((void*)inst)) goto triggeroom;
         #endif
+
+        if (!vmthread_ResetCallTempStack(vmthread)) {
+            if (returneduncaughterror)
+                *returneduncaughterror = 0;
+            return 0;
+        }
 
         assert(inst->topto >= 0);
         int64_t oldtop = stack->entry_count;
@@ -2225,7 +2321,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         } else if (vc->type == H64VALTYPE_FLOAT64) {
             jumpevalvalue = fabs(vc->float_value - 0) != 0;
         } else if (vc->type == H64VALTYPE_NONE ||
-                vc->type == H64VALTYPE_EMPTYARG) {
+                vc->type == H64VALTYPE_UNSPECIFIED_KWARG) {
             jumpevalvalue = 0;
         }
         if (jumpevalvalue) {
@@ -2539,7 +2635,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             target->ptr_value = poolalloc_malloc(
                 heap, 0
             );
-            if (!vc->ptr_value)
+            if (!target->ptr_value)
                 goto triggeroom;
             h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
             gcval->type = H64GCVALUETYPE_STRING;

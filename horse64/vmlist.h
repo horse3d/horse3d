@@ -7,6 +7,8 @@
 
 #include "bytecode.h"
 
+#include <assert.h>
+#include <stdio.h>
 
 #define LISTBLOCK_SIZE 64
 
@@ -98,6 +100,10 @@ int vmlist_Add(
     genericlist *l, valuecontent *vc
 );
 
+typedef struct h64gcvalue2 {
+    uint8_t type;
+} h64gcvalue2;
+
 static valuecontent *vmlist_Get(genericlist *l, int64_t i) {
     if (i < 1 || i > l->list_total_entry_count)
         return NULL;
@@ -109,7 +115,8 @@ static valuecontent *vmlist_Get(genericlist *l, int64_t i) {
     assert(block != NULL && blockoffset >= 0);
     i -= blockoffset;
     assert(i >= 1 && i <= block->entry_count);
-    return &block->entry_values[i - 1];
+    valuecontent *result = &block->entry_values[i - 1];
+    return result;
 }
 
 #endif  // HORSE64_VMLIST_H_

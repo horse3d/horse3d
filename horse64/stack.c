@@ -66,22 +66,49 @@ void stack_PrintDebug(h64stack *st) {
     fprintf(stderr, "=== STACK %p ===\n", st);
     fprintf(
         stderr, "* Total entries: %" PRId64
-        ", alloc entries: %" PRId64 "\n",
-        st->entry_count,
-        st->alloc_count
+        ", alloc entries: %" PRId64 ", func floor: %"
+        PRId64 "\n",
+        st->entry_count, st->alloc_count,
+        st->current_func_floor
     );
     int64_t k = 0;
     while (k < st->entry_count) {
         valuecontent *vc = &st->entry[k];
         fprintf(stderr, "%" PRId64 ": ", k);
         if (vc->type == H64VALTYPE_INT64) {
-            fprintf(stderr, "%" PRId64, vc->int_value);
+            fprintf(stderr, "%" PRId64 " (int)", vc->int_value);
         } else if (vc->type == H64VALTYPE_FLOAT64) {
-            fprintf(stderr, "%f", vc->float_value);
+            fprintf(stderr, "%f (float)", vc->float_value);
         } else if (vc->type == H64VALTYPE_BOOL) {
             fprintf(stderr, "%s", (vc->int_value ? "true" : "false"));
+        } else if (vc->type == H64VALTYPE_GCVAL &&
+                   ((h64gcvalue*)vc->ptr_value)->type ==
+                   H64GCVALUETYPE_STRING) {
+            fprintf(stderr, "string at %p", vc->ptr_value);
+        } else if (vc->type == H64VALTYPE_GCVAL &&
+                   ((h64gcvalue*)vc->ptr_value)->type ==
+                   H64GCVALUETYPE_LIST) {
+            fprintf(
+                stderr, "list len=%" PRId64 " at %p",
+                vmlist_Count(((h64gcvalue*)vc->ptr_value)->list_values),
+                vc->ptr_value
+            );
+        } else if (vc->type == H64VALTYPE_GCVAL &&
+                   ((h64gcvalue*)vc->ptr_value)->type ==
+                   H64GCVALUETYPE_FUNCREF_CLOSURE) {
+            h64closureinfo *cinfo = (
+                ((h64gcvalue*)vc->ptr_value)->closure_info
+            );
+            fprintf(
+                stderr, "func closure func_id=%" PRId64
+                " at %p", (cinfo ? cinfo->closure_func_id : -1),
+                vc->ptr_value
+            );
         } else if (vc->type == H64VALTYPE_GCVAL) {
-            fprintf(stderr, "gcval %p", vc->ptr_value);
+            fprintf(
+                stderr, "gcval at %p type %d",
+                vc->ptr_value, (int)((h64gcvalue *)vc->ptr_value)->type
+            );
         } else {
             fprintf(stderr, "<value type %d>", (int)vc->type);
         }

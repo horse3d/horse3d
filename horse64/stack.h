@@ -32,6 +32,8 @@ int stack_ToSize(
 
 void stack_Free(h64stack *st);
 
+void stack_PrintDebug(h64stack *st);
+
 
 static inline valuecontent *stack_GetEntrySlow(
         h64stack *st, int64_t index

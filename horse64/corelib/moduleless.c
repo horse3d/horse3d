@@ -29,7 +29,7 @@ int corelib_containeradd(  // $$builtin.$$containeradd
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     if (gcvalue->type == H64GCVALUETYPE_LIST) {
         if (!vmlist_Add(
-                gcvalue->list_values, STACK_ENTRY(vmthread->stack, 0)
+                gcvalue->list_values, STACK_ENTRY(vmthread->stack, 1)
                 )) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,

@@ -732,8 +732,8 @@ int _codegencallback_DoCodegen_visit_out(
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
-                h64instruction_settop inststop = {0};
-                inststop.type = H64INST_SETTOP;
+                h64instruction_callsettop inststop = {0};
+                inststop.type = H64INST_CALLSETTOP;
                 inststop.topto = argsfloor + 1;
                 if (!appendinst(rinfo->pr->program, func, expr,
                                 &inststop, sizeof(inststop))) {
