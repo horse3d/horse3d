@@ -1559,8 +1559,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
         int func_posargs = pr->func[target_func_id].input_stack_size - (
             pr->func[target_func_id].kwarg_count +
-            cinfo->closure_vbox_count +
-            (cinfo->closure_self != NULL ? 1 : 0)
+            (cinfo ? cinfo->closure_vbox_count : 0) +
+            (cinfo && cinfo->closure_self != NULL ? 1 : 0)
         );
         assert(func_posargs >= 0);
         int func_lastposargismultiarg = (
@@ -1755,6 +1755,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     valuecontent_Free(vlist);
                 } else {
                     // Transfer argument as-is from stack:
+                    assert(vmthread->arg_reorder_space != NULL);
                     memcpy(
                         &vmthread->arg_reorder_space[reformat_slots_used],
                         STACK_ENTRY(stack, (int64_t)i + stack_args_bottom),

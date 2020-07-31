@@ -74,7 +74,7 @@ static inline void vmlist_GetEntryBlock(
             l->last_accessed_block->entry_count +
             l->last_accessed_block_offset >= entry_no) {
         *out_block = l->last_accessed_block;
-        *out_block_offset = *out_block_offset;
+        *out_block_offset = l->last_accessed_block_offset;
         return;
     }
 
