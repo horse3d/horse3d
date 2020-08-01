@@ -50,6 +50,10 @@ int corelib_print(  // $$builtin.print
         h64vmthread *vmthread
         ) {
     assert(STACK_TOP(vmthread->stack) == 1);
+    assert(STACK_ENTRY(vmthread->stack, 0)->type == H64VALTYPE_GCVAL &&
+        ((h64gcvalue*)STACK_ENTRY(vmthread->stack, 0)->ptr_value)->type ==
+        H64GCVALUETYPE_LIST
+    );
     char *buf = alloca(256);
     uint64_t buflen = 256;
     int buffree = 0;

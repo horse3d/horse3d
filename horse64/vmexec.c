@@ -1672,7 +1672,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         int leftalone_args = inst->posargs + inst->kwargs;
         int reformat_argslots = 0;
         int reformat_slots_used = 0;
-        int full_posargs = inst->posargs;
+        const int inst_posargs = inst->posargs;
         if (unlikely(!noargreorder)) {
             // Compute what slots exactly we need to shift around:
             leftalone_args = func_posargs -
@@ -1703,12 +1703,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vmthread->arg_reorder_space_count = reformat_argslots;
             }
             assert(vmthread->arg_reorder_space != NULL);
-            int full_posargs = inst->posargs;
 
             // Clear out stack above where we may need to reorder:
             // First, copy out positional args:
             reformat_slots_used = 0;
-            int i = effective_posarg_count - leftalone_args;
+            int i = leftalone_args;
+            assert(i >= 0);
             while (i < inst->posargs) {
                 if (i == inst->posargs - 1 && inst->expandlastposarg) {
                     // Remaining args are squished into a list, extract:
@@ -1745,7 +1745,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         );
                         k2++;
                         reformat_slots_used++;
-                        full_posargs++;
                     }
                     // (Possibly) dump list:
                     DELREF_NONHEAP(
@@ -1883,7 +1882,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 int posarg = leftalone_args;
                 while (posarg < func_posargs - (
                         func_lastposargismultiarg ? 1 : 0)) {
-                    assert(posarg < full_posargs);
+                    assert(posarg < inst_posargs);
                     assert(
                         stackslot - (stack_args_bottom + closure_arg_count)
                         < func_posargs
@@ -1938,8 +1937,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         }
                         goto oom_with_sortinglist;
                     }
-                    while (posarg < full_posargs) {
+                    while (posarg < inst_posargs) {
                         assert(reorderslot < reformat_argslots);
+                        assert(reorderslot < reformat_slots_used);
                         int addresult = vmlist_Add(
                             gcval->list_values,
                             &vmthread->arg_reorder_space[reorderslot]
