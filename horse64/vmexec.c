@@ -1677,7 +1677,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             // Compute what slots exactly we need to shift around:
             leftalone_args = func_posargs -
                              (func_lastposargismultiarg ? 1 : 0);
-            if (inst->posargs - (inst->expandlastposarg ? 1 : 0) >
+            if (inst->posargs - (inst->expandlastposarg ? 1 : 0) <
                     leftalone_args)
                 leftalone_args = inst->posargs -
                                  (inst->expandlastposarg ? 1 : 0);
@@ -1702,6 +1702,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vmthread->arg_reorder_space = new_space;
                 vmthread->arg_reorder_space_count = reformat_argslots;
             }
+            assert(vmthread->arg_reorder_space != NULL);
             int full_posargs = inst->posargs;
 
             // Clear out stack above where we may need to reorder:
