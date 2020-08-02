@@ -478,6 +478,7 @@ static int vmthread_errors_Raise(
         if (returneduncaughterror) *returneduncaughterror = 1;
         if (out_uncaughterror) {
             memcpy(out_uncaughterror, &e, sizeof(e));
+            out_uncaughterror->refcount = 0;
             assert(out_uncaughterror->error_class_id >= 0);
         } else {
             if (returneduncaughterror) *returneduncaughterror = 0;
@@ -500,6 +501,7 @@ static int vmthread_errors_Raise(
             return 0;
         }
         memcpy(vc->einfo, &e, sizeof(e));
+        vc->einfo->refcount = 0;
         ADDREF_NONHEAP(vc);
     } else {
         assert(e.msglen == 0 || !storemsg);
@@ -741,6 +743,7 @@ static void vmexec_PrintPostErrorInfo(
                "vmthread_errors_Raise must set uncaughterror"); \
         *returneduncaughterror = 1;\
         memcpy(einfo, &uncaughterror, sizeof(uncaughterror));\
+        einfo->refcount = 0;\
         return 1;\
     }\
     if (CAN_PREERROR_PRINT_INFO &&\
@@ -1088,12 +1091,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                             goto triggeroom;
                         }
                         if (len1 > 0) {
-                            memcpy(gcval->str_val.s,
-                                   ptr1, len1 * sizeof(unicodechar));
+                            memcpy(
+                                gcval->str_val.s,
+                                ptr1, len1 * sizeof(unicodechar)
+                            );
                         }
                         if (len2 > 0) {
                             memcpy(
-                                gcval->str_val.s + len1 * sizeof(unicodechar),
+                                ((char*)gcval->str_val.s) +
+                                len1 * sizeof(unicodechar),
                                 ptr2, len2 * sizeof(unicodechar)
                             );
                         }
@@ -2651,8 +2657,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             }
             memcpy(
                 gcval->str_val.s,
-                strvalue, strvaluelen
+                strvalue, strvaluelen * sizeof(unicodechar)
             );
+            assert((unsigned int)gcval->str_val.len ==
+                   (unsigned int)strvaluelen);
             ADDREF_NONHEAP(target);
         } else if (nameidx == vmthread->program->add_name_index
                 ) {  // .add

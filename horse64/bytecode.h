@@ -71,6 +71,7 @@ typedef struct h64errorinfo {
     unicodechar *msg;
     int64_t msglen;
     int64_t error_class_id;
+    int refcount;
 } h64errorinfo;
 
 typedef enum valuetype {
@@ -87,7 +88,7 @@ typedef enum valuetype {
     H64VALTYPE_UNSPECIFIED_KWARG,
 } valuetype;
 
-#define VALUECONTENT_SHORTSTRLEN 2
+#define VALUECONTENT_SHORTSTRLEN 3
 
 typedef struct valuecontent {
     uint8_t type;
@@ -97,21 +98,20 @@ typedef struct valuecontent {
         void *ptr_value;
         struct {
             unicodechar shortstr_value[
-                VALUECONTENT_SHORTSTRLEN + 1
+                VALUECONTENT_SHORTSTRLEN
             ];
             uint8_t shortstr_len;
-        };
+        } __attribute__((packed));
         struct {
             unicodechar *constpreallocstr_value;
-            int64_t constpreallocstr_len;
+            int32_t constpreallocstr_len;
             int constpreallocstr_refcount;
-        };
+        } __attribute__((packed));
         struct {
             int64_t error_class_id;
             h64errorinfo *einfo;
-            int einfo_refcount;
-        };
-    };
+        } __attribute__((packed));
+    } __attribute__((packed));
 } __attribute__((packed)) valuecontent;
 
 typedef struct h64instructionany {
@@ -443,7 +443,8 @@ static inline void DELREF_NONHEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->externalreferencecount--;
     } else if (content->type == H64VALTYPE_ERROR) {
-        content->einfo_refcount--;
+        if (content->einfo)
+            content->einfo->refcount--;
     } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
         content->constpreallocstr_refcount--;
     }
@@ -453,7 +454,8 @@ static inline void ADDREF_NONHEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->externalreferencecount++;
     } else if (content->type == H64VALTYPE_ERROR) {
-        content->einfo_refcount++;
+        if (content->einfo)
+            content->einfo->refcount++;
     } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
         content->constpreallocstr_refcount++;
     }
@@ -463,7 +465,8 @@ static inline void DELREF_HEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->heapreferencecount--;
     } else if (content->type == H64VALTYPE_ERROR) {
-        content->einfo_refcount--;
+        if (content->einfo)
+            content->einfo->refcount--;
     } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
         content->constpreallocstr_refcount--;
     }
@@ -473,7 +476,8 @@ static inline void ADDREF_HEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->heapreferencecount++;
     } else if (content->type == H64VALTYPE_ERROR) {
-        content->einfo_refcount++;
+        if (content->einfo)
+            content->einfo->refcount++;
     } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
         content->constpreallocstr_refcount++;
     }

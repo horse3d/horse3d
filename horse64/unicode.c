@@ -9,6 +9,7 @@
 #include <alloca.h>
 #endif
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -300,6 +301,8 @@ int utf32_to_utf8(
     uint64_t totallen = 0;
     int64_t i = 0;
     while (i < input_len) {
+        if (outbuflen < 6)
+            return 0;
         int inneroutlen = 0;
         if (!write_codepoint_as_utf8(
                 (uint64_t)*p, surrogateunescape,
