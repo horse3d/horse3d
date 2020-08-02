@@ -32,6 +32,9 @@ genericlist *vmlist_New() {
 int vmlist_Add(
         genericlist *l, valuecontent *vc
         ) {
+    assert(l != NULL);
+    assert(vc != NULL);
+    assert(l->last_block != NULL);
     if (l->last_block->entry_count >= LISTBLOCK_SIZE) {
         listblock *newblock = malloc(sizeof(*newblock));
         if (!newblock)

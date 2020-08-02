@@ -2017,7 +2017,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 memcpy(
                     closurearg->ptr_value,
                     cinfo->closure_self,
-                    sizeof(valuecontent)
+                    sizeof(*cinfo->closure_self)
                 );
                 ADDREF_NONHEAP(closurearg);
                 i++;
@@ -2061,6 +2061,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             stack->current_func_floor + (int64_t)stack_args_bottom
         );
         if (likely(pr->func[target_func_id].iscfunc)) {
+            // Prepare call:
             int (*cfunc)(h64vmthread *vmthread) = (
                 (int (*)(h64vmthread *vmthread))
                 pr->func[target_func_id].cfunc_ptr
@@ -2077,7 +2078,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
             #endif
             int64_t oldtop = vmthread->call_settop_reverse;
+
+            // Call:
             int result = cfunc(vmthread);  // DO ACTUAL CALL
+
+            // Extract return value:
             int64_t return_value_gslot = new_func_floor + 1LL;
             valuecontent retval = {0};
             if (return_value_gslot >= 0 &&
@@ -2086,6 +2091,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                        sizeof(retval));
                 ADDREF_NONHEAP(&retval);
             }
+            // Reset stack floor and size:
             vmthread->call_settop_reverse = oldtop;
             assert(vmthread->stack == stack);
             stack->current_func_floor = old_floor;
@@ -2097,7 +2103,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 return 0;
             }
             if (!result) {
-                // Handle error
+                // Handle function call error
                 valuecontent oome = {0};
                 oome.type = H64VALTYPE_ERROR;
                 oome.error_class_id = H64STDERROR_OUTOFMEMORYERROR;
