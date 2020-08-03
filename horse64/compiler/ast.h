@@ -79,6 +79,7 @@ typedef struct h64ast h64ast;
 #define KNOWNVALUETYPE_KNOWNSTR 4
 
 typedef struct h64expression {
+    uint8_t destroyed;
     int64_t line, column;
     int tokenindex;
     h64expression *parent;
@@ -232,6 +233,8 @@ typedef struct h64expression {
 
 void ast_FreeExpression(h64expression *expr);
 
+void ast_MarkExprDestroyed(h64expression *expr);
+
 h64scope *ast_GetScope(h64expression *expr, h64scope *global_scope);
 
 const char *ast_ExpressionTypeToStr(h64expressiontype type);
@@ -244,10 +247,16 @@ jsonvalue *ast_ExpressionToJSON(
     h64expression *e, const char *fileuri
 );
 
-void ast_ClearFunctionArgs(h64funcargs *fargs, h64expression *func);
+void ast_ClearFunctionArgs(
+    h64funcargs *fargs, h64expression *func, int freeargsexprs
+);
 
 void ast_ClearFunctionArgsWithoutFunc(
-    h64funcargs *fargs, h64scope *scope
+    h64funcargs *fargs, h64scope *scope, int freeargsexprs
+);
+
+void ast_FreeExprNonpoolMembers(
+    h64expression *expr
 );
 
 int ast_VisitExpression(

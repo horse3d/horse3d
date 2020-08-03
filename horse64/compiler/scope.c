@@ -64,23 +64,25 @@ void scope_RemoveItem(
                     h64expression *e = (
                         scope->definitionref[i]->declarationexpr
                     );
-                    if (e->type == H64EXPRTYPE_FUNCDEF_STMT ||
-                            e->type == H64EXPRTYPE_INLINEFUNCDEF) {
-                        if (e->funcdef.foundinscope == scope)
-                            e->funcdef.foundinscope = NULL;
-                    } else if (e->type == H64EXPRTYPE_VARDEF_STMT) {
-                        if (e->vardef.foundinscope == scope)
-                            e->vardef.foundinscope = NULL;
-                    } else if (e->type == H64EXPRTYPE_CLASSDEF_STMT) {
-                        if (e->classdef.foundinscope == scope)
-                            e->classdef.foundinscope = NULL;
-                    } else if (e->type == H64EXPRTYPE_IMPORT_STMT) {
-                        if (e->importstmt.foundinscope == scope)
-                            e->importstmt.foundinscope = NULL;
-                    } else if (e->type == H64EXPRTYPE_FOR_STMT) {
-                        // nothing to do
-                    } else {
-                        assert(0 && "this should be unreachable");
+                    if (!e->destroyed) {
+                        if (e->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                                e->type == H64EXPRTYPE_INLINEFUNCDEF) {
+                            if (e->funcdef.foundinscope == scope)
+                                e->funcdef.foundinscope = NULL;
+                        } else if (e->type == H64EXPRTYPE_VARDEF_STMT) {
+                            if (e->vardef.foundinscope == scope)
+                                e->vardef.foundinscope = NULL;
+                        } else if (e->type == H64EXPRTYPE_CLASSDEF_STMT) {
+                            if (e->classdef.foundinscope == scope)
+                                e->classdef.foundinscope = NULL;
+                        } else if (e->type == H64EXPRTYPE_IMPORT_STMT) {
+                            if (e->importstmt.foundinscope == scope)
+                                e->importstmt.foundinscope = NULL;
+                        } else if (e->type == H64EXPRTYPE_FOR_STMT) {
+                            // nothing to do
+                        } else {
+                            assert(0 && "this should be unreachable");
+                        }
                     }
                 }
                 free(scope->definitionref[i]);
@@ -203,7 +205,13 @@ h64scopedef *scope_QueryItem(
             return scope_QueryItem(scope->parentscope, identifier_ref, 1);
         return 0;
     }
-    if (!result) {
+    h64expression *expr = NULL;
+    if (result)
+        expr = ((h64scopedef*)(uintptr_t)result)->declarationexpr;
+    if (!result || (result && expr && expr->destroyed)) {
+        if (result && expr && expr->destroyed) {
+            scope_RemoveItem(scope, identifier_ref);
+        }
         if (bubble_up && scope->parentscope)
             return scope_QueryItem(scope->parentscope, identifier_ref, 1);
         return 0;

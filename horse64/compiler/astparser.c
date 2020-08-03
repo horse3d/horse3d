@@ -26,6 +26,7 @@
 #include "compiler/globallimits.h"
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
+#include "poolalloc.h"
 #include "uri.h"
 
 
@@ -142,6 +143,16 @@ static h64scopedef *_getSameScopeShadowedDefinition(
 #define RECOVERFLAGS_MUSTFORWARD 1
 #define RECOVERFLAGS_NORMAL 0
 
+h64expression *ast_AllocExpr(h64ast *ast) {
+    if (!ast)
+        return NULL;
+    if (!ast->ast_expr_alloc) {
+        ast->ast_expr_alloc = poolalloc_New(sizeof(h64expression));
+        if (!ast->ast_expr_alloc)
+            return NULL;
+    }
+    return poolalloc_malloc(ast->ast_expr_alloc, 0);
+}
 void ast_ParseRecover_FindNextStatement(
         tsinfo *tokenstreaminfo, h64token *tokens,
         int max_tokens_touse, int *k, int flags
@@ -321,7 +332,7 @@ int _ast_ParseFunctionArgList_Ex(
             if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 0;
             ast_ClearFunctionArgsWithoutFunc(
-                out_funcargs, parsethis->scope
+                out_funcargs, parsethis->scope, 0
             );
             return 0;
         }
@@ -377,7 +388,7 @@ int _ast_ParseFunctionArgList_Ex(
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 1;
                     ast_ClearFunctionArgsWithoutFunc(
-                        out_funcargs, parsethis->scope
+                        out_funcargs, parsethis->scope, 0
                     );
                     return 0;
                 }
@@ -417,7 +428,7 @@ int _ast_ParseFunctionArgList_Ex(
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
             ast_ClearFunctionArgsWithoutFunc(
-                out_funcargs, parsethis->scope
+                out_funcargs, parsethis->scope, 0
             );
             return 0;
         }
@@ -471,7 +482,7 @@ int _ast_ParseFunctionArgList_Ex(
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
             ast_ClearFunctionArgsWithoutFunc(
-                out_funcargs, parsethis->scope
+                out_funcargs, parsethis->scope, 0
             );
             return 0;
         }
@@ -594,29 +605,29 @@ int ast_ParseExprInlineOperator_Recurse(
                 )) {
             if (inneroom) {
                 if (outofmemory) *outofmemory = 1;
-                if (lefthandside) ast_FreeExpression(lefthandside);
+                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
                 if (original_lefthand &&
                         original_lefthand != lefthandside)
-                    ast_FreeExpression(original_lefthand);
+                    ast_MarkExprDestroyed(original_lefthand);
                 return 0;
             } else if (innerparsefail) {
                 if (outofmemory) *outofmemory = 0;
                 if (parsefail) *parsefail = 1;
-                if (lefthandside) ast_FreeExpression(lefthandside);
+                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
                 if (original_lefthand &&
                         original_lefthand != lefthandside)
-                    ast_FreeExpression(original_lefthand);
+                    ast_MarkExprDestroyed(original_lefthand);
                 return 0;
             }
             if (parsefail) *parsefail = 0;
             if (lefthandside &&
                     original_lefthand != lefthandside)
-                ast_FreeExpression(lefthandside);
+                ast_MarkExprDestroyed(lefthandside);
             // XXX: do NOT free original_lefthandside if no parse error.
             return 0;
         }
         if (lefthandside && original_lefthand != lefthandside)
-            ast_FreeExpression(lefthandside);
+            ast_MarkExprDestroyed(lefthandside);
         lefthandside = innerexpr;
         lefthandsidetokenlen = tlen;
         i += tlen;
@@ -639,8 +650,8 @@ int ast_ParseExprInlineOperator_Recurse(
             if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 1;
         if (original_lefthand && original_lefthand != lefthandside)
-            ast_FreeExpression(original_lefthand);
-        if (lefthandside) ast_FreeExpression(lefthandside);
+            ast_MarkExprDestroyed(original_lefthand);
+        if (lefthandside) ast_MarkExprDestroyed(lefthandside);
         return 0;
     }
 
@@ -688,9 +699,9 @@ int ast_ParseExprInlineOperator_Recurse(
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
-            if (lefthandside) ast_FreeExpression(lefthandside);
+            if (lefthandside) ast_MarkExprDestroyed(lefthandside);
             if (original_lefthand && original_lefthand != lefthandside)
-                ast_FreeExpression(original_lefthand);
+                ast_MarkExprDestroyed(original_lefthand);
             return 0;
         }
 
@@ -741,15 +752,15 @@ int ast_ParseExprInlineOperator_Recurse(
                 if (inneroom) {
                     if (original_lefthand &&
                             original_lefthand != lefthandside)
-                        ast_FreeExpression(original_lefthand);
-                    ast_FreeExpression(lefthandside);
+                        ast_MarkExprDestroyed(original_lefthand);
+                    ast_MarkExprDestroyed(lefthandside);
                     if (outofmemory) *outofmemory = 1;
                     return 0;
                 } else if (innerparsefail) {
                     if (original_lefthand &&
                             original_lefthand != lefthandside)
-                        ast_FreeExpression(original_lefthand);
-                    ast_FreeExpression(lefthandside);
+                        ast_MarkExprDestroyed(original_lefthand);
+                    ast_MarkExprDestroyed(lefthandside);
                     if (outofmemory) *outofmemory = 0;
                     if (parsefail) *parsefail = 1;
                     return 0;
@@ -769,14 +780,14 @@ int ast_ParseExprInlineOperator_Recurse(
                     if (lefthandside->op.value2 &&
                             lefthandside->op.value2 != original_lefthand &&
                             lefthandside->op.value2 != innerrighthand)
-                        ast_FreeExpression(lefthandside->op.value2);
+                        ast_MarkExprDestroyed(lefthandside->op.value2);
                     lefthandside->op.value2 = innerexpr;
                 } else {
                     assert(lefthandside->type == H64EXPRTYPE_UNARYOP);
                     if (lefthandside->op.value1 &&
                             lefthandside->op.value1 != original_lefthand &&
                             lefthandside->op.value1 != innerrighthand)
-                        ast_FreeExpression(lefthandside->op.value1);
+                        ast_MarkExprDestroyed(lefthandside->op.value1);
                     lefthandside->op.value1 = innerexpr;
                 }
                 assert(tlen > innerrighthandlen &&
@@ -784,7 +795,7 @@ int ast_ParseExprInlineOperator_Recurse(
             } else {
                 if (lefthandside && original_lefthand != lefthandside &&
                         lefthandside != innerrighthand)
-                    ast_FreeExpression(lefthandside);
+                    ast_MarkExprDestroyed(lefthandside);
                 lefthandside = innerexpr;
             }
             lefthandsidetokenlen = (i - skipback) + tlen;
@@ -819,12 +830,12 @@ int ast_ParseExprInlineOperator_Recurse(
         // Special handling of call right-hand side:
         if (tokens[i - 1].type == H64TK_BINOPSYMBOL &&
                 tokens[i - 1].int_value == H64OP_CALL) {
-            h64expression *callexpr = malloc(sizeof(*callexpr));
+            h64expression *callexpr = ast_AllocExpr(context->ast);
             if (!callexpr) {
                 if (outofmemory) *outofmemory = 1;
-                if (lefthandside) ast_FreeExpression(lefthandside);
+                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
                 if (original_lefthand && original_lefthand != lefthandside)
-                    ast_FreeExpression(original_lefthand);
+                    ast_MarkExprDestroyed(original_lefthand);
                 return 0;
             }
             memset(callexpr, 0, sizeof(*callexpr));
@@ -853,13 +864,13 @@ int ast_ParseExprInlineOperator_Recurse(
                     &callexpr->inlinecall.arguments,
                     &tlen, nestingdepth
                     )) {
-                ast_FreeExpression(callexpr);
+                ast_MarkExprDestroyed(callexpr);
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
-                    if (lefthandside) ast_FreeExpression(lefthandside);
+                    if (lefthandside) ast_MarkExprDestroyed(lefthandside);
                     if (original_lefthand &&
                             original_lefthand != lefthandside)
-                        ast_FreeExpression(original_lefthand);
+                        ast_MarkExprDestroyed(original_lefthand);
                     return 0;
                 }
                 if (outofmemory) *outofmemory = 0;
@@ -875,9 +886,9 @@ int ast_ParseExprInlineOperator_Recurse(
                         if (outofmemory) *outofmemory = 1;
                 }
                 if (parsefail) *parsefail = 1;
-                if (lefthandside) ast_FreeExpression(lefthandside);
+                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
                 if (original_lefthand && original_lefthand != lefthandside)
-                    ast_FreeExpression(original_lefthand);
+                    ast_MarkExprDestroyed(original_lefthand);
                 return 0;
             }
             i += tlen;
@@ -929,16 +940,16 @@ int ast_ParseExprInlineOperator_Recurse(
                     )) {
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
-                    if (lefthandside) ast_FreeExpression(lefthandside);
+                    if (lefthandside) ast_MarkExprDestroyed(lefthandside);
                     if (original_lefthand && original_lefthand != lefthandside)
-                        ast_FreeExpression(original_lefthand);
+                        ast_MarkExprDestroyed(original_lefthand);
                     return 0;
                 } else if (innerparsefail) {
                     if (outofmemory) *outofmemory = 0;
                     if (parsefail) *parsefail = 1;
-                    if (lefthandside) ast_FreeExpression(lefthandside);
+                    if (lefthandside) ast_MarkExprDestroyed(lefthandside);
                     if (original_lefthand && original_lefthand != lefthandside)
-                        ast_FreeExpression(original_lefthand);
+                        ast_MarkExprDestroyed(original_lefthand);
                     return 0;
                 }
                 righthandsideparsefail: ;
@@ -960,16 +971,16 @@ int ast_ParseExprInlineOperator_Recurse(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
-                if (lefthandside) ast_FreeExpression(lefthandside);
+                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
                 if (original_lefthand && original_lefthand != lefthandside)
-                    ast_FreeExpression(original_lefthand);
+                    ast_MarkExprDestroyed(original_lefthand);
                 return 0;
             }
             if (isindexbyexpr && (
                     i + righthandsidelen >= max_tokens_touse ||
                     tokens[i + righthandsidelen].type != H64TK_BRACKET ||
                     tokens[i + righthandsidelen].char_value != ']')) {
-                ast_FreeExpression(righthandside);
+                ast_MarkExprDestroyed(righthandside);
                 righthandside = NULL;
                 goto righthandsideparsefail;
             } else if (isindexbyexpr) {
@@ -979,12 +990,12 @@ int ast_ParseExprInlineOperator_Recurse(
         assert(righthandside != NULL && righthandsidelen > 0);
         i += righthandsidelen;
 
-        h64expression *opexpr = malloc(sizeof(*opexpr));
+        h64expression *opexpr = ast_AllocExpr(context->ast);
         if (!opexpr) {
             if (outofmemory) *outofmemory = 1;
-            if (lefthandside) ast_FreeExpression(lefthandside);
+            if (lefthandside) ast_MarkExprDestroyed(lefthandside);
             if (original_lefthand && original_lefthand != lefthandside)
-                ast_FreeExpression(original_lefthand);
+                ast_MarkExprDestroyed(original_lefthand);
             return 0;
         }
         memset(opexpr, 0, sizeof(*opexpr));
@@ -997,7 +1008,7 @@ int ast_ParseExprInlineOperator_Recurse(
             opexpr->op.value1 = righthandside;
             if (lefthandside && lefthandside != original_lefthand &&
                     lefthandside != righthandside)
-                ast_FreeExpression(lefthandside);
+                ast_MarkExprDestroyed(lefthandside);
             lefthandside = NULL;
         } else {
             opexpr->type = H64EXPRTYPE_BINARYOP;
@@ -1034,7 +1045,7 @@ int ast_ParseExprInlineOperator_Recurse(
     }
     if (lefthandside && operatorsprocessed > 0) {
         if (original_lefthand && original_lefthand != lefthandside)
-            ast_FreeExpression(original_lefthand);
+            ast_MarkExprDestroyed(original_lefthand);
         *out_expr = lefthandside;
         *out_tokenlen = lefthandsidetokenlen;
         if (outofmemory) *outofmemory = 0;
@@ -1043,7 +1054,7 @@ int ast_ParseExprInlineOperator_Recurse(
     } else {
         if (lefthandside &&
                 original_lefthand != lefthandside)
-            ast_FreeExpression(lefthandside);
+            ast_MarkExprDestroyed(lefthandside);
         // XXX: do NOT free original lefthandside if no parse error.
     }
     *out_expr = NULL;
@@ -1107,7 +1118,7 @@ int ast_ParseInlineFunc(
         if (parsefail) *parsefail = 1;
         return 0;
     }
-    h64expression *expr = malloc(sizeof(*expr));
+    h64expression *expr = ast_AllocExpr(context->ast);
     if (!expr) {
         if (outofmemory) *outofmemory = 1;
         return 0;
@@ -1124,7 +1135,7 @@ int ast_ParseInlineFunc(
     if (!scope_Init(&expr->funcdef.scope)) {
         if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 0;
-        ast_FreeExpression(expr);
+        ast_MarkExprDestroyed(expr);
         return 0;
     }
     expr->funcdef.scope.classandfuncnestinglevel =
@@ -1150,12 +1161,12 @@ int ast_ParseInlineFunc(
             if (inneroom) {
                 if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 0;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             } else if (innerparsefail) {
                 if (outofmemory) *outofmemory = 0;
                 if (parsefail) *parsefail = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             char buf[256];
@@ -1174,7 +1185,7 @@ int ast_ParseInlineFunc(
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         i += tlen; 
@@ -1202,7 +1213,7 @@ int ast_ParseInlineFunc(
                 free(expr->funcdef.arguments.arg_name[0]);
             if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 0;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         expr->funcdef.arguments.arg_count = 1;
@@ -1216,7 +1227,7 @@ int ast_ParseInlineFunc(
                 scopeaddoom:
                 if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 0;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             } else {
                 if (!result_AddMessage(
@@ -1228,7 +1239,7 @@ int ast_ParseInlineFunc(
                     goto scopeaddoom;
                 if (outofmemory) *outofmemory = 0;
                 if (parsefail) *parsefail = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
         }
@@ -1249,7 +1260,7 @@ int ast_ParseInlineFunc(
                 ))
             if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 1;
-        ast_FreeExpression(expr);
+        ast_MarkExprDestroyed(expr);
         return 0;
     }
     if (i >= max_tokens_touse ||
@@ -1269,7 +1280,7 @@ int ast_ParseInlineFunc(
                 ))
             if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 1;
-        ast_FreeExpression(expr);
+        ast_MarkExprDestroyed(expr);
         return 0;
     }
     i++;
@@ -1291,7 +1302,7 @@ int ast_ParseInlineFunc(
                 ))
             if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 1;
-        ast_FreeExpression(expr);
+        ast_MarkExprDestroyed(expr);
         return 0;
     }
     i++;
@@ -1313,7 +1324,7 @@ int ast_ParseInlineFunc(
         if (inneroom) {
             if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 0;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         if (outofmemory) *outofmemory = 0;
@@ -1335,7 +1346,7 @@ int ast_ParseInlineFunc(
                 if (outofmemory) *outofmemory = 1;
         }
         if (parsefail) *parsefail = 1;
-        ast_FreeExpression(expr);
+        ast_MarkExprDestroyed(expr);
         return 0;
     }
     i += tlen;
@@ -1357,17 +1368,17 @@ int ast_ParseInlineFunc(
                 ))
             if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 1;
-        ast_FreeExpression(returnedexpr);
-        ast_FreeExpression(expr);
+        ast_MarkExprDestroyed(returnedexpr);
+        ast_MarkExprDestroyed(expr);
         return 0;
     }
     i++;
-    h64expression *returnstmt = malloc(sizeof(*returnstmt));
+    h64expression *returnstmt = ast_AllocExpr(context->ast);
     if (!returnstmt) {
         if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 0;
-        ast_FreeExpression(returnedexpr);
-        ast_FreeExpression(expr);
+        ast_MarkExprDestroyed(returnedexpr);
+        ast_MarkExprDestroyed(expr);
         return 0;
     }
     memset(returnstmt, 0, sizeof(*returnstmt));
@@ -1379,8 +1390,8 @@ int ast_ParseInlineFunc(
     if (!expr->funcdef.stmt) {
         if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 0;
-        ast_FreeExpression(returnedexpr);
-        ast_FreeExpression(expr);
+        ast_MarkExprDestroyed(returnedexpr);
+        ast_MarkExprDestroyed(expr);
         free(returnstmt);
         return 0;
     }
@@ -1435,7 +1446,7 @@ int ast_ParseExprInline(
         return 0;
     }
 
-    h64expression *expr = malloc(sizeof(*expr));
+    h64expression *expr = ast_AllocExpr(context->ast);
     if (!expr) {
         result_ErrorNoLoc(
             context->resultmsg,
@@ -1485,11 +1496,11 @@ int ast_ParseExprInline(
                         );
                     }
                 }
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             assert(innerexpr != NULL);
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             expr = innerexpr;
             if (outofmemory) *outofmemory = 0;
             if (parsefail) *parsefail = 0;
@@ -1523,10 +1534,10 @@ int ast_ParseExprInline(
                         );
                     }
                 }
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             *out_expr = innerexpr;
             if (out_tokenlen) *out_tokenlen = tlen;
             if (parsefail) *parsefail = 0;
@@ -1540,7 +1551,7 @@ int ast_ParseExprInline(
                 expr->type = H64EXPRTYPE_INVALID;
                 if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 0;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             *out_expr = expr;
@@ -1564,7 +1575,7 @@ int ast_ParseExprInline(
             } else if (tokens[0].type == H64TK_CONSTANT_STRING) {
                 expr->literal.str_value = strdup(tokens[0].str_value);
                 if (!expr->literal.str_value) {
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     if (outofmemory) *outofmemory = 1;
                     return 0;
                 }
@@ -1573,7 +1584,7 @@ int ast_ParseExprInline(
             } else {
                 // Should be impossible to reach!
                 fprintf(stderr, "horsec: error: UNHANDLED LITERAL TYPE\n");
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 if (outofmemory) *outofmemory = 1;
                 return 0;
             }
@@ -1633,11 +1644,11 @@ int ast_ParseExprInline(
                                 );
                             }
                         }
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     assert(innerexpr != NULL);
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     expr = innerexpr;
                     i += tlen;
                     if (outofmemory) *outofmemory = 0;
@@ -1665,12 +1676,12 @@ int ast_ParseExprInline(
                     )) {
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 } else if (innerparsefail) {
                     if (parsefail) *parsefail = 1;
                     if (outofmemory) *outofmemory = 0;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 // Nothing was inside the brackets, this is invalid:
@@ -1688,11 +1699,11 @@ int ast_ParseExprInline(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             assert(innerexpr != NULL);
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             expr = innerexpr;
             i += tlen;
             if (i >= max_tokens_touse ||
@@ -1716,7 +1727,7 @@ int ast_ParseExprInline(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             i++;  // past closing bracket
@@ -1832,7 +1843,7 @@ int ast_ParseExprInline(
                             _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
 
@@ -1856,7 +1867,7 @@ int ast_ParseExprInline(
                     );
                     if (!new_keys) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     expr->constructormap.key = new_keys;
@@ -1867,7 +1878,7 @@ int ast_ParseExprInline(
                     );
                     if (!new_values) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     expr->constructormap.value = new_values;
@@ -1879,7 +1890,7 @@ int ast_ParseExprInline(
                     );
                     if (!new_entries) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     expr->constructorlist.entry = new_entries;
@@ -1891,7 +1902,7 @@ int ast_ParseExprInline(
                     );
                     if (!new_entries) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     expr->constructorset.entry = new_entries;
@@ -1903,7 +1914,7 @@ int ast_ParseExprInline(
                     );
                     if (!new_entries) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     expr->constructorvector.entry = new_entries;
@@ -1940,7 +1951,7 @@ int ast_ParseExprInline(
                                     context->tokenstreaminfo, tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     int foundidx = -1;
@@ -2000,7 +2011,7 @@ int ast_ParseExprInline(
                                     context->tokenstreaminfo, tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     i++;
@@ -2029,7 +2040,7 @@ int ast_ParseExprInline(
                                 _refcol(context->tokenstreaminfo, tokens, i)
                                 ))
                             if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     i++;
@@ -2082,7 +2093,7 @@ int ast_ParseExprInline(
                                 ))
                             if (outofmemory) *outofmemory = 1;
                     }
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 assert(tlen > 0);
@@ -2130,8 +2141,8 @@ int ast_ParseExprInline(
                             _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(innerexpr);
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(innerexpr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 i++;
@@ -2179,8 +2190,8 @@ int ast_ParseExprInline(
                                 ))
                             if (outofmemory) *outofmemory = 1;
                     }
-                    ast_FreeExpression(innerexpr);
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(innerexpr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 i += tlen2;
@@ -2200,7 +2211,7 @@ int ast_ParseExprInline(
         }
 
         if (parsefail) *parsefail = 0;
-        ast_FreeExpression(expr);
+        ast_MarkExprDestroyed(expr);
         return 0;
     }
 
@@ -2224,16 +2235,16 @@ int ast_ParseExprInline(
                 )) {
             if (inneroom) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             } else if (innerparsefail) {
                 if (parsefail) *parsefail = 1;
                 if (outofmemory) *outofmemory = 0;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
         } else {
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             *out_expr = innerexpr;
             *out_tokenlen = tlen;
             if (parsefail) *parsefail = 0;
@@ -2256,16 +2267,16 @@ int ast_ParseExprInline(
                 )) {
             if (inneroom) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             } else if (innerparsefail) {
                 if (parsefail) *parsefail = 1;
                 if (outofmemory) *outofmemory = 0;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
         } else {
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             *out_expr = innerexpr;
             *out_tokenlen = tlen;
             if (parsefail) *parsefail = 0;
@@ -2277,7 +2288,7 @@ int ast_ParseExprInline(
     // Nothing found in either mode, so there is nothing here:
     if (parsefail) *parsefail = 0;
     if (outofmemory) *outofmemory = 0;
-    ast_FreeExpression(expr);
+    ast_MarkExprDestroyed(expr);
     return 0;
 }
 
@@ -2417,7 +2428,7 @@ int ast_ParseCodeBlock(
                 );
                 if (!new_stmt) {
                     if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(innerexpr);
+                    ast_MarkExprDestroyed(innerexpr);
                     return 0;
                 }
                 *stmt_ptr = new_stmt;
@@ -2865,7 +2876,7 @@ int ast_ParseExprStmt(
         return 0;
     }
 
-    h64expression *expr = malloc(sizeof(*expr));
+    h64expression *expr = ast_AllocExpr(context->ast);
     if (!expr) {
         result_ErrorNoLoc(
             context->resultmsg,
@@ -2917,14 +2928,14 @@ int ast_ParseExprStmt(
                     ))
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         expr->vardef.identifier = strdup(tokens[i].str_value);
         i++;
         if (!expr->vardef.identifier) {
             if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
 
@@ -2937,7 +2948,7 @@ int ast_ParseExprStmt(
                     )) {
                 if (newidentifieroom) {
                     if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
             }
@@ -3014,7 +3025,7 @@ int ast_ParseExprStmt(
                     scope_RemoveItem(
                         parsethis->scope, expr->vardef.identifier
                     );
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 if (parsefail) *parsefail = 1;
@@ -3077,7 +3088,7 @@ int ast_ParseExprStmt(
                parsethis->scope->magicinitnum == SCOPEMAGICINITNUM);
         if (!scope_Init(&expr->funcdef.scope)) {
             if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         expr->funcdef.scope.classandfuncnestinglevel =
@@ -3102,14 +3113,14 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         expr->funcdef.name = strdup(tokens[i].str_value);
         i++;
         if (!expr->funcdef.name) {
             if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
 
@@ -3122,7 +3133,7 @@ int ast_ParseExprStmt(
                     )) {
                 if (newidentifieroom) {
                     if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
             }
@@ -3147,13 +3158,13 @@ int ast_ParseExprStmt(
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
                     scope_RemoveItem(parsethis->scope, expr->funcdef.name);
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 } else if (innerparsefail) {
                     if (outofmemory) *outofmemory = 0;
                     if (parsefail) *parsefail = 1;
                     scope_RemoveItem(parsethis->scope, expr->funcdef.name);
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 char buf[256];
@@ -3176,7 +3187,7 @@ int ast_ParseExprStmt(
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
                 scope_RemoveItem(parsethis->scope, expr->funcdef.name);
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             i += tlen;
@@ -3233,7 +3244,7 @@ int ast_ParseExprStmt(
                 if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
                 scope_RemoveItem(parsethis->scope, expr->funcdef.name);
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
         }
@@ -3255,7 +3266,7 @@ int ast_ParseExprStmt(
                 if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 0;
                 scope_RemoveItem(parsethis->scope, expr->funcdef.name);
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             if (outofmemory) *outofmemory = 0;
@@ -3269,7 +3280,7 @@ int ast_ParseExprStmt(
                 if (outofmemory) *outofmemory = 1;
             if (parsefail) *parsefail = 1;
             scope_RemoveItem(parsethis->scope, expr->funcdef.name);
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         i += tlen;
@@ -3296,7 +3307,7 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         expr->type = H64EXPRTYPE_CLASSDEF_STMT;
@@ -3304,7 +3315,7 @@ int ast_ParseExprStmt(
         expr->classdef.scope.parentscope = parsethis->scope;
         if (!scope_Init(&expr->classdef.scope)) {
             if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         expr->classdef.scope.classandfuncnestinglevel =
@@ -3348,14 +3359,14 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         expr->classdef.name = strdup(tokens[i].str_value);
         if (!expr->classdef.name) {
             if (parsefail) *parsefail = 0;
             if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         i++;
@@ -3369,7 +3380,7 @@ int ast_ParseExprStmt(
                     )) {
                 if (newidentifieroom) {
                     if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
             }
@@ -3395,19 +3406,19 @@ int ast_ParseExprStmt(
                     &tlen, nestingdepth
                     ) || !ast_CanBeClassRef(innerexpr)) {
                 if (innerexpr)
-                    ast_FreeExpression(innerexpr);
+                    ast_MarkExprDestroyed(innerexpr);
                 if (inneroutofmemory) {
                     if (parsefail) *parsefail = 0;
                     if (outofmemory) *outofmemory = 1;
                     scope_RemoveItem(parsethis->scope, expr->classdef.name);
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 if (innerparsefail) {
                     if (parsefail) *parsefail = 1;
                     if (outofmemory) *outofmemory = 0;
                     scope_RemoveItem(parsethis->scope, expr->classdef.name);
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 char buf[256]; char describebuf[64];
@@ -3429,7 +3440,7 @@ int ast_ParseExprStmt(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 scope_RemoveItem(parsethis->scope, expr->classdef.name);
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             expr->classdef.baseclass_ref = innerexpr;
@@ -3489,12 +3500,12 @@ int ast_ParseExprStmt(
             classparsefail: ;
             int k = 0;
             while (k < stmt_count) {
-                ast_FreeExpression(stmt[k]);
+                ast_MarkExprDestroyed(stmt[k]);
                 k++;
             }
             free(stmt);
             scope_RemoveItem(parsethis->scope, expr->classdef.name);
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         i += tlen;
@@ -3617,7 +3628,7 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         i++;
@@ -3628,7 +3639,7 @@ int ast_ParseExprStmt(
             expr->trystmt.tryscope.parentscope = parsethis->scope;
             if (!scope_Init(&expr->trystmt.tryscope)) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             expr->trystmt.tryscope.classandfuncnestinglevel =
@@ -3650,7 +3661,7 @@ int ast_ParseExprStmt(
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 if (outofmemory) *outofmemory = 0;
@@ -3663,7 +3674,7 @@ int ast_ParseExprStmt(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             i += tlen;
@@ -3692,7 +3703,7 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
 
@@ -3700,7 +3711,7 @@ int ast_ParseExprStmt(
             expr->trystmt.catchscope.parentscope = parsethis->scope;
             if (!scope_Init(&expr->trystmt.catchscope)) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             expr->trystmt.catchscope.classandfuncnestinglevel =
@@ -3726,7 +3737,7 @@ int ast_ParseExprStmt(
                     if (inneroutofmemory) {
                         if (parsefail) *parsefail = 0;
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     if (parsefail) *parsefail = 1;
@@ -3758,7 +3769,7 @@ int ast_ParseExprStmt(
                                 ))
                             if (outofmemory) *outofmemory = 1;
                     }
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 i += tlen;
@@ -3771,8 +3782,8 @@ int ast_ParseExprStmt(
                 if (!new_errors) {
                     if (parsefail) *parsefail = 0;
                     if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(innerexpr);
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(innerexpr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 expr->trystmt.errors = new_errors;
@@ -3813,7 +3824,7 @@ int ast_ParseExprStmt(
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             int named_error = (tokens[i].type == H64TK_KEYWORD);
@@ -3841,7 +3852,7 @@ int ast_ParseExprStmt(
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             if (named_error) {
@@ -3851,7 +3862,7 @@ int ast_ParseExprStmt(
                 if (!expr->trystmt.error_name) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 {
@@ -3864,7 +3875,7 @@ int ast_ParseExprStmt(
                             )) {
                         if (newidentifieroom) {
                             if (outofmemory) *outofmemory = 1;
-                            ast_FreeExpression(expr);
+                            ast_MarkExprDestroyed(expr);
                             return 0;
                         }
                     }
@@ -3890,7 +3901,7 @@ int ast_ParseExprStmt(
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 if (outofmemory) *outofmemory = 0;
@@ -3903,7 +3914,7 @@ int ast_ParseExprStmt(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             i += tlen;
@@ -3923,7 +3934,7 @@ int ast_ParseExprStmt(
             expr->trystmt.finallyscope.parentscope = parsethis->scope;
             if (!scope_Init(&expr->trystmt.finallyscope)) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             expr->trystmt.finallyscope.classandfuncnestinglevel =
@@ -3941,7 +3952,7 @@ int ast_ParseExprStmt(
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 if (outofmemory) *outofmemory = 0;
@@ -3954,7 +3965,7 @@ int ast_ParseExprStmt(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             i += tlen;
@@ -3986,7 +3997,7 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     )) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
         }
@@ -4014,7 +4025,7 @@ int ast_ParseExprStmt(
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             char **new_elements = realloc(
@@ -4024,7 +4035,7 @@ int ast_ParseExprStmt(
             );
             if (!new_elements) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             expr->importstmt.import_elements = new_elements;
@@ -4035,7 +4046,7 @@ int ast_ParseExprStmt(
                     expr->importstmt.import_elements_count
                     ]) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             expr->importstmt.import_elements_count++;
@@ -4071,7 +4082,7 @@ int ast_ParseExprStmt(
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             expr->importstmt.source_library = strdup(
@@ -4079,7 +4090,7 @@ int ast_ParseExprStmt(
             );
             if (!expr->importstmt.source_library) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             i++;
@@ -4107,7 +4118,7 @@ int ast_ParseExprStmt(
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
                     if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             expr->importstmt.import_as = strdup(
@@ -4115,7 +4126,7 @@ int ast_ParseExprStmt(
             );
             if (!expr->importstmt.import_as) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             i++;
@@ -4133,7 +4144,7 @@ int ast_ParseExprStmt(
                     )) {
                 if (newidentifieroom) {
                     if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
             }
@@ -4164,7 +4175,7 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         expr->type = H64EXPRTYPE_RETURN_STMT;
@@ -4188,13 +4199,13 @@ int ast_ParseExprStmt(
             if (inneroutofmemory) {
                 if (parsefail) *parsefail = 0;
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             if (innerparsefail) {
                 if (parsefail) *parsefail = 1;
                 if (outofmemory) *outofmemory = 0;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             innerexpr = NULL;
@@ -4231,7 +4242,7 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
 
@@ -4295,7 +4306,7 @@ int ast_ParseExprStmt(
                             _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 _foridentifierindex = i;
@@ -4324,7 +4335,7 @@ int ast_ParseExprStmt(
                             _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 i++;
@@ -4349,11 +4360,11 @@ int ast_ParseExprStmt(
                         )) {
                     if (_inneroutofmemory) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     if (_innerparsefail) {
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     char buf[256]; char describebuf[64];
@@ -4378,7 +4389,7 @@ int ast_ParseExprStmt(
                             _refcol(context->tokenstreaminfo, tokens, i)
                             ))
                         if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 i += tlen;
@@ -4387,7 +4398,7 @@ int ast_ParseExprStmt(
                 expr->forstmt.iterator_identifier = strdup(iteratorname);
                 if (!expr->forstmt.iterator_identifier) {
                     if (outofmemory) *outofmemory = 1;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 expr->forstmt.iterated_container = innerexpr;
@@ -4398,8 +4409,8 @@ int ast_ParseExprStmt(
                     );
                     if (!new_current_clause) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
-                        ast_FreeExpression(innerexpr);
+                        ast_MarkExprDestroyed(expr);
+                        ast_MarkExprDestroyed(innerexpr);
                         return 0;
                     }
                     memset(new_current_clause, 0,
@@ -4443,7 +4454,7 @@ int ast_ParseExprStmt(
             scope->parentscope = parsethis->scope;
             if (!scope_Init(scope)) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             scope->classandfuncnestinglevel =
@@ -4463,7 +4474,7 @@ int ast_ParseExprStmt(
                         )) {
                     if (newidentifieroom) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                 }
@@ -4485,7 +4496,7 @@ int ast_ParseExprStmt(
                 if (inneroom) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 if (outofmemory) *outofmemory = 0;
@@ -4498,7 +4509,7 @@ int ast_ParseExprStmt(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             i += tlen;
@@ -4543,7 +4554,7 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             return 0;
         }
         expr->type = H64EXPRTYPE_ASSIGN_STMT;
@@ -4564,11 +4575,11 @@ int ast_ParseExprStmt(
                 )) {
             if (_inneroutofmemory) {
                 if (outofmemory) *outofmemory = 1;
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
             if (_innerparsefail) {
-                ast_FreeExpression(expr);
+                ast_MarkExprDestroyed(expr);
                 return 0;
             }
         } else {
@@ -4605,8 +4616,8 @@ int ast_ParseExprStmt(
                                     tokens, 0)
                             )) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(innerexpr);
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(innerexpr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     // Continue anyway, to return a usable AST
@@ -4630,7 +4641,7 @@ int ast_ParseExprStmt(
                         )) {
                     if (_inneroutofmemory) {
                         if (outofmemory) *outofmemory = 1;
-                        ast_FreeExpression(expr);
+                        ast_MarkExprDestroyed(expr);
                         return 0;
                     }
                     if (!_innerparsefail) {
@@ -4656,8 +4667,8 @@ int ast_ParseExprStmt(
                                 ))
                             if (outofmemory) *outofmemory = 1;
                     }
-                    ast_FreeExpression(innerexpr);
-                    ast_FreeExpression(expr);
+                    ast_MarkExprDestroyed(innerexpr);
+                    ast_MarkExprDestroyed(expr);
                     return 0;
                 }
                 i += tlen;
@@ -4676,13 +4687,13 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 0;
                 return 1;
             }
-            ast_FreeExpression(innerexpr);
+            ast_MarkExprDestroyed(innerexpr);
             innerexpr = NULL;
         }
         expr->type = H64EXPRTYPE_INVALID;  // no assign statement here, continue
     }
     if (parsefail) *parsefail = 0;
-    ast_FreeExpression(expr);
+    ast_MarkExprDestroyed(expr);
     return 0;
 }
 
@@ -4732,6 +4743,7 @@ h64ast *ast_ParseFromTokens(
         memset(&pcontext, 0, sizeof(pcontext));
         pcontext.global_scope = &result->scope;
         pcontext.project = project;
+        pcontext.ast = result;
         pcontext.resultmsg = &result->resultmsg;
         pcontext.fileuri = fileuri;
         pcontext.tokenstreaminfo = &tokenstreaminfo;
@@ -4787,7 +4799,7 @@ h64ast *ast_ParseFromTokens(
             sizeof(*new_stmt) * (result->stmt_count + 1)
         );
         if (!new_stmt) {
-            ast_FreeExpression(expr);
+            ast_MarkExprDestroyed(expr);
             ast_FreeContents(result);
             result_ErrorNoLoc(
                 &result->resultmsg,
@@ -4843,7 +4855,7 @@ void ast_FreeContents(h64ast *ast) {
         return;
     int i = 0;
     while (i < ast->stmt_count) {
-        ast_FreeExpression(ast->stmt[i]);
+        ast_MarkExprDestroyed(ast->stmt[i]);
         i++;
     }
     ast->stmt_count = 0;
@@ -4855,5 +4867,9 @@ void ast_FreeContents(h64ast *ast) {
     ast->module_path = NULL;
     free(ast->library_name);
     ast->library_name = NULL;
+    if (ast->ast_expr_alloc) {
+        poolalloc_Destroy(ast->ast_expr_alloc);
+        ast->ast_expr_alloc = NULL;
+    }
     scope_FreeData(&ast->scope);
 }

@@ -83,7 +83,7 @@ h64scope *ast_GetScope(
 }
 
 void ast_ClearFunctionArgsWithoutFunc(
-        h64funcargs *fargs, h64scope *scope
+        h64funcargs *fargs, h64scope *scope, int freeargs
         ) {
     int i = 0;
     while (i < fargs->arg_count) {
@@ -98,7 +98,7 @@ void ast_ClearFunctionArgsWithoutFunc(
             }
             free(fargs->arg_name[i]);
         }
-        if (fargs->arg_value[i])
+        if (fargs->arg_value[i] && freeargs)
             ast_FreeExpression(fargs->arg_value[i]);
         i++;
     }
@@ -110,7 +110,7 @@ void ast_ClearFunctionArgsWithoutFunc(
 }
 
 void ast_ClearFunctionArgs(
-        h64funcargs *fargs, h64expression *func
+        h64funcargs *fargs, h64expression *func, int freeargs
         ) {
     assert(!func ||
         func->type == H64EXPRTYPE_FUNCDEF_STMT ||
@@ -120,10 +120,10 @@ void ast_ClearFunctionArgs(
     if (func && func->type != H64EXPRTYPE_CALL &&
                     func->type != H64EXPRTYPE_CALL_STMT) {
         return ast_ClearFunctionArgsWithoutFunc(
-            fargs, &func->funcdef.scope
+            fargs, &func->funcdef.scope, freeargs
         );
     }
-    return ast_ClearFunctionArgsWithoutFunc(fargs, NULL);
+    return ast_ClearFunctionArgsWithoutFunc(fargs, NULL, freeargs);
 }
 
 int ast_VisitExpression(
@@ -445,70 +445,62 @@ int ast_VisitExpression(
     return 1;
 }
 
+static int _mark_destroyed_cb(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    expr->destroyed = 1;
+    ast_FreeExprNonpoolMembers(expr);
+    return 1;
+}
 
-void ast_FreeExpression(h64expression *expr) {
-    if (!expr)
-        return;
+void ast_MarkExprDestroyed(h64expression *expr) {
+    int result = ast_VisitExpression(
+        expr, NULL, NULL, &_mark_destroyed_cb, NULL, NULL
+    );
+    assert(result != 0);
+    expr->destroyed = 1;
+}
 
+void ast_FreeExprNonpoolMembers(
+        h64expression *expr
+        ) {
+    // Free resources not covered by pool allocator:
     if (expr->knownvalue.type == KNOWNVALUETYPE_KNOWNSTR) {
         free(expr->knownvalue.knownstr);
+        expr->knownvalue.knownstr = NULL;
     }
-
-    int i = 0;
     switch (expr->type) {
     case H64EXPRTYPE_INVALID:
         // nothing to do;
         break;
     case H64EXPRTYPE_VARDEF_STMT:
-        if (expr->vardef.identifier)
-            free(expr->vardef.identifier);
-        if (expr->vardef.value)
-            ast_FreeExpression(expr->vardef.value);
+        free(expr->vardef.identifier);
+        expr->vardef.identifier = NULL;
         break;
     case H64EXPRTYPE_FUNCDEF_STMT:
     case H64EXPRTYPE_INLINEFUNCDEF:
         scope_FreeData(&expr->funcdef.scope);
-        if (expr->funcdef.name)
-            free(expr->funcdef.name);
-        ast_ClearFunctionArgs(&expr->funcdef.arguments, expr);
-        int i = 0;
-        while (i < expr->funcdef.stmt_count) {
-            assert(expr->funcdef.stmt != NULL);
-            ast_FreeExpression(expr->funcdef.stmt[i]);
-            i++;
-        }
-        if (expr->funcdef.stmt) free(expr->funcdef.stmt);
-        ast_ClearFunctionArgs(&expr->funcdef.arguments, expr);
+        free(expr->funcdef.name);
+        expr->funcdef.name = NULL;
+        ast_ClearFunctionArgs(&expr->funcdef.arguments, expr, 0);
+        free(expr->funcdef.stmt);
+        expr->funcdef.stmt = NULL;
+        expr->funcdef.stmt_count = 0;
         varstorage_FreeExtraInfo(expr->funcdef._storageinfo);
+        expr->funcdef._storageinfo = NULL;
         break;
     case H64EXPRTYPE_CALL_STMT:
-        if (expr->callstmt.call) {
-            if (expr->callstmt.call->inlinecall.value)
-                ast_FreeExpression(
-                    expr->callstmt.call->inlinecall.value
-                );
-            ast_ClearFunctionArgs(
-                &expr->callstmt.call->inlinecall.arguments, expr
-            );
-            free(expr->callstmt.call);
-        }
         break;
     case H64EXPRTYPE_CLASSDEF_STMT:
         scope_FreeData(&expr->classdef.scope);
         free(expr->classdef.name);
-        ast_FreeExpression(expr->classdef.baseclass_ref);
-        i = 0;
-        while (i < expr->classdef.vardef_count) {
-            ast_FreeExpression(expr->classdef.vardef[i]);
-            i++;
-        }
+        expr->classdef.name = NULL;
         free(expr->classdef.vardef);
-        i = 0;
-        while (i < expr->classdef.funcdef_count) {
-            ast_FreeExpression(expr->classdef.funcdef[i]);
-            i++;
-        }
+        expr->classdef.vardef = NULL;
+        expr->classdef.vardef_count = 0;
         free(expr->classdef.funcdef);
+        expr->classdef.funcdef = NULL;
+        expr->classdef.funcdef_count = 0;
         break;
     case H64EXPRTYPE_IF_STMT: ;
         struct h64ifstmt *current_clause = &expr->ifstmt;
@@ -518,151 +510,184 @@ void ast_FreeExpression(h64expression *expr) {
                 current_clause->followup_clause
             );
             scope_FreeData(&current_clause->scope);
-            ast_FreeExpression(current_clause->conditional);
-            i = 0;
-            while (i < current_clause->stmt_count) {
-                ast_FreeExpression(current_clause->stmt[i]);
-                i++;
-            }
             free(current_clause->stmt);
+            current_clause->stmt = NULL;
             if (isfirst)
                 isfirst = 0;
             else
                 free(current_clause);
             current_clause = next_clause;
         }
+        current_clause->followup_clause = NULL;
+        current_clause->stmt_count = 0;
         break;
     case H64EXPRTYPE_WHILE_STMT:
         scope_FreeData(&expr->whilestmt.scope);
-        ast_FreeExpression(expr->whilestmt.conditional);
-        i = 0;
-        while (i < expr->whilestmt.stmt_count) {
-            ast_FreeExpression(expr->whilestmt.stmt[i]);
-            i++;
-        }
         free(expr->whilestmt.stmt);
+        expr->whilestmt.stmt = NULL;
+        expr->whilestmt.stmt_count = 0;
         break;
     case H64EXPRTYPE_FOR_STMT:
         scope_FreeData(&expr->forstmt.scope);
         free(expr->forstmt.iterator_identifier);
-        ast_FreeExpression(expr->forstmt.iterated_container);
-        i = 0;
-        while (i < expr->forstmt.stmt_count) {
-            ast_FreeExpression(expr->forstmt.stmt[i]);
-            i++;
-        }
+        expr->forstmt.iterator_identifier = NULL;
         free(expr->forstmt.stmt);
+        expr->forstmt.stmt = NULL;
+        expr->forstmt.stmt_count = 0;
         break;
-    case H64EXPRTYPE_IMPORT_STMT:
-        i = 0;
+    case H64EXPRTYPE_IMPORT_STMT: {
+        int i = 0;
         while (i < expr->importstmt.import_elements_count) {
             free(expr->importstmt.import_elements[i]);
             i++;
         }
         free(expr->importstmt.import_elements);
+        expr->importstmt.import_elements = NULL;
+        expr->importstmt.import_elements_count = 0;
         free(expr->importstmt.import_as);
+        expr->importstmt.import_as = NULL;
         free(expr->importstmt.source_library);
+        expr->importstmt.source_library = NULL;
         break;
+    }
     case H64EXPRTYPE_RETURN_STMT:
-        ast_FreeExpression(expr->returnstmt.returned_expression);
         break;
     case H64EXPRTYPE_TRY_STMT:
         scope_FreeData(&expr->trystmt.tryscope);
-        i = 0;
-        while (i < expr->trystmt.trystmt_count) {
-            ast_FreeExpression(expr->trystmt.trystmt[i]);
-            i++;
-        }
         free(expr->trystmt.trystmt);
-        i = 0;
-        while (i < expr->trystmt.errors_count) {
-            ast_FreeExpression(expr->trystmt.errors[i]);
-            i++;
-        }
+        expr->trystmt.trystmt = NULL;
+        expr->trystmt.trystmt_count = 0;
         free(expr->trystmt.errors);
+        expr->trystmt.errors = NULL;
+        expr->trystmt.errors_count = 0;
         free(expr->trystmt.error_name);
+        expr->trystmt.error_name = NULL;
         scope_FreeData(&expr->trystmt.catchscope);
-        i = 0;
-        while (i < expr->trystmt.catchstmt_count) {
-            ast_FreeExpression(expr->trystmt.catchstmt[i]);
-            i++;
-        }
         free(expr->trystmt.catchstmt);
+        expr->trystmt.catchstmt = NULL;
+        expr->trystmt.catchstmt_count = 0;
         scope_FreeData(&expr->trystmt.finallyscope);
-        i = 0;
-        while (i < expr->trystmt.finallystmt_count) {
-            ast_FreeExpression(expr->trystmt.finallystmt[i]);
-            i++;
-        }
         free(expr->trystmt.finallystmt);
+        expr->trystmt.finallystmt = NULL;
+        expr->trystmt.finallystmt_count = 0;
         break;
     case H64EXPRTYPE_ASSIGN_STMT:
-        ast_FreeExpression(expr->assignstmt.lvalue);
-        ast_FreeExpression(expr->assignstmt.rvalue);
         break;
     case H64EXPRTYPE_LITERAL:
-        if (expr->literal.type == H64TK_CONSTANT_STRING)
+        if (expr->literal.type == H64TK_CONSTANT_STRING) {
             free(expr->literal.str_value);
+            expr->literal.str_value = NULL;
+        }
         break;
     case H64EXPRTYPE_IDENTIFIERREF:
         free(expr->identifierref.value);
+        expr->identifierref.value = NULL;
         break;
     case H64EXPRTYPE_BINARYOP:
-        ast_FreeExpression(expr->op.value1);
-        ast_FreeExpression(expr->op.value2);
         break;
     case H64EXPRTYPE_UNARYOP:
-        ast_FreeExpression(expr->op.value1);
         break;
     case H64EXPRTYPE_CALL:
-        ast_FreeExpression(expr->inlinecall.value);
-        ast_ClearFunctionArgs(&expr->inlinecall.arguments, expr);
+        ast_ClearFunctionArgs(
+            &expr->inlinecall.arguments, expr, 0
+        );
         break;
     case H64EXPRTYPE_LIST:
-        i = 0;
-        while (i < expr->constructorlist.entry_count) {
-            ast_FreeExpression(expr->constructorlist.entry[i]);
-            i++;
-        }
         free(expr->constructorlist.entry);
+        expr->constructorlist.entry = NULL;
+        expr->constructorlist.entry_count = 0;
         break;
-    case H64EXPRTYPE_SET:
-        i = 0;
-        while (i < expr->constructorset.entry_count) {
-            ast_FreeExpression(expr->constructorset.entry[i]);
-            i++;
-        }
+    case H64EXPRTYPE_SET: {
         free(expr->constructorset.entry);
+        expr->constructorset.entry_count = 0;
         break;
+    }
     case H64EXPRTYPE_MAP:
-        i = 0;
-        while (i < expr->constructormap.entry_count) {
-            ast_FreeExpression(expr->constructormap.key[i]);
-            i++;
-        }
         free(expr->constructormap.key);
-        i = 0;
-        while (i < expr->constructormap.entry_count) {
-            ast_FreeExpression(expr->constructormap.value[i]);
-            i++;
-        }
+        expr->constructormap.key = NULL;
         free(expr->constructormap.value);
+        expr->constructormap.value = NULL;
+        expr->constructormap.entry_count = 0;
         break;
     case H64EXPRTYPE_VECTOR:
-        i = 0;
-        while (i < expr->constructorvector.entry_count) {
-            ast_FreeExpression(expr->constructorvector.entry[i]);
-            i++;
-        }
         free(expr->constructorvector.entry);
+        expr->constructorvector.entry = NULL;
+        expr->constructorvector.entry_count = 0;
         break;
     default:
         fprintf(stderr, "horsec: warning: internal issue, "
-            "unhandled expression in ast_FreeExpression(): "
-            "type=%d, LIKELY MEMORY LEAK.\n", expr->type);
+            "unhandled expression in "
+            "ast_FreeExprNonpoolMembers(): "
+            "type=%d, LIKELY MEMORY LEAK.\n", expr->type
+        );
     }
+}
 
-    free(expr);
+struct _collectfreelist {
+    int free_expr_count;
+    h64expression ***free_expr;
+    int free_expr_alloc, free_expr_onstack;
+};
+
+static int _collect_free_expr_cb(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    struct _collectfreelist *list = (
+        (struct _collectfreelist *)ud
+    );
+    if (list->free_expr_count + 1 > list->free_expr_alloc) {
+        h64expression **new_list = NULL;;
+        if (!list->free_expr_onstack) {
+            new_list = realloc(
+                *list->free_expr, sizeof(*new_list) *
+                (list->free_expr_alloc * 2)
+            );
+        } else {
+            new_list = malloc(
+                sizeof(*new_list) *
+                (list->free_expr_alloc * 2)
+            );
+        }
+        if (!new_list) {
+            fprintf(stderr,
+                "horsec: warning: oom collecting expr children free list, "
+                "will likely leak..."
+            );
+            return 1;
+        }
+        *list->free_expr = new_list;
+        list->free_expr_alloc *= 2;
+        list->free_expr_onstack = 0;
+    }
+    assert(list->free_expr_count + 1 <= list->free_expr_alloc);
+    (*list->free_expr)[
+        list->free_expr_count
+    ] = expr;
+    list->free_expr_count++;
+    return 1;
+}
+
+void ast_FreeExpression(h64expression *expr) {
+    if (!expr)
+        return;
+
+    char buflist[512 * sizeof(void*)];  // around 4KB
+    struct _collectfreelist list = {0};
+    list.free_expr = (h64expression ***)&buflist;
+    list.free_expr_onstack = 1;
+    list.free_expr_alloc = 512;
+    int result = ast_VisitExpression(
+        expr, NULL, NULL, &_collect_free_expr_cb, NULL, &list
+    );
+    ast_MarkExprDestroyed(expr);
+    assert(result != 0);
+    int i = 0;
+    while (i < list.free_expr_count) {
+        free(list.free_expr[i]);
+        i++;
+    }
+    if (!list.free_expr_onstack)
+        free(list.free_expr);
 }
 
 static char _h64exprname_invalid[] = "H64EXPRTYPE_INVALID";

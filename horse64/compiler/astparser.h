@@ -14,6 +14,7 @@
 
 
 typedef struct h64compileproject h64compileproject;
+typedef struct poolalloc poolalloc;
 
 typedef struct h64ast {
     int global_storage_built, identifiers_resolved;
@@ -23,6 +24,8 @@ typedef struct h64ast {
     int stmt_count;
     h64expression **stmt;
     int basic_file_access_was_successful;
+
+    poolalloc *ast_expr_alloc;
 } h64ast;
 
 typedef struct tsinfo {
@@ -36,6 +39,7 @@ typedef struct h64parsecontext {
     h64scope *global_scope;
     const char *fileuri;
     tsinfo *tokenstreaminfo;
+    h64ast *ast;
 } h64parsecontext;
 
 typedef struct h64parsethis {
@@ -65,6 +69,8 @@ static h64parsethis *newparsethis_newscope(
     _buf->max_tokens_touse = max_tokens_touse;
     return _buf;
 }
+
+h64expression *ast_AllocExpr(h64ast *ast);
 
 void ast_FreeContents(h64ast *ast);
 
