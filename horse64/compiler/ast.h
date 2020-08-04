@@ -22,7 +22,7 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_FOR_STMT,
     H64EXPRTYPE_IMPORT_STMT,
     H64EXPRTYPE_RETURN_STMT,
-    H64EXPRTYPE_TRY_STMT,
+    H64EXPRTYPE_DO_STMT,
     H64EXPRTYPE_ASSIGN_STMT,
     H64EXPRTYPE_LITERAL,
     H64EXPRTYPE_IDENTIFIERREF,
@@ -208,23 +208,23 @@ typedef struct h64expression {
             h64expression **stmt;
         } whilestmt;
         struct h64ifstmt ifstmt;
-        struct trystmt {
-            int trystmt_count;
-            h64expression **trystmt;
-            h64scope tryscope;
+        struct dostmt {
+            int dostmt_count;
+            h64expression **dostmt;
+            h64scope doscope;
 
             int errors_count;
             h64expression **errors;
             char *error_name;
-            int catchstmt_count;
-            h64expression **catchstmt;
-            h64scope catchscope;
+            int rescuestmt_count;
+            h64expression **rescuestmt;
+            h64scope rescuescope;
 
             int has_finally_block;
             int finallystmt_count;
             h64expression **finallystmt;
             h64scope finallyscope;
-        } trystmt;
+        } dostmt;
         struct inlinenew {
             h64expression *value;
         } inlinenew;

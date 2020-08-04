@@ -948,7 +948,7 @@ int _codegencallback_DoCodegen_visit_out(
         }
         expr->storage.eval_temp_id = temp;
     } else if (expr->type == H64EXPRTYPE_WHILE_STMT ||
-            expr->type == H64EXPRTYPE_TRY_STMT ||
+            expr->type == H64EXPRTYPE_DO_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_IF_STMT ||
             expr->type == H64EXPRTYPE_FOR_STMT) {
@@ -1758,7 +1758,7 @@ int _codegencallback_DoCodegen_visit_in(
 
         rinfo->dont_descend_visitation = 1;
         return 1;
-    } else if (expr->type == H64EXPRTYPE_TRY_STMT) {
+    } else if (expr->type == H64EXPRTYPE_DO_STMT) {
         rinfo->dont_descend_visitation = 1;
 
         int32_t jumpid_catch = -1;
@@ -1773,7 +1773,7 @@ int _codegencallback_DoCodegen_visit_in(
         inst_pushframe.sloterrorto = -1;
         inst_pushframe.jumponcatch = -1;
         inst_pushframe.jumponfinally = -1;
-        if (expr->trystmt.errors_count > 0) {
+        if (expr->dostmt.errors_count > 0) {
             assert(!expr->storage.set ||
                    expr->storage.ref.type ==
                    H64STORETYPE_STACKSLOT);
@@ -1789,7 +1789,7 @@ int _codegencallback_DoCodegen_visit_in(
             func->funcdef._storageinfo->jump_targets_used++;
             inst_pushframe.jumponcatch = jumpid_catch;
         }
-        if (expr->trystmt.has_finally_block) {
+        if (expr->dostmt.has_finally_block) {
             inst_pushframe.mode |= CATCHMODE_JUMPONFINALLY;
             jumpid_finally = (
                 func->funcdef._storageinfo->jump_targets_used
@@ -1806,20 +1806,20 @@ int _codegencallback_DoCodegen_visit_in(
 
         int error_reuse_tmp = -1;
         int i = 0;
-        while (i < expr->trystmt.errors_count) {
-            assert(expr->trystmt.errors[i]->storage.set);
+        while (i < expr->dostmt.errors_count) {
+            assert(expr->dostmt.errors[i]->storage.set);
             int error_tmp = -1;
-            if (expr->trystmt.errors[i]->storage.ref.type ==
+            if (expr->dostmt.errors[i]->storage.ref.type ==
                     H64STORETYPE_STACKSLOT) {
                 error_tmp = (int)(
-                    expr->trystmt.errors[i]->storage.ref.id
+                    expr->dostmt.errors[i]->storage.ref.id
                 );
-            } else if (expr->trystmt.errors[i]->storage.ref.type ==
+            } else if (expr->dostmt.errors[i]->storage.ref.type ==
                        H64STORETYPE_GLOBALCLASSSLOT) {
                 h64instruction_addcatchtype addctype = {0};
                 addctype.type = H64INST_ADDCATCHTYPE;
                 addctype.classid = (
-                    expr->trystmt.errors[i]->
+                    expr->dostmt.errors[i]->
                         storage.ref.id
                 );
                 if (!appendinst(
@@ -1831,7 +1831,7 @@ int _codegencallback_DoCodegen_visit_in(
                 i++;
                 continue;
             } else {
-                assert(expr->trystmt.errors[i]->storage.ref.type ==
+                assert(expr->dostmt.errors[i]->storage.ref.type ==
                        H64STORETYPE_GLOBALVARSLOT);
                 if (error_reuse_tmp < 0) {
                     error_reuse_tmp = new1linetemp(
@@ -1846,7 +1846,7 @@ int _codegencallback_DoCodegen_visit_in(
                 h64instruction_getglobal inst_getglobal = {0};
                 inst_getglobal.type = H64INST_GETGLOBAL;
                 inst_getglobal.slotto = error_tmp;
-                inst_getglobal.globalfrom = expr->trystmt.errors[i]->
+                inst_getglobal.globalfrom = expr->dostmt.errors[i]->
                     storage.ref.id;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
@@ -1869,10 +1869,10 @@ int _codegencallback_DoCodegen_visit_in(
         }
 
         i = 0;
-        while (i < expr->trystmt.trystmt_count) {
+        while (i < expr->dostmt.dostmt_count) {
             rinfo->dont_descend_visitation = 0;
             int result = ast_VisitExpression(
-                expr->trystmt.trystmt[i], expr,
+                expr->dostmt.dostmt[i], expr,
                 &_codegencallback_DoCodegen_visit_in,
                 &_codegencallback_DoCodegen_visit_out,
                 _asttransform_cancel_visit_descend_callback,
@@ -1926,10 +1926,10 @@ int _codegencallback_DoCodegen_visit_in(
             }
 
             i = 0;
-            while (i < expr->trystmt.catchstmt_count) {
+            while (i < expr->dostmt.rescuestmt_count) {
                 rinfo->dont_descend_visitation = 0;
                 int result = ast_VisitExpression(
-                    expr->trystmt.catchstmt[i], expr,
+                    expr->dostmt.rescuestmt[i], expr,
                     &_codegencallback_DoCodegen_visit_in,
                     &_codegencallback_DoCodegen_visit_out,
                     _asttransform_cancel_visit_descend_callback,
@@ -1973,10 +1973,10 @@ int _codegencallback_DoCodegen_visit_in(
             }
 
             i = 0;
-            while (i < expr->trystmt.finallystmt_count) {
+            while (i < expr->dostmt.finallystmt_count) {
                 rinfo->dont_descend_visitation = 0;
                 int result = ast_VisitExpression(
-                    expr->trystmt.finallystmt[i], expr,
+                    expr->dostmt.finallystmt[i], expr,
                     &_codegencallback_DoCodegen_visit_in,
                     &_codegencallback_DoCodegen_visit_out,
                     _asttransform_cancel_visit_descend_callback,

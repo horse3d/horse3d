@@ -157,8 +157,8 @@ int scope_AddItem(
         &expr->funcdef.scope == scope :
         ((expr->type == H64EXPRTYPE_FOR_STMT ?
           &expr->forstmt.scope == scope : (
-          expr->type == H64EXPRTYPE_TRY_STMT ?
-          &expr->trystmt.catchscope == scope :
+          expr->type == H64EXPRTYPE_DO_STMT ?
+          &expr->dostmt.rescuescope == scope :
           0)))
     );
     if (!addedtoself) {

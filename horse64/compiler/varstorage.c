@@ -124,8 +124,8 @@ int _resolver_EnsureLocalDefStorage(
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_FOR_STMT ||
-            (expr->type == H64EXPRTYPE_TRY_STMT &&
-             expr->trystmt.error_name != NULL)) {
+            (expr->type == H64EXPRTYPE_DO_STMT &&
+             expr->dostmt.error_name != NULL)) {
         h64expression *func = surroundingfunc(expr);
         if (!func)
             return 1;  // global, we don't care about that (non-local)
@@ -138,8 +138,8 @@ int _resolver_EnsureLocalDefStorage(
         h64scope *scope = (
             (expr->type == H64EXPRTYPE_VARDEF_STMT ?
              expr->vardef.foundinscope :
-             (expr->type == H64EXPRTYPE_TRY_STMT ?
-              &expr->trystmt.catchscope :
+             (expr->type == H64EXPRTYPE_DO_STMT ?
+              &expr->dostmt.rescuescope :
               (expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
                expr->funcdef.foundinscope : &expr->forstmt.scope)))
         );
@@ -148,8 +148,8 @@ int _resolver_EnsureLocalDefStorage(
                expr->vardef.identifier != NULL);
         assert(expr->type != H64EXPRTYPE_FUNCDEF_STMT ||
                expr->funcdef.name != NULL);
-        assert(expr->type != H64EXPRTYPE_TRY_STMT ||
-               expr->trystmt.error_name != NULL);
+        assert(expr->type != H64EXPRTYPE_DO_STMT ||
+               expr->dostmt.error_name != NULL);
         assert(expr->type != H64EXPRTYPE_FOR_STMT ||
                expr->forstmt.iterator_identifier != NULL);
         #endif
@@ -159,8 +159,8 @@ int _resolver_EnsureLocalDefStorage(
              expr->vardef.identifier : (
              expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
              expr->funcdef.name : (
-             (expr->type == H64EXPRTYPE_TRY_STMT ?
-              expr->trystmt.error_name :
+             (expr->type == H64EXPRTYPE_DO_STMT ?
+              expr->dostmt.error_name :
               expr->forstmt.iterator_identifier)))),
             0
         );
@@ -367,9 +367,9 @@ jsonvalue *varstorage_ExtraInfoToJSON(
                 name = (einfo->lstoreassign[k].vardef->
                     declarationexpr->forstmt.iterator_identifier);
             } else if (einfo->lstoreassign[k].vardef->
-                    declarationexpr->type == H64EXPRTYPE_TRY_STMT) {
+                    declarationexpr->type == H64EXPRTYPE_DO_STMT) {
                 name = (einfo->lstoreassign[k].vardef->
-                    declarationexpr->trystmt.error_name);
+                    declarationexpr->dostmt.error_name);
             }
             if ((name && !json_SetDictStr(item, "name", name)) ||
                     (!name && !json_SetDictNull(item, "name"))) {

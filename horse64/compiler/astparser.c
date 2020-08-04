@@ -198,8 +198,9 @@ void ast_ParseRecover_FindNextStatement(
                     strcmp(s, "for") == 0 ||
                     strcmp(s, "while") == 0 ||
                     strcmp(s, "func") == 0 ||
-                    strcmp(s, "try") == 0 ||
-                    strcmp(s, "class") == 0) {
+                    strcmp(s, "do") == 0 ||
+                    strcmp(s, "class") == 0 ||
+                    strcmp(s, "with") == 0) {
                 *k = i;
                 return;
             }
@@ -2524,7 +2525,7 @@ const char *_identifierdeclarationname(
         deftype = _defnameimport;
     } else if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
         deftype = _defnamevar;
-    } else if (expr->type == H64EXPRTYPE_TRY_STMT) {
+    } else if (expr->type == H64EXPRTYPE_DO_STMT) {
         deftype = _defnamecatch;
     } else {
         fprintf(stderr, "horsec: error: internal error: "
@@ -2571,8 +2572,8 @@ int ast_CanAddNameToScopeCheck(
         exprname = expr->classdef.name;
     } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
         exprname = expr->forstmt.iterator_identifier;
-    } else if (expr->type == H64EXPRTYPE_TRY_STMT) {
-        exprname = expr->trystmt.error_name;
+    } else if (expr->type == H64EXPRTYPE_DO_STMT) {
+        exprname = expr->dostmt.error_name;
     } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
         if (expr->importstmt.import_as != NULL) {
             exprname = expr->importstmt.import_as;
@@ -3610,9 +3611,9 @@ int ast_ParseExprStmt(
         return 1;
     }
 
-    // try statements:
+    // do statements:
     if (tokens[0].type == H64TK_KEYWORD &&
-            strcmp(tokens[0].str_value, "try") == 0) {
+            strcmp(tokens[0].str_value, "do") == 0) {
         int i = 0;
         if (statementmode != STATEMENTMODE_INFUNC &&
                 statementmode != STATEMENTMODE_INCLASSFUNC) {
@@ -3632,30 +3633,30 @@ int ast_ParseExprStmt(
             return 0;
         }
         i++;
-        expr->type = H64EXPRTYPE_TRY_STMT;
+        expr->type = H64EXPRTYPE_DO_STMT;
 
-        // Get code block in try { ... }
+        // Get code block in do { ... }
         {
-            expr->trystmt.tryscope.parentscope = parsethis->scope;
-            if (!scope_Init(&expr->trystmt.tryscope)) {
+            expr->dostmt.doscope.parentscope = parsethis->scope;
+            if (!scope_Init(&expr->dostmt.doscope)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_MarkExprDestroyed(expr);
                 return 0;
             }
-            expr->trystmt.tryscope.classandfuncnestinglevel =
-                expr->trystmt.tryscope.parentscope->classandfuncnestinglevel;
+            expr->dostmt.doscope.classandfuncnestinglevel =
+                expr->dostmt.doscope.parentscope->classandfuncnestinglevel;
             int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
             h64parsethis _buf;
             if (!ast_ParseCodeBlock(
                     context, newparsethis_newscope(
-                        &_buf, parsethis, &expr->trystmt.tryscope,
+                        &_buf, parsethis, &expr->dostmt.doscope,
                         tokens + i, max_tokens_touse - i
                     ),
                     statementmode,
-                    &expr->trystmt.trystmt,
-                    &expr->trystmt.trystmt_count,
+                    &expr->dostmt.dostmt,
+                    &expr->dostmt.dostmt_count,
                     &innerparsefail, &inneroom, &tlen, nestingdepth
                     )) {
                 if (inneroom) {
@@ -3679,43 +3680,19 @@ int ast_ParseExprStmt(
             }
             i += tlen;
         }
-        if (i >= max_tokens_touse ||
-                tokens[i].type != H64TK_KEYWORD || (
-                strcmp(tokens[i].str_value, "catch") != 0 &&
-                strcmp(tokens[i].str_value, "finally"))) {
-            char buf[256]; char describebuf[64];
-            snprintf(buf, sizeof(buf) - 1,
-                "unexpected %s, "
-                "expected \"finally\" or \"catch\" for "
-                "try statement starting in line %" PRId64
-                ", column, %" PRId64,
-                _describetoken(
-                    describebuf, context->tokenstreaminfo, tokens, i
-                ),
-                _refline(context->tokenstreaminfo, tokens, 0),
-                _refcol(context->tokenstreaminfo, tokens, 0)
-            );
-            if (parsefail) *parsefail = 1;
-            if (!result_AddMessage(
-                    context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
-                    _refline(context->tokenstreaminfo, tokens, i),
-                    _refcol(context->tokenstreaminfo, tokens, i)
-                    ))
-                if (outofmemory) *outofmemory = 1;
-            ast_MarkExprDestroyed(expr);
-            return 0;
-        }
 
-        if (strcmp(tokens[i].str_value, "catch") == 0) {
-            expr->trystmt.catchscope.parentscope = parsethis->scope;
-            if (!scope_Init(&expr->trystmt.catchscope)) {
+        if (i < max_tokens_touse &&
+                tokens[i].type == H64TK_KEYWORD &&
+                strcmp(tokens[i].str_value, "rescue") == 0) {
+            expr->dostmt.rescuescope.parentscope = parsethis->scope;
+            if (!scope_Init(&expr->dostmt.rescuescope)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_MarkExprDestroyed(expr);
                 return 0;
             }
-            expr->trystmt.catchscope.classandfuncnestinglevel =
-                expr->trystmt.catchscope.parentscope->classandfuncnestinglevel;
+            expr->dostmt.rescuescope.classandfuncnestinglevel =
+                expr->dostmt.rescuescope.parentscope->
+                classandfuncnestinglevel;
             int catch_i = i;
             i++;
             while (1) {
@@ -3726,7 +3703,7 @@ int ast_ParseExprStmt(
                 h64parsethis _buf;
                 if (!ast_ParseExprInline(
                         context, newparsethis_newscope(
-                            &_buf, parsethis, &expr->trystmt.catchscope,
+                            &_buf, parsethis, &expr->dostmt.rescuescope,
                             &tokens[i], max_tokens_touse - i
                         ),
                         INLINEMODE_GREEDY,
@@ -3775,9 +3752,9 @@ int ast_ParseExprStmt(
                 i += tlen;
 
                 h64expression **new_errors = realloc(
-                    expr->trystmt.errors,
+                    expr->dostmt.errors,
                     sizeof(*new_errors) *
-                    (expr->trystmt.trystmt_count + 1)
+                    (expr->dostmt.dostmt_count + 1)
                 );
                 if (!new_errors) {
                     if (parsefail) *parsefail = 0;
@@ -3786,11 +3763,11 @@ int ast_ParseExprStmt(
                     ast_MarkExprDestroyed(expr);
                     return 0;
                 }
-                expr->trystmt.errors = new_errors;
-                expr->trystmt.errors[
-                    expr->trystmt.errors_count
+                expr->dostmt.errors = new_errors;
+                expr->dostmt.errors[
+                    expr->dostmt.errors_count
                 ] = innerexpr;
-                expr->trystmt.errors_count++;
+                expr->dostmt.errors_count++;
 
                 if (i < max_tokens_touse &&
                         tokens[i].type == H64TK_COMMA) {
@@ -3856,10 +3833,10 @@ int ast_ParseExprStmt(
                 return 0;
             }
             if (named_error) {
-                expr->trystmt.error_name = strdup(
+                expr->dostmt.error_name = strdup(
                     tokens[i].str_value
                 );
-                if (!expr->trystmt.error_name) {
+                if (!expr->dostmt.error_name) {
                     if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 0;
                     ast_MarkExprDestroyed(expr);
@@ -3869,8 +3846,8 @@ int ast_ParseExprStmt(
                     int newidentifieroom = 0;
                     if (!ast_ProcessNewScopeIdentifier(
                             context, parsethis, expr,
-                            expr->trystmt.error_name, i - 1,
-                            &expr->trystmt.catchscope,
+                            expr->dostmt.error_name, i - 1,
+                            &expr->dostmt.rescuescope,
                             &newidentifieroom
                             )) {
                         if (newidentifieroom) {
@@ -3883,19 +3860,19 @@ int ast_ParseExprStmt(
                 i++;
             }
 
-            // Get code block in catch { ... }
+            // Get code block in rescue { ... }
             int tlen = 0;
             int innerparsefail = 0;
             int inneroom = 0;
             h64parsethis _buf;
             if (!ast_ParseCodeBlock(
                     context, newparsethis_newscope(
-                        &_buf, parsethis, &expr->trystmt.catchscope,
+                        &_buf, parsethis, &expr->dostmt.rescuescope,
                         tokens + i, max_tokens_touse - i
                     ),
                     statementmode,
-                    &expr->trystmt.catchstmt,
-                    &expr->trystmt.catchstmt_count,
+                    &expr->dostmt.rescuestmt,
+                    &expr->dostmt.rescuestmt_count,
                     &innerparsefail, &inneroom, &tlen, nestingdepth
                     )) {
                 if (inneroom) {
@@ -3930,23 +3907,23 @@ int ast_ParseExprStmt(
             int innerparsefail = 0;
             int inneroom = 0;
             h64parsethis _buf;
-            expr->trystmt.has_finally_block = 1;
-            expr->trystmt.finallyscope.parentscope = parsethis->scope;
-            if (!scope_Init(&expr->trystmt.finallyscope)) {
+            expr->dostmt.has_finally_block = 1;
+            expr->dostmt.finallyscope.parentscope = parsethis->scope;
+            if (!scope_Init(&expr->dostmt.finallyscope)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_MarkExprDestroyed(expr);
                 return 0;
             }
-            expr->trystmt.finallyscope.classandfuncnestinglevel =
-                expr->trystmt.finallyscope.parentscope->classandfuncnestinglevel;
+            expr->dostmt.finallyscope.classandfuncnestinglevel =
+                expr->dostmt.finallyscope.parentscope->classandfuncnestinglevel;
             if (!ast_ParseCodeBlock(
                     context, newparsethis_newscope(
-                        &_buf, parsethis, &expr->trystmt.finallyscope,
+                        &_buf, parsethis, &expr->dostmt.finallyscope,
                         tokens + i, max_tokens_touse - i
                     ),
                     statementmode,
-                    &expr->trystmt.finallystmt,
-                    &expr->trystmt.finallystmt_count,
+                    &expr->dostmt.finallystmt,
+                    &expr->dostmt.finallystmt_count,
                     &innerparsefail, &inneroom, &tlen, nestingdepth
                     )) {
                 if (inneroom) {

@@ -50,29 +50,29 @@ h64scope *ast_GetScope(
         return NULL;  // shouldn't be hit on well-formed AST
     case H64EXPRTYPE_WHILE_STMT:
         return &expr->whilestmt.scope;
-    case H64EXPRTYPE_TRY_STMT: ;
+    case H64EXPRTYPE_DO_STMT: ;
         int i = 0;
-        while (i < expr->trystmt.trystmt_count) {
-            if (expr->trystmt.trystmt[i] == child_expr)
-                return &expr->trystmt.tryscope;
+        while (i < expr->dostmt.dostmt_count) {
+            if (expr->dostmt.dostmt[i] == child_expr)
+                return &expr->dostmt.doscope;
             i++;
         }
         i = 0;
-        while (i < expr->trystmt.errors_count) {
-            if (expr->trystmt.errors[i] == child_expr)
+        while (i < expr->dostmt.errors_count) {
+            if (expr->dostmt.errors[i] == child_expr)
                 return ast_GetScope(expr, global_scope);
             i++;
         }
         i = 0;
-        while (i < expr->trystmt.catchstmt_count) {
-            if (expr->trystmt.catchstmt[i] == child_expr)
-                return &expr->trystmt.catchscope;
+        while (i < expr->dostmt.rescuestmt_count) {
+            if (expr->dostmt.rescuestmt[i] == child_expr)
+                return &expr->dostmt.rescuescope;
             i++;
         }
         i = 0;
-        while (i < expr->trystmt.finallystmt_count) {
-            if (expr->trystmt.finallystmt[i] == child_expr)
-                return &expr->trystmt.finallyscope;
+        while (i < expr->dostmt.finallystmt_count) {
+            if (expr->dostmt.finallystmt[i] == child_expr)
+                return &expr->dostmt.finallyscope;
             i++;
         }
         return NULL;  // shouldn't be hit on the well-formed AST
@@ -289,20 +289,20 @@ int ast_VisitExpression(
                 ))
             return 0;
         break;
-    case H64EXPRTYPE_TRY_STMT:
+    case H64EXPRTYPE_DO_STMT:
         i = 0;
-        while (i < expr->trystmt.trystmt_count) {
+        while (i < expr->dostmt.dostmt_count) {
             if (!ast_VisitExpression(
-                    expr->trystmt.trystmt[i], expr, visit_in, visit_out,
+                    expr->dostmt.dostmt[i], expr, visit_in, visit_out,
                     cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
         }
         i = 0;
-        while (i < expr->trystmt.errors_count) {
+        while (i < expr->dostmt.errors_count) {
             if (!ast_VisitExpression(
-                    expr->trystmt.errors[i], expr,
+                    expr->dostmt.errors[i], expr,
                     visit_in, visit_out,
                     cancel_visit_descend_callback, ud
                     ))
@@ -310,18 +310,18 @@ int ast_VisitExpression(
             i++;
         }
         i = 0;
-        while (i < expr->trystmt.catchstmt_count) {
+        while (i < expr->dostmt.rescuestmt_count) {
             if (!ast_VisitExpression(
-                    expr->trystmt.catchstmt[i], expr, visit_in, visit_out,
+                    expr->dostmt.rescuestmt[i], expr, visit_in, visit_out,
                     cancel_visit_descend_callback, ud
                     ))
                 return 0;
             i++;
         }
         i = 0;
-        while (i < expr->trystmt.finallystmt_count) {
+        while (i < expr->dostmt.finallystmt_count) {
             if (!ast_VisitExpression(
-                    expr->trystmt.finallystmt[i], expr,
+                    expr->dostmt.finallystmt[i], expr,
                     visit_in, visit_out,
                     cancel_visit_descend_callback, ud
                     ))
@@ -552,24 +552,24 @@ void ast_FreeExprNonpoolMembers(
     }
     case H64EXPRTYPE_RETURN_STMT:
         break;
-    case H64EXPRTYPE_TRY_STMT:
-        scope_FreeData(&expr->trystmt.tryscope);
-        free(expr->trystmt.trystmt);
-        expr->trystmt.trystmt = NULL;
-        expr->trystmt.trystmt_count = 0;
-        free(expr->trystmt.errors);
-        expr->trystmt.errors = NULL;
-        expr->trystmt.errors_count = 0;
-        free(expr->trystmt.error_name);
-        expr->trystmt.error_name = NULL;
-        scope_FreeData(&expr->trystmt.catchscope);
-        free(expr->trystmt.catchstmt);
-        expr->trystmt.catchstmt = NULL;
-        expr->trystmt.catchstmt_count = 0;
-        scope_FreeData(&expr->trystmt.finallyscope);
-        free(expr->trystmt.finallystmt);
-        expr->trystmt.finallystmt = NULL;
-        expr->trystmt.finallystmt_count = 0;
+    case H64EXPRTYPE_DO_STMT:
+        scope_FreeData(&expr->dostmt.doscope);
+        free(expr->dostmt.dostmt);
+        expr->dostmt.dostmt = NULL;
+        expr->dostmt.dostmt_count = 0;
+        free(expr->dostmt.errors);
+        expr->dostmt.errors = NULL;
+        expr->dostmt.errors_count = 0;
+        free(expr->dostmt.error_name);
+        expr->dostmt.error_name = NULL;
+        scope_FreeData(&expr->dostmt.rescuescope);
+        free(expr->dostmt.rescuestmt);
+        expr->dostmt.rescuestmt = NULL;
+        expr->dostmt.rescuestmt_count = 0;
+        scope_FreeData(&expr->dostmt.finallyscope);
+        free(expr->dostmt.finallystmt);
+        expr->dostmt.finallystmt = NULL;
+        expr->dostmt.finallystmt_count = 0;
         break;
     case H64EXPRTYPE_ASSIGN_STMT:
         break;
@@ -700,7 +700,7 @@ static char _h64exprname_while_stmt[] = "H64EXPRTYPE_WHILE_STMT";
 static char _h64exprname_for_stmt[] = "H64EXPRTYPE_FOR_STMT";
 static char _h64exprname_import_stmt[] = "H64EXPRTYPE_IMPORT_STMT";
 static char _h64exprname_return_stmt[] = "H64EXPRTYPE_RETURN_STMT";
-static char _h64exprname_try_stmt[] = "H64EXPRTYPE_TRY_STMT";
+static char _h64exprname_do_stmt[] = "H64EXPRTYPE_DO_STMT";
 static char _h64exprname_assign_stmt[] = "H64EXPRTYPE_ASSIGN_STMT";
 static char _h64exprname_literal[] = "H64EXPRTYPE_LITERAL";
 static char _h64exprname_identifierref[] = "H64EXPRTYPE_IDENTIFIERREF";
@@ -735,8 +735,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_import_stmt;
     case H64EXPRTYPE_RETURN_STMT:
         return _h64exprname_return_stmt;
-    case H64EXPRTYPE_TRY_STMT:
-        return _h64exprname_try_stmt;
+    case H64EXPRTYPE_DO_STMT:
+        return _h64exprname_do_stmt;
     case H64EXPRTYPE_ASSIGN_STMT:
         return _h64exprname_assign_stmt;
     case H64EXPRTYPE_LITERAL:
@@ -1026,82 +1026,84 @@ jsonvalue *ast_ExpressionToJSON(
             json_Free(cblock);
             fail = 1;
         }
-    } else if (e->type == H64EXPRTYPE_TRY_STMT) {
-        jsonvalue *trysection = json_List();
+    } else if (e->type == H64EXPRTYPE_DO_STMT) {
+        jsonvalue *dosection = json_List();
         int i = 0;
-        while (i < e->trystmt.trystmt_count) {
+        while (i < e->dostmt.dostmt_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->trystmt.trystmt[i], fileuri
+                e->dostmt.dostmt[i], fileuri
             );
-            if (!json_AddToList(trysection, stmtjson)) {
+            if (!json_AddToList(dosection, stmtjson)) {
                 json_Free(stmtjson);
                 fail = 1;
                 break;
             }
             i++;
         }
-        if (!json_SetDict(v, "try-statements", trysection)) {
-            json_Free(trysection);
+        if (!json_SetDict(v, "do-statements", dosection)) {
+            json_Free(dosection);
             fail = 1;
         }
-        jsonvalue *tryscopeval = scope_ScopeToJSON(&e->trystmt.tryscope);
-        if (!json_SetDict(v, "try-scope", tryscopeval)) {
+        jsonvalue *doscopeval = scope_ScopeToJSON(&e->dostmt.doscope);
+        if (!json_SetDict(v, "do-scope", doscopeval)) {
             fail = 1;
-            json_Free(tryscopeval);
+            json_Free(doscopeval);
         }
-        jsonvalue *catchtypes = json_List();
+        jsonvalue *rescuetypes = json_List();
         i = 0;
-        while (i < e->trystmt.errors_count) {
+        while (i < e->dostmt.errors_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->trystmt.errors[i], fileuri
+                e->dostmt.errors[i], fileuri
             );
-            if (!json_AddToList(catchtypes, stmtjson)) {
+            if (!json_AddToList(rescuetypes, stmtjson)) {
                 json_Free(stmtjson);
                 fail = 1;
                 break;
             }
             i++;
         }
-        if (!json_SetDict(v, "errors", catchtypes)) {
-            json_Free(catchtypes);
+        if (!json_SetDict(v, "errors", rescuetypes)) {
+            json_Free(rescuetypes);
             fail = 1;
         }
-        if (e->trystmt.error_name) {
+        if (e->dostmt.error_name) {
             if (!json_SetDictStr(
-                    v, "error-name", e->trystmt.error_name))
+                    v, "error-name", e->dostmt.error_name))
                 fail = 1;
         } else {
             if (!json_SetDictNull(v, "error-name"))
                 fail = 1;
         }
-        jsonvalue *catchsection = json_List();
+        jsonvalue *rescuesection = json_List();
         i = 0;
-        while (i < e->trystmt.catchstmt_count) {
-            assert(e->trystmt.catchstmt[i] != NULL);
+        while (i < e->dostmt.rescuestmt_count) {
+            assert(e->dostmt.rescuestmt[i] != NULL);
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->trystmt.catchstmt[i], fileuri
+                e->dostmt.rescuestmt[i], fileuri
             );
-            if (!json_AddToList(catchsection, stmtjson)) {
+            if (!json_AddToList(rescuesection, stmtjson)) {
                 json_Free(stmtjson);
                 fail = 1;
                 break;
             }
             i++;
         }
-        if (!json_SetDict(v, "catch-statements", catchsection)) {
-            json_Free(catchsection);
+        if (!json_SetDict(v, "rescue-statements", rescuesection)) {
+            json_Free(rescuesection);
             fail = 1;
         }
-        jsonvalue *catchscopeval = scope_ScopeToJSON(&e->trystmt.catchscope);
-        if (!json_SetDict(v, "catch-scope", catchscopeval)) {
+        jsonvalue *rescuescopeval = scope_ScopeToJSON(
+            &e->dostmt.rescuescope
+        );
+        if (!json_SetDict(v, "rescue-scope", rescuescopeval)) {
             fail = 1;
-            json_Free(catchscopeval);
+            json_Free(rescuescopeval);
         }
         jsonvalue *finallysection = json_List();
         i = 0;
-        while (i < e->trystmt.finallystmt_count) {
+        while (i < e->dostmt.finallystmt_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->trystmt.finallystmt[i], fileuri
+                e->dostmt.finallystmt[i], fileuri
             );
             if (!json_AddToList(finallysection, stmtjson)) {
                 json_Free(stmtjson);
@@ -1111,7 +1113,7 @@ jsonvalue *ast_ExpressionToJSON(
             i++;
         }
         jsonvalue *finallyscopeval = scope_ScopeToJSON(
-            &e->trystmt.finallyscope
+            &e->dostmt.finallyscope
         );
         if (!json_SetDict(v, "finally-statements", finallysection)) {
             json_Free(finallysection);

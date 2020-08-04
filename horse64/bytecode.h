@@ -46,6 +46,8 @@ typedef enum instructiontype {
     H64INST_NEWSET,
     H64INST_NEWMAP,
     H64INST_NEWVECTOR,
+    H64INST_NEWINSTANCEBYREF,
+    H64INST_NEWINSTANCE,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -280,6 +282,18 @@ typedef struct h64instruction_newmap {
     uint8_t type;
     int16_t slotto;
 } __attribute__ ((packed)) h64instruction_newmap;
+
+typedef struct h64instruction_newinstancebyref {
+    uint8_t type;
+    int16_t slotto;
+    int64_t classidcreatefrom;
+} __attribute__ ((packed)) h64instruction_newinstancebyref;
+
+typedef struct h64instruction_newinstance {
+    uint8_t type;
+    int16_t slotto;
+    int16_t classtypeslotfrom;
+} __attribute__ ((packed)) h64instruction_newinstance;
 
 
 #define H64CLASS_HASH_SIZE 16
