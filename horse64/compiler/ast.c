@@ -625,7 +625,7 @@ void ast_FreeExprNonpoolMembers(
 
 struct _collectfreelist {
     int free_expr_count;
-    h64expression ***free_expr;
+    h64expression **free_expr;
     int free_expr_alloc, free_expr_onstack;
 };
 
@@ -639,7 +639,7 @@ static int _collect_free_expr_cb(
         h64expression **new_list = NULL;;
         if (!list->free_expr_onstack) {
             new_list = realloc(
-                *list->free_expr, sizeof(*new_list) *
+                list->free_expr, sizeof(*new_list) *
                 (list->free_expr_alloc * 2)
             );
         } else {
@@ -655,12 +655,12 @@ static int _collect_free_expr_cb(
             );
             return 1;
         }
-        *list->free_expr = new_list;
+        list->free_expr = new_list;
         list->free_expr_alloc *= 2;
         list->free_expr_onstack = 0;
     }
     assert(list->free_expr_count + 1 <= list->free_expr_alloc);
-    (*list->free_expr)[
+    list->free_expr[
         list->free_expr_count
     ] = expr;
     list->free_expr_count++;
@@ -673,7 +673,7 @@ void ast_FreeExpression(h64expression *expr) {
 
     char buflist[512 * sizeof(void*)];  // around 4KB
     struct _collectfreelist list = {0};
-    list.free_expr = (h64expression ***)&buflist;
+    list.free_expr = (h64expression **)buflist;
     list.free_expr_onstack = 1;
     list.free_expr_alloc = 512;
     int result = ast_VisitExpression(
