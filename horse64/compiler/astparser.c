@@ -4354,6 +4354,32 @@ int ast_ParseExprStmt(
                 return 0;
             }
 
+            // Add with clause to scope:
+            int scopeoom = 0;
+            if (!scope_AddItem(
+                    parsethis->scope,
+                    withclause->withclause.withitem_identifier,
+                    withclause, &scopeoom
+                    )) {
+                if (scopeoom) {
+                    if (parsefail) *parsefail = 0;
+                    if (outofmemory) *outofmemory = 1;
+                    ast_MarkExprDestroyed(expr);
+                    return 0;
+                } else {
+                    if (outofmemory) *outofmemory = 0;
+                    if (!result_AddMessage(
+                            context->resultmsg,
+                            H64MSG_ERROR, "INTERNAL ERROR, failed to "
+                            "scope-add with param", fileuri, -1, -1
+                            ))
+                        if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 1;
+                    ast_MarkExprDestroyed(expr);
+                    return 0;
+                }
+            }
+
             // If there's a comma, continue and otherwise bail:
             if (i < max_tokens_touse && tokens[i].type == H64TK_COMMA) {
                 i++;
