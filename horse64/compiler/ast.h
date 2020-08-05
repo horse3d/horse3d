@@ -23,6 +23,7 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_IMPORT_STMT,
     H64EXPRTYPE_RETURN_STMT,
     H64EXPRTYPE_DO_STMT,
+    H64EXPRTYPE_WITH_STMT,
     H64EXPRTYPE_ASSIGN_STMT,
     H64EXPRTYPE_LITERAL,
     H64EXPRTYPE_IDENTIFIERREF,
@@ -33,6 +34,7 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_LIST,
     H64EXPRTYPE_SET,
     H64EXPRTYPE_MAP,
+    H64EXPRTYPE_WITH_CLAUSE,
     H64EXPRTYPE_VECTOR
 } h64expressiontype;
 
@@ -120,6 +122,14 @@ typedef struct h64expression {
 
             h64funcstorageextrainfo *_storageinfo;
         } funcdef;
+        struct withstmt {
+            int withclause_count;
+            h64expression *withclause;
+        } withstmt;
+        struct withclause {
+            h64expression *withitem_value;
+            char *withitem_identifier;
+        } withclause;
         struct assignstmt {
             h64expression *lvalue;
             h64expression *rvalue;
