@@ -701,6 +701,7 @@ static char _h64exprname_for_stmt[] = "H64EXPRTYPE_FOR_STMT";
 static char _h64exprname_import_stmt[] = "H64EXPRTYPE_IMPORT_STMT";
 static char _h64exprname_return_stmt[] = "H64EXPRTYPE_RETURN_STMT";
 static char _h64exprname_do_stmt[] = "H64EXPRTYPE_DO_STMT";
+static char _h64exprname_with_stmt[] = "H64EXPRTYPE_WITH_STMT";
 static char _h64exprname_assign_stmt[] = "H64EXPRTYPE_ASSIGN_STMT";
 static char _h64exprname_literal[] = "H64EXPRTYPE_LITERAL";
 static char _h64exprname_identifierref[] = "H64EXPRTYPE_IDENTIFIERREF";
@@ -712,6 +713,7 @@ static char _h64exprname_list[] = "H64EXPRTYPE_LIST";
 static char _h64exprname_set[] = "H64EXPRTYPE_SET";
 static char _h64exprname_map[] = "H64EXPRTYPE_MAP";
 static char _h64exprname_vector[] = "H64EXPRTYPE_VECTOR";
+static char _h64exprname_with_clause[] = "H64EXPRTYPE_WITH_CLAUSE";
 
 const char *ast_ExpressionTypeToStr(h64expressiontype type) {
     if (type == H64EXPRTYPE_INVALID || type <= 0)
@@ -737,6 +739,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_return_stmt;
     case H64EXPRTYPE_DO_STMT:
         return _h64exprname_do_stmt;
+    case H64EXPRTYPE_WITH_STMT:
+        return _h64exprname_with_stmt;
     case H64EXPRTYPE_ASSIGN_STMT:
         return _h64exprname_assign_stmt;
     case H64EXPRTYPE_LITERAL:
@@ -759,6 +763,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_map;
     case H64EXPRTYPE_VECTOR:
         return _h64exprname_vector;
+    case H64EXPRTYPE_WITH_CLAUSE:
+        return _h64exprname_with_clause;
     default:
         return NULL;
     }

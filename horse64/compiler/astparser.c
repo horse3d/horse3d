@@ -4198,6 +4198,211 @@ int ast_ParseExprStmt(
         return 1;
     }
 
+    // 'with' statements:
+    if (tokens[0].type == H64TK_KEYWORD &&
+            strcmp(tokens[0].str_value, "with") == 0) {
+        expr->type = H64EXPRTYPE_WITH_STMT;
+        expr->withstmt.scope.parentscope = parsethis->scope;
+        if (!scope_Init(&expr->withstmt.scope)) {
+            if (outofmemory) *outofmemory = 1;
+            ast_MarkExprDestroyed(expr);
+            return 0;
+        }
+
+        int clause_count = 0;
+        int i = 1;
+        while (1) {
+            // Allocate space for next with clause:
+            clause_count++;
+            h64expression **withclause_new = realloc(
+                expr->withstmt.withclause, sizeof(
+                    *withclause_new
+                ) * clause_count);
+            if (!withclause_new) {
+                if (parsefail) *parsefail = 0;
+                if (outofmemory) *outofmemory = 1;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            expr->withstmt.withclause = withclause_new;
+            h64expression *withclause = ast_AllocExpr(context->ast);
+            if (!withclause) {
+                if (parsefail) *parsefail = 0;
+                if (outofmemory) *outofmemory = 1;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            memset(withclause, 0, sizeof(*withclause));
+            withclause->type = H64EXPRTYPE_WITH_CLAUSE;
+            expr->withstmt.withclause[
+                expr->withstmt.withclause_count
+            ] = withclause;
+            expr->withstmt.withclause_count++;
+            assert(expr->withstmt.withclause_count == clause_count);
+
+            // Parse expression that is added in via 'with':
+            h64expression *innerexpr = NULL;
+            int tlen = 0;
+            int _innerparsefail = 0;
+            int _inneroutofmemory = 0;
+            h64parsethis _buf;
+            if (!ast_ParseExprInline(
+                    context, newparsethis(
+                        &_buf, parsethis,
+                        &tokens[i], max_tokens_touse - i
+                    ),
+                    INLINEMODE_GREEDY, &_innerparsefail,
+                    &_inneroutofmemory, &innerexpr,
+                    &tlen, nestingdepth
+                    )) {
+                if (_inneroutofmemory) {
+                    if (outofmemory) *outofmemory = 1;
+                    ast_MarkExprDestroyed(expr);
+                    return 0;
+                }
+                if (_innerparsefail) {
+                    ast_MarkExprDestroyed(expr);
+                    return 0;
+                }
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected valid inline expression for "
+                    "with-bound item",
+                    _describetoken(
+                        describebuf, context->tokenstreaminfo,
+                        tokens, i
+                    )
+                );
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo,
+                                 tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            i++;
+            withclause->withclause.foundinscope = &expr->withstmt.scope;
+            withclause->withclause.withitem_value = innerexpr;
+
+            // Make sure there is an 'as':
+            if (i > max_tokens_touse ||
+                    tokens[i].type != H64TK_KEYWORD ||
+                    strcmp(tokens[i].str_value, "as") == 0) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected \"as\" before the name for "
+                    "with-bound item",
+                    _describetoken(
+                        describebuf, context->tokenstreaminfo,
+                        tokens, i
+                    )
+                );
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo,
+                                 tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            i++;
+
+            // Get identifier:
+            if (i > max_tokens_touse ||
+                    tokens[i].type != H64TK_IDENTIFIER) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected identifier to specify name for "
+                    "with-bound item",
+                    _describetoken(
+                        describebuf, context->tokenstreaminfo,
+                        tokens, i
+                    )
+                );
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo,
+                                 tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            withclause->withclause.withitem_identifier = strdup(
+                tokens[i].str_value
+            );
+            i++;
+            if (!withclause->withclause.withitem_identifier) {
+                if (parsefail) *parsefail = 0;
+                if (outofmemory) *outofmemory = 1;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+
+            // If there's a comma, continue and otherwise bail:
+            if (i < max_tokens_touse && tokens[i].type == H64TK_COMMA) {
+                i++;
+                continue;
+            }
+            break;
+        }
+
+        // Parse the code block contents of with statement:
+        int tlen = 0;
+        int innerparsefail = 0;
+        int inneroom = 0;
+        h64parsethis _buf;
+        if (!ast_ParseCodeBlock(
+                context, newparsethis_newscope(
+                    &_buf, parsethis, &expr->whilestmt.scope,
+                    tokens + i, max_tokens_touse - i
+                ),
+                statementmode,
+                &expr->withstmt.stmt,
+                &expr->withstmt.stmt_count,
+                &innerparsefail, &inneroom, &tlen, nestingdepth
+                )) {
+            if (inneroom) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            if (outofmemory) *outofmemory = 0;
+            if (!innerparsefail && !result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, "internal error: failed to "
+                    "get code block somehow", fileuri,
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 1;
+            ast_MarkExprDestroyed(expr);
+            return 0;
+        }
+        i += tlen;
+        *out_expr = expr;
+        if (out_tokenlen) *out_tokenlen = i;
+        if (parsefail) *parsefail = 0;
+        return 1;
+    }
+
     // 'if' and 'while' conditionals:
     if (tokens[0].type == H64TK_KEYWORD &&
             (strcmp(tokens[0].str_value, "if") == 0 ||

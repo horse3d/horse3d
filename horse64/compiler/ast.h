@@ -34,8 +34,8 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_LIST,
     H64EXPRTYPE_SET,
     H64EXPRTYPE_MAP,
-    H64EXPRTYPE_WITH_CLAUSE,
-    H64EXPRTYPE_VECTOR
+    H64EXPRTYPE_VECTOR,
+    H64EXPRTYPE_WITH_CLAUSE
 } h64expressiontype;
 
 #define IS_STMT(x) (x <= H64EXPRTYPE_ASSIGN_STMT)
@@ -123,10 +123,15 @@ typedef struct h64expression {
             h64funcstorageextrainfo *_storageinfo;
         } funcdef;
         struct withstmt {
+            h64scope scope;
             int withclause_count;
-            h64expression *withclause;
+            h64expression **withclause;
+
+            int stmt_count;
+            h64expression **stmt;
         } withstmt;
         struct withclause {
+            h64scope *foundinscope;
             h64expression *withitem_value;
             char *withitem_identifier;
         } withclause;
