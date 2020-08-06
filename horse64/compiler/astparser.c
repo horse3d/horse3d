@@ -546,6 +546,25 @@ int ast_ParseExprInlineOperator_Recurse(
         int *out_tokenlen,
         int nestingdepth
         ) {
+    /* !! WARNING !!
+
+       This function has complicated ownership semantics!
+       The lefthandside arg ownership will be taken from you on:
+
+       * success (returned int == 1)
+       * parse or oom failure (returned int == 0,
+                               *parsefail == 1 OR *outofmemory == 1)
+
+       The lefthandside arg ownership will NOT be taken from you on:
+
+       * generic other failure (returned int == 0,
+                                *parsefail == 0 AND *outofmemory == 0)
+
+       In case lefthandside is NOT taken from you after the call, YOU MUST
+       MARK IT DESTROYED or reuse it. In case lefthandside is taken from
+       you, you MUST NOT mark it destroyed or reuse it afterwards!
+    */
+
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
     const char *fileuri = context->fileuri;
@@ -1044,6 +1063,38 @@ int ast_ParseExprInlineOperator_Recurse(
         if (lhandside2) free(lhandside2);
         #endif
     }
+    if (lefthandside && operatorsprocessed > 0 &&
+            lefthandside->type == H64EXPRTYPE_UNARYOP &&
+            lefthandside->op.optype == H64OP_NEW
+            ) {
+        if (lefthandside->op.value1 == NULL ||
+                lefthandside->op.value1->type != H64EXPRTYPE_CALL) {
+            char buf[512]; char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected %s, "
+                "expected expression with constructor arguments "
+                "as argument to \"new\"",
+                _describetoken(describebuf,
+                    context->tokenstreaminfo, tokens,
+                    lefthandside->op.optokenoffset)
+            );
+            if (outofmemory) *outofmemory = 0;
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(context->tokenstreaminfo, tokens,
+                             lefthandside->op.optokenoffset),
+                    _refcol(context->tokenstreaminfo, tokens,
+                            lefthandside->op.optokenoffset)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 1;
+            if (lefthandside) ast_MarkExprDestroyed(lefthandside);
+            if (original_lefthand && original_lefthand != lefthandside)
+                ast_MarkExprDestroyed(original_lefthand);
+            return 0;
+        }
+    }
     if (lefthandside && operatorsprocessed > 0) {
         if (original_lefthand && original_lefthand != lefthandside)
             ast_MarkExprDestroyed(original_lefthand);
@@ -1056,7 +1107,8 @@ int ast_ParseExprInlineOperator_Recurse(
         if (lefthandside &&
                 original_lefthand != lefthandside)
             ast_MarkExprDestroyed(lefthandside);
-        // XXX: do NOT free original lefthandside if no parse error.
+        // XXX: do NOT free original lefthandside if generic error.
+        // (See explanation at the beginning of function.)
     }
     *out_expr = NULL;
     if (outofmemory) *outofmemory = 0;

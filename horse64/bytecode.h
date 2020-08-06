@@ -286,13 +286,13 @@ typedef struct h64instruction_newmap {
 typedef struct h64instruction_newinstancebyref {
     uint8_t type;
     int16_t slotto;
-    int64_t classidcreatefrom;
+    int16_t classtypeslotfrom;
 } __attribute__ ((packed)) h64instruction_newinstancebyref;
 
 typedef struct h64instruction_newinstance {
     uint8_t type;
     int16_t slotto;
-    int16_t classtypeslotfrom;
+    int64_t classidcreatefrom;
 } __attribute__ ((packed)) h64instruction_newinstance;
 
 

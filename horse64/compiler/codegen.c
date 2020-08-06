@@ -385,6 +385,151 @@ static int _resolve_jumpid_to_jumpoffset(
     return 1;
 }
 
+static int _codegen_call_to(
+        asttransforminfo *rinfo, h64expression *func,
+        h64expression *callexpr,
+        int calledexprstoragetemp, int resulttemp
+        ) {
+    int _argtemp = funccurrentstacktop(func);
+    int posargcount = 0;
+    int expandlastposarg = 0;
+    int kwargcount = 0;
+    int _reachedkwargs = 0;
+    h64instruction_callsettop inst_callsettop = {0};
+    inst_callsettop.type = H64INST_CALLSETTOP;
+    inst_callsettop.topto = _argtemp;
+    if (!appendinst(
+            rinfo->pr->program, func, callexpr,
+            &inst_callsettop, sizeof(inst_callsettop))) {
+        rinfo->hadoutofmemory = 1;
+        return 0;
+    }
+    h64instruction_callsettop *ref_settop = (
+        (h64instruction_callsettop *)(
+            rinfo->pr->program->func[
+                func->funcdef.bytecode_func_id
+            ].instructions +
+            rinfo->pr->program->func[
+                func->funcdef.bytecode_func_id
+            ].instructions_bytes -
+            sizeof(*ref_settop)
+        )
+    );
+    int i = 0;
+    while (i < callexpr->inlinecall.arguments.arg_count) {
+        if (callexpr->inlinecall.arguments.arg_name[i])
+            _reachedkwargs = 1;
+        int ismultiarg = 0;
+        if (_reachedkwargs) {
+            kwargcount++;
+            assert(callexpr->inlinecall.arguments.arg_name[i] != NULL);
+            int64_t kwnameidx = (
+                h64debugsymbols_AttributeNameToAttributeNameId(
+                    rinfo->pr->program->symbols,
+                    callexpr->inlinecall.arguments.arg_name[i],
+                    0
+                ));
+            if (kwnameidx < 0) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "internal error: cannot map kw arg name: %s",
+                    callexpr->inlinecall.arguments.arg_name[i]
+                );
+                if (!result_AddMessage(
+                        &rinfo->ast->resultmsg,
+                        H64MSG_ERROR, buf,
+                        rinfo->ast->fileuri,
+                        callexpr->line, callexpr->column
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                return 1;
+            }
+            h64instruction_setconst inst_setconst = {0};
+            inst_setconst.type = H64INST_SETCONST;
+            inst_setconst.slot = _argtemp;
+            inst_setconst.content.type = H64VALTYPE_INT64;
+            inst_setconst.content.int_value = kwnameidx;
+            if (!appendinst(
+                    rinfo->pr->program, func, callexpr,
+                    &inst_setconst, sizeof(inst_setconst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            _argtemp++;
+            ref_settop->topto++;
+            h64instruction_valuecopy inst_vc = {0};
+            inst_vc.type = H64INST_VALUECOPY;
+            inst_vc.slotto = _argtemp;
+            inst_vc.slotfrom = (
+                callexpr->inlinecall.arguments.arg_value[i]->
+                    storage.eval_temp_id);
+            _argtemp++;
+            ref_settop->topto++;
+            if (!appendinst(
+                    rinfo->pr->program, func, callexpr,
+                    &inst_vc, sizeof(inst_vc))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        } else if (i + 1 < callexpr->inlinecall.arguments.arg_count &&
+                callexpr->inlinecall.arguments.arg_name[i]) {
+            ismultiarg = 1;
+        }
+        if (!_reachedkwargs) {
+            posargcount++;
+            h64instruction_valuecopy inst_vc = {0};
+            inst_vc.type = H64INST_VALUECOPY;
+            inst_vc.slotto = _argtemp;
+            inst_vc.slotfrom = (
+                callexpr->inlinecall.arguments.arg_value[i]->
+                    storage.eval_temp_id);
+            _argtemp++;
+            ref_settop->topto++;
+            if (!appendinst(
+                    rinfo->pr->program, func, callexpr,
+                    &inst_vc, sizeof(inst_vc))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            if (callexpr->inlinecall.arguments.
+                    last_posarg_is_multiarg) {
+                expandlastposarg = 1;
+            }
+        }
+        i++;
+    }
+    int maxslotsused = _argtemp - (
+        func->funcdef._storageinfo->lowest_guaranteed_free_temp
+    );
+    if (maxslotsused > func->funcdef._storageinfo->
+            codegen.max_extra_stack)
+        func->funcdef._storageinfo->codegen.max_extra_stack = (
+            maxslotsused
+        );
+    h64instruction_call inst_call = {0};
+    inst_call.type = H64INST_CALL;
+    int temp = resulttemp;
+    if (temp < 0) {
+        rinfo->hadoutofmemory = 1;
+        return 0;
+    }
+    inst_call.returnto = temp;
+    inst_call.slotcalledfrom = calledexprstoragetemp;
+    inst_call.expandlastposarg = expandlastposarg;
+    inst_call.posargs = posargcount;
+    inst_call.kwargs = kwargcount;
+    if (!appendinst(
+            rinfo->pr->program, func, callexpr,
+            &inst_call, sizeof(inst_call))) {
+        rinfo->hadoutofmemory = 1;
+        return 0;
+    }
+    callexpr->storage.eval_temp_id = temp;
+    return 1;
+}
+
 int codegen_FinalBytecodeTransform(
         h64compileproject *prj
         ) {
@@ -1032,141 +1177,17 @@ int _codegencallback_DoCodegen_visit_out(
         int calledexprstoragetemp = (
             expr->inlinecall.value->storage.eval_temp_id
         );
-        int _argtemp = funccurrentstacktop(func);
-        int posargcount = 0;
-        int expandlastposarg = 0;
-        int kwargcount = 0;
-        int _reachedkwargs = 0;
-        h64instruction_callsettop inst_callsettop = {0};
-        inst_callsettop.type = H64INST_CALLSETTOP;
-        inst_callsettop.topto = _argtemp;
-        if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_callsettop, sizeof(inst_callsettop))) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
-        }
-        h64instruction_callsettop *ref_settop = (
-            (h64instruction_callsettop *)(
-                rinfo->pr->program->func[
-                    func->funcdef.bytecode_func_id
-                ].instructions +
-                rinfo->pr->program->func[
-                    func->funcdef.bytecode_func_id
-                ].instructions_bytes -
-                sizeof(*ref_settop)
-            )
-        );
-        int i = 0;
-        while (i < expr->inlinecall.arguments.arg_count) {
-            if (expr->inlinecall.arguments.arg_name[i])
-                _reachedkwargs = 1;
-            int ismultiarg = 0;
-            if (_reachedkwargs) {
-                kwargcount++;
-                assert(expr->inlinecall.arguments.arg_name[i] != NULL);
-                int64_t kwnameidx = (
-                    h64debugsymbols_AttributeNameToAttributeNameId(
-                        rinfo->pr->program->symbols,
-                        expr->inlinecall.arguments.arg_name[i],
-                        0
-                    ));
-                if (kwnameidx < 0) {
-                    char buf[256];
-                    snprintf(buf, sizeof(buf) - 1,
-                        "internal error: cannot map kw arg name: %s",
-                        expr->inlinecall.arguments.arg_name[i]
-                    );
-                    if (!result_AddMessage(
-                            &rinfo->ast->resultmsg,
-                            H64MSG_ERROR, buf,
-                            rinfo->ast->fileuri,
-                            expr->line, expr->column
-                            )) {
-                        rinfo->hadoutofmemory = 1;
-                        return 0;
-                    }
-                    return 1;
-                }
-                h64instruction_setconst inst_setconst = {0};
-                inst_setconst.type = H64INST_SETCONST;
-                inst_setconst.slot = _argtemp;
-                inst_setconst.content.type = H64VALTYPE_INT64;
-                inst_setconst.content.int_value = kwnameidx;
-                if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_setconst, sizeof(inst_setconst))) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-                _argtemp++;
-                ref_settop->topto++;
-                h64instruction_valuecopy inst_vc = {0};
-                inst_vc.type = H64INST_VALUECOPY;
-                inst_vc.slotto = _argtemp;
-                inst_vc.slotfrom = (
-                    expr->inlinecall.arguments.arg_value[i]->
-                        storage.eval_temp_id);
-                _argtemp++;
-                ref_settop->topto++;
-                if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_vc, sizeof(inst_vc))) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-            } else if (i + 1 < expr->inlinecall.arguments.arg_count &&
-                    expr->inlinecall.arguments.arg_name[i]) {
-                ismultiarg = 1;
-            }
-            if (!_reachedkwargs) {
-                posargcount++;
-                h64instruction_valuecopy inst_vc = {0};
-                inst_vc.type = H64INST_VALUECOPY;
-                inst_vc.slotto = _argtemp;
-                inst_vc.slotfrom = (
-                    expr->inlinecall.arguments.arg_value[i]->
-                        storage.eval_temp_id);
-                _argtemp++;
-                ref_settop->topto++;
-                if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_vc, sizeof(inst_vc))) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-                if (expr->inlinecall.arguments.last_posarg_is_multiarg) {
-                    expandlastposarg = 1;
-                }
-            }
-            i++;
-        }
-        int maxslotsused = _argtemp - (
-            func->funcdef._storageinfo->lowest_guaranteed_free_temp
-        );
-        if (maxslotsused > func->funcdef._storageinfo->
-                codegen.max_extra_stack)
-            func->funcdef._storageinfo->codegen.max_extra_stack = (
-                maxslotsused
-            );
-        h64instruction_call inst_call = {0};
-        inst_call.type = H64INST_CALL;
         int temp = new1linetemp(func, expr, 1);
         if (temp < 0) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-        inst_call.returnto = temp;
-        inst_call.slotcalledfrom = calledexprstoragetemp;
-        inst_call.expandlastposarg = expandlastposarg;
-        inst_call.posargs = posargcount;
-        inst_call.kwargs = kwargcount;
-        if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_call, sizeof(inst_call))) {
-            rinfo->hadoutofmemory = 1;
+        if (!_codegen_call_to(
+                rinfo, func, expr, calledexprstoragetemp, temp
+                )) {
             return 0;
         }
+
         expr->storage.eval_temp_id = temp;
     } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
             expr->type == H64EXPRTYPE_CALL_STMT ||
@@ -1753,10 +1774,153 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->dont_descend_visitation = 1;
             if (!result)
                 return 0;
+            free1linetemps(func);
             i++;
         }
 
+        free1linetemps(func);
         rinfo->dont_descend_visitation = 1;
+        return 1;
+    } else if (expr->type == H64EXPRTYPE_UNARYOP &&
+               expr->op.optype == H64OP_NEW) {
+        rinfo->dont_descend_visitation = 1;
+
+        // This should have been enforced by the parser:
+        assert(expr->op.value1->type == H64EXPRTYPE_CALL);
+
+        int objslot = -1;
+
+        if (expr->op.value1->inlinecall.value->type !=
+                    H64EXPRTYPE_IDENTIFIERREF ||
+                expr->op.value1->inlinecall.value->storage.set ||
+                expr->op.value1->inlinecall.value->storage.ref.type !=
+                    H64STORETYPE_GLOBALCLASSSLOT) {
+            // Not mapping to a class type we can obviously identify
+            // at compile time. -> must obtain this at runtime.
+
+            // Visit called object (= constructed type) to get temporary:
+            rinfo->dont_descend_visitation = 0;
+            int result = ast_VisitExpression(
+                expr->op.value1->inlinecall.value, expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            rinfo->dont_descend_visitation = 1;
+            if (!result)
+                return 0;
+
+            // The temporary cannot be a final variable, since if
+            // the constructor errors that would leave us with
+            // an invalid incomplete object possibly still accessible
+            // by "rescue" code accessing that variable:
+            objslot = expr->op.value1->inlinecall.value->
+                storage.eval_temp_id;
+            if (objslot < 0) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            assert(objslot >= 0);
+            if (objslot < func->funcdef._storageinfo->
+                    lowest_guaranteed_free_temp) {
+                // This is a fixed variable or argument.
+                objslot = new1linetemp(func, expr, 0);
+                assert(objslot >= func->funcdef._storageinfo->
+                       lowest_guaranteed_free_temp);
+            }
+
+            // Convert it to object instance:
+            h64instruction_newinstancebyref inst_newinstbyref = {0};
+            inst_newinstbyref.type = H64INST_NEWINSTANCEBYREF;
+            inst_newinstbyref.slotto = objslot;
+            inst_newinstbyref.classtypeslotfrom = (
+                expr->op.value1->inlinecall.value->storage.eval_temp_id
+            );
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_newinstbyref, sizeof(inst_newinstbyref))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        } else {
+            // Apparently we already know the class id at compile time,
+            // so instantiate it directly:
+
+            // Slot to hold resulting object instance:
+            objslot = new1linetemp(func, expr, 0);
+            if (objslot < 0) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            assert(objslot >= 0);
+            assert(
+                objslot >= func->funcdef._storageinfo->
+                lowest_guaranteed_free_temp
+            );  // must not be variable
+
+            // Create object instance directly from given class:
+            h64instruction_newinstance inst_newinst = {0};
+            inst_newinst.type = H64INST_NEWINSTANCE;
+            inst_newinst.slotto = objslot;
+            inst_newinst.classidcreatefrom = ((int64_t)
+                expr->op.value1->inlinecall.value->storage.ref.id
+            );
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_newinst, sizeof(inst_newinst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+        // Prepare unused temporary for constructor call:
+        int temp = new1linetemp(func, expr, 0);
+        if (temp < 0) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        // Visit all arguments of constructor call:
+        int i = 0;
+        while (i < expr->op.value1->funcdef.arguments.arg_count) {
+            if (!ast_VisitExpression(
+                    expr->op.value1->funcdef.arguments.arg_value[i],
+                    expr,
+                    &_codegencallback_DoCodegen_visit_in,
+                    &_codegencallback_DoCodegen_visit_out,
+                    _asttransform_cancel_visit_descend_callback,
+                    rinfo
+                    ))
+                return 0;
+            i++;
+        }
+        // Generate call to actual constructor:
+        if (!_codegen_call_to(
+                rinfo, func, expr, objslot, temp
+                )) {
+            return 0;
+        }
+        // Move object to result:
+        int resulttemp = new1linetemp(func, expr, 1);
+        if (resulttemp < 0) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        if (objslot != resulttemp) {
+            h64instruction_valuecopy inst_vc = {0};
+            inst_vc.type = H64INST_VALUECOPY;
+            inst_vc.slotto = resulttemp;
+            inst_vc.slotfrom = objslot;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_vc, sizeof(inst_vc))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+
+        free1linetemps(func);
+        rinfo->dont_descend_visitation = 1;
+        expr->storage.eval_temp_id = resulttemp;
         return 1;
     } else if (expr->type == H64EXPRTYPE_DO_STMT) {
         rinfo->dont_descend_visitation = 1;
@@ -1881,6 +2045,7 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->dont_descend_visitation = 1;
             if (!result)
                 return 0;
+            free1linetemps(func);
             i++;
         }
         if (!(inst_pushframe.mode | CATCHMODE_JUMPONFINALLY) != 0) {
@@ -1938,6 +2103,7 @@ int _codegencallback_DoCodegen_visit_in(
                 rinfo->dont_descend_visitation = 1;
                 if (!result)
                     return 0;
+                free1linetemps(func);
                 i++;
             }
             if ((inst_pushframe.mode | CATCHMODE_JUMPONFINALLY) != 0) {
@@ -1985,6 +2151,7 @@ int _codegencallback_DoCodegen_visit_in(
                 rinfo->dont_descend_visitation = 1;
                 if (!result)
                     return 0;
+                free1linetemps(func);
                 i++;
             }
             h64instruction_popcatchframe inst_popcatch = {0};
@@ -2007,6 +2174,7 @@ int _codegencallback_DoCodegen_visit_in(
             return 0;
         }
 
+        free1linetemps(func);
         rinfo->dont_descend_visitation = 1;
         return 1;
     } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
