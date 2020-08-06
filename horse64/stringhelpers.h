@@ -1,6 +1,11 @@
+// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// also see LICENSE.md file.
+// SPDX-License-Identifier: BSD-2-Clause
 
-#ifndef HORSE64_STRINGS_H_
-#define HORSE64_STRINGS_H_
+#ifndef HORSE64_STRINGHELPERS_H_
+#define HORSE64_STRINGHELPERS_H_
+
+// FIXME: abandon this header for our own unicode handling, eventually
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
@@ -17,4 +22,4 @@ static wchar_t *unicodestr(const char *s) {
 }
 #endif
 
-#endif
+#endif  // HORSE64_STRINGHELPERS_H_
