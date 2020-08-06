@@ -300,9 +300,11 @@ static void vmthread_errors_ProceedToFinally(
         ptrdiff_t *current_exec_offset
         ) {
     assert(vmthread->errorframe_count > 0);
-    assert(vmthread->errorframe[
+    assert(!vmthread->errorframe[
         vmthread->errorframe_count - 1
-    ].triggered_catch);
+    ].triggered_catch || vmthread->errorframe[
+        vmthread->errorframe_count - 1
+    ].storeddelayederror.error_class_id < 0);
     assert(!vmthread->errorframe[
         vmthread->errorframe_count - 1
     ].triggered_finally);
