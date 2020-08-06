@@ -2372,9 +2372,44 @@ int ast_ParseCodeBlock(
                 H64MSG_ERROR, buf, fileuri,
                 _refline(context->tokenstreaminfo, tokens, i),
                 _refcol(context->tokenstreaminfo, tokens, i)
-                ))
+                )) {
             if (outofmemory) *outofmemory = 1;
-        return 0;
+            return 0;
+        }
+        // Try to forward reasonably to actual code block:
+        int k = i;
+        while (k < max_tokens_touse) {
+            if (tokens[k].type == H64TK_BRACKET) {
+                if (tokens[k].char_value != '{') {
+                    // Ok we're running into something complex and
+                    // still no code block. Give up.
+                    if (outofmemory) *outofmemory = 0;
+                    return 0;
+                }
+                // Likely our code block!
+                i = k;
+                break;
+            } else if (tokens[k].type == H64TK_KEYWORD) {
+                if (strcmp(tokens[k].str_value, "while") == 0 ||
+                        strcmp(tokens[k].str_value, "do") == 0 ||
+                        strcmp(tokens[k].str_value, "with") == 0 ||
+                        strcmp(tokens[k].str_value, "async") == 0
+                        ) {
+                    // Looks like code block contents, let's assume
+                    // we entered it.
+                    i = k - 1;
+                    break;
+                }
+                // Ok whatever this is, bail out.
+                if (outofmemory) *outofmemory = 0;
+                return 0;
+            }
+            k++;
+        }
+        if (k >= max_tokens_touse) {
+            if (outofmemory) *outofmemory = 0;
+            return 0;
+        }
     }
     int64_t codeblock_line = tokens[i].line;
     int64_t codeblock_column = tokens[i].column;
