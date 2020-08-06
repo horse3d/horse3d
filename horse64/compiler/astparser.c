@@ -3231,10 +3231,17 @@ int ast_ParseExprStmt(
         while (1) {
             if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->funcdef.is_threadable &&
-                    strcmp(tokens[i].str_value, "threadable") == 0) {
+                    !expr->funcdef.is_canasync &&
+                    strcmp(tokens[i].str_value, "canasync") == 0) {
                 i++;
-                expr->funcdef.is_threadable = 1;
+                expr->funcdef.is_canasync = 1;
+                continue;
+            } else if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->funcdef.is_canasync &&
+                    strcmp(tokens[i].str_value, "noasync") == 0) {
+                i++;
+                expr->funcdef.is_noasync = 1;
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
@@ -3357,24 +3364,6 @@ int ast_ParseExprStmt(
         expr->classdef.scope.classandfuncnestinglevel =
             expr->classdef.scope.parentscope->classandfuncnestinglevel + 1;
         i++;
-        while (1) {  // read attributes
-            if (i < max_tokens_touse &&
-                    tokens[i].type == H64TK_KEYWORD &&
-                    !expr->classdef.is_deprecated &&
-                    strcmp(tokens[i].str_value, "deprecated") == 0) {
-                i++;
-                expr->classdef.is_deprecated = 1;
-                continue;
-            } else if (i < max_tokens_touse &&
-                    tokens[i].type == H64TK_KEYWORD &&
-                    !expr->classdef.is_threadable &&
-                    strcmp(tokens[i].str_value, "threadable") == 0) {
-                i++;
-                expr->classdef.is_threadable = 1;
-                continue;
-            }
-            break;
-        }
 
         if (i >= max_tokens_touse ||
                 tokens[i].type != H64TK_IDENTIFIER) {
@@ -3493,10 +3482,17 @@ int ast_ParseExprStmt(
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->classdef.is_threadable &&
-                    strcmp(tokens[i].str_value, "threadable") == 0) {
+                    !expr->classdef.is_canasync &&
+                    strcmp(tokens[i].str_value, "canasync") == 0) {
                 i++;
-                expr->classdef.is_threadable = 1;
+                expr->classdef.is_canasync = 1;
+                continue;
+            } else if (i < max_tokens_touse &&
+                    tokens[i].type == H64TK_KEYWORD &&
+                    !expr->classdef.is_canasync &&
+                    strcmp(tokens[i].str_value, "noasync") == 0) {
+                i++;
+                expr->classdef.is_noasync = 1;
                 continue;
             }
             break;

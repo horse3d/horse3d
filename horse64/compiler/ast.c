@@ -1205,8 +1205,12 @@ jsonvalue *ast_ExpressionToJSON(
                 !json_SetDictStr(v, "name", e->classdef.name))
             fail = 1;
         jsonvalue *attributes = json_List();
-        if (e->classdef.is_threadable) {
-            if (!json_AddToListStr(attributes, "threadable"))
+        if (e->classdef.is_canasync) {
+            if (!json_AddToListStr(attributes, "canasync"))
+                fail = 1;
+        }
+        if (e->classdef.is_noasync) {
+            if (!json_AddToListStr(attributes, "noasync"))
                 fail = 1;
         }
         if (e->classdef.is_deprecated) {
@@ -1362,8 +1366,12 @@ jsonvalue *ast_ExpressionToJSON(
                 fail = 1;
         }
         jsonvalue *attributes = json_List();
-        if (e->funcdef.is_threadable) {
-            if (!json_AddToListStr(attributes, "threadable"))
+        if (e->funcdef.is_canasync) {
+            if (!json_AddToListStr(attributes, "canasync"))
+                fail = 1;
+        }
+        if (e->funcdef.is_noasync) {
+            if (!json_AddToListStr(attributes, "noasync"))
                 fail = 1;
         }
         if (e->funcdef.is_getter) {
