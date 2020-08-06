@@ -301,10 +301,10 @@ static void vmthread_errors_ProceedToFinally(
         ) {
     assert(vmthread->errorframe_count > 0);
     assert(!vmthread->errorframe[
-        vmthread->errorframe_count - 1
-    ].triggered_catch || vmthread->errorframe[
-        vmthread->errorframe_count - 1
-    ].storeddelayederror.error_class_id < 0);
+               vmthread->errorframe_count - 1
+           ].triggered_catch || vmthread->errorframe[
+               vmthread->errorframe_count - 1
+           ].storeddelayederror.error_class_id < 0);
     assert(!vmthread->errorframe[
         vmthread->errorframe_count - 1
     ].triggered_finally);
