@@ -100,6 +100,10 @@ int vmlist_Add(
     genericlist *l, valuecontent *vc
 );
 
+int vmlist_Insert(
+    genericlist *l, int64_t index, valuecontent *vc
+);  // return value: 1 = ok, 0 = invalid index, -1 = oom
+
 typedef struct h64gcvalue2 {
     uint8_t type;
 } h64gcvalue2;
@@ -118,5 +122,7 @@ static valuecontent *vmlist_Get(genericlist *l, int64_t i) {
     valuecontent *result = &block->entry_values[i - 1];
     return result;
 }
+
+int vmlist_Set(genericlist *l, int64_t index, valuecontent *vc);
 
 #endif  // HORSE64_VMLIST_H_

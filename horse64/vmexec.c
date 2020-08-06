@@ -2788,6 +2788,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         fprintf(stderr, "newvector not implemented\n");
         return 0;
     }
+    inst_newinstancebyref: {
+        fprintf(stderr, "newinstancebyref not implemented\n");
+        return 0;
+    }
+    inst_newinstance: {
+        fprintf(stderr, "newinstance not implemented\n");
+        return 0;
+    }
 
     setupinterpreter:
     jumptable[H64INST_INVALID] = &&inst_invalid;
