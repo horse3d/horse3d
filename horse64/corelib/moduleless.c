@@ -125,8 +125,8 @@ int corelib_print(  // $$builtin.print
                     shortstr_value, c->shortstr_len,
                     buf, 25, &outlen, 1
                 );
-                assert(result != 0 && outlen > 0 && outlen < 25);
-                buf[outlen - 1] = '\0';
+                assert(result != 0 && outlen > 0 && outlen + 1 < 25);
+                buf[outlen] = '\0';
                 printf("%s", buf);
                 break;
             }
