@@ -123,6 +123,10 @@ static valuecontent *vmlist_Get(genericlist *l, int64_t i) {
     return result;
 }
 
-int vmlist_Set(genericlist *l, int64_t index, valuecontent *vc);
+int vmlist_Set(
+    genericlist *l, int64_t index, valuecontent *vc
+);  // return value: 1 = ok, 0 = invalid index, -1 = oom
+
+int vmlist_Remove(genericlist *l, int64_t index);
 
 #endif  // HORSE64_VMLIST_H_

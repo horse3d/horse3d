@@ -56,6 +56,33 @@ int vmlist_Add(
     return 1;
 }
 
+int vmlist_Remove(genericlist *l, int64_t index) {
+    if (index < 1 || index > l->list_total_entry_count)
+        return 0;
+    int64_t blockoffset = -1;
+    listblock *block = NULL;
+    vmlist_GetEntryBlock(
+        l, index, &block, &blockoffset
+    );
+    assert(block != NULL && blockoffset >= 0);
+    int local_index = (int64_t)(index - blockoffset);
+    assert(local_index >= 1 && local_index <= LISTBLOCK_SIZE &&
+           local_index <= block->entry_count);
+    assert(block->entry_count > 0);
+    DELREF_HEAP(&block->entry_values[local_index - 1]);
+    if (local_index < LISTBLOCK_SIZE) {
+        memmove(
+            &block->entry_values[(local_index - 1)],
+            &block->entry_values[(local_index - 1) + 1],
+            sizeof(*block->entry_values) * (
+                LISTBLOCK_SIZE - local_index
+            )
+        );
+    }
+    block->entry_count--;
+    return 1;
+}
+
 int vmlist_Set(genericlist *l, int64_t index, valuecontent *vc) {
     if (index < 1 || index > l->list_total_entry_count + 1)
         return 0;

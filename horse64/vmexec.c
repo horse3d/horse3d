@@ -877,6 +877,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         fprintf(stderr, "getglobal not implemented\n");
         return 0;
     }
+    inst_setbyindexexpr: {
+        fprintf(stderr, "setbyindexexpr not implemened\n");
+        return 0;
+    }
+    inst_setbyattribute: {
+        fprintf(stderr, "setbyattribute not implemened\n");
+        return 0;
+    }
     inst_getfunc: {
         h64instruction_getfunc *inst = (h64instruction_getfunc *)p;
         #ifndef NDEBUG
@@ -2802,6 +2810,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_SETCONST] = &&inst_setconst;
     jumptable[H64INST_SETGLOBAL] = &&inst_setglobal;
     jumptable[H64INST_GETGLOBAL] = &&inst_getglobal;
+    jumptable[H64INST_SETBYINDEXEXPR] = &&inst_setbyindexexpr;
+    jumptable[H64INST_SETBYATTRIBUTE] = &&inst_setbyattribute;
     jumptable[H64INST_GETFUNC] = &&inst_getfunc;
     jumptable[H64INST_GETCLASS] = &&inst_getclass;
     jumptable[H64INST_VALUECOPY] = &&inst_valuecopy;
@@ -2826,6 +2836,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_NEWSET] = &&inst_newset;
     jumptable[H64INST_NEWMAP] = &&inst_newmap;
     jumptable[H64INST_NEWVECTOR] = &&inst_newvector;
+    jumptable[H64INST_NEWINSTANCEBYREF] = &&inst_newinstancebyref;
+    jumptable[H64INST_NEWINSTANCE] = &&inst_newinstance;
     op_jumptable[H64OP_MATH_DIVIDE] = &&binop_divide;
     op_jumptable[H64OP_MATH_ADD] = &&binop_add;
     op_jumptable[H64OP_MATH_SUBSTRACT] = &&binop_substract;
