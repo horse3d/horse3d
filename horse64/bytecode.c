@@ -244,22 +244,22 @@ int h64program_RegisterClassAttributeEx(
         p->classes[class_id].methods_count++;
         entry_idx = p->classes[class_id].methods_count - 1;
     } else {
-        int64_t *new_vars_global_name_idx = realloc(
-            p->classes[class_id].vars_global_name_idx,
+        int64_t *new_varattr_global_name_idx = realloc(
+            p->classes[class_id].varattr_global_name_idx,
             sizeof(*p->classes[class_id].
-                   vars_global_name_idx) *
-            (p->classes[class_id].vars_count + 1)
+                   varattr_global_name_idx) *
+            (p->classes[class_id].varattr_count + 1)
         );
-        if (!new_vars_global_name_idx)
+        if (!new_varattr_global_name_idx)
             return 0;
-        p->classes[class_id].vars_global_name_idx = (
-            new_vars_global_name_idx
+        p->classes[class_id].varattr_global_name_idx = (
+            new_varattr_global_name_idx
         );
-        new_vars_global_name_idx[
-            p->classes[class_id].vars_count
+        new_varattr_global_name_idx[
+            p->classes[class_id].varattr_count
         ] = nameid;
-        p->classes[class_id].vars_count++;
-        entry_idx = p->classes[class_id].vars_count - 1;
+        p->classes[class_id].varattr_count++;
+        entry_idx = p->classes[class_id].varattr_count - 1;
     }
 
     // Add into buckets:
@@ -507,7 +507,7 @@ void h64program_Free(h64program *p) {
             }
             free(p->classes[i].method_func_idx);
             free(p->classes[i].method_global_name_idx);
-            free(p->classes[i].vars_global_name_idx);
+            free(p->classes[i].varattr_global_name_idx);
             i++;
         }
     }

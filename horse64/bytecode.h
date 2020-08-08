@@ -116,8 +116,8 @@ typedef struct valuecontent {
             h64errorinfo *einfo;
         } __attribute__((packed));
         struct {
-            int membervar_count;
-            valuecontent *membervar;
+            int varattr_count;
+            valuecontent *varattr;
         } __attribute__((packed));
     } __attribute__((packed));
 } __attribute__((packed)) valuecontent;
@@ -317,8 +317,8 @@ typedef struct h64class {
     int64_t base_class_global_id;
     int is_error;
 
-    int vars_count;
-    int64_t *vars_global_name_idx;
+    int varattr_count;
+    int64_t *varattr_global_name_idx;
 
     h64classattributeinfo **global_name_to_attribute_hashmap;
 

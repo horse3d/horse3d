@@ -2862,17 +2862,17 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         int64_t class_id = vcfrom->int_value;
         assert(class_id >= 0 && class_id < vmexec->program->func_count);
         vctarget->type = H64VALTYPE_OBJINSTANCE;
-        vctarget->membervar_count = (
-            vmexec->program->classes[class_id].vars_count
+        vctarget->varattr_count = (
+            vmexec->program->classes[class_id].varattr_count
         );
-        vctarget->membervar = malloc(
-            sizeof(valuecontent) * vctarget->membervar_count
+        vctarget->varattr = malloc(
+            sizeof(valuecontent) * vctarget->varattr_count
         );
-        if (vctarget->membervar) {
+        if (vctarget->varattr) {
             vctarget->type = H64VALTYPE_NONE;
             goto triggeroom;
         }
-        memset(vctarget->membervar, 0, sizeof(*vctarget->membervar));
+        memset(vctarget->varattr, 0, sizeof(*vctarget->varattr));
         fprintf(stderr, "newinstancebyref not implemented\n");
         return 0;
     }

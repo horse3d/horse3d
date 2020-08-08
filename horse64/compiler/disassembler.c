@@ -671,15 +671,31 @@ int disassembler_Dump(
                 );
             }
         }
+        char baseclass_str[32] = "none";
+        if (p->classes[i].base_class_global_id >= 0)
+            snprintf(
+                baseclass_str, sizeof(baseclass_str) - 1,
+                "c%" PRId64, p->classes[i].base_class_global_id
+            );
         char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
         snprintf(linebuf, sizeof(linebuf) - 1,
-            "CLASS %" PRId64 " %" PRId64 " %d",
-            (int64_t)i, p->classes[i].base_class_global_id,
+            "BEGINCLASS %" PRId64 " %s %d %d",
+            (int64_t)i, baseclass_str,
+            (int)p->classes[i].varattr_count,
             p->classes[i].is_error
         );
         if (!disassembler_Write(di,
                 "%s%s\n", linebuf, symbolinfo))
             return 0;
+        int k = 0;
+        while (k < (int)p->classes[i].varattr_count) {
+            if (!disassembler_Write(di,
+                    "VARATTR %" PRId64 "\n",
+                    (int64_t)p->classes[i].varattr_global_name_idx
+                    ))
+                return 0;
+            k++;
+        }
         if (!disassembler_Write(di,
                 "ENDCLASS\n"))
             return 0;
@@ -702,7 +718,7 @@ int disassembler_Dump(
         }
         char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
         snprintf(linebuf, sizeof(linebuf) - 1,
-            "FUNC%s %" PRId64 " %d %d%s%s",
+            "BEGINFUNC%s %" PRId64 " %d %d%s%s",
             (p->func[i].iscfunc ? "CREF" : ""),
             (int64_t)i,
             p->func[i].input_stack_size,
