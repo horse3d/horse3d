@@ -14,6 +14,7 @@
 typedef struct h64debugsymbols h64debugsymbols;
 typedef uint32_t unicodechar;
 typedef struct h64gcvalue h64gcvalue;
+typedef struct valuecontent valuecontent;
 
 typedef enum instructiontype {
     H64INST_INVALID = 0,
@@ -87,6 +88,7 @@ typedef enum valuetype {
     H64VALTYPE_GCVAL,
     H64VALTYPE_SHORTSTR,
     H64VALTYPE_CONSTPREALLOCSTR,
+    H64VALTYPE_OBJINSTANCE,
     H64VALTYPE_UNSPECIFIED_KWARG,
 } valuetype;
 
@@ -112,6 +114,10 @@ typedef struct valuecontent {
         struct {
             int64_t error_class_id;
             h64errorinfo *einfo;
+        } __attribute__((packed));
+        struct {
+            int membervar_count;
+            valuecontent *membervar;
         } __attribute__((packed));
     } __attribute__((packed));
 } __attribute__((packed)) valuecontent;

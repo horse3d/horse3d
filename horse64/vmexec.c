@@ -2837,6 +2837,42 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     inst_newinstancebyref: {
+        h64instruction_newinstancebyref *inst = (
+            (h64instruction_newinstancebyref *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vctarget = STACK_ENTRY(stack, inst->slotto);
+        DELREF_NONHEAP(vctarget);
+        valuecontent_Free(vctarget);
+        memset(vctarget, 0, sizeof(*vctarget));
+        valuecontent *vcfrom = STACK_ENTRY(
+            stack, inst->classtypeslotfrom
+        );
+        if (vcfrom->type != H64VALTYPE_CLASSREF) {
+            RAISE_ERROR(
+                H64STDERROR_TYPEERROR,
+                "new must be called on a class type"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        int64_t class_id = vcfrom->int_value;
+        assert(class_id >= 0 && class_id < vmexec->program->func_count);
+        vctarget->type = H64VALTYPE_OBJINSTANCE;
+        vctarget->membervar_count = (
+            vmexec->program->classes[class_id].vars_count
+        );
+        vctarget->membervar = malloc(
+            sizeof(valuecontent) * vctarget->membervar_count
+        );
+        if (vctarget->membervar) {
+            vctarget->type = H64VALTYPE_NONE;
+            goto triggeroom;
+        }
+        memset(vctarget->membervar, 0, sizeof(*vctarget->membervar));
         fprintf(stderr, "newinstancebyref not implemented\n");
         return 0;
     }
