@@ -44,7 +44,6 @@ static char h64opprinted_cmp_smaller[] = "<";
 static char h64opprinted_boolcond_and[] = "and";
 static char h64opprinted_boolcond_or[] = "or";
 static char h64opprinted_boolcond_not[] = "not";
-static char h64opprinted_boolcond_in[] = "in";
 static char h64opprinted_attributebyidentifier[] = ".";
 static char h64opprinted_indexbyexpr[] = "[";
 static char h64opprinted_call[] = "(";
@@ -121,8 +120,6 @@ const char *operator_OpPrintedAsStr(h64optype type) {
         return h64opprinted_boolcond_or;
     case H64OP_BOOLCOND_NOT:
         return h64opprinted_boolcond_not;
-    case H64OP_BOOLCOND_IN:
-        return h64opprinted_boolcond_in;
     case H64OP_ATTRIBUTEBYIDENTIFIER:
         return h64opprinted_attributebyidentifier;
     case H64OP_INDEXBYEXPR:
@@ -176,7 +173,6 @@ static char h64opname_cmp_smaller[] = "H64OP_CMP_SMALLER";
 static char h64opname_boolcond_and[] = "H64OP_BOOLCOND_AND";
 static char h64opname_boolcond_or[] = "H64OP_BOOLCOND_OR";
 static char h64opname_boolcond_not[] = "H64OP_BOOLCOND_NOT";
-static char h64opname_boolcond_in[] = "H64OP_BOOLCOND_IN";
 static char h64opname_attributebyidentifier[] =
     "H64OP_ATTRIBUTEBYIDENTIFIER";
 static char h64opname_indexbyexpr[] = "H64OP_INDEXBYEXPR";
@@ -309,8 +305,6 @@ const char *operator_OpTypeToStr(h64optype type) {
         return h64opname_boolcond_or;
     case H64OP_BOOLCOND_NOT:
         return h64opname_boolcond_not;
-    case H64OP_BOOLCOND_IN:
-        return h64opname_boolcond_in;
     case H64OP_ATTRIBUTEBYIDENTIFIER:
         return h64opname_attributebyidentifier;
     case H64OP_INDEXBYEXPR:

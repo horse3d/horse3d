@@ -55,7 +55,7 @@ static char *h64keywords[] = {
     "import", "else", "elseif",
     "break", "continue", "do",
     "rescue", "finally", "error",
-    "new", "return", "as",
+    "new", "return", "in", "as",
     "getter", "setter", "value",
     "deprecated", "multiarg",
     NULL

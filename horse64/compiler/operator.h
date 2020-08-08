@@ -46,7 +46,6 @@ typedef enum h64optype {
     H64OP_BOOLCOND_AND,
     H64OP_BOOLCOND_OR,
     H64OP_BOOLCOND_NOT,
-    H64OP_BOOLCOND_IN,
     H64OP_ATTRIBUTEBYIDENTIFIER,
     H64OP_INDEXBYEXPR,
     H64OP_CALL,
@@ -98,10 +97,9 @@ static int operator_PrecedenceByType(int type) {
     case H64OP_CMP_SMALLEROREQUAL: return 10;
     case H64OP_CMP_LARGER: return 10;
     case H64OP_CMP_SMALLER: return 10;
-    case H64OP_BOOLCOND_IN: return 11;
-    case H64OP_BOOLCOND_NOT: return 12;
-    case H64OP_BOOLCOND_AND: return 13;
-    case H64OP_BOOLCOND_OR: return 14;
+    case H64OP_BOOLCOND_NOT: return 11;
+    case H64OP_BOOLCOND_AND: return 12;
+    case H64OP_BOOLCOND_OR: return 13;
     }
     return -1;
 }

@@ -4604,8 +4604,8 @@ int ast_ParseExprStmt(
                 iteratorname = tokens[i].str_value;
                 i++;
                 if (i >= max_tokens_touse ||
-                        tokens[i].type != H64TK_BINOPSYMBOL ||
-                        tokens[i].int_value != H64OP_BOOLCOND_IN) {
+                        tokens[i].type != H64TK_KEYWORD ||
+                        strcmp(tokens[i].str_value, "in") != 0) {
                     char buf[256]; char describebuf[64];
                     snprintf(buf, sizeof(buf) - 1,
                         "unexpected %s, "
