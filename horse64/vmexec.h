@@ -19,6 +19,7 @@ typedef struct h64instruction h64instruction;
 typedef struct poolalloc poolalloc;
 typedef struct h64stack h64stack;
 typedef struct h64refvalue h64refvalue;
+typedef struct h64vmexec h64vmexec;
 
 
 typedef struct h64vmfunctionframe {
@@ -45,10 +46,9 @@ typedef struct h64vmerrorcatchframe {
 
 
 typedef struct h64vmthread {
-    h64misccompileroptions moptions;
-    h64program *program;
+    h64vmexec *vmexec_owner;
     int can_access_globals;
-    int can_call_unthreadable;
+    int can_call_noasync;
 
     int kwarg_index_track_count;
     int64_t *kwarg_index_track_map;
@@ -68,6 +68,14 @@ typedef struct h64vmthread {
     int execution_instruction_id;
 } h64vmthread;
 
+typedef struct h64vmexec {
+    h64misccompileroptions moptions;
+    h64program *program;
+
+    h64vmthread **thread;
+    int thread_count;
+    h64vmthread *active_thread;
+} h64vmexec;
 
 static inline int VMTHREAD_FUNCSTACKBOTTOM(h64vmthread *vmthread) {
     if (vmthread->funcframe_count > 0)
@@ -78,16 +86,21 @@ static inline int VMTHREAD_FUNCSTACKBOTTOM(h64vmthread *vmthread) {
 
 void vmthread_WipeFuncStack(h64vmthread *vmthread);
 
-h64vmthread *vmthread_New();
+h64vmthread *vmthread_New(h64vmexec *owner);
+
+h64vmexec *vmexec_New();
 
 int vmthread_RunFunctionWithReturnInt(
-    h64vmthread *vmthread, int64_t func_id,
+    h64vmexec *vmexec, h64vmthread *start_thread,
+    int64_t func_id,
     int *returneduncaughterror,
     h64errorinfo *einfo,
     int *out_returnint
 );
 
 void vmthread_Free(h64vmthread *vmthread);
+
+void vmexec_Free(h64vmexec *vmexec);
 
 int vmexec_ExecuteProgram(
     h64program *pr, h64misccompileroptions *moptions
