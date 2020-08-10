@@ -949,6 +949,8 @@ jsonvalue *ast_ExpressionToJSON(
         if (e->vardef.identifier &&
                 !json_SetDictStr(v, "name", e->vardef.identifier))
             fail = 1;
+        jsonvalue *storagejson = varstorage_StorageAsJSON(e);
+        json_SetDict(v, "storage", storagejson);
         jsonvalue *attributes = json_List();
         if (e->vardef.is_deprecated) {
             if (!json_AddToListStr(attributes, "deprecated"))
@@ -1204,6 +1206,8 @@ jsonvalue *ast_ExpressionToJSON(
         if (e->classdef.name &&
                 !json_SetDictStr(v, "name", e->classdef.name))
             fail = 1;
+        jsonvalue *storagejson = varstorage_StorageAsJSON(e);
+        json_SetDict(v, "storage", storagejson);
         jsonvalue *attributes = json_List();
         if (e->classdef.is_canasync) {
             if (!json_AddToListStr(attributes, "canasync"))
@@ -1365,6 +1369,8 @@ jsonvalue *ast_ExpressionToJSON(
                     e->funcdef.bytecode_func_id))
                 fail = 1;
         }
+        jsonvalue *storagejson = varstorage_StorageAsJSON(e);
+        json_SetDict(v, "storage", storagejson);
         jsonvalue *attributes = json_List();
         if (e->funcdef.is_canasync) {
             if (!json_AddToListStr(attributes, "canasync"))
@@ -1418,48 +1424,6 @@ jsonvalue *ast_ExpressionToJSON(
                 break;
             }
             i++;
-        }
-        jsonvalue *sinfoval = NULL;
-        if (e->funcdef._storageinfo != NULL) {
-            sinfoval = varstorage_ExtraInfoToJSON(
-                e->funcdef._storageinfo
-            );
-        } else if (e->storage.set) {
-            sinfoval = json_Dict();
-        }
-        if (!sinfoval) {
-            if (e->storage.set)
-                fail = 1;
-        } else {
-            if (e->storage.set) {
-                if (e->storage.ref.type ==
-                        H64STORETYPE_GLOBALFUNCSLOT) {
-                    if (!json_SetDictInt(sinfoval, "stored-in-global",
-                            -1)) {  // -1 since not a regular mutable global
-                        fail = 1;
-                        json_Free(sinfoval);
-                        sinfoval = NULL;
-                    }
-                } else if (e->storage.ref.type ==
-                        H64STORETYPE_STACKSLOT) {
-                    if (!json_SetDictInt(sinfoval, "stored-in-local",
-                            e->storage.ref.id)) {
-                        fail = 1;
-                        json_Free(sinfoval);
-                        sinfoval = NULL;
-                    }
-                } else {
-                    fprintf(stderr,
-                        "horsec: warning: bad storage type for func: "
-                        "type %d\n", e->storage.ref.type);
-                    assert(0 && "bad storage type for func, wrong ast??");
-                }
-            }
-            if (!json_SetDict(v, "storage", sinfoval)) {
-                fail = 1;
-                json_Free(sinfoval);
-                sinfoval = NULL;
-            }
         }
         if (!json_SetDict(v, "statements", statements)) {
             fail = 1;

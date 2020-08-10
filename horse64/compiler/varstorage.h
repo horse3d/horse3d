@@ -51,4 +51,6 @@ jsonvalue *varstorage_ExtraInfoToJSON(
     h64funcstorageextrainfo *einfo
 );
 
+jsonvalue *varstorage_StorageAsJSON(h64expression *e);
+
 #endif  // HORSE64_COMPILER_VARSTORAGE_H_

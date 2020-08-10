@@ -41,10 +41,11 @@ typedef struct h64scope {
     int is_global;
 
     hashmap *name_to_declaration_map;
+    h64expression *expr;
 } h64scope;
 
 
-int scope_Init(h64scope *scope);
+int scope_Init(h64scope *scope, h64expression *expr);
 
 int scope_AddItem(
     h64scope *scope, const char *identifier_ref,
@@ -55,8 +56,11 @@ void scope_RemoveItem(
     h64scope *scope, const char *identifier_ref
 );
 
+#define SCOPEQUERY_FLAG_BUBBLEUP 1
+#define SCOPEQUERY_FLAG_QUERYCLASSITEMS 2
+
 h64scopedef *scope_QueryItem(
-    h64scope *scope, const char *identifier_ref, int bubble_up
+    h64scope *scope, const char *identifier_ref, int flags
 );
 
 void scope_FreeData(h64scope *scope);

@@ -581,7 +581,7 @@ int json_SetDictFloat(
 }
 
 int json_SetDictInt(
-        jsonvalue *dict, const char *key, int value
+        jsonvalue *dict, const char *key, int64_t value
         ) {
     if (!dict || dict->type != JSON_VALUE_OBJECT)
         return 0;

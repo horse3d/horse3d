@@ -65,7 +65,7 @@ int json_SetDict(jsonvalue *dict, const char *key, jsonvalue *value);
 
 int json_SetDictStr(jsonvalue *dict, const char *key, const char *value);
 
-int json_SetDictInt(jsonvalue *dict, const char *key, int value);
+int json_SetDictInt(jsonvalue *dict, const char *key, int64_t value);
 
 int json_SetDictFloat(jsonvalue *dict, const char *key, double value);
 

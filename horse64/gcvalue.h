@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "compiler/globallimits.h"
 #include "vmlist.h"
 #include "vmstrings.h"
 
@@ -39,10 +40,10 @@ typedef struct h64closureinfo {
 
 typedef struct h64gcvalue {
     uint8_t type;
-    int heapreferencecount, externalreferencecount;
+    int32_t heapreferencecount, externalreferencecount;
     union {
         struct {
-            int classid;
+            classid_t classid;
             valuecontent *membervars;
         };
         struct {

@@ -244,7 +244,8 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                     mapsto->type != H64EXPRTYPE_FUNCDEF_STMT) ||
                     !funcdef_has_parameter_with_name(
                     mapsto, expr->identifierref.value
-                    )) {
+                    )) {  // not a func param that may have no storage
+                // -> check if it properly has storage set:
                 if (!mapsto->storage.set &&
                         (!rinfo->pr->resultmsg->success ||
                         !rinfo->ast->resultmsg.success)) {
@@ -408,6 +409,104 @@ jsonvalue *varstorage_ExtraInfoToJSON(
     if (fail) {
         json_Free(v);
         return NULL;
+    }
+    return v;
+}
+
+jsonvalue *varstorage_StorageAsJSON(h64expression *expr) {
+    if (!expr)
+        return NULL;
+    jsonvalue *v = NULL;
+    if ((expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+            expr->type == H64EXPRTYPE_INLINEFUNCDEF) &&
+            expr->funcdef._storageinfo != NULL) {
+        v = varstorage_ExtraInfoToJSON(
+            expr->funcdef._storageinfo
+        );
+        if (!v)
+            return NULL;
+    } else {
+        v = malloc(sizeof(*v));
+        if (!v)
+            return NULL;
+        memset(v, 0, sizeof(*v));
+        v->type = JSON_VALUE_OBJECT;
+    }
+    if (!expr->storage.set)
+        return v;
+    switch (expr->storage.ref.type) {
+        case H64STORETYPE_INVALID: {
+            if (!json_SetDictStr(v, "type", "invalid")) {
+                json_Free(v);
+                return NULL;
+            }
+            break;
+        }
+        case H64STORETYPE_STACKSLOT: {
+            if (!json_SetDictStr(v, "type", "stackslot")) {
+                json_Free(v);
+                return NULL;
+            }
+            if (!json_SetDictInt(v, "id", expr->storage.ref.id)) {
+                json_Free(v);
+                return NULL;
+            }
+            break;
+        }
+        case H64STORETYPE_GLOBALFUNCSLOT: {
+            if (!json_SetDictStr(v, "type", "funcslot")) {
+                json_Free(v);
+                return NULL;
+            }
+            if (!json_SetDictInt(v, "id", expr->storage.ref.id)) {
+                json_Free(v);
+                return NULL;
+            }
+            break;
+        }
+        case H64STORETYPE_GLOBALCLASSSLOT: {
+            if (!json_SetDictStr(v, "type", "classslot")) {
+                json_Free(v);
+                return NULL;
+            }
+            if (!json_SetDictInt(v, "id", expr->storage.ref.id)) {
+                json_Free(v);
+                return NULL;
+            }
+            break;
+        }
+        case H64STORETYPE_GLOBALVARSLOT: {
+            if (!json_SetDictStr(v, "type", "globalvarslot")) {
+                json_Free(v);
+                return NULL;
+            }
+            if (!json_SetDictInt(v, "id", expr->storage.ref.id)) {
+                json_Free(v);
+                return NULL;
+            }
+            break;
+        }
+        case H64STORETYPE_VARATTRSLOT: {
+            if (!json_SetDictStr(v, "type", "varattrslot")) {
+                json_Free(v);
+                return NULL;
+            }
+            if (!json_SetDictInt(v, "id", expr->storage.ref.id)) {
+                json_Free(v);
+                return NULL;
+            }
+            break;
+        }
+        default: {
+            if (!json_SetDictStr(v, "type", "<unknown>")) {
+                json_Free(v);
+                return NULL;
+            }
+            if (!json_SetDictInt(v, "id", expr->storage.ref.id)) {
+                json_Free(v);
+                return NULL;
+            }
+        }
     }
     return v;
 }

@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "compiler/globallimits.h"
+
 #define MAX_ERROR_STACK_FRAMES 10
 
 typedef struct h64debugsymbols h64debugsymbols;
@@ -60,6 +62,7 @@ typedef enum storagetype {
     H64STORETYPE_GLOBALFUNCSLOT,
     H64STORETYPE_GLOBALCLASSSLOT,
     H64STORETYPE_GLOBALVARSLOT,
+    H64STORETYPE_VARATTRSLOT,
     H64STORETYPE_TOTAL_COUNT
 } storagetype;
 
@@ -73,7 +76,7 @@ typedef struct h64errorinfo {
     int64_t stack_frame_byteoffset[MAX_ERROR_STACK_FRAMES];
     unicodechar *msg;
     int64_t msglen;
-    int64_t error_class_id;
+    classid_t error_class_id;
     int refcount;
 } h64errorinfo;
 
@@ -112,7 +115,7 @@ typedef struct valuecontent {
             int constpreallocstr_refcount;
         } __attribute__((packed));
         struct {
-            int64_t error_class_id;
+            classid_t error_class_id;
             h64errorinfo *einfo;
         } __attribute__((packed));
         struct {
@@ -167,7 +170,7 @@ typedef struct h64instruction_getfunc {
 typedef struct h64instruction_getclass {
     uint8_t type;
     int16_t slotto;
-    int64_t classfrom;
+    classid_t classfrom;
 } __attribute__((packed)) h64instruction_getclass;
 
 typedef struct h64instruction_valuecopy {
@@ -251,7 +254,7 @@ typedef struct h64instruction_addcatchtypebyref {
 
 typedef struct h64instruction_addcatchtype {
     uint8_t type;
-    int64_t classid;
+    classid_t classid;
 } __attribute__ ((packed)) h64instruction_addcatchtype;
 
 typedef struct h64instruction_popcatchframe {
@@ -298,12 +301,12 @@ typedef struct h64instruction_newinstancebyref {
 typedef struct h64instruction_newinstance {
     uint8_t type;
     int16_t slotto;
-    int64_t classidcreatefrom;
+    classid_t classidcreatefrom;
 } __attribute__ ((packed)) h64instruction_newinstance;
 
 
 #define H64CLASS_HASH_SIZE 16
-#define H64CLASS_MAX_METHODS (INT_MAX / 4)
+#define H64CLASS_MAX_METHODS (INT32_MAX / 4)
 
 typedef struct h64classattributeinfo {
     int64_t nameid;
@@ -311,9 +314,9 @@ typedef struct h64classattributeinfo {
 } h64classattributeinfo;
 
 typedef struct h64class {
-    int methods_count;
+    int method_count;
     int64_t *method_global_name_idx;
-    int64_t *method_func_idx;
+    funcid_t *method_func_idx;
     int64_t base_class_global_id;
     int is_error;
 
@@ -334,7 +337,7 @@ typedef struct h64func {
 
     char *cfunclookup;  // path to identify C extension func
 
-    int associated_class_index;
+    classid_t associated_class_index;
 
     union {
         struct {
@@ -355,16 +358,16 @@ typedef struct h64program {
     int64_t globals_count;
     valuecontent *globals;
 
-    int64_t classes_count;
+    classid_t classes_count;
     h64class *classes;
 
-    int64_t func_count;
+    funcid_t func_count;
     h64func *func;
 
-    int64_t main_func_index;
-    int64_t globalinit_func_index;
-    int64_t print_func_index;
-    int64_t containeradd_func_index;
+    funcid_t main_func_index;
+    funcid_t globalinit_func_index;
+    funcid_t print_func_index;
+    funcid_t containeradd_func_index;
 
     int64_t as_str_name_index;
     int64_t length_name_index;
@@ -375,7 +378,7 @@ typedef struct h64program {
     int64_t hash_name_index;
     int64_t add_name_index;
 
-    int64_t globalvar_count;
+    globalvarid_t globalvar_count;
     h64globalvar *globalvar;
 
     h64debugsymbols *symbols;
@@ -398,17 +401,17 @@ void h64program_FreeInstructions(
 );
 
 void h64program_LookupClassAttribute(
-    h64program *p, int64_t class_id, int64_t nameid,
+    h64program *p, classid_t class_id, int64_t nameid,
     int *out_attributevarid, int *out_attributefuncid
 );
 
-int h64program_RegisterClassVariable(
+classid_t h64program_RegisterClassVariable(
     h64program *p,
-    int64_t class_id,
+    classid_t class_id,
     const char *name
 );
 
-int h64program_RegisterCFunction(
+funcid_t h64program_RegisterCFunction(
     h64program *p,
     const char *name,
     int (*func)(h64vmthread *vmthread),
@@ -419,10 +422,10 @@ int h64program_RegisterCFunction(
     const char *module_path,
     const char *library_name,
     int is_threadable,
-    int associated_class_idx
+    classid_t associated_class_idx
 );
 
-int h64program_RegisterHorse64Function(
+funcid_t h64program_RegisterHorse64Function(
     h64program *p,
     const char *name,
     const char *fileuri,
@@ -431,10 +434,10 @@ int h64program_RegisterHorse64Function(
     int last_posarg_is_multiarg,
     const char *module_path,
     const char *library_name,
-    int associated_class_idx
+    classid_t associated_class_idx
 );
 
-int h64program_AddClass(
+classid_t h64program_AddClass(
     h64program *p,
     const char *name,
     const char *fileuri,
@@ -442,7 +445,7 @@ int h64program_AddClass(
     const char *library_name
 );
 
-int h64program_AddGlobalvar(
+globalvarid_t h64program_AddGlobalvar(
     h64program *p,
     const char *name,
     int is_const,

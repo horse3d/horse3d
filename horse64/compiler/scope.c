@@ -12,7 +12,7 @@
 #include "json.h"
 
 
-int scope_Init(h64scope *scope) {
+int scope_Init(h64scope *scope, h64expression *expr) {
     scope->magicinitnum = SCOPEMAGICINITNUM;
 
     if (!scope->name_to_declaration_map) {
@@ -20,6 +20,7 @@ int scope_Init(h64scope *scope) {
         if (!scope->name_to_declaration_map)
             return 0;
     }
+    scope->expr = expr;
     return 1;
 }
 
@@ -108,7 +109,9 @@ int scope_AddItem(
         h64expression *expr, int *outofmemory
         ) {
     // Try to add to existing entry:
-    h64scopedef *def = scope_QueryItem(scope, identifier_ref, 0);
+    h64scopedef *def = scope_QueryItem(
+        scope, identifier_ref, SCOPEQUERY_FLAG_QUERYCLASSITEMS
+    );
     if (def) {
         if (outofmemory) *outofmemory = 0;
         return 0;
@@ -189,20 +192,25 @@ int scope_AddItem(
 }
 
 h64scopedef *scope_QueryItem(
-        h64scope *scope, const char *identifier_ref, int bubble_up
+        h64scope *scope, const char *identifier_ref,
+        int flags
         ) {
     assert(identifier_ref != NULL);
     uint64_t result = 0;
     assert(scope->name_to_declaration_map != NULL);
-    if (!hash_StringMapGet(
+    if (((flags & SCOPEQUERY_FLAG_QUERYCLASSITEMS) == 0 &&
+            scope->expr && scope->expr->type == H64EXPRTYPE_CLASSDEF_STMT) ||
+            !hash_StringMapGet(
             scope->name_to_declaration_map, identifier_ref, &result
             )) {
         #ifndef NDEBUG
         if (scope->parentscope)
             assert(scope->parentscope->magicinitnum == SCOPEMAGICINITNUM);
         #endif
-        if (bubble_up && scope->parentscope)
-            return scope_QueryItem(scope->parentscope, identifier_ref, 1);
+        if ((flags & SCOPEQUERY_FLAG_BUBBLEUP) != 0 && scope->parentscope)
+            return scope_QueryItem(
+                scope->parentscope, identifier_ref, flags
+            );
         return 0;
     }
     h64expression *expr = NULL;
@@ -212,8 +220,10 @@ h64scopedef *scope_QueryItem(
         if (result && expr && expr->destroyed) {
             scope_RemoveItem(scope, identifier_ref);
         }
-        if (bubble_up && scope->parentscope)
-            return scope_QueryItem(scope->parentscope, identifier_ref, 1);
+        if ((flags & SCOPEQUERY_FLAG_BUBBLEUP) != 0 && scope->parentscope)
+            return scope_QueryItem(
+                scope->parentscope, identifier_ref, flags
+            );
         return 0;
     }
     return (h64scopedef*)(uintptr_t)result;

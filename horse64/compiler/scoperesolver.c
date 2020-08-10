@@ -293,14 +293,14 @@ static int scoperesolver_ComputeItemStorage(
         }
         free(kwarg_names);
         assert(bytecode_func_id >= 0);
-        if (scope->is_global) {
+        if (scope->is_global || owningclassindex >= 0) {
             assert(expr->funcdef.stmt_count == 0 ||
                    expr->funcdef.stmt != NULL);
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALFUNCSLOT;
             expr->storage.ref.id = bytecode_func_id;
             if (name != NULL && strcmp(name, "main") == 0 &&
-                    extract_main) {
+                    extract_main && owningclassindex < 0) {
                 if (program->main_func_index >= 0) {
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
@@ -655,10 +655,23 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 }
                 return 1;
             }
+            int directly_in_class_func = (
+                surroundingclass(expr, 0) != NULL
+            );
+            if (directly_in_class_func && !expr->storage.set) {
+                expr->storage.set = 1;
+                expr->storage.ref.type = H64STORETYPE_STACKSLOT;
+                expr->storage.ref.id = 0;
+            } else if (!directly_in_class_func) {
+                h64expression *func = surroundingfunc(expr);
+                assert(func != NULL);
+                // FIXME: mark closure to have a self ref
+            }
             return 1;
         }
         h64scopedef *def = scope_QueryItem(
-            scope, expr->identifierref.value, 1
+            scope, expr->identifierref.value,
+            SCOPEQUERY_FLAG_BUBBLEUP
         );
         if (!def) {
             if (identifierisbuiltin(

@@ -123,7 +123,7 @@ static const char *_describetoken(
 static h64scopedef *_getSameScopeShadowedDefinition(
         h64parsethis *parsethis, const char *identifier) {
     h64scopedef *duplicateuse = scope_QueryItem(
-        parsethis->scope, identifier, 0
+        parsethis->scope, identifier, SCOPEQUERY_FLAG_QUERYCLASSITEMS
     );
     if (duplicateuse) {
         h64expression *expr = duplicateuse->declarationexpr;
@@ -1185,7 +1185,7 @@ int ast_ParseInlineFunc(
     assert(!parsethis->scope ||
            parsethis->scope->magicinitnum == SCOPEMAGICINITNUM);
     expr->funcdef.scope.parentscope = parsethis->scope;
-    if (!scope_Init(&expr->funcdef.scope)) {
+    if (!scope_Init(&expr->funcdef.scope, expr)) {
         if (outofmemory) *outofmemory = 1;
         if (parsefail) *parsefail = 0;
         ast_MarkExprDestroyed(expr);
@@ -2736,7 +2736,8 @@ int ast_CanAddNameToScopeCheck(
         return 1;
     } else {
         h64scopedef *shadoweduse = scope_QueryItem(
-            parsethis->scope, exprname, 1
+            parsethis->scope, exprname,
+            SCOPEQUERY_FLAG_BUBBLEUP
         );
         assert(!shadoweduse || shadoweduse->scope != NULL);
         assert(context != NULL && context->project != NULL);
@@ -3174,7 +3175,7 @@ int ast_ParseExprStmt(
         expr->funcdef.scope.parentscope = parsethis->scope;
         assert(!parsethis->scope ||
                parsethis->scope->magicinitnum == SCOPEMAGICINITNUM);
-        if (!scope_Init(&expr->funcdef.scope)) {
+        if (!scope_Init(&expr->funcdef.scope, expr)) {
             if (outofmemory) *outofmemory = 1;
             ast_MarkExprDestroyed(expr);
             return 0;
@@ -3408,7 +3409,7 @@ int ast_ParseExprStmt(
         expr->type = H64EXPRTYPE_CLASSDEF_STMT;
         expr->classdef.bytecode_class_id = -1;
         expr->classdef.scope.parentscope = parsethis->scope;
-        if (!scope_Init(&expr->classdef.scope)) {
+        if (!scope_Init(&expr->classdef.scope, expr)) {
             if (outofmemory) *outofmemory = 1;
             ast_MarkExprDestroyed(expr);
             return 0;
@@ -3721,7 +3722,7 @@ int ast_ParseExprStmt(
         // Get code block in do { ... }
         {
             expr->dostmt.doscope.parentscope = parsethis->scope;
-            if (!scope_Init(&expr->dostmt.doscope)) {
+            if (!scope_Init(&expr->dostmt.doscope, expr)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_MarkExprDestroyed(expr);
                 return 0;
@@ -3768,7 +3769,7 @@ int ast_ParseExprStmt(
                 tokens[i].type == H64TK_KEYWORD &&
                 strcmp(tokens[i].str_value, "rescue") == 0) {
             expr->dostmt.rescuescope.parentscope = parsethis->scope;
-            if (!scope_Init(&expr->dostmt.rescuescope)) {
+            if (!scope_Init(&expr->dostmt.rescuescope, expr)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_MarkExprDestroyed(expr);
                 return 0;
@@ -3992,7 +3993,7 @@ int ast_ParseExprStmt(
             h64parsethis _buf;
             expr->dostmt.has_finally_block = 1;
             expr->dostmt.finallyscope.parentscope = parsethis->scope;
-            if (!scope_Init(&expr->dostmt.finallyscope)) {
+            if (!scope_Init(&expr->dostmt.finallyscope, expr)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_MarkExprDestroyed(expr);
                 return 0;
@@ -4286,7 +4287,7 @@ int ast_ParseExprStmt(
             strcmp(tokens[0].str_value, "with") == 0) {
         expr->type = H64EXPRTYPE_WITH_STMT;
         expr->withstmt.scope.parentscope = parsethis->scope;
-        if (!scope_Init(&expr->withstmt.scope)) {
+        if (!scope_Init(&expr->withstmt.scope, expr)) {
             if (outofmemory) *outofmemory = 1;
             ast_MarkExprDestroyed(expr);
             return 0;
@@ -4743,7 +4744,7 @@ int ast_ParseExprStmt(
                 scope = &current_clause->scope;
             }
             scope->parentscope = parsethis->scope;
-            if (!scope_Init(scope)) {
+            if (!scope_Init(scope, expr)) {
                 if (outofmemory) *outofmemory = 1;
                 ast_MarkExprDestroyed(expr);
                 return 0;
@@ -5013,7 +5014,7 @@ h64ast *ast_ParseFromTokens(
     tokenstreaminfo.token = tokens;
     tokenstreaminfo.token_count = token_count;
 
-    if (!scope_Init(&result->scope)) {
+    if (!scope_Init(&result->scope, NULL)) {
         result_ErrorNoLoc(
             &result->resultmsg,
             "out of memory / alloc fail",

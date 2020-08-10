@@ -210,25 +210,25 @@ int h64program_RegisterClassAttributeEx(
     // Allocate new slot for either methods or vars:
     int entry_idx = -1;
     if (func_idx >= 0) {
-        if (p->classes[class_id].methods_count >=
+        if (p->classes[class_id].method_count >=
                 H64CLASS_MAX_METHODS)
             return 0;
         int64_t *new_method_global_name_idx = realloc(
             p->classes[class_id].method_global_name_idx,
             sizeof(*p->classes[class_id].
                    method_global_name_idx) *
-            (p->classes[class_id].methods_count + 1)
+            (p->classes[class_id].method_count + 1)
         );
         if (!new_method_global_name_idx)
             return 0;
         p->classes[class_id].method_global_name_idx = (
             new_method_global_name_idx
         );
-        int64_t *new_method_func_idx = realloc(
+        funcid_t *new_method_func_idx = realloc(
             p->classes[class_id].method_func_idx,
             sizeof(*p->classes[class_id].
                    method_func_idx) *
-            (p->classes[class_id].methods_count + 1)
+            (p->classes[class_id].method_count + 1)
         );
         if (!new_method_func_idx)
             return 0;
@@ -236,13 +236,13 @@ int h64program_RegisterClassAttributeEx(
             new_method_func_idx
         );
         new_method_global_name_idx[
-            p->classes[class_id].methods_count
+            p->classes[class_id].method_count
         ] = nameid;
         new_method_func_idx[
-            p->classes[class_id].methods_count
+            p->classes[class_id].method_count
         ] = func_idx;
-        p->classes[class_id].methods_count++;
-        entry_idx = p->classes[class_id].methods_count - 1;
+        p->classes[class_id].method_count++;
+        entry_idx = p->classes[class_id].method_count - 1;
     } else {
         int64_t *new_varattr_global_name_idx = realloc(
             p->classes[class_id].varattr_global_name_idx,
@@ -274,7 +274,7 @@ int h64program_RegisterClassAttributeEx(
 }
 
 void h64program_LookupClassAttribute(
-        h64program *p, int64_t class_id, int64_t nameid,
+        h64program *p, classid_t class_id, int64_t nameid,
         int *out_attributevarid, int *out_attributefuncid
         ) {
     assert(p != NULL && p->symbols != NULL);
@@ -304,7 +304,7 @@ void h64program_LookupClassAttribute(
 }
 
 void h64program_LookupClassAttributeByname(
-        h64program *p, int64_t class_id, const char *name,
+        h64program *p, classid_t class_id, const char *name,
         int *out_attributevarid, int *out_attributefuncid
         ) {
     int64_t nameid = h64debugsymbols_AttributeNameToAttributeNameId(
@@ -314,7 +314,7 @@ void h64program_LookupClassAttributeByname(
         *out_attributevarid = -1;
         *out_attributefuncid = -1;
     }
-    return h64program_LookupClassAttribute(
+    h64program_LookupClassAttribute(
         p, class_id, nameid,
         out_attributevarid, out_attributefuncid
     );
@@ -328,57 +328,65 @@ void h64program_PrintBytecodeStats(h64program *p) {
            _prefix, (int64_t)p->globals_count);
     printf("%s bytecode class count: %" PRId64 "\n",
            _prefix, (int64_t)p->classes_count);
-    int i = 0;
-    while (i < p->func_count) {
-        const char _noname[] = "(unnamed)";
-        const char *name = "(no symbols)";
-        if (p->symbols) {
-            h64funcsymbol *fsymbol = h64debugsymbols_GetFuncSymbolById(
-                p->symbols, i
+    {
+        funcid_t i = 0;
+        while (i < p->func_count) {
+            const char _noname[] = "(unnamed)";
+            const char *name = "(no symbols)";
+            if (p->symbols) {
+                h64funcsymbol *fsymbol = (
+                    h64debugsymbols_GetFuncSymbolById(
+                        p->symbols, i
+                    )
+                );
+                assert(fsymbol != NULL);
+                name = fsymbol->name;
+                if (!name) name = _noname;
+            }
+            char associatedclass[64] = "";
+            if (p->func[i].associated_class_index >= 0) {
+                snprintf(
+                    associatedclass, sizeof(associatedclass) - 1,
+                    " (CLASS: %d)", p->func[i].associated_class_index
+                );
+            }
+            char instructioninfo[64] = "";
+            if (!p->func[i].iscfunc && p->func[i].instructions_bytes > 0) {
+                snprintf(instructioninfo, sizeof(instructioninfo),
+                    " code: %" PRId64 "B",
+                    (int64_t)p->func[i].instructions_bytes);
+            }
+            printf(
+                "%s bytecode func id=%" PRId64 " "
+                "name: \"%s\" cfunction: %d%s%s%s\n",
+                _prefix, (int64_t)i, name, p->func[i].iscfunc,
+                instructioninfo,
+                (i == p->main_func_index ? " (PROGRAM START)" : ""),
+                associatedclass
             );
-            assert(fsymbol != NULL);
-            name = fsymbol->name;
-            if (!name) name = _noname;
+            i++;
         }
-        char associatedclass[64] = "";
-        if (p->func[i].associated_class_index >= 0) {
-            snprintf(
-                associatedclass, sizeof(associatedclass) - 1,
-                " (CLASS: %d)", p->func[i].associated_class_index
-            );
-        }
-        char instructioninfo[64] = "";
-        if (!p->func[i].iscfunc && p->func[i].instructions_bytes > 0) {
-            snprintf(instructioninfo, sizeof(instructioninfo),
-                " code: %" PRId64 "B",
-                (int64_t)p->func[i].instructions_bytes);
-        }
-        printf(
-            "%s bytecode func id=%" PRId64 " "
-            "name: \"%s\" cfunction: %d%s%s%s\n",
-            _prefix, (int64_t)i, name, p->func[i].iscfunc,
-            instructioninfo,
-            (i == p->main_func_index ? " (PROGRAM START)" : ""),
-            associatedclass
-        );
-        i++;
     }
-    i = 0;
-    while (i < p->classes_count) {
-        const char *name = "(no symbols)";
-        if (p->symbols) {
-            h64classsymbol *csymbol = h64debugsymbols_GetClassSymbolById(
-                p->symbols, i
+    {
+        classid_t i = 0;
+        while (i < p->classes_count) {
+            const char *name = "(no symbols)";
+            if (p->symbols) {
+                h64classsymbol *csymbol = (
+                    h64debugsymbols_GetClassSymbolById(
+                        p->symbols, i
+                    )
+                );
+                assert(csymbol != NULL && csymbol->name != NULL);
+                name = csymbol->name;
+            }
+            printf(
+                "%s bytecode class id=%" PRId64 " "
+                "name: \"%s\"\n",
+                _prefix, (int64_t)i, name
             );
-            assert(csymbol != NULL && csymbol->name != NULL);
-            name = csymbol->name;
+            i++;
         }
-        printf(
-            "%s bytecode class id=%" PRId64 " "
-            "name: \"%s\"\n",
-            _prefix, (int64_t)i, name
-        );
-        i++;
     }
 }
 
@@ -494,7 +502,7 @@ void h64program_Free(h64program *p) {
     if (p->symbols)
         h64debugsymbols_Free(p->symbols);
     if (p->classes) {
-        int i = 0;
+        classid_t i = 0;
         while (i < p->classes_count) {
             if (p->classes[i].global_name_to_attribute_hashmap) {
                 int k = 0;
@@ -513,7 +521,7 @@ void h64program_Free(h64program *p) {
     }
     free(p->classes);
     if (p->func) {
-        int i = 0;
+        funcid_t i = 0;
         while (i < p->func_count) {
             free(p->func[i].cfunclookup);
             if (!p->func[i].iscfunc) {
@@ -529,7 +537,7 @@ void h64program_Free(h64program *p) {
         }
     }
     free(p->func);
-    int i = 0;
+    globalvarid_t i = 0;
     while (i < p->globalvar_count) {
         valuecontent *content = &p->globalvar[i].content;
         DELREF_NONHEAP(content);
@@ -574,7 +582,7 @@ int bytecode_fileuriindex(h64program *p, const char *fileuri) {
     return fileuriindex;
 }
 
-int h64program_AddGlobalvar(
+globalvarid_t h64program_AddGlobalvar(
         h64program *p,
         const char *name,
         int is_const,
@@ -658,7 +666,7 @@ int h64program_AddGlobalvar(
     return p->globalvar_count - 1;
 }
 
-int h64program_RegisterCFunction(
+funcid_t h64program_RegisterCFunction(
         h64program *p,
         const char *name,
         int (*func)(h64vmthread *vmthread),
@@ -669,7 +677,7 @@ int h64program_RegisterCFunction(
         const char *module_path,
         const char *library_name,
         int is_threadable,
-        int associated_class_index
+        classid_t associated_class_index
         ) {
     assert(p != NULL && p->symbols != NULL);
     assert(name != NULL || associated_class_index < 0);
@@ -922,7 +930,7 @@ int h64program_RegisterCFunction(
     return p->func_count - 1;
 }
 
-int h64program_RegisterHorse64Function(
+funcid_t h64program_RegisterHorse64Function(
         h64program *p,
         const char *name,
         const char *fileuri,
@@ -931,9 +939,9 @@ int h64program_RegisterHorse64Function(
         int last_is_multiarg,
         const char *module_path,
         const char *library_name,
-        int associated_class_idx
+        classid_t associated_class_idx
         ) {
-    int idx = h64program_RegisterCFunction(
+    funcid_t idx = h64program_RegisterCFunction(
         p, name, NULL, fileuri, arg_count, arg_kwarg_name,
         last_is_multiarg, module_path,
         library_name, -1, associated_class_idx
@@ -944,7 +952,7 @@ int h64program_RegisterHorse64Function(
     return idx;
 }
 
-int h64program_AddClass(
+classid_t h64program_AddClass(
         h64program *p,
         const char *name,
         const char *fileuri,
@@ -1093,7 +1101,7 @@ int h64program_AddClass(
 
 int h64program_RegisterClassVariable(
         h64program *p,
-        int64_t class_id,
+        classid_t class_id,
         const char *name
         ) {
     return h64program_RegisterClassAttributeEx(
