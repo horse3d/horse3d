@@ -36,9 +36,11 @@ typedef struct h64funcstorageextrainfo {
 
     int32_t jump_targets_used;
 
+    int closure_with_self;
     int closureboundvars_count;
     h64scopedef **closureboundvars;
 
+    int lstoreassign_was_computed;
     int lstoreassign_count;
     h64localstorageassign *lstoreassign;
 } h64funcstorageextrainfo;

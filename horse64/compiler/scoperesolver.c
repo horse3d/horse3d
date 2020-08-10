@@ -665,7 +665,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             } else if (!directly_in_class_func) {
                 h64expression *func = surroundingfunc(expr);
                 assert(func != NULL);
-                // FIXME: mark closure to have a self ref
+                assert(func->funcdef._storageinfo != NULL);
+                func->funcdef._storageinfo->closure_with_self = 1;
             }
             return 1;
         }

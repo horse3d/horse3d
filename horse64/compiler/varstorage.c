@@ -36,12 +36,9 @@ static int nosideeffectsdef(h64expression *expr) {
     return 0;
 }
 
-int _resolvercallback_AssignNonglobalStorage_visit_in(
-        h64expression *expr, ATTR_UNUSED h64expression *parent,
-        void *ud
+int _resolver_EnsureLStoreAssign(
+        asttransforminfo *rinfo, h64expression *expr
         ) {
-    asttransforminfo *rinfo = (asttransforminfo *)ud;
-
     if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
         if (!expr->funcdef._storageinfo) {
@@ -55,6 +52,9 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
             memset(expr->funcdef._storageinfo, 0,
                    sizeof(*expr->funcdef._storageinfo));
         }
+        if (expr->funcdef._storageinfo->lstoreassign_was_computed)
+            return 1;
+        expr->funcdef._storageinfo->lstoreassign_was_computed = 1;
 
         h64expression *owningclassexpr = surroundingclass(
             expr, 0
@@ -68,7 +68,8 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
             int param_used_temps = (
                 einfo->closureboundvars_count +
                 expr->funcdef.arguments.arg_count +
-                (owningclassexpr != NULL ? 1 : 0)
+                ((owningclassexpr != NULL ||
+                  einfo->closure_with_self) ? 1 : 0)
             );
             int freetemp = param_used_temps;
             int i = 0;
@@ -84,13 +85,17 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
                 }
                 einfo->lstoreassign = newlstoreassign;
                 memset(
-                    &einfo->lstoreassign[einfo->lstoreassign_count], 0,
-                    sizeof(*newlstoreassign)
+                    &einfo->lstoreassign[
+                        einfo->lstoreassign_count
+                    ], 0, sizeof(*newlstoreassign)
                 );
                 einfo->lstoreassign[einfo->lstoreassign_count].
                     valuetemporaryid = freetemp;
                 einfo->lstoreassign[einfo->lstoreassign_count].
-                    valueboxtemporaryid = i;
+                    valueboxtemporaryid = i + (
+                    (owningclassexpr != NULL ||
+                     einfo->closure_with_self) ? 1 : 0
+                    );
                 einfo->lstoreassign[einfo->lstoreassign_count].
                     vardef = einfo->closureboundvars[i];
                 einfo->lstoreassign[einfo->lstoreassign_count].
@@ -108,9 +113,22 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
             einfo->lowest_guaranteed_free_temp = (
                 einfo->closureboundvars_count +
                 expr->funcdef.arguments.arg_count +
-                (owningclassexpr != NULL ? 1 : 0)
+                ((owningclassexpr != NULL ||
+                  einfo->closure_with_self) ? 1 : 0)
             );
         }
+    }
+    return 1;
+}
+
+int _resolvercallback_AssignNonglobalStorage_visit_in(
+        h64expression *expr, ATTR_UNUSED h64expression *parent,
+        void *ud
+        ) {
+    asttransforminfo *rinfo = (asttransforminfo *)ud;
+    if (!_resolver_EnsureLStoreAssign(rinfo, expr)) {
+        rinfo->hadoutofmemory = 1;
+        return 0;
     }
     return 1;
 }
@@ -129,6 +147,10 @@ int _resolver_EnsureLocalDefStorage(
         h64expression *func = surroundingfunc(expr);
         if (!func)
             return 1;  // global, we don't care about that (non-local)
+        if (!_resolver_EnsureLStoreAssign(rinfo, func)) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
         if (!func->funcdef._storageinfo) {
             rinfo->hadunexpectederror = 1;
             return 0;
