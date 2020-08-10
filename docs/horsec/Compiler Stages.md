@@ -4,14 +4,14 @@
 The stages of [horsec](./horsec.md), the official compiler for horse64,
 are as follows:
 
-- 1. Lexer (horse64/compiler/lexer.c)
-- 2. AST Parser (horse64/compiler/astparse.c)
-- 3. Scope Resolution (horse64/compiler/scoperesolver.c)
+- #1 Lexer (horse64/compiler/lexer.c)
+- #2 AST Parser (horse64/compiler/astparse.c)
+- #3 Scope Resolution (horse64/compiler/scoperesolver.c)
   
   This also applies storage (horse64/compiler/varstorage.c)
   to assign memory storage.
-- 4. Code Generation (horse64/compiler/codegen.c)
-- 5. Assembly into a binary
+- #4 Code Generation (horse64/compiler/codegen.c)
+- #5 Assembly into a binary
 
 These stages are applied on a per file basis, initially on the file
 you specify as starting point. Any `import` statement in that file will
