@@ -3,7 +3,7 @@
 
 This specification describes the syntax, semantics, and grammar of the
 Horse64 behavior, with additional notes about the relevant
-[horsec](../horsec/horsec.md)/[horsevm](../Misc Tooling/horsevm.md)
+[horsec](../horsec/horsec.md)/[horsevm](../Misc%20Tooling/horsevm.md)
 details as far as they strongly affect language behavior.
 
 
