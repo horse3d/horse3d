@@ -41,7 +41,7 @@ int main(int argc, const char **argv) {
                        "describe resulting bytecode.\n");
                 printf("  - \"compile\"           Compile .h64 code "
                        "and output executable.\n");
-                printf("  - \"to_asm\"            Translate to .hasm\n");
+                printf("  - \"get_asm\"           Translate to .hasm\n");
                 printf("  - \"get_ast\"           Get AST of code\n");
                 printf("  - \"get_resolved_ast\"  "
                        "Get AST of code with resolved identifiers\n");
@@ -71,7 +71,7 @@ int main(int argc, const char **argv) {
             }
             if (!action && (strcmp(argv[i], "codeinfo") == 0 ||
                     strcmp(argv[i], "compile") == 0 ||
-                    strcmp(argv[i], "to_asm") == 0 ||
+                    strcmp(argv[i], "get_asm") == 0 ||
                     strcmp(argv[i], "get_ast") == 0 ||
                     strcmp(argv[i], "get_resolved_ast") == 0 ||
                     strcmp(argv[i], "get_tokens") == 0 ||
@@ -100,7 +100,7 @@ int main(int argc, const char **argv) {
     } else if (strcmp(action, "compile") == 0) {
         if (!compiler_command_Compile(argv, argc, action_offset))
             return -1;
-    } else if (strcmp(action, "to_asm") == 0) {
+    } else if (strcmp(action, "get_asm") == 0) {
         if (!compiler_command_ToASM(argv, argc, action_offset))
             return -1;
     } else if (strcmp(action, "get_ast") == 0) {
