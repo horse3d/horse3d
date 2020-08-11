@@ -39,7 +39,7 @@ listed above might also be a good start to see what needs fixing.
 Here is where you can find the source code:
 
 
-### core.horse64.org Source
+### core.horse64.org Package
 
 [https://github.com/horse64/core.horse64.org](
   https://github.com/horse64/core.horse64.org
@@ -51,7 +51,7 @@ largely written in the C programming language. You can build this
 repository with `GNU make`.)
 
 
-## multimedia.horse64.org Source
+## multimedia.horse64.org Package
 
 [https://github.com/horse64/multimedia.horse64.org](
   https://github.com/horse64/multimedia.horse64.org

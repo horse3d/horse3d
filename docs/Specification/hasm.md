@@ -5,7 +5,7 @@ The `horse assembler` bytecode language is what is used by the
 builtin [horsevm](../Misc%20Tooling/horsevm.md). There is currently
 no specification available, but you can find the implementation
 in the [core package sources](
-    ../Contributing.md#core.horse64.org-source
+    ../Contributing.md#corehorse64org-package
 ) inside the `horse64/bytecode.h` file.
 
 ---
