@@ -253,6 +253,16 @@ static int _expr_visit_find_is_instance_of_guard(
     return 1;
 }
 
+static int _expr_visit_find_hasattr_guard(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    int *result = (int *)ud;
+    if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
+            strcmp(expr->identifierref.value, "hasattr"))
+        *result = 1;
+    return 1;
+}
+
 int _resolver_IsPossiblyGuardedInvalidMember(
         h64expression *expr
         ) {
@@ -261,12 +271,17 @@ int _resolver_IsPossiblyGuardedInvalidMember(
         if (child != NULL &&
                 expr->type == H64EXPRTYPE_IF_STMT) {
             int got_is_instance_of = 0;
+            int got_hasattr = 0;
             int visit_result = ast_VisitExpression(
                 expr, NULL, &_expr_visit_find_is_instance_of_guard,
                 NULL, NULL, &got_is_instance_of
             );
             assert(visit_result);
-            if (got_is_instance_of)
+            visit_result = ast_VisitExpression(
+                expr, NULL, &_expr_visit_find_hasattr_guard,
+                NULL, NULL, &got_hasattr
+            );
+            if (got_is_instance_of || got_hasattr)
                 return 1;
         }
         child = expr;
@@ -444,20 +459,19 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
                     "unknown identifier \"%s\" on self, "
-                    "class doesn't have this attribute - not "
-                    "allowed outside an .is_instance_of() if guard",
+                    "will error at runtime - and "
+                    "no hasattr()/.is_instance_of() if guard present",
                     namebuf
                 );
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,
-                        H64MSG_ERROR, buf, rinfo->ast->fileuri,
+                        H64MSG_WARNING, buf, rinfo->ast->fileuri,
                         expr->line,
                         expr->column
                         )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
-                return 1;
             }
         } else {
             if (!expr->storage.set) {
