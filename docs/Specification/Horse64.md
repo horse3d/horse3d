@@ -12,15 +12,15 @@ Here is an overview how it roughly compares:
 |*Feature List*                 |Horse64 |Scripting Lang|Backend Lang    |
 |-------------------------------|--------|--------------|----------------|
 |Dynamic Types                  |Yes     |Yes           |No              |
-|Duck Typing                    |No      |Some          |No              |
+|Heavy Duck Typing              |No      |Some of them  |No              |
 |Garbage Collected              |Yes     |Yes           |Some            |
 |Compiles AOT & Optimized       |Yes     |Usually no    |Yes             |
 |Slow dynamic scope lookups     |No      |Yes           |Usually no      |
 |Runtime eval()                 |No      |Yes           |Usually no      |
 |Runtime module load            |No      |Yes, common   |Yes, discouraged|
-|Produces Standalone Binary     |Yes     |No, or tricky |Some            |
-|Beginner-friendly              |Yes     |Yes           |Some            |
-|Dynamic REPL mode              |No      |Yes           |Some            |
+|Produces Standalone Binary     |Yes     |No, or tricky |Some of them    |
+|Beginner-friendly              |Yes     |Yes           |Some of them    |
+|Dynamic REPL mode              |No      |Yes           |Some of them    |
 
 ---
 This documentation is CC-BY-4.0 licensed.
