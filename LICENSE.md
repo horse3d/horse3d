@@ -41,7 +41,7 @@ Horse64 Documentation License
 
 The documentation as found in the `docs/` folder is CC-BY-4.0 licensed.
 ( https://creativecommons.org/licenses/by/4.0/ )
-It should be credit as `Copyright (C) 2020 Horse64 Team (See AUTHORS.md)`.
+It should be credited as `Copyright (C) 2020 Horse64 Team (See AUTHORS.md)`.
 
 
 Horse64 Logo License
