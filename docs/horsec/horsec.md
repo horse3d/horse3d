@@ -12,6 +12,9 @@ code to binaries. The source code can be found in the
 
 `horsec` is part of the [official SDK](../Introduction.md#download).
 
+
+## Manual build
+
 You can also fetch the source code and compile `horsec` yourself
 if you prefer your own binaries.
 
