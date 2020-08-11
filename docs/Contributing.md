@@ -22,9 +22,10 @@ and then **report the issue:**
   )
 
 For other issues, please locate the bug tracker of the respective
-package or project.
+package or project. If it isn't about a specific package,
+use the [general bug tracker](https://github.com/horse64/horse64-general).
 
-Don't forget the [guidelines](./Community Guidelines.md) in mind
+Don't forget the [guidelines](./Community%20Guidelines.md)
 when filing tickets, and to check for duplicate tickets that
 were already filed!
 
@@ -32,7 +33,10 @@ were already filed!
 ## Sources
 
 If you want to dive deeper into contributions, you may want to
-dive deeper into the source code. Here is where you can find it:
+dive deeper into the source code. In general, the issue trackers
+listed above might also be a good start to see what needs fixing.
+
+Here is where you can find the source code:
 
 
 ### core.horse64.org Source
