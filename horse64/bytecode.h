@@ -317,7 +317,7 @@ typedef struct h64class {
     int method_count;
     int64_t *method_global_name_idx;
     funcid_t *method_func_idx;
-    int64_t base_class_global_id;
+    classid_t base_class_global_id;
     int is_error;
 
     int varattr_count;
@@ -409,6 +409,10 @@ classid_t h64program_RegisterClassVariable(
     h64program *p,
     classid_t class_id,
     const char *name
+);
+
+int h64program_ClassNameToMemberIdx(
+    h64program *p, classid_t class_id, int64_t nameidx
 );
 
 funcid_t h64program_RegisterCFunction(

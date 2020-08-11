@@ -168,6 +168,22 @@ h64program *h64program_New() {
     return p;
 }
 
+int h64program_ClassNameToMemberIdx(
+        h64program *p, classid_t class_id, int64_t nameidx
+        ) {
+    int bucketindex = (nameidx % (int64_t)H64CLASS_HASH_SIZE);
+    h64classattributeinfo *buckets =
+        (p->classes[class_id].
+            global_name_to_attribute_hashmap[bucketindex]);
+    int buckets_count = 0;
+    while (buckets[buckets_count].nameid >= 0) {
+        if (buckets[buckets_count].nameid == nameidx)
+            return buckets[buckets_count].methodorvaridx;
+        buckets_count++;
+    }
+    return -1;
+}
+
 int h64program_RegisterClassAttributeEx(
         h64program *p,
         int64_t class_id,
