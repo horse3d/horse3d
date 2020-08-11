@@ -258,7 +258,7 @@ static int _expr_visit_find_hasattr_guard(
         ) {
     int *result = (int *)ud;
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
-            strcmp(expr->identifierref.value, "hasattr"))
+            strcmp(expr->identifierref.value, "has_attr"))
         *result = 1;
     return 1;
 }
@@ -460,7 +460,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 snprintf(buf, sizeof(buf) - 1,
                     "unknown identifier \"%s\" on self, "
                     "will error at runtime - and "
-                    "no hasattr()/.is_instance_of() if guard present",
+                    "no has_attr()/.is_instance_of() if guard present",
                     namebuf
                 );
                 if (!result_AddMessage(
