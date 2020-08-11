@@ -106,7 +106,9 @@ runtime:
 - An object instance can actually be an error instance
   (created through a raised error, rather than new on
   a regular class) which is internally optimized to not
-  be garbage collected.
+  be garbage collected. However, it is still passed by
+  reference and otherwise behaves like a regular object
+  instance.
 
 - A function can also be a closure, indirectly causing
   garbage collector loads through variables captured by
