@@ -50,8 +50,8 @@ func main {
 
 It has the following notable properties:
 
-- *Mostly imperative with clean OOP.* Classes exist and
-  are very clean and simple, but you don't need to use them.
+- *Suitable for imperative and clean OOP.* Classes exist and
+  are clean and simple, but you don't need to use them.
 
 - *No significant whitespace,* indentation doesn't matter.
   However, we suggest you always use 4 spaces.
@@ -71,7 +71,110 @@ It has the following notable properties:
   explicit delete operator of any kind.
 
 See the respective later sections for both the detailed grammar,
-as well as details on Garbage Collection.
+the constructs and how they work, as well as details on Garbage
+Collection and more.
+
+
+## Syntax Constructs
+
+### Functions and calls
+
+All code other than classes and global variables must be inside
+functions declared with `func`.
+The `main` func in the code file supplied to `horsec compile` will
+be the starting point, and other functions like the built-in `print`
+can be called as a statement:
+
+```horse64
+func main {
+    print("Hello World! This is where my program starts.")
+}
+```
+
+### Variable definitions and assignments
+
+Variables can be declared with any given unicode name.
+They default to none, but may be assigned a default value.
+They can be reassigned later if known in the current scope:
+
+```horse64
+var my_none_variable
+var my_number_variable = 5
+my_number_variable = 7  # change value to 7!
+```
+
+For constant unchangeable values, use `const` instead:
+
+```horse64
+const my_variable = 5
+```
+(This sometimes also allows the compiler to optimize better.)
+
+
+### Conditionals
+
+Conditionals can be tested with `if` statements, the inner
+code runs if the conditional evaluates to a trueish value. 
+Otherwise, all `elseif` are tested if present, and `else`
+is taken if all fails.
+
+```horse64
+if my_tested_value == 5 {
+    print("This is the case where the value is 5.")
+} elseif my_tested_value == 6 {
+    print("This is the case where the value is 6.")
+} else {
+    print("The value is something else than 5 or 6.")
+}
+```
+
+**Evaluation order:**
+
+- Later `elseif` conditionals are never evaluated if a previous
+  branch is taken.
+
+- The conditional itself is evaluated in precendece order and left-to-right,
+  evaluation stopping as soon as the value is clear. (E.g. a logical `and`
+  combination will only have the left-hand side evaluated if that returns
+  a falseish value, skipping the right-hand side.)
+
+
+### Loops
+
+Horse64 supports two loop types, a `while` loop with an
+arbitrary conditional, and a `for` loop that does a for
+each iteration over a container.
+
+```horse64
+# While loop (using a conditional):
+
+var i = 0;
+while (i < 10) {
+    print("Counting up: " + i.as_str)
+    i += 1
+}
+
+# For loop (iterating a container):
+
+var items = ["banana", "chair"]
+for item in items {
+    print("Item: " + item)
+}
+```
+The conditional of a while loop is re-evaluated before each next
+rerun of the loop, retriggering inner side effects like embedded calls.
+
+Container iteration notes:
+
+- A container can be any of: list, set, vector, or map.
+- For the map, the keys will be iterated like a set.
+- If the container is changed during iteration,
+  a `ContainerIterationError` will be raised.
+
+
+### More
+
+FIXME
 
 
 ## Datatypes
@@ -101,7 +204,7 @@ the given data type will cause garbage collector load, with
 the according performance implications.
 
 Please note there are more hidden differentiations in the
-runtime:
+runtime which **may be subject to future change**:
 
 - An object instance can actually be an error instance
   (created through a raised error, rather than new on
