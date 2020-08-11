@@ -21,7 +21,6 @@ Here is an overview how it roughly compares:
 |Produces Standalone Binary     |Yes     |No, or tricky |Some            |
 |Beginner-friendly              |Yes     |Yes           |Some            |
 |Dynamic REPL mode              |No      |Yes           |Some            |
-|-------------------------------|--------|--------------|----------------|
 
 ---
 This documentation is CC-BY-4.0 licensed.
