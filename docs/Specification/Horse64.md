@@ -50,6 +50,9 @@ func main {
 
 It has the following notable properties:
 
+- *Mostly imperative with clean OOP.* Classes exist and
+  are very clean and simple, but you don't need to use them.
+
 - *No significant whitespace,* indentation doesn't matter.
   However, we suggest you always use 4 spaces.
 
@@ -63,7 +66,12 @@ It has the following notable properties:
   surrounding `{` and `}` code block brackets, and must be
   declared before use.
 
-See the respective later section for the detailed grammar.
+- *No manual memory management,* since Horse64 is garbage-collected.
+  There is a `new` operator to make object instances, but no
+  explicit delete operator of any kind.
+
+See the respective later sections for both the detailed grammar,
+as well as details on Garbage Collection.
 
 
 ## Datatypes
