@@ -3,9 +3,10 @@ Horse64 Code License
 ---------------------
 
 All of Horse64, excluding the Horse64 Logo with files found in `misc/`
-(`misc/logo.svg` and others starting with "logo") and files possibly
-baked into the official binaries, and excluding third-party code
-found in `vendor/`, is licensed under the following terms:
+(`misc/logo.svg` and others starting with "logo") and the logo files
+possibly baked into the official binaries, and excluding third-party
+code found in `vendor/`, and excluding the documentation in `docs/`,
+is licensed under the following terms:
 
 ```
 Copyright (c) 2020,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
@@ -34,7 +35,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 **Please also observe `3RDPARTYCREDITS.md`, and license of code in `vendor/`.**
 
-Horse64 Logo license
+Horse64 Documentation License
+-----------------------------
+
+The documentation as found in the `docs/` folder is CC-BY-4.0 licensed.
+( https://creativecommons.org/licenses/by/4.0/ )
+It should be credit as `Copyright (C) 2020 Horse64 Team (See AUTHORS.md)`.
+
+
+Horse64 Logo License
 ---------------------
 
 Horse64 Logo is Copyright (C)  2020, ellie/@ell1e. All Rights Reserved.
