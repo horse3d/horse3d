@@ -12,8 +12,29 @@ code to binaries. The source code can be found in the
 
 `horsec` is part of the [official SDK](../Introduction.md#download).
 
+You can also fetch the source code and compile `horsec` yourself
+if you prefer your own binaries.
 
-## How does it work
+To compile `horsec` manually, do the following:
+
+1. Install git, gcc, GNU make, python3. Please note that building
+   is only supported on Linux. For a Windows build, install a MinGW
+   cross compiler for 64bit targets.
+
+2. `git clone` the [repository](../Contributing.md#corehorse64org-package)
+
+3. Change directory in your terminal into the repository folder
+
+4. Run: `git submodule init --update` (fetches dependencies)
+
+5. Run: `make` (does actual build)
+
+   To cross-compile, run `CC=<your-cross-compiler> make` instead.
+
+6. You should now have a `horsec`/`horsec.exe` binary.
+
+
+## How does `horsec` work
 
 If you think you found a bug then please check this full
 documentation carefully and possibly consult with community
