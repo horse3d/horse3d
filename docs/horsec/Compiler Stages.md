@@ -1,8 +1,8 @@
 
 # Compiler Stages
 
-The stages of [horsec](./horsec.md), the official compiler for horse64,
-are as follows:
+The internal stages used by [horsec](./horsec.md), the official
+compiler for horse64, are as follows:
 
 - Stage 1: Lexer (horse64/compiler/lexer.c)
 - Stage 2: AST Parser (horse64/compiler/astparse.c)
