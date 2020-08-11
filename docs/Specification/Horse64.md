@@ -2,9 +2,9 @@
 # Horse64 Specification
 
 This specification describes the syntax, semantics, and grammar of the
-Horse64 behavior, with additional notes about the relevant
-[horsec](../horsec/horsec.md)/[horsevm](../Misc%20Tooling/horsevm.md)
-details as far as they strongly affect language behavior.
+Horse64 behavior, with additional notes about
+[horsec](../horsec/horsec.md) and [horsevm](../Misc%20Tooling/horsevm.md)
+details when relevant to language behavior.
 
 
 ## Overview
