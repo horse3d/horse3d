@@ -2,7 +2,8 @@
 Horse64 Code License
 ---------------------
 
-All of Horse64, excluding the Horse64 Logo with files found in `misc/`
+All of Horse64 contents as found in this repository, excluding
+the Horse64 Logo with files found in `misc/`
 (`misc/logo.svg` and others starting with "logo") and the logo files
 possibly baked into the official binaries, and excluding third-party
 code found in `vendor/`, and excluding the documentation in `docs/`,
