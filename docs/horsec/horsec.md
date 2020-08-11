@@ -8,3 +8,9 @@ If you think you found a bug then please check this full documentation carefully
 A few starting points to learn more about horsec:
 
 - [Compiler Stages of horsec](./Compiler%20Stages.md)
+
+
+-
+*This documentation is CC-BY-4.0 licensed.
+( https://creativecommons.org/licenses/by/4.0/ )
+Copyright (C) 2020  Horse64 Team (See AUTHORS.md)*

@@ -26,3 +26,8 @@ To get the output of each respective stages, use:
 - `horsec get_resolved_ast` for a scope resolved AST tree
 - `horsec get_asm` to print the bytecode from code generation
 - `horsec compile` to get an actual binary
+
+
+*This documentation is CC-BY-4.0 licensed.
+( https://creativecommons.org/licenses/by/4.0/ )
+Copyright (C) 2020  Horse64 Team (See AUTHORS.md)*
