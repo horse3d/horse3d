@@ -59,3 +59,9 @@ repository with `GNU make`.)
 
 (This repository includes the `multimedia.horse64.org` module that
 provides easy graphics and audio access, as well as the default UI.)
+
+
+---
+*This documentation is CC-BY-4.0 licensed.
+( https://creativecommons.org/licenses/by/4.0/ )
+Copyright (C) 2020  Horse64 Team (See AUTHORS.md)*
