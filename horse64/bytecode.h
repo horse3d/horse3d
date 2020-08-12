@@ -92,10 +92,13 @@ typedef enum valuetype {
     H64VALTYPE_SHORTSTR,
     H64VALTYPE_CONSTPREALLOCSTR,
     H64VALTYPE_OBJINSTANCE,
+    H64VALTYPE_VECTOR,
     H64VALTYPE_UNSPECIFIED_KWARG,
 } valuetype;
 
 #define VALUECONTENT_SHORTSTRLEN 3
+
+typedef struct vectorentry vectorentry;
 
 typedef struct valuecontent {
     uint8_t type;
@@ -112,15 +115,18 @@ typedef struct valuecontent {
         struct {
             unicodechar *constpreallocstr_value;
             int32_t constpreallocstr_len;
-            int constpreallocstr_refcount;
         } __attribute__((packed));
         struct {
             classid_t error_class_id;
             h64errorinfo *einfo;
         } __attribute__((packed));
         struct {
-            int varattr_count;
+            int16_t varattr_count;
             valuecontent *varattr;
+        } __attribute__((packed));
+        struct {
+            int32_t vector_len;
+            vectorentry *vector_values;
         } __attribute__((packed));
     } __attribute__((packed));
 } __attribute__((packed)) valuecontent;
@@ -472,8 +478,6 @@ static inline void DELREF_NONHEAP(valuecontent *content) {
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount--;
-    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        content->constpreallocstr_refcount--;
     }
 }
 
@@ -483,8 +487,6 @@ static inline void ADDREF_NONHEAP(valuecontent *content) {
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount++;
-    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        content->constpreallocstr_refcount++;
     }
 }
 
@@ -494,8 +496,6 @@ static inline void DELREF_HEAP(valuecontent *content) {
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount--;
-    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        content->constpreallocstr_refcount--;
     }
 }
 
@@ -505,8 +505,6 @@ static inline void ADDREF_HEAP(valuecontent *content) {
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount++;
-    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        content->constpreallocstr_refcount++;
     }
 }
 

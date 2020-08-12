@@ -639,7 +639,7 @@ a copy, while "no" means it will reference the existing copy:
 |string         |Yes              |No                 |
 |function       |No               |No                 |
 |list           |No               |Yes                |
-|vector         |No               |Yes                |
+|vector         |Yes              |No                 |
 |map            |No               |Yes                |
 |set            |No               |Yes                |
 |object instance|No               |Yes                |

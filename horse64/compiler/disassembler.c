@@ -675,7 +675,7 @@ int disassembler_Dump(
         if (p->classes[i].base_class_global_id >= 0)
             snprintf(
                 baseclass_str, sizeof(baseclass_str) - 1,
-                "c%" PRId64, p->classes[i].base_class_global_id
+                "c%" PRId64, (int64_t)p->classes[i].base_class_global_id
             );
         char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
         snprintf(linebuf, sizeof(linebuf) - 1,

@@ -25,7 +25,6 @@ typedef enum gcvaluetype {
     H64GCVALUETYPE_STRING,
     H64GCVALUETYPE_LIST,
     H64GCVALUETYPE_SET,
-    H64GCVALUETYPE_VECTOR,
     H64GCVALUETYPE_MAP,
     H64GCVALUETYPE_TOTAL_COUNT
 } gcvaluetype;
@@ -57,10 +56,6 @@ typedef struct h64gcvalue {
         };
         struct {
             genericlist *list_values;
-        };
-        struct {
-            int vector_len;
-            vectorentry *vector_values;
         };
         struct {
             h64closureinfo *closure_info;
