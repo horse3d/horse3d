@@ -340,6 +340,29 @@ Container iteration notes:
   a `ContainerIterationError` will be raised.
 
 
+### Import statement (import)
+
+The import statement allows importing global symbols like
+global variable definitions, function definitions, or
+class definitions from another module:
+
+```horse64
+import io from core.horse64.org
+
+func main {
+    with io.open("A test file.txt", "w") as file {
+        file.write("test")
+    }
+}
+```
+*(the import makes the function named `open` available
+from the `io` module)*
+
+Usually, a file corresponds to one module. Read the
+[section on modules](#modules-and-libraries-code-files)
+for details.
+
+
 ### Defining custom classes (class, new)
 
 To help with object-oriented programming, Horse64 allows
@@ -804,12 +827,399 @@ side effects.
 
 ### Operators
 
-FIXME: Write this
+Horse64 supports the following operators, all of which
+will raise a `TypeError` if not applied to the supported
+types specified:
+
+**Math operators:**
+
+Math operators: `+`, `-`, `*`, `/`, `%`,
+bitwise math operators: `<<`, `>>`, `~`, `&`, `|`, `^`.
+*(all binary operators)*
+
+They can be applied to any pair of numbers, the
+bitwise ones will round the number to a 64bit integer
+first if it has a fractional part.
+
+The `+` operator can also be applied to two strings,
+and the `-` operator can also be used as a unary operator;
+
+**Comparison operators:**
+
+Comparison operators: `==`, `!=`, `>`, `<`, `>=`, `<=`.
+*(all binary operators)*
+
+The first two can be applied to any types, the others
+to a pair of numbers, or a pair of strings which compares
+them based on unicode code point value. All comparisons
+evaluate to either false or true.
+
+**Boolean operators:**
+
+Boolean operators: `not`, `and`, `or`.
+*(`not` unary, others binary operators)*
+
+All of these can be applied to any pair of booleans,
+and will return a boolean.
+The `and` operator will only evaluate the left-hand side
+if it turns out to be false. The `or` operator will only
+evaluate the left-hand side if it turns out to be true.
+
+**New operator:**
+
+New operator: `new`.
+*(unary operator)*
+
+Example: `new class_name(arg1, arg2)`
+This operator can be applied to an identifier that
+refers to a class, or a value that was assigned from
+an identifier referring to a class, combined with
+arguments for the constructor.
+It evaluates to an object instance, or may raise any
+error caused by the `init` function attribute when run.
+
+**Index by expression operator:**
+
+Index by expression operator: `[` with closing `]`.
+*(binary operator)*
+
+Example: `somecontainer[<indexexpr>]`.
+This operator can be applied to any container of type
+list or vector, and takes a number type for indexing. It
+evaluates to the respective nth list or vector item.
+If the number passed in is lower than `1` or higher than
+the amount of items, an `IndexError` will be raised.
+
+**Attribute by identifier operator:**
+
+Attribute by identifier operator: `.` (dot).
+*(binary operator)*
+
+Example: `someitem.identifier`.
+The item can be any arbitrary expression, the identifier must
+be an actual identifier and not any other type of expression.
+The operator can be applied on any item, even numbers or
+booleans or even none, but will raise an `AttributeError` if
+the given data type doesn't have this attribute. All
+data types have the `.as_str` attribute that returns a
+string representation. For object instances of classes, the
+according attributes as defined by the class are returned.
+Containers and strings have the `.length` attribute which
+returns the number of entries or characters respectively.
+
+**Call operator:**
+
+Call operator: `(` with closing `)`.
+*(binary operator)*
+
+Calls are also treated as an operator. Check the [section
+on functions and calls](#functions-and-calls-func) for details.
+
+**Operator precedences:**
+
+If operators aren't clearly bracketed off to indicate evaluation
+order, then it is determined by operator precedence.
+For simplicity, precedence is presented here by pasting the
+according C code of [horsec](../horsec/horsec.md):
+
+```C
+    case H64OP_ATTRIBUTEBYIDENTIFIER: return 0;
+    case H64OP_INDEXBYEXPR: return 0;
+    case H64OP_CALL: return 0;
+    case H64OP_NEW: return 1;
+    case H64OP_MATH_UNARYSUBSTRACT: return 2;
+    case H64OP_MATH_BINNOT: return 3;
+    case H64OP_MATH_BINAND: return 3;
+    case H64OP_MATH_BINOR: return 4;
+    case H64OP_MATH_BINXOR: return 5;
+    case H64OP_MATH_DIVIDE: return 6;
+    case H64OP_MATH_MULTIPLY: return 6;
+    case H64OP_MATH_MODULO: return 6;
+    case H64OP_MATH_ADD: return 7;
+    case H64OP_MATH_SUBSTRACT: return 7;
+    case H64OP_MATH_BINSHIFTLEFT: return 8;
+    case H64OP_MATH_BINSHIFTRIGHT: return 8;
+    case H64OP_CMP_EQUAL: return 9;
+    case H64OP_CMP_NOTEQUAL: return 9;
+    case H64OP_CMP_LARGEROREQUAL: return 10;
+    case H64OP_CMP_SMALLEROREQUAL: return 10;
+    case H64OP_CMP_LARGER: return 10;
+    case H64OP_CMP_SMALLER: return 10;
+    case H64OP_BOOLCOND_NOT: return 11;
+    case H64OP_BOOLCOND_AND: return 12;
+    case H64OP_BOOLCOND_OR: return 13;
+```
+
+A lower number means the operator will be evaluated first
+compared to one with a higher number, and
+same number means it will be evaluated left-to-right.
+
+
+## Modules and Libraries and Code Files
+
+Horse64 allows specifying larger programs in multiple code files,
+organized as modules. This section specifies how code files must
+look like, and how they map to modules, and how modules are found.
+
+All `import`s are resolved at compile time and must be at the top
+level of a file. **Please note this is
+different to the Python programming language** if you are used to
+that one, where imports are resolved at runtime and
+can be inside inner scopes and functions.
+
+
+### Code Files
+
+The **file names** of all code files are expected to end in `.h64`,
+and only contain characters that are a valid identifier in
+the [grammar](#grammar). Please note this excludes space characters.
+
+All bytes inside a code file must be valid utf-8, including in any
+string literals. Having other values in string literals is possible,
+but only with escaping.
+
+
+### Modules
+
+Modules are found in two separate places: 1. local project imports for
+`import` statements with no `from`, 2. external package imports for
+`import` statements with a `from`. Outside of C extensions, which
+are not specified in this spec, **one code file maps to one module.**
+
+To use any external library, install it via [hpm](../Misc%20Tooling/hpm.md)
+to your project-local `horse_modules` folder first.
+
+
+### Modules: Local Project Imports
+
+**Local project imports** are resolved locally to the file you import
+from, or alternatively any parent folder up to the project root,
+tested in recursively descending-out-of-folders order. The folders
+themselves as well as the file names form the "import path" to use.
+
+Here is an example of local import resolution:
+
+*Project tree:*
+```
+main.h64
+mymodule1/mymodule.h64
+```
+
+*Contents of `mymodule/mymodule.h64`:*
+```
+import testfolder.testmodule
+```
+The compiler will now check for the following file paths in-order:
+
+1. `mymodule/testfolder/testmodule.h64`
+2. `testfolder/testmodule.h64`
+
+Then it will terminate with an error since neither of these exist.
+
+
+### Modules: External Package Imports
+
+**External package imports** are always tested in the
+`horse_modules/` subfolder in your project root. They must match
+the full package name, e.g.
+
+```
+import io from core.horse64.org
+```
+
+must match to `horse_modules/core.horse64.org/io.h64`.
+
+Unlike local project imports, there is no relative import
+search and multiple alternate locations that would be possible.
 
 
 ### Grammar
 
-FIXME: Write this
+**Important correctness note:** this grammar is manually maintained,
+and might not always match the actual parser which you can find in the
+[horsec source code](../Contributing.md#corehorse64org-package) in
+the file `horse64/compiler/astparser.c`. It is intended that it
+matches as close as possible, therefore please [report an issue](
+    ../Contributing.md#report-bugs
+) if you observe any difference in the wild.
+
+**Important note on precedence:** this grammar ignores operator precedence.
+For the `operator ::= ` grammar rule, you must pick the expansions
+with the **right-most** occurrence of the **highest precedence**
+operator that is possible to get the correct result.
+For precedence numbers, [check the operators section above](#operators).
+
+**Grammar formatting notes:**
+
+- The grammar lists the expansion rules, starting with a `program`
+  item, that produce the concrete values possible for program.
+
+- Lists of chained expanded elements are specified as
+  `(element_1, element_2, ...)`. Special characters are specified
+  in single quotes, like `','` for a literal comma.
+
+- Literal words like for keywords are specified with double quotes,
+  e.g. `"import"` for the the `import` keyword.
+
+- Multiple expansion choices are separated by a single pipe, `|`.
+
+- Optional items are followed by a question mark, e.g. `item?`.
+
+**Grammar listing:**
+
+```
+
+# Top-level structure:
+
+program ::= (toplvlstmt_1, toplvlstmt_2, ...)
+toplvlstmt ::= vardefstmt | funcdefstmt | importstmt |
+               classdefstmt
+
+
+# Top-level statements:
+
+vardefstmt ::= "var" identifier | "var" identifier '=' expr
+funcdefstmt ::= "func" identifier (funcprop_1, funcprop_2, ...)
+                codeblock
+importstmt ::= "import" identifierdotchain importlibinfo?
+classdefstmt ::= "class" identifier
+                 extendinfo? (classprop_1, classprop_2, ...)
+                 classcodeblock
+
+# Code blocks and general statements:
+
+codeblock ::= '{' (stmt_1, stmt_2, ...) '}'
+stmt ::= toplevelstmt | callstmt | assignstmt |
+         ifstmt | whilestmt | forstmt | withstmt |
+         dorescuefinallystmt
+callstmt ::= callexpr
+assignstmt ::= lvalueexpr '=' expr |
+               lvalueexpr assignbinop expr
+ifstmt ::= "if" expr codeblock elseifblocklist? elseblock?
+whilestmt ::= "while" expr codeblock
+forstmt ::= "for" identifier "in" expr codeblock
+withstmt ::= "with" withitemlist codeblock
+dorescuefinallystmt ::= "do" codeblock rescueblock? finallyblock?
+
+# Detail rules for top-level statements:
+
+importlibinfo ::= "from" identifierdotchain
+identifierdotchain ::= identifierwithdot identifier
+identifierwithdot ::= identifier '.'
+
+classcodeblock ::= '{' (classattrstmt_1, classattrstmt_2, ...) '}'
+
+classattrstmt ::= vardefstmt | funcdefstmt
+
+extendinfo ::= "extends" expr
+
+classprop ::= "canasync" | "noasync" | "deprecated"
+funcprop ::= "canasync" | "noasync" | "getter" | "setter" |
+             "deprecated"
+
+
+# Detail rules for general statements:
+
+elseifblocklist ::= (elseifblock_1, elseifblock_2, ...)
+elseifblock ::= "elseif" expr codeblock
+elseblock ::= "else" codeblock
+
+withitemlist ::= (withitem_1, withitem_2, ...) withlastitem
+withitem ::= expr "as" identifier ','
+withlastitem ::= expr "as" identifier
+
+rescueblock ::= "rescue" rescuelist codeblock
+rescuelist ::= (rescueitem_1, rescueitem_2, ...) rescuelastitem
+rescueitem ::= expr "as" identifier ','
+rescuelastitem ::= expr "as" identifier
+
+finallyblock :;= "finally" codeblock
+
+
+# Inline expressions:
+
+expr ::= '(' expr ')' | callexpr
+         callexpr | literalexpr | binopexpr | unopxpr 
+
+callexpr ::= expr '(' commaexprlist kwarglist? ')'
+
+commaexprlist ::= (commaitem_1, commaitem_2, ...) commalastitem
+commaitem ::= expr ','
+commalastitem ::= expr
+
+kwarglist ::= (kwargitem_1, kwargitem_2, ...) kwarglastitem
+kwargitem ::= identifier '=' expr ','
+kwarglastitem ::= identifier '=' expr
+
+literalexpr ::= "none" | "true" | "false" | numberliteral |
+                stringliteral | containerexpr
+
+containerexpr ::= setexpr | mapexpr | listexpr | vectorexpr
+listexpr ::= '[' commaexprlist ']'
+setexpr ::= '{' commaexprlist '}'
+mapexpr ::= '{' mapitemlist '}'
+mapitemlist ::= (mapitem_1, mapitem_2, ...) maplastitem
+mapitem ::= expr '->' expr ','
+maplastitem ::= expr '->' expr
+vectorexpr ::= '[' vectoritemlist ']'
+vectoritemlist ::= (vectoritem_1, vectoritem_2, ...) vectorlastitem
+vectoritem ::= numberliteral ':' expr ','
+vectorlastitem ::= numberliteral ':' expr
+
+binopexpr ::= expr binop expr
+unopexpr ::= unop expr
+
+```
+
+**A few missing rules in writing:**
+
+`assignbinop` can be `+=`, `-=`, `*=`, and `/=`. Assignments
+with these assignment math operators are just a short hand,
+e.g. `lvalue += expr` means `lvalue = lvalue + expr`.
+Any side effects of lvalue, e.g. caused by getter functions,
+will also accordingly be experienced twice.
+
+`binopexpr` ignores that the index by expression binary operator
+has a closing element `']'` afterwards.
+You must also exclude the call binary operator `(` from the expansion
+choices of `binop`, since that one is handled by `callexpr`.
+
+`lvalueexpr` is a special expression that can be either a `binopexpr`
+using the index by expression operator, or the attribute by identifier,
+or a plain `identifier`. It cannot be any other expression.
+
+`vectorexpr` has some rules omitted above for brevity, e.g.
+the numbers need to start with `1` and count up:
+`[1: <expr>, 2: <expr>, ...]`. You can also optionally
+specify xyzw for the first three items, e.g. `[x: <expr>, y: <expr>]`.
+
+`numberliteral` can be anything that matches any of these regexes:
+```
+-?[0-9]+(\.[0-9]+)?
+0x[0-9a-f]+
+0b[01]+
+```
+
+`stringliteral` can be anything that matches any of these regexes:
+```
+"([^"]|\\")"
+'([^']\\')'
+```
+
+`identifiers can be any utf-8 sequence starting with
+either: 1. _, 2. `a-z`, `A-Z`, or 3. any non-whitespace
+code point outside of the ASCII range.
+This sequence is resumed by more utf-8 characters of that same set of
+choices, or additionally 4. `0-9` any digit, and terminated once
+the character falls out of that range.
+
+**Whitespace rules:**
+
+Whitespace in Horse64 must be inserted wherever
+an item would otherwise merge with a previous one, e.g. between
+a keyword followed by an identifier. You can pick a space,
+line break, or tab, for those situations. Other use of whitespace
+are optional since Horse64 doesn't have significant whitespace.
 
 
 ### Garbage Collection Details
