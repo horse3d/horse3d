@@ -1210,8 +1210,8 @@ You must also exclude the call binary operator `(` from the expansion
 choices of `binop`, since that one is handled by `callexpr`.
 
 `lvalueexpr` is a special expression that can be either a `binopexpr`
-using the index by expression operator, or the attribute by identifier,
-or a plain `identifier`. It cannot be any other expression.
+using the index by expression operator, or the attribute by identifier
+operator, or a plain `identifier`. It cannot be any other expression.
 
 `vectorexpr` has some rules omitted above for brevity, e.g.
 the numbers need to start with `1` and count up:
