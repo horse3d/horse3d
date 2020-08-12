@@ -404,8 +404,8 @@ In the latter case, the program ends.
 
 **Error best practice:**
 
-**Errors should only ever be used to handle 1. obvious errors
-of whoever called your code, 2. unhandleable errors caused
+**Errors should only ever be used to handle 1. obvious programming
+mistakes of whoever called your code, 2. unhandleable errors caused
 by the outside world like I/O or network failure.** We
 strongly recommend that you **do NOT use errors for events
 expected to happen or unavoidable in normal operation**.
