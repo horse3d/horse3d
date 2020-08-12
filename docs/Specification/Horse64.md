@@ -1064,7 +1064,7 @@ matches as close as possible, therefore please [report an issue](
 ) if you observe any difference in the wild.
 
 **Important note on precedence:** this grammar ignores operator precedence.
-For the `operatorexpr` expansion of the `expr` grammar rule,
+For the `operatorexpr` expansion of the `expr ::= ...` grammar rule,
 you must pick the expansions with the **right-most** occurrence of the
 **highest precedence** operator that is possible to get the correct result.
 You must also always expand to an `operatorexpr` if possible, and only
