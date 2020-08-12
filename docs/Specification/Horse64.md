@@ -306,7 +306,7 @@ class MyCircle {
         print("Circle was created!")
     }
     func print_radius {
-        print("Hello! My radius: " + self.radius)
+        print("Hello! My radius: " + self.radius.as_str)
     }
 }
 
