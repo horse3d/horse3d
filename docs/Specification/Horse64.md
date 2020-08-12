@@ -237,7 +237,7 @@ for how whether a variable is known is determined.
 There are built-in variables, for example the pre-defined `print` function.
 Refer to the standard library reference for a complete list.
 
-There are also the special identifiers `self` and `base` don't
+There are also the special identifiers `self` and `base` which don't
 refer to variables, see [later section on classes](
     #defining-custom-classes-class-new
 ).
