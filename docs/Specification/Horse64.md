@@ -997,7 +997,7 @@ and they are all baked into the resulting output binary.
 Please note if you are familiar with the "Python"
 programming language that is different, since there imports are
 resolved at runtime and can be done inside inner scopes and functions,
-and need to be present in site-packages at runtime.
+and need to be present in python's so-called "site-packages" at runtime.
 
 **Where can I get packages/libraries from?**
 
