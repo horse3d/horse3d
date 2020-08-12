@@ -1243,8 +1243,9 @@ the character falls out of that range.
 Whitespace in Horse64 must be inserted wherever
 an item would otherwise merge with a previous one, e.g. between
 a keyword followed by an identifier. You can pick a space,
-line break, or tab, for those situations. Other use of whitespace
-are optional since Horse64 doesn't have significant whitespace.
+line break, or tab, for those situations. Other uses of whitespace
+are optional since Horse64 doesn't have significant whitespace of
+any kind.
 
 
 ### Garbage Collection Details
