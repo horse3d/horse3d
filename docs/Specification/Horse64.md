@@ -246,7 +246,8 @@ refer to variables, see [later section on classes](
 ### Conditionals (if, elseif, else)
 
 Conditionals can be tested with `if` statements, the inner
-code runs if the conditional evaluates to a trueish value. 
+code runs if the conditional evaluates to boolean value `true`.
+If the conditional doesn't evaluate to a boolean, a TypeError occurs.
 Otherwise, all `elseif` are tested if present, and `else`
 is taken if all fails.
 
@@ -275,6 +276,32 @@ if my_tested_value == 5 {
   for binary operators when the result is obvious. (E.g. a logical `and`
   combination will only have the left-hand side evaluated if that returns
   a falseish value, skipping the right-hand side.)
+
+
+### Inline expressions
+
+Any inline expression, which can e.g. be used in variable assignments,
+conditionals if it evaluates to a boolean, function arguments in calls,
+and as container argument in a `for` loop if it evaluates to a container,
+can be a literal, or a combination of literals with unary or binary
+operators.
+
+Here is an example for an inline expression that is a number literal:
+
+```horse64
+5
+```
+
+Here is another example where two literals are combined with a
+binary operator:
+
+```horse64
+4 > 5
+```
+
+For all possible literals, see [section on data types](#datatypes).
+
+For all possible operators, see [secton on opreators](#operators).
 
 
 ### Loops (while, for)
@@ -627,29 +654,61 @@ have a `.close()` function.
 Horse64 is mostly inspired by Python in its core semantics,
 while it does away with most of the dynamic scope.
 
-It has the following datatypes, where-as passed by value
+It has the following datatypes: where-as "by value"
 being "yes" means assigning it to a new variable will create
-a copy, while "no" means it will reference the existing copy:
+a copy, while "no" means it will be shared "by" reference
+to the same underlying data object:
 
-|*Data Type*    |Passed by value  |Garbage-Collected  |
-|---------------|-----------------|-------------------|
-|none           |Yes              |No                 |
-|boolean        |Yes              |No                 |
-|number         |Yes              |No                 |
-|string         |Yes              |No                 |
-|function       |No               |No                 |
-|list           |No               |Yes                |
-|vector         |Yes              |No                 |
-|map            |No               |Yes                |
-|set            |No               |Yes                |
-|object instance|No               |Yes                |
+|*Data Type*  |By value|GC'ed |Literal constructor          |
+|-------------|--------|------|-----------------------------|
+|none         |Yes     |No    |`none`                       |
+|boolean      |Yes     |No    |`(true|false)`               |
+|number       |Yes     |No    |`-?[0-9]+(\.[0-9]+)?`        |
+|string       |Yes     |No    |`"([^"]+|\\")"`              |
+|function     |No      |No    | see below                   |
+|list         |No      |Yes   | see below, or `[]` (empty)  |
+|vector       |Yes     |No    | see below                   |
+|map          |No      |Yes   | see below  or `{->}` (empty)|
+|set          |No      |Yes   | see below, or `{}` (empty)  |
+|obj. instance|No      |Yes   | see below                   |
 
-A "yes" entry for garbage-collection means any new instance of
-the given data type will cause garbage collector load, with
-the according performance implications.
+- **By value** *column: a "yes" here means
+  assigning values of this type to a new variable will create
+  a copy, while "no" means it will instead assign "by reference"
+  with all created values just referring to the same underlying
+  original object.*
+
+- **GC'ed** *column: A "yes" entry means any new
+  instance of the given data type will cause garbage
+  collector load, with the according performance implications.*
+
+**Literal constructors** are shown above as regexes for the
+simple cases. For the more complex objects, it differs:
+functions can either just be specified by identifier, or
+as an inline lambda with the `=>` syntax, [see grammar](#grammar).
+Lists can be created via `[<expr1>, <expr2>, ...]`, and
+vectors via `[1: <number1>, 2: <number2>, ...]`, and
+maps via `[<key1> -> <value1>, <key2> -> <value2>, ...]`, and
+sets via `{<expr1>, <expr2>, ...}`, again [see grammar for
+details](#grammar). Object instances can only be created
+via the `new` operator, or otherwise must be specified by
+identifier - there is no inline constructor.
+
+**Containers:**
+
+The types `list`, `vector`, `map`, `set` are all containers
+that can be used with a `for loop`, see [section on
+loops](#loops-while-for). All of them can old arbitrary
+items of any type (including nested containers) except
+for vectors, which can only hold values of a number type.
+It is valid to add two lists to each other, so cycles are
+permitted.
+
+**Runtime quirks:**
 
 Please note there are more hidden differentiations in the
-runtime which **may be subject to future change**:
+[horsevm runtime](../Misc%20Tooling/horsevm.md) which
+**may be subject to future change**:
 
 - An object instance can actually be an error instance
   (created through a raised error, rather than new on
@@ -740,6 +799,16 @@ can make it hard to reason about side effects of anything.
 Therefore, try to keep state local inside functions or on
 dedicated objects where appropriate to avoid unwieldy global
 side effects.
+
+
+### Operators
+
+FIXME: Write this
+
+
+### Grammar
+
+FIXME: Write this
 
 
 ### Garbage Collection Details
