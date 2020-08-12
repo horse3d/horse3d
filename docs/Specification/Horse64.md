@@ -951,8 +951,9 @@ according C code of [horsec](../horsec/horsec.md):
 ```
 
 A lower number means the operator will be evaluated first
-compared to one with a higher number, and
-same number means it will be evaluated left-to-right.
+compared to one with a higher number (or nested more deeply
+inside in a syntax tree sense), and same number means it
+will be evaluated left-to-right.
 
 
 ## Modules, Libraries, and Code Files
@@ -1066,7 +1067,8 @@ matches as close as possible, therefore please [report an issue](
 **Important note on precedence:** this grammar ignores operator precedence.
 For the `operatorexpr` expansion of the `expr ::= ...` grammar rule,
 you must pick the expansions with the **right-most** occurrence of the
-**highest precedence** operator that is possible to get the correct result.
+**highest precedence number** operator that is possible to get the correct
+result.
 You must also always expand to an `operatorexpr` if possible, and only
 to other `expr` expansions if that is not possible.
 For precedence numbers, [check the operators section above](#operators).
