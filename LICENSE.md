@@ -39,8 +39,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Horse64 Documentation License
 -----------------------------
 
-The documentation as found in the `docs/` folder is CC-BY-4.0 licensed.
-( https://creativecommons.org/licenses/by/4.0/ )
+The documentation as found in the `docs/` folder is CC-BY-SA-4.0 licensed.
+( https://creativecommons.org/licenses/by-sa/4.0/ )
 It should be credited as `Copyright (C) 2020 Horse64 Team (See AUTHORS.md)`.
 
 

@@ -30,6 +30,6 @@ To get the output of each respective stages, use:
 - `horsec compile` to get an actual binary
 
 ---
-*This documentation is CC-BY-4.0 licensed.
-( https://creativecommons.org/licenses/by/4.0/ )
+*This documentation is CC-BY-SA-4.0 licensed.
+( https://creativecommons.org/licenses/by-sa/4.0/ )
 Copyright (C) 2020  Horse64 Team (See AUTHORS.md)*

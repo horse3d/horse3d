@@ -9,6 +9,6 @@ in the [core package sources](
 ) inside the `horse64/bytecode.h` file.
 
 ---
-*This documentation is CC-BY-4.0 licensed.
-( https://creativecommons.org/licenses/by/4.0/ )
+*This documentation is CC-BY-SA-4.0 licensed.
+( https://creativecommons.org/licenses/by-sa/4.0/ )
 Copyright (C) 2020  Horse64 Team (See AUTHORS.md)*
