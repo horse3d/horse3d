@@ -1009,7 +1009,9 @@ mymodule1/mymodule.h64
 ```
 import testfolder.testmodule
 ```
-The compiler will now check for the following file paths in-order:
+The compiler will now check the module path recursively,
+by preferring relative interpretations where possible.
+In the concrete case, it will check these file paths in-order:
 
 1. `mymodule/testfolder/testmodule.h64`
 2. `testfolder/testmodule.h64`
@@ -1021,7 +1023,7 @@ Then it will terminate with an error since neither of these exist.
 
 **External package imports** are always tested in the
 `horse_modules/` subfolder in your project root. They must match
-the full package name, e.g.
+the full non-relative module path, e.g.
 
 ```
 import io from core.horse64.org
@@ -1029,8 +1031,8 @@ import io from core.horse64.org
 
 must match to `horse_modules/core.horse64.org/io.h64`.
 
-Unlike local project imports, there is no relative import
-search and multiple alternate locations that would be possible.
+Unlike local project imports, external imports don't support
+any alternate relative path interpretations.
 
 
 ### Grammar
