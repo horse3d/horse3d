@@ -378,7 +378,7 @@ them. The special identifier `base` can be used to call the
 original function attribute via `base.overridden_func_attr()`.
 
 If `init` is overridden, `base.init(...)` must be called
-somewhere inside the new overridding function attribute,
+somewhere inside the new overriding function attribute,
 and this call must not be inside any conditional block.
 
 
