@@ -662,7 +662,7 @@ to the same underlying data object:
 |*Data Type*  |By value|GC'ed |Literal constructor          |
 |-------------|--------|------|-----------------------------|
 |none         |Yes     |No    |`none`                       |
-|boolean      |Yes     |No    |`true` or `false)            |
+|boolean      |Yes     |No    |`true` or `false`            |
 |number       |Yes     |No    |`-?[0-9]+(\.[0-9]+)?`        |
 |string       |Yes     |No    |`"` then any utf-8 then `"`  |
 |function     |No      |No    | see below                   |
