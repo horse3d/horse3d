@@ -303,7 +303,7 @@ func main {
 }
 ```
 
-**OOP in Horse64 in detail:**
+**Object-Oriented Programming (OOP) in Horse64 in detail:**
 
 In Horse64, a class describes, as commonly done in OOP, how all
 so-called object instances that were created from it behave.
@@ -330,6 +330,21 @@ refers to the current object instance it runs on.
 If a class specifies the optional `init` function attribute for its
 object instances, then this function will be automatically invoked
 by `new` on creation.
+
+**OOP Best Practices:**
+
+We recommend you **DO NOT** use a class if all it has is one single
+function attribute, and you just set some other attribute values and
+then proceed to call that one function. This indicates that you should
+just use a plain function with parameters instead. **Overuse of
+object-oriented programming obscures code flow with hidden state,**
+it becomes no longer obvious what a function call depends on if the
+parameters are hidden in an object instance rather than spelled out.
+
+A class / OOP is a good match for anything that would also make
+a good self-contained object with complex behavior and state logically,
+e.g. a file object with read/write/... and more functions, something
+that represents a data record with multiple manipulation methods, etc.
 
 
 ### Deriving classes (extends)
