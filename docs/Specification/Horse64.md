@@ -359,7 +359,7 @@ func main {
 from the `io` module)*
 
 Usually, a file corresponds to one module. Read the
-[section on modules](#modules-and-libraries-code-files)
+[section on modules](#modules-libraries-and-code-files)
 for details.
 
 
@@ -955,7 +955,7 @@ compared to one with a higher number, and
 same number means it will be evaluated left-to-right.
 
 
-## Modules and Libraries and Code Files
+## Modules, Libraries, and Code Files
 
 Horse64 allows specifying larger programs in multiple code files,
 organized as modules. This section specifies how code files must
