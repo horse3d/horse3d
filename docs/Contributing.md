@@ -51,7 +51,7 @@ largely written in the C programming language. You can build this
 repository with `GNU make`.)
 
 
-## multimedia.horse64.org Package
+### multimedia.horse64.org Package
 
 [https://github.com/horse64/multimedia.horse64.org](
   https://github.com/horse64/multimedia.horse64.org
