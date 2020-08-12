@@ -49,13 +49,13 @@ For precedence numbers, check the [operators semantics section](
 # Top-level structure:
 
 program ::= (toplvlstmt_1, toplvlstmt_2, ...)
-toplvlstmt ::= vardefstmt | funcdefstmt | importstmt |
+toplvlstmt ::= vardefnoasyncstmt | funcdefstmt | importstmt |
                classdefstmt
 
 
 # Top-level statements:
 
-vardefstmt ::= "var" identifier | "var" identifier '=' expr
+vardefnoasyncstmt ::= "var" identifier | "var" identifier '=' expr
 funcdefstmt ::= "func" identifier (funcprop_1, funcprop_2, ...)
                 codeblock
 importstmt ::= "import" identifierdotchain importlibinfo?
@@ -63,20 +63,29 @@ classdefstmt ::= "class" identifier
                  extendinfo? (classprop_1, classprop_2, ...)
                  classcodeblock
 
+
 # Code blocks and general statements:
 
 codeblock ::= '{' (stmt_1, stmt_2, ...) '}'
 stmt ::= toplevelstmt | callstmt | assignstmt |
          ifstmt | whilestmt | forstmt | withstmt |
-         dorescuefinallystmt
+         dorescuefinallystmt | vardefstmt | asyncstmt |
+         awaitstmt
+vardefstmt ::= "var" identifier | "var" identifier '=' expr |
+               "var" identifier '=' "async" callexpr
 callstmt ::= callexpr
 assignstmt ::= lvalueexpr '=' expr |
-               lvalueexpr assignbinop expr
+               lvalueexpr assignbinop expr |
+               lvalueexpr '=' "await" expr
 ifstmt ::= "if" expr codeblock elseifblocklist? elseblock?
 whilestmt ::= "while" expr codeblock
 forstmt ::= "for" identifier "in" expr codeblock
 withstmt ::= "with" withitemlist codeblock
 dorescuefinallystmt ::= "do" codeblock rescueblock? finallyblock?
+returnstmt ::= "return" | "return" expr
+asyncstmt ::= "async" callexpr
+awaitstmt ::= "await" expr
+
 
 # Detail rules for top-level statements:
 
@@ -86,7 +95,7 @@ identifierwithdot ::= identifier '.'
 
 classcodeblock ::= '{' (classattrstmt_1, classattrstmt_2, ...) '}'
 
-classattrstmt ::= vardefstmt | funcdefstmt
+classattrstmt ::= vardefnoasyncstmt | funcdefstmt
 
 extendinfo ::= "extends" expr
 
@@ -110,7 +119,7 @@ rescuelist ::= (rescueitem_1, rescueitem_2, ...) rescuelastitem
 rescueitem ::= expr "as" identifier ','
 rescuelastitem ::= expr "as" identifier
 
-finallyblock :;= "finally" codeblock
+finallyblock ::= "finally" codeblock
 
 
 # Inline expressions:
