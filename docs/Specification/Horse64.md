@@ -961,11 +961,11 @@ Horse64 allows specifying larger programs in multiple code files,
 organized as modules. This section specifies how code files must
 look like, and how they map to modules, and how modules are found.
 
-All `import`s are resolved at compile time and must be at the top
-level of a file. **Please note this is
-different to the Python programming language** if you are used to
-that one, where imports are resolved at runtime and
-can be inside inner scopes and functions.
+All `import`s in Horse64 are resolved at compile time and must be
+at the top level (not nested inside functions or other scopes).
+Please note if you are familiar with the "Python"
+programming language that is different, since there imports are
+resolved at runtime and can be inside inner scopes and functions.
 
 
 ### Code Files
