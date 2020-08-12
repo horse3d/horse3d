@@ -1064,9 +1064,11 @@ matches as close as possible, therefore please [report an issue](
 ) if you observe any difference in the wild.
 
 **Important note on precedence:** this grammar ignores operator precedence.
-For the `operator ::= ` grammar rule, you must pick the expansions
-with the **right-most** occurrence of the **highest precedence**
-operator that is possible to get the correct result.
+For the `operatorexpr` expansion of the `expr` grammar rule,
+you must pick the expansions with the **right-most** occurrence of the
+**highest precedence** operator that is possible to get the correct result.
+You must also always expand to an `operatorexpr` if possible, and only
+to other `expr` expansions if that is not possible.
 For precedence numbers, [check the operators section above](#operators).
 
 **Grammar formatting notes:**
@@ -1159,7 +1161,7 @@ finallyblock :;= "finally" codeblock
 # Inline expressions:
 
 expr ::= '(' expr ')' | callexpr
-         callexpr | literalexpr | binopexpr | unopxpr 
+         callexpr | literalexpr | operatorexpr
 
 callexpr ::= expr '(' commaexprlist kwarglist? ')'
 
@@ -1186,6 +1188,7 @@ vectoritemlist ::= (vectoritem_1, vectoritem_2, ...) vectorlastitem
 vectoritem ::= numberliteral ':' expr ','
 vectorlastitem ::= numberliteral ':' expr
 
+operatorexpr ::= binopexpr | unopexpr
 binopexpr ::= expr binop expr
 unopexpr ::= unop expr
 
