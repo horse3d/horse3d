@@ -961,13 +961,6 @@ Horse64 allows specifying larger programs in multiple code files,
 organized as modules. This section specifies how code files must
 look like, and how they map to modules, and how modules are found.
 
-All `import`s in Horse64 are resolved at compile time and must be
-at the top level (not nested inside functions or other scopes).
-Please note if you are familiar with the "Python"
-programming language that is different, since there imports are
-resolved at runtime and can be inside inner scopes and functions.
-
-
 ### Code Files
 
 The **file names** of all code files are expected to end in `.h64`,
@@ -981,21 +974,46 @@ but only with escaping.
 
 ### Modules
 
+**What is a module, and where is it:**
+
+Outside of C extensions, which are not specified in this spec,
+**one .h64 code file maps to one module** of the same name minus
+the file extension.
 Modules are found in two separate places: 1. local project imports for
 `import` statements with no `from`, 2. external package imports for
-`import` statements with a `from`. Outside of C extensions, which
-are not specified in this spec, **one code file maps to one module.**
+`import` statements with a `from`.
+
+The import path is made up from the code file names themselves, plus
+the folders they're in. E.g. `mytest/myfile.h64` could be imported
+with `import mytest.myfile` (or any relative variation, see local
+project imports).
+
+**When are the imports processed?**
+
+All `import`s in Horse64 are resolved at compile time and must be
+at the top level (not nested inside functions or other scopes),
+and they are all baked into the resulting output binary.
+
+Please note if you are familiar with the "Python"
+programming language that is different, since there imports are
+resolved at runtime and can be done inside inner scopes and functions,
+and need to be present in site-packages at runtime.
+
+**Where can I get packages/libraries from?**
 
 To use any external library, install it via [hpm](../Misc%20Tooling/hpm.md)
 to your project-local `horse_modules` folder first.
+[Read about hpm](../Misc%20Tooling/hpm.md) for more details.
+You can also place external source code manually [where external packages
+are searched](#modules-external-package-imports),
+but this is not recommended.
 
 
 ### Modules: Local Project Imports
 
-**Local project imports** are resolved locally to the file you import
-from, or alternatively any parent folder up to the project root,
-tested in recursively descending-out-of-folders order. The folders
-themselves as well as the file names form the "import path" to use.
+**Local project imports** are resolved possibly locally from the file
+you import from, or alternatively from any parent folder up to the project
+root. This is tested recursively descending-out-of-folders order.
 
 Here is an example of local import resolution:
 
