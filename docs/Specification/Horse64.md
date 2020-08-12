@@ -20,14 +20,33 @@ Here is an overview how it roughly compares:
 |Dynamic Types                  |Yes     |Yes           |No              |
 |Heavy Duck Typing              |No      |Some of them  |No              |
 |Garbage Collected              |Yes     |Yes           |Some of them    |
-|Compiles AOT & Optimized       |Yes     |Usually no    |Yes             |
-|Slow dynamic scope lookups     |No      |Yes           |Usually no      |
+|Compiles AOT & Optimized [1]   |Yes     |Usually no    |Yes             |
+|Slow dynamic scope lookups [2] |No      |Yes           |Usually no      |
 |Runtime eval()                 |No      |Yes           |Usually no      |
 |Runtime module load            |No      |Used often    |Used rarely     |
 |Produces Standalone Binary     |Yes     |No, or tricky |Some of them    |
 |Beginner-friendly              |Yes     |Yes           |Some of them    |
 |Dynamic REPL mode              |No      |Yes           |Some of them    |
-|Compiler easy to include       |Yes     |Yes           |Some of them    |
+|Compiler easy to include[2]    |Yes     |Yes           |Some of them    |
+|Embeddable scripting engine[3] |No      |Yes, trivially|Non-trivial     |
+
+- Footnote [1]: AOT as in "Ahead of Time", so not one-shot running of
+  a script with either a simple one-pass compiler or Just-In-Time compilation,
+  but rather a separate slower compilation step that produces a binary
+  that is then executed later.
+
+- Footnote [2]: This refers to whether calling a global variable, or a member
+  / attribute on a class object instance will usually invoke a slow
+  string hash name lookup at runtime.
+
+- Footnote [3]: Easy to include compiler refers to using the compiler
+  of this language from a program inside the language itself as a library,
+  without the need of separately installing an entire SDK.
+
+- Footnote [4]: Embeddable scripting engine refers to using the compiler and
+  runtime in a *different* lowlevel language, e.g. to embed it for user
+  scripts in a video game written in C/C++. Horse64 is not easily suitable
+  for this.
 
 
 ## Syntax Basics
