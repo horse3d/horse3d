@@ -531,12 +531,13 @@ do {
     # Skipped if another error type occured.
 } finally {
     # Runs ALWAYS, no matter if an error occurred or not,
-    # and no matter if an unknown error type, after the rescue
-    # block if that one applied.
+    # and no matter if an unknown error type.
+    # Runs LAST, after the rescue clause in any case.
     do_cleanup()
 
-    # Ok, finally block done.
-    # Normal execution resumes from here if no error, or it was rescued.
+    # Ok, 'finally' block done!
+    # Normal execution resumes from here if there wasn't ever
+    # an error, or it was rescued successfully.
     # If it was NOT rescued, execution will bail out and raise the error.
 }
 print("Ok, let's continue")  # not reached in case of un-rescued error
