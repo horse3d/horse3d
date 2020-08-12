@@ -423,7 +423,7 @@ E.g. please do **NOT** use errors for:
 Where you **should** use errors:
 
 - I/O errors that aren't usually expected to happen
-- Out of memory conditions or other resource exhaustion
+- Out of memory conditions or other unexpected resource exhaustion
 - Invalid arguments passed to your function that should have been
   preventable by adhering to its documentation
 - Invalid userdata passed to your code that should have been
