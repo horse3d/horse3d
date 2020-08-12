@@ -662,9 +662,9 @@ to the same underlying data object:
 |*Data Type*  |By value|GC'ed |Literal constructor          |
 |-------------|--------|------|-----------------------------|
 |none         |Yes     |No    |`none`                       |
-|boolean      |Yes     |No    |`(true\|false)`              |
+|boolean      |Yes     |No    |`true` or `false)            |
 |number       |Yes     |No    |`-?[0-9]+(\.[0-9]+)?`        |
-|string       |Yes     |No    |`"([^"]+\|\\")"`             |
+|string       |Yes     |No    |`"` then any utf-8 then `"`  |
 |function     |No      |No    | see below                   |
 |list         |No      |Yes   | see below, or `[]` (empty)  |
 |vector       |Yes     |No    | see below                   |
@@ -683,9 +683,10 @@ to the same underlying data object:
   collector load, with the according performance implications.*
 
 **Literal constructors** are shown above as regexes for the
-simple cases. For the more complex objects, it differs:
+simple cases, although check the [grammar](#grammar) for full
+details. For the more complex objects, it differs:
 functions can either just be specified by identifier, or
-as an inline lambda with the `=>` syntax, [see grammar](#grammar).
+as an inline lambda with the `=>` syntax.
 Lists can be created via `[<expr1>, <expr2>, ...]`, and
 vectors via `[1: <number1>, 2: <number2>, ...]`, and
 maps via `[<key1> -> <value1>, <key2> -> <value2>, ...]`, and
