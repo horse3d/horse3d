@@ -36,17 +36,17 @@ Here is an overview how it roughly compares:
   that is then executed later.
 
 - Footnote [2]: This refers to whether calling a global variable, or a member
-  / attribute on a class object instance will usually invoke a slow
+  / attribute on a class object instance will occasionally invoke a slow
   string hash name lookup at runtime.
 
 - Footnote [3]: Easy to include compiler refers to using the compiler
-  of this language from a program inside the language itself as a library,
+  of a language from a program inside the same language as a library,
   without the need of separately installing an entire SDK.
 
-- Footnote [4]: Embeddable scripting engine refers to using the compiler and
-  runtime in a *different* lowlevel language, e.g. to embed it for user
+- Footnote [4]: Embeddable scripting engine refers to using the compiler
+  from inside a *different* lowlevel language, e.g. to embed it for user
   scripts in a video game written in C/C++. Horse64 is not easily suitable
-  for this.
+  for this right now.
 
 
 ## Syntax Basics
@@ -328,6 +328,8 @@ In Horse64, a class describes, as commonly done in OOP, how all
 so-called object instances that were created from it behave.
 This is done via so-called attributes that are populated onto
 all object instances when they are created.
+A class may also be referred to as a class type, since it defines
+a new custom user-supplied object type.
 
 An object instance can be created from a class with the `new`
 operator. A class can be defined via the `class` statement.
@@ -459,7 +461,7 @@ Therefore, in summary, **only use errors where appropriate.**
 Please also always document in a comment what errors your functions
 might raise, so that the caller can decide to `rescue` them.
 
-**Built-in error types:**
+**Built-in vs custom error types:**
 
 For a list of built-in error types, please consult the
 standard library reference. You can use any of these as you see
@@ -469,8 +471,13 @@ your own as a class:
 ```horse64
 class MyParserError extends RuntimeError {}
 ```
-This is only recommended if you don't find a built-in type to
-fit your use case at all.
+Please note a custom error class may not add or override any attributes,
+it must inherit the base `Error` class attributes as-is.
+This is a limitation of how [horsevm](../Misc%20Tooling/horsevm.md)
+handles error instances for performance reasons.
+
+Adding custom error types is only recommended if you don't find a
+built-in type to fit your use case at all.
 
 
 ### Handling errors (do/rescue)
@@ -645,6 +652,74 @@ runtime which **may be subject to future change**:
 - Numbers internally can be either a 64bit integer, or
   a 64bit floating point value. Conversions happen
   transparently.
+
+
+### Object Lifetime and Scopes
+
+**Code blocks and Scopes:**
+
+Any use of `{` and `}` with code statements inside, as seen
+with constructs like `if`, `while`, etc., is called a code block.
+Each code block has its own scope, which is a defined range where
+variables defined via `var` are valid.
+
+**Lifetime of local variables:**
+
+A `var` statement inside a code block adds a variable to its
+scope, and may only be used from inside that code block from
+statements *after* the declaration, as well as nested inner blocks.
+Therefore, it's lifetime is limited to its scope.
+
+**When a variable's data is freed from memory:**
+
+As soon as a variable with a data type that is always passed by
+value (see section above on Data Types) goes out of scope, that
+is execution leaves the code block where it was defined, it will
+cease to exist immediately.
+
+As soon as a variable with a data type passed by reference goes
+out of scope, the reference to the underlying data object is removed.
+However, the underlying data object may continue to exist if it
+was passed by reference to other places that still hold a reference.
+Such a reference might also be stored inside a class object instance's
+var attribute, as long as that object instance is still held in a
+variable itself.
+
+**Implementation detail:** Variable types passed by reference
+might generally linger in memory for a while longer, because e.g.
+object instances might refer each other in a cycle. Therefore,
+identifying abandoned cyclic clusters can be a non-trivial task
+done by the garbage collector. However, all such clusters will
+be freed from memory *eventually*.
+
+**Global variables:**
+
+As a special case, `var` statements can be outside of any block
+at the top level. In this case, it will be added to the "global scope"
+which isn't attached to any code block and stays alive forever.
+
+Global variables can be accessed through `import`
+statements from other code files, and they may also be accessed
+from any code inside functions anywhere, no matter of declaration
+order. (E.g. a function declared earlier in a code file can
+access a global varaible declared later in the same code file.)
+
+**Best practice for global variables:**
+
+We recommend to not overuse global variables: they
+might be accessed by any function or even other modules, hence
+you might lose track of what exactly changes and depends on
+a global variable if you overuse it. In complex programs, this
+can make it hard to reason about side effects of anything.
+
+Therefore, try to keep state local inside functions or on
+dedicated objects where appropriate to avoid unwieldy global
+side effects.
+
+
+### Garbage Collection Details
+
+FIXME: write this
 
 ---
 This documentation is CC-BY-SA-4.0 licensed.
