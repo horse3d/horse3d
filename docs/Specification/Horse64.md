@@ -227,15 +227,17 @@ const my_number_constant = 5
 ```
 (This sometimes also allows the compiler to optimize better.)
 
+**Variable identifiers in detail:**
+
 Any name in Horse64 that isn't a known keyword like `var`
 is an identifier, and must refer to some known variable. [See
 later section on lifetime and scopes](#data-lifetime-and-scopes)
-for how this is determined.
+for how whether a variable is known is determined.
 
 There are built-in variables, for example the pre-defined `print` function.
 Refer to the standard library reference for a complete list.
 
-There are also the special identifiers "self" and "base" don't
+There are also the special identifiers `self` and `base` don't
 refer to variables, see [later section on classes](
     #defining-custom-classes-class-new
 ).
@@ -282,7 +284,7 @@ arbitrary conditional, and a `for` loop that does a for
 each iteration over a container. For details on how
 the conditional is evaluated, see the [section on conditionals](
     #conditionals-if-elseif-else
-)..
+).
 
 ```horse64
 # While loop (using a conditional):
