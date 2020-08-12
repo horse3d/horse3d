@@ -27,8 +27,8 @@ Here is an overview how it roughly compares:
 |Produces Standalone Binary     |Yes     |No, or tricky |Some of them    |
 |Beginner-friendly              |Yes     |Yes           |Some of them    |
 |Dynamic REPL mode              |No      |Yes           |Some of them    |
-|Compiler easy to include[2]    |Yes     |Yes           |Some of them    |
-|Embeddable scripting engine[3] |No      |Yes, trivially|Non-trivial     |
+|Compiler easy to include[3]    |Yes     |Yes           |Some of them    |
+|Embeddable scripting engine[4] |No      |Yes, trivially|Non-trivial     |
 
 - Footnote [1]: AOT as in "Ahead of Time", so not one-shot running of
   a script with either a simple one-pass compiler or Just-In-Time compilation,
