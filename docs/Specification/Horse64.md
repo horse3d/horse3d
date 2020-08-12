@@ -662,9 +662,9 @@ to the same underlying data object:
 |*Data Type*  |By value|GC'ed |Literal constructor          |
 |-------------|--------|------|-----------------------------|
 |none         |Yes     |No    |`none`                       |
-|boolean      |Yes     |No    |`(true|false)`               |
+|boolean      |Yes     |No    |`(true\|false)`              |
 |number       |Yes     |No    |`-?[0-9]+(\.[0-9]+)?`        |
-|string       |Yes     |No    |`"([^"]+|\\")"`              |
+|string       |Yes     |No    |`"([^"]+\|\\")"`             |
 |function     |No      |No    | see below                   |
 |list         |No      |Yes   | see below, or `[]` (empty)  |
 |vector       |Yes     |No    | see below                   |
