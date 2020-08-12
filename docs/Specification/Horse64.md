@@ -399,7 +399,7 @@ func my_func(number_value) {
 This will cause execution to stop at `raise`, and bail -
 similar to a `return`, but beyond just this function and
 up the entire call chain until either a `rescue` (see
-nex section) stops it, or the original `main` is bailed out of.
+next section) stops it, or the original `main` is bailed out of.
 In the latter case, the program ends.
 
 **Error best practice:**
