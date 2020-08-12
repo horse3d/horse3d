@@ -390,7 +390,7 @@ being passed an argument of wrong type. This is done with the
 
 ```horse64
 func my_func(number_value) {
-    if not type(number_value) == "number" {
+    if type(number_value) != "number" {
         raise TypeError("argument must be number")
     }
     print("Received number: " + number_value.as_str)
