@@ -416,7 +416,7 @@ E.g. please do **NOT** use errors for:
   was successful anyway
 - To inform the caller of an event that regularly happens in normal
   expected operation, e.g. the regular end of a file or stream,
-  or reaching the end of an iterated container
+  or regularly reaching the end of a data set like an iterated container
 - To make it easier for yourself to bail out of a call chain where
   nothing really unusual occured, even if you just use it internally
 
