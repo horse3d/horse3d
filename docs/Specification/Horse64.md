@@ -301,7 +301,7 @@ binary operator:
 
 For all possible literals, see [section on data types](#datatypes).
 
-For all possible operators, see [secton on opreators](#operators).
+For all possible operators, see [section on operators](#operators).
 
 
 ### Loops (while, for)
