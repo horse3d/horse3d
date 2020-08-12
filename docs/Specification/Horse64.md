@@ -1231,7 +1231,7 @@ specify xyzw for the first three items, e.g. `[x: <expr>, y: <expr>]`.
 '([^']\\')'
 ```
 
-`identifiers can be any utf-8 sequence starting with
+`identifiers` can be any utf-8 sequence starting with
 either: 1. _, 2. `a-z`, `A-Z`, or 3. any non-whitespace
 code point outside of the ASCII range.
 This sequence is resumed by more utf-8 characters of that same set of
