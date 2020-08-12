@@ -90,8 +90,9 @@ It has the following notable properties:
   explicit delete operator of any kind.
 
 See the respective later sections for both the detailed grammar,
-the constructs and how they work, as well as details on Garbage
-Collection and more.
+the [constructs](#syntax-constructs) and how they work,
+as well as details on [data lifetime](#data-lifetime-and-scopes),
+and more.
 
 
 ## Syntax Constructs
@@ -208,7 +209,8 @@ and you will never face this ambiguity.
 
 ### Variable definitions and assignments (var)
 
-Variables can be declared with any given unicode name.
+Variables can be declared with any given unicode name, which
+becomes their identifier.
 They default to none, but may be assigned a default value.
 They can be reassigned later if known in the current scope:
 
@@ -224,6 +226,19 @@ For constant unchangeable values, use `const` instead:
 const my_number_constant = 5
 ```
 (This sometimes also allows the compiler to optimize better.)
+
+Any name in Horse64 that isn't a known keyword like `var`
+is an identifier, and must refer to some known variable. [See
+later section on lifetime and scopes](#data-lifetime-and-scopes)
+for how this is determined.
+
+There are built-in variables, for example the pre-defined `print` function.
+Refer to the standard library reference for a complete list.
+
+There are also the special identifiers "self" and "base" don't
+refer to variables, see [later section on classes](
+    #defining-custom-classes-class-new
+).
 
 
 ### Conditionals (if, elseif, else)
@@ -265,7 +280,9 @@ if my_tested_value == 5 {
 Horse64 supports two loop types, a `while` loop with an
 arbitrary conditional, and a `for` loop that does a for
 each iteration over a container. For details on how
-the conditional is evaluated, see the Conditionals section.
+the conditional is evaluated, see the [section on conditionals](
+    #conditionals-if-elseif-else
+)..
 
 ```horse64
 # While loop (using a conditional):
@@ -420,7 +437,8 @@ func my_func(number_value) {
 This will cause execution to stop at `raise`, and bail -
 similar to a `return`, but beyond just this function and
 up the entire call chain until either a `rescue` (see
-next section) stops it, or the original `main` is bailed out of.
+[next section](#handling-errors-dorescue)) stops it,
+or the original `main` is bailed out of.
 In the latter case, the program ends.
 
 **Error best practice:**
@@ -654,7 +672,7 @@ runtime which **may be subject to future change**:
   transparently.
 
 
-### Object Lifetime and Scopes
+### Data Lifetime and Scopes
 
 **Code blocks and Scopes:**
 
@@ -665,17 +683,22 @@ variables defined via `var` are valid.
 
 **Lifetime of local variables:**
 
-A `var` statement inside a code block adds a variable to its
+A `var` statement inside a code block adds a variable to its block's
 scope, and may only be used from inside that code block from
-statements *after* the declaration, as well as nested inner blocks.
-Therefore, it's lifetime is limited to its scope.
+statements *after* the declaration, as well as nested inner blocks
+after the declaration (since they inherit the contents of their
+parent blocks' scopes at that point in the file).
+
+A variable can be re-declared with the same name inside a nested
+block's scope. This is allowed, but not recommended since it can
+make it less obvious what an identifier refers to.
 
 **When a variable's data is freed from memory:**
 
 As soon as a variable with a data type that is always passed by
-value (see section above on Data Types) goes out of scope, that
-is execution leaves the code block where it was defined, it will
-cease to exist immediately.
+value (see [section above on data types](#datatypes)) goes out
+of scope, that is execution leaves the code block where it was
+defined, it will cease to exist immediately.
 
 As soon as a variable with a data type passed by reference goes
 out of scope, the reference to the underlying data object is removed.
