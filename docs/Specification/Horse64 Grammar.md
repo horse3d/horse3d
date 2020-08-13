@@ -10,8 +10,8 @@ as exact as possible.
 **Important correctness note:** this grammar is manually maintained,
 and might not always match the actual parser which you can find in the
 [horsec source code](../Contributing.md#corehorse64org-package) in
-the file `horse64/compiler/astparser.c`. It is intended that it
-matches as close as possible, therefore please [report an issue](
+the file `horse64/compiler/astparser.c`. It is intended to
+match as closely as possible, therefore please [report an issue](
     ../Contributing.md#report-bugs
 ) if you observe any difference in the wild.
 
