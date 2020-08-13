@@ -5,7 +5,7 @@ This document attempts to describe the formal syntax of Horse64
 as exact as possible.
 
 
-### Grammar
+## Grammar
 
 **Important correctness note:** this grammar is manually maintained,
 and might not always match the actual parser which you can find in the
@@ -42,7 +42,7 @@ For precedence numbers, check the [operators semantics section](
 
 - Optional items are followed by a question mark, e.g. `item?`.
 
-**Grammar listing:**
+### Grammar listing
 
 ```
 
@@ -158,7 +158,7 @@ unopexpr ::= unop expr
 
 ```
 
-**A few missing rules in writing:**
+### A few missing rules in writing
 
 `assignbinop` can be `+=`, `-=`, `*=`, and `/=`. Assignments
 with these assignment math operators are just a short hand,
@@ -200,7 +200,7 @@ This sequence is resumed by more utf-8 characters of that same set of
 choices, or additionally 4. `0-9` any digit, and terminated once
 the character falls out of that range.
 
-**Whitespace rules:**
+### Whitespace rules
 
 Whitespace in Horse64 must be inserted wherever
 an item would otherwise merge with a previous one, e.g. between
