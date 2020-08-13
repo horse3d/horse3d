@@ -89,8 +89,9 @@ It has the following notable properties:
   There is a `new` operator to make object instances, but no
   explicit delete operator of any kind.
 
-See the respective later sections for both the detailed grammar,
-the [constructs](#syntax-constructs) and how they work,
+See the respective later sections for both the detailed [grammar](
+    (./Horse64%20Grammar.md#grammar), the
+[constructs](#syntax-constructs) and how they work,
 as well as details on [data lifetime](#data-lifetime-and-scopes),
 and more.
 
@@ -968,7 +969,7 @@ look like, and how they map to modules, and how modules are found.
 
 The **file names** of all code files are expected to end in `.h64`,
 and only contain characters that are a valid identifier in
-the [grammar](./Horse64%20Grammar#grammar).
+the [grammar](./Horse64%20Grammar.md#grammar).
 Please note this excludes space characters.
 
 All bytes inside a code file must be valid utf-8, including in any
