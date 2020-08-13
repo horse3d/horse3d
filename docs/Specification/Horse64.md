@@ -980,9 +980,8 @@ but only with escaping.
 
 **What is a module, and where is it:**
 
-Outside of C extensions, which are not specified in this spec,
-**one .h64 code file maps to one module** of the same name minus
-the file extension.
+Outside of C extensions, every .h64 code file maps to a module of
+the same name.
 Modules are found in two separate places: 1. local project imports for
 `import` statements with no `from`, 2. external package imports for
 `import` statements with a `from`.
