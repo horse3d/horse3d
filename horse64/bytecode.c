@@ -226,39 +226,39 @@ int h64program_RegisterClassAttributeEx(
     // Allocate new slot for either methods or vars:
     int entry_idx = -1;
     if (func_idx >= 0) {
-        if (p->classes[class_id].method_count >=
+        if (p->classes[class_id].funcattr_count >=
                 H64CLASS_MAX_METHODS)
             return 0;
-        int64_t *new_method_global_name_idx = realloc(
-            p->classes[class_id].method_global_name_idx,
+        int64_t *new_funcattr_global_name_idx = realloc(
+            p->classes[class_id].funcattr_global_name_idx,
             sizeof(*p->classes[class_id].
-                   method_global_name_idx) *
-            (p->classes[class_id].method_count + 1)
+                   funcattr_global_name_idx) *
+            (p->classes[class_id].funcattr_count + 1)
         );
-        if (!new_method_global_name_idx)
+        if (!new_funcattr_global_name_idx)
             return 0;
-        p->classes[class_id].method_global_name_idx = (
-            new_method_global_name_idx
+        p->classes[class_id].funcattr_global_name_idx = (
+            new_funcattr_global_name_idx
         );
-        funcid_t *new_method_func_idx = realloc(
-            p->classes[class_id].method_func_idx,
+        funcid_t *new_funcattr_func_idx = realloc(
+            p->classes[class_id].funcattr_func_idx,
             sizeof(*p->classes[class_id].
-                   method_func_idx) *
-            (p->classes[class_id].method_count + 1)
+                   funcattr_func_idx) *
+            (p->classes[class_id].funcattr_count + 1)
         );
-        if (!new_method_func_idx)
+        if (!new_funcattr_func_idx)
             return 0;
-        p->classes[class_id].method_func_idx = (
-            new_method_func_idx
+        p->classes[class_id].funcattr_func_idx = (
+            new_funcattr_func_idx
         );
-        new_method_global_name_idx[
-            p->classes[class_id].method_count
+        new_funcattr_global_name_idx[
+            p->classes[class_id].funcattr_count
         ] = nameid;
-        new_method_func_idx[
-            p->classes[class_id].method_count
+        new_funcattr_func_idx[
+            p->classes[class_id].funcattr_count
         ] = func_idx;
-        p->classes[class_id].method_count++;
-        entry_idx = p->classes[class_id].method_count - 1;
+        p->classes[class_id].funcattr_count++;
+        entry_idx = p->classes[class_id].funcattr_count - 1;
     } else {
         int64_t *new_varattr_global_name_idx = realloc(
             p->classes[class_id].varattr_global_name_idx,
@@ -529,8 +529,8 @@ void h64program_Free(h64program *p) {
                 }
                 free(p->classes[i].global_name_to_attribute_hashmap);
             }
-            free(p->classes[i].method_func_idx);
-            free(p->classes[i].method_global_name_idx);
+            free(p->classes[i].funcattr_func_idx);
+            free(p->classes[i].funcattr_global_name_idx);
             free(p->classes[i].varattr_global_name_idx);
             i++;
         }

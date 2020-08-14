@@ -320,12 +320,12 @@ typedef struct h64classattributeinfo {
 } h64classattributeinfo;
 
 typedef struct h64class {
-    int method_count;
-    int64_t *method_global_name_idx;
-    funcid_t *method_func_idx;
     classid_t base_class_global_id;
     int is_error;
 
+    int funcattr_count;
+    int64_t *funcattr_global_name_idx;
+    funcid_t *funcattr_func_idx;
     int varattr_count;
     int64_t *varattr_global_name_idx;
 

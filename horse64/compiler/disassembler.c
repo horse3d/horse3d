@@ -690,8 +690,18 @@ int disassembler_Dump(
         int k = 0;
         while (k < (int)p->classes[i].varattr_count) {
             if (!disassembler_Write(di,
-                    "VARATTR %" PRId64 "\n",
-                    (int64_t)p->classes[i].varattr_global_name_idx
+                    "    VARATTR %" PRId64 "\n",
+                    (int64_t)p->classes[i].varattr_global_name_idx[k]
+                    ))
+                return 0;
+            k++;
+        }
+        k = 0;
+        while (k < (int)p->classes[i].funcattr_count) {
+            if (!disassembler_Write(di,
+                    "    FUNCATTR %" PRId64 " %" PRId64 "\n",
+                    (int64_t)p->classes[i].funcattr_global_name_idx[k],
+                    (int64_t)p->classes[i].funcattr_func_idx[k]
                     ))
                 return 0;
             k++;

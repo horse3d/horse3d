@@ -99,6 +99,7 @@ static int scoperesolver_ComputeItemStorage(
     h64scope *scope = ast_GetScope(expr, &ast->scope);
     assert(program->symbols != NULL);
     assert(scope != NULL);
+
     // Assign global variables + classes storage:
     if (scope->is_global ||
             expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
@@ -139,6 +140,7 @@ static int scoperesolver_ComputeItemStorage(
             return 1;
         }
     }
+
     // Handle class attributes:
     if (!scope->is_global && expr->type == H64EXPRTYPE_VARDEF_STMT) {
         h64expression *owningclass = expr->parent;
@@ -189,6 +191,9 @@ static int scoperesolver_ComputeItemStorage(
                     if (outofmemory) *outofmemory = 1;
                     return 0;
                 }
+                program->classes[
+                    owningclassindex
+                ].hasvarinitfunc = 1;
             }
             return 1;
         }
@@ -375,6 +380,38 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
         }
     }
 
+    // Make sure storage is computed for class varattrs:
+    if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+        h64expression *owningclass = surroundingclass(expr, 0);
+        if (owningclass) {
+            int outofmemory = 0;
+            if (!scoperesolver_ComputeItemStorage(
+                    atinfo->pr, expr, atinfo->pr->program, atinfo->ast,
+                    rinfo->extract_main,
+                    &outofmemory)) {
+                if (outofmemory) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "internal error: failed to compute storage for "
+                    "expr: %s", ast_ExpressionTypeToStr(expr->type)
+                );
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+        }
+    }
+
     // Add file-global items to the project-global item lookups:
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
@@ -392,13 +429,13 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                 char *_bufheap = malloc(strlen(s) + 2048);
                 char *buf = _bufstack;
                 if (_bufheap) {
-                    buflen = strlen(s) + 2048;
+                    buflen = (s ? strlen(s) : 512) + 2048;
                     buf = _bufheap;
                 }
                 snprintf(buf, buflen - 1,
                     "internal error: failed to obtain scope, "
                     "malformed AST? expr: %s/%s, parent: %s",
-                    ast_ExpressionTypeToStr(expr->type), s,
+                    ast_ExpressionTypeToStr(expr->type), (s ? s : ""),
                     (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
                      "none")
                 );
