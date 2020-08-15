@@ -406,7 +406,7 @@ void h64program_FreeInstructions(
     char *instructionbytes, int instructionbytes_len
 );
 
-void h64program_LookupClassAttribute(
+inline void h64program_LookupClassAttribute(
     h64program *p, classid_t class_id, int64_t nameid,
     int *out_attributevarid, int *out_attributefuncid
 );
