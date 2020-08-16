@@ -5,9 +5,8 @@
 
 Horse64 was designed as an alternative to the popular **Python** scripting
 language. It shares the striving for readable, simple syntax, and
-beginner-friendly design, while attempting to cut down on some of the
-unnecessary flexibility for the sake of being easier to manage in
-big projects.
+beginner-friendly design, while attempting a more grounded design
+with more stability for bigger projects.
 
 It's intended main usage is productive work on backend services,
 end-user applications, and terminal tools. It works for multimedia
