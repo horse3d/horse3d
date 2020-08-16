@@ -10,8 +10,8 @@ beginner-friendly design, but it tries to be more grounded
 with less surprises in bigger projects.
 
 It's intended main usage is productive work on backend services,
-end-user applications, and terminal tools. It works for multimedia
-and 3D as well!
+end-user applications, networking, and terminal tools.
+It works for multimedia and 3D as well!
 
 
 ## Design Twist: Static Scope
