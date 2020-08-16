@@ -617,6 +617,11 @@ int disassembler_Dump(
                 "NAMEIDX %d as_str\n", p->as_str_name_index))
             return 0;
     }
+    if (p->to_str_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX %d to_str\n", p->to_str_name_index))
+            return 0;
+    }
     if (p->length_name_index >= 0) {
         if (!disassembler_Write(di,
                 "NAMEIDX %d length\n", p->length_name_index))
@@ -627,14 +632,14 @@ int disassembler_Dump(
                 "NAMEIDX %d init\n", p->init_name_index))
             return 0;
     }
-    if (p->destroy_name_index >= 0) {
+    if (p->destroyed_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d destroy\n", p->destroy_name_index))
+                "NAMEIDX %d destroyed\n", p->destroyed_name_index))
             return 0;
     }
-    if (p->clone_name_index >= 0) {
+    if (p->cloned_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d clone\n", p->clone_name_index))
+                "NAMEIDX %d cloned\n", p->cloned_name_index))
             return 0;
     }
     if (p->equals_name_index >= 0) {
@@ -642,9 +647,9 @@ int disassembler_Dump(
                 "NAMEIDX %d equals\n", p->equals_name_index))
             return 0;
     }
-    if (p->hash_name_index >= 0) {
+    if (p->to_hash_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d hash\n", p->hash_name_index))
+                "NAMEIDX %d to_hash\n", p->to_hash_name_index))
             return 0;
     }
     int64_t i = 0;

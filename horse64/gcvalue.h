@@ -26,6 +26,7 @@ typedef enum gcvaluetype {
     H64GCVALUETYPE_LIST,
     H64GCVALUETYPE_SET,
     H64GCVALUETYPE_MAP,
+    H64GCVALUETYPE_OBJINSTANCE,
     H64GCVALUETYPE_TOTAL_COUNT
 } gcvaluetype;
 
@@ -59,6 +60,11 @@ typedef struct h64gcvalue {
         };
         struct {
             h64closureinfo *closure_info;
+        };
+        struct {
+            classid_t class_id;
+            int16_t varattr_count;
+            valuecontent *varattr;
         };
     };
 } h64gcvalue;

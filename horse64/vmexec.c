@@ -2585,8 +2585,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             memset(target, 0, sizeof(*target));
         }
         valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
+        attridx_t addr_index = -1;
         int64_t nameidx = inst->nameidx;
-        if (nameidx == vmexec->program->as_str_name_index
+        if (nameidx >= 0 &&
+                nameidx == vmexec->program->as_str_name_index
                 ) {  // .as_str
             // See what this actually is as a string with .as_str:
             unicodechar strvalue[128];
@@ -2718,8 +2720,32 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             assert((unsigned int)gcval->str_val.len ==
                    (unsigned int)strvaluelen);
             ADDREF_NONHEAP(target);
-        } else if (nameidx == vmexec->program->add_name_index
-                ) {  // .add
+        } else if (nameidx >= 0 &&
+                (nameidx == vmexec->program->to_str_name_index ||
+                 nameidx == vmexec->program->init_name_index ||
+                 nameidx == vmexec->program->destroyed_name_index ||
+                 nameidx == vmexec->program->cloned_name_index ||
+                 nameidx == vmexec->program->equals_name_index ||
+                 nameidx == vmexec->program->to_hash_name_index
+                ) &&
+                vc->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE
+                ) {  // .to_str/.init/.destroyed/.cloned/.equals/.to_hash
+                     // (on a class object instance)
+            // This is an internal function that is supposed to be
+            // inaccessible from the outside.
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "internal attributes are not directly accessible"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        } else if (nameidx >= 0 &&
+                nameidx == vmexec->program->add_name_index &&
+                (vc->type != H64VALTYPE_GCVAL ||
+                 ((h64gcvalue *)vc->ptr_value)->type !=
+                 H64GCVALUETYPE_OBJINSTANCE)
+                ) {  // .add, not on class object
             if (vc->type == H64VALTYPE_GCVAL && (
                     ((h64gcvalue *)vc->ptr_value)->type ==
                     H64GCVALUETYPE_LIST ||
@@ -2759,6 +2785,19 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
+        } else if (nameidx >= 0 &&
+                vc->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE &&
+                (addr_index = h64program_LookupClassAttribute(
+                     pr, ((h64gcvalue *)vc->ptr_value)->class_id,
+                     nameidx
+                 ) > 0)
+                ) {
+            h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
+            memcpy(target, &gcv->varattr[addr_index],
+                   sizeof(*target));
+            ADDREF_NONHEAP(target);
         } else {
             RAISE_ERROR(
                 H64STDERROR_ATTRIBUTEERROR,
@@ -2836,49 +2875,79 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         fprintf(stderr, "newvector not implemented\n");
         return 0;
     }
-    inst_newinstancebyref: {
-        h64instruction_newinstancebyref *inst = (
-            (h64instruction_newinstancebyref *)p
-        );
-        #ifndef NDEBUG
-        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
-        #endif
-
-        valuecontent *vctarget = STACK_ENTRY(stack, inst->slotto);
-        DELREF_NONHEAP(vctarget);
-        valuecontent_Free(vctarget);
-        memset(vctarget, 0, sizeof(*vctarget));
-        valuecontent *vcfrom = STACK_ENTRY(
-            stack, inst->classtypeslotfrom
-        );
-        if (vcfrom->type != H64VALTYPE_CLASSREF) {
-            RAISE_ERROR(
-                H64STDERROR_TYPEERROR,
-                "new must be called on a class type"
+    {
+        valuecontent *vctarget = NULL;
+        classid_t class_id = -1;
+        int16_t slot_to = -1;
+        int skipbytes = 0;
+        inst_newinstancebyref: {
+            h64instruction_newinstancebyref *inst = (
+                (h64instruction_newinstancebyref *)p
             );
+            #ifndef NDEBUG
+            if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                    !vmthread_PrintExec((void*)inst)) goto triggeroom;
+            #endif
+
+            skipbytes = sizeof(*inst);
+            slot_to = inst->slotto;
+            valuecontent *vcfrom = STACK_ENTRY(
+                stack, inst->classtypeslotfrom
+            );
+            if (vcfrom->type != H64VALTYPE_CLASSREF) {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "new must be called on a class type"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            class_id = vcfrom->int_value;
+            goto sharedending_newinstance_newinstancebyref;
+        }
+        inst_newinstance: {
+            h64instruction_newinstance *inst = (
+                (h64instruction_newinstance *)p
+            );
+            #ifndef NDEBUG
+            if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                    !vmthread_PrintExec((void*)inst)) goto triggeroom;
+            #endif
+
+            skipbytes = sizeof(*inst);
+            slot_to = inst->slotto;
+            class_id = inst->classidcreatefrom;
+            goto sharedending_newinstance_newinstancebyref;
+        }
+        sharedending_newinstance_newinstancebyref: {
+            valuecontent *vctarget = STACK_ENTRY(stack, slot_to);
+            DELREF_NONHEAP(vctarget);
+            valuecontent_Free(vctarget);
+            memset(vctarget, 0, sizeof(*vctarget));
+            assert(class_id >= 0 && class_id < vmexec->program->func_count);
+            vctarget->type = H64VALTYPE_GCVAL;
+            vctarget->ptr_value = poolalloc_malloc(heap, 0);
+            if (!vctarget->ptr_value)
+                goto triggeroom;
+            h64gcvalue *gcval = (h64gcvalue *)vctarget->ptr_value;
+            gcval->type = H64GCVALUETYPE_OBJINSTANCE;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            gcval->class_id = class_id;
+            gcval->varattr_count = (
+                vmexec->program->classes[class_id].varattr_count
+            );
+            gcval->varattr = malloc(
+                sizeof(valuecontent) * gcval->varattr_count
+            );
+            if (gcval->varattr) {
+                gcval->type = H64VALTYPE_NONE;
+                goto triggeroom;
+            }
+            memset(gcval->varattr, 0, sizeof(*gcval->varattr));
+
+            p += skipbytes;
             goto *jumptable[((h64instructionany *)p)->type];
         }
-        int64_t class_id = vcfrom->int_value;
-        assert(class_id >= 0 && class_id < vmexec->program->func_count);
-        vctarget->type = H64VALTYPE_OBJINSTANCE;
-        vctarget->varattr_count = (
-            vmexec->program->classes[class_id].varattr_count
-        );
-        vctarget->varattr = malloc(
-            sizeof(valuecontent) * vctarget->varattr_count
-        );
-        if (vctarget->varattr) {
-            vctarget->type = H64VALTYPE_NONE;
-            goto triggeroom;
-        }
-        memset(vctarget->varattr, 0, sizeof(*vctarget->varattr));
-        fprintf(stderr, "newinstancebyref not implemented\n");
-        return 0;
-    }
-    inst_newinstance: {
-        fprintf(stderr, "newinstance not implemented\n");
-        return 0;
     }
 
     setupinterpreter:

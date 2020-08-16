@@ -91,7 +91,6 @@ typedef enum valuetype {
     H64VALTYPE_GCVAL,
     H64VALTYPE_SHORTSTR,
     H64VALTYPE_CONSTPREALLOCSTR,
-    H64VALTYPE_OBJINSTANCE,
     H64VALTYPE_VECTOR,
     H64VALTYPE_UNSPECIFIED_KWARG,
 } valuetype;
@@ -121,6 +120,7 @@ typedef struct valuecontent {
             h64errorinfo *einfo;
         } __attribute__((packed));
         struct {
+            classid_t class_id;
             int16_t varattr_count;
             valuecontent *varattr;
         } __attribute__((packed));
@@ -323,10 +323,10 @@ typedef struct h64class {
     classid_t base_class_global_id;
     int is_error;
 
-    int funcattr_count;
+    attridx_t funcattr_count;
     int64_t *funcattr_global_name_idx;
     funcid_t *funcattr_func_idx;
-    int varattr_count;
+    attridx_t varattr_count;
     int64_t *varattr_global_name_idx;
 
     h64classattributeinfo **global_name_to_attribute_hashmap;
@@ -376,12 +376,13 @@ typedef struct h64program {
     funcid_t containeradd_func_index;
 
     int64_t as_str_name_index;
+    int64_t to_str_name_index;
     int64_t length_name_index;
     int64_t init_name_index;
-    int64_t destroy_name_index;
-    int64_t clone_name_index;
+    int64_t destroyed_name_index;
+    int64_t cloned_name_index;
     int64_t equals_name_index;
-    int64_t hash_name_index;
+    int64_t to_hash_name_index;
     int64_t add_name_index;
 
     globalvarid_t globalvar_count;
@@ -406,9 +407,12 @@ void h64program_FreeInstructions(
     char *instructionbytes, int instructionbytes_len
 );
 
-inline void h64program_LookupClassAttribute(
-    h64program *p, classid_t class_id, int64_t nameid,
-    int *out_attributevarid, int *out_attributefuncid
+attridx_t h64program_LookupClassAttribute(
+    h64program *p, classid_t class_id, int64_t nameid
+);
+
+attridx_t h64program_LookupClassAttributeByName(
+    h64program *p, classid_t class_id, const char *name
 );
 
 classid_t h64program_RegisterClassVariable(

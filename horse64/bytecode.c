@@ -11,6 +11,7 @@
 
 #include "bytecode.h"
 #include "debugsymbols.h"
+#include "compiler/globallimits.h"
 #include "corelib/errors.h"
 #include "corelib/moduleless.h"
 #include "gcvalue.h"
@@ -141,12 +142,13 @@ h64program *h64program_New() {
     p->containeradd_func_index = -1;
 
     p->as_str_name_index = -1;
+    p->to_str_name_index = -1;
     p->length_name_index = -1;
     p->init_name_index = -1;
-    p->destroy_name_index = -1;
-    p->clone_name_index = -1;
+    p->destroyed_name_index = -1;
+    p->cloned_name_index = -1;
     p->equals_name_index = -1;
-    p->hash_name_index = -1;
+    p->to_hash_name_index = -1;
     p->add_name_index = -1;
 
     p->symbols = h64debugsymbols_New();
@@ -227,7 +229,7 @@ int h64program_RegisterClassAttributeEx(
     int entry_idx = -1;
     if (func_idx >= 0) {
         if (p->classes[class_id].funcattr_count >=
-                H64CLASS_MAX_METHODS)
+                H64LIMIT_MAX_CLASS_FUNCATTRS)
             return 0;
         int64_t *new_funcattr_global_name_idx = realloc(
             p->classes[class_id].funcattr_global_name_idx,
@@ -260,6 +262,9 @@ int h64program_RegisterClassAttributeEx(
         p->classes[class_id].funcattr_count++;
         entry_idx = p->classes[class_id].funcattr_count - 1;
     } else {
+        if (p->classes[class_id].varattr_count >=
+                H64LIMIT_MAX_CLASS_VARATTRS)
+            return 0;
         int64_t *new_varattr_global_name_idx = realloc(
             p->classes[class_id].varattr_global_name_idx,
             sizeof(*p->classes[class_id].
@@ -284,14 +289,13 @@ int h64program_RegisterClassAttributeEx(
     buckets[buckets_count].nameid = nameid;
     buckets[buckets_count].methodorvaridx = (
         func_idx > 0 ?
-        entry_idx : (H64CLASS_MAX_METHODS + entry_idx)
+        entry_idx : (H64LIMIT_MAX_CLASS_FUNCATTRS + entry_idx)
     );
     return 1;
 }
 
-inline void h64program_LookupClassAttribute(
-        h64program *p, classid_t class_id, int64_t nameid,
-        int *out_attributevarid, int *out_attributefuncid
+attridx_t h64program_LookupClassAttribute(
+        h64program *p, classid_t class_id, int64_t nameid
         ) {
     assert(p != NULL && p->symbols != NULL);
     int bucketindex = (nameid % (int64_t)H64CLASS_HASH_SIZE);
@@ -301,38 +305,25 @@ inline void h64program_LookupClassAttribute(
     int i = 0;
     while (buckets[i].nameid >= 0) {
         if (buckets[i].nameid == nameid) {
-            int64_t result = buckets[i].methodorvaridx;
-            if (result < H64CLASS_MAX_METHODS) {
-                *out_attributefuncid = result;
-                *out_attributevarid = -1;
-            } else {
-                *out_attributefuncid = -1;
-                *out_attributevarid = (
-                    result - H64CLASS_MAX_METHODS
-                );
-            }
-            return;
+            attridx_t result = buckets[i].methodorvaridx;
+            assert(result >= 0);
+            return result;
         }
         i++;
     }
-    *out_attributefuncid = -1;
-    *out_attributevarid = -1;
+    return -1;
 }
 
-void h64program_LookupClassAttributeByname(
-        h64program *p, classid_t class_id, const char *name,
-        int *out_attributevarid, int *out_attributefuncid
+attridx_t h64program_LookupClassAttributeByName(
+        h64program *p, classid_t class_id, const char *name
         ) {
     int64_t nameid = h64debugsymbols_AttributeNameToAttributeNameId(
         p->symbols, name, 0
     );
-    if (nameid < 0) {
-        *out_attributevarid = -1;
-        *out_attributefuncid = -1;
-    }
-    h64program_LookupClassAttribute(
-        p, class_id, nameid,
-        out_attributevarid, out_attributefuncid
+    if (nameid < 0)
+        return -1;
+    return h64program_LookupClassAttribute(
+        p, class_id, nameid
     );
 }
 
