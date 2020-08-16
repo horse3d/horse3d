@@ -17,8 +17,8 @@ func main {
 
 **Features:**
 
-- **Simple.** Much of Horse64 has [approachable design](
-  Design.md), including its intuitive dynamic typing.
+- **Simple.** Horse64 strives for [approachable design](
+  ./docs/Design.md), including its intuitive dynamic typing.
 
 - **Self-contained.** Single-binary compiler, no complex
   toolchains or giant IDEs. (Unless you want them!) It's cross-platform
