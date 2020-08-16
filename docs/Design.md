@@ -3,10 +3,11 @@
 
 ## Origin of Horse64
 
-Horse64 was designed as an alternative to the popular **Python** scripting
-language. It shares the striving for readable, simple syntax, and
-beginner-friendly design, while attempting a more grounded design
-with more stability for bigger projects.
+Horse64 was designed by [@ell1e](https://github.com/ell1e) as
+an alternative to the popular **Python** scripting language.
+Like Python, it strives for readable, simple syntax, and
+beginner-friendly design, but it tries to be more grounded
+with less surprises in bigger projects.
 
 It's intended main usage is productive work on backend services,
 end-user applications, and terminal tools. It works for multimedia
