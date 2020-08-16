@@ -11,7 +11,7 @@ with less surprises in bigger projects.
 
 It's intended main usage is productive work on backend services,
 end-user applications, networking, and terminal tools.
-It works for multimedia and 3D as well!
+Use for multimedia and basic 3D is also possible.
 
 
 ## Design Twist: Static Scope
