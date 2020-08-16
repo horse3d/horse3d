@@ -39,7 +39,7 @@ enough to take on most types of projects. The standard library
 attempts to cover all bases, to give a fully usable universal core.
 
 If there were to be fixed design principles, it'd probably be some
-similar to those (this list is a **work in progress**)/:
+similar to those (**work in progress**):
 
 - **Simplicity over bloat:**
   It is preferred to make rare tasks slightly more complicated,
