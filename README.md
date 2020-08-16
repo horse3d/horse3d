@@ -17,7 +17,7 @@ func main {
 
 **Features:**
 
-- **Simple.** Much of Horse64 is [designed to be approachable](
+- **Simple.** Much of Horse64 has [approachable design](
   Design.md), including its intuitive dynamic typing.
 
 - **Self-contained.** Single-binary compiler, no complex
@@ -34,6 +34,7 @@ func main {
 
 - **Open.** *Horse64* is, excluding its logo, all free software
   under BSD-like licensing. [Check the license here.](LICENSE.md)
+  We also have an open [specification](./docs/Specification/Horse64.md).
 
 
 Get Started
