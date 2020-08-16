@@ -17,23 +17,17 @@ func main {
 
 **Features:**
 
-- **Simple.** Readable syntax with intuitive dynamic typing,
-  quick to get started in.
+- **Simple.** Much of Horse64 is [designed to be approachable](
+  Design.md), including its intuitive dynamic typing.
 
-- **Cross-platform.** Supports Windows and Linux, with easy support
-  feasible for any platform supporting OpenGL in the future.
+- **Self-contained.** Single-binary compiler, no complex
+  toolchains or giant IDEs. (Unless you want them!) It's cross-platform
+  too.
 
-- **Self-contained tooling.** Single-binary compiler, no complex
-  toolchains or giant IDEs. (unless you want them)
-
-- **Maintainable code.** Helps keep your code orderly with static
+- **Solid to build on.** Helps keep your code orderly with static
   imports and compile-time identifier checks.
   Ideal for maintainable large code bases, with the accessibility
   full dynamic typing.
-
-- **Easy to ship.** Single-binary output with no non-system dependencies.
-  No need to add an interpreter or separate libaries, making it
-  suitable for cloud & micro service use.
 
 - **Multimedia included.** Support for 3D via OpenGL, and
   complex User Interfaces with the official `multimedia` library.
@@ -41,11 +35,6 @@ func main {
 - **Open.** *Horse64* is, excluding its logo, all free software
   under BSD-like licensing. [Check the license here.](LICENSE.md)
 
-- **Reliable.** Comfortable garbage-collection gives you
-  stability without manual hand-holding.
-
-- **Flexible.** Supports unicode identifiers, any indents
-  with no significant whitespace, and LSP for wide editor choices.
 
 Get Started
 -----------

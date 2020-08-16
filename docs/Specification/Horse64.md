@@ -49,6 +49,8 @@ Here is an overview how it roughly compares:
   scripts in a video game written in C/C++. Horse64 is not easily suitable
   for this right now.
 
+**To find out more, also [see the Design Motivations](../Design.md).**
+
 
 ## Syntax Basics
 
