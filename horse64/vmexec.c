@@ -2722,7 +2722,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             ADDREF_NONHEAP(target);
         } else if (nameidx >= 0 &&
                 (nameidx == vmexec->program->to_str_name_index ||
-                 nameidx == vmexec->program->init_name_index ||
                  nameidx == vmexec->program->destroyed_name_index ||
                  nameidx == vmexec->program->cloned_name_index ||
                  nameidx == vmexec->program->equals_name_index ||
@@ -2731,13 +2730,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue *)vc->ptr_value)->type ==
                 H64GCVALUETYPE_OBJINSTANCE
-                ) {  // .to_str/.init/.destroyed/.cloned/.equals/.to_hash
+                ) {  // .to_str/.destroyed/.cloned/.equals/.to_hash
                      // (on a class object instance)
             // This is an internal function that is supposed to be
             // inaccessible from the outside.
+            // IMPORTANT: .init() needs to remain accessible.
             RAISE_ERROR(
                 H64STDERROR_ATTRIBUTEERROR,
-                "internal attributes are not directly accessible"
+                "this special func attribute is not "
+                "directly accessible"
             );
             goto *jumptable[((h64instructionany *)p)->type];
         } else if (nameidx >= 0 &&
