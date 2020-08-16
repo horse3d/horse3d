@@ -58,7 +58,7 @@ similar to those (**work in progress**):
 
 - **Common style is encouraged:**
   Everyone using Horse64 is encouraged to stick to the
-  [Common Style Guide](Common Style Guide.md).
+  [Common Style Guide](./Common%20Style%20Guide.md).
 
 Since the project is still young, these points are subject to change.
 
