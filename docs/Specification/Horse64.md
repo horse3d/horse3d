@@ -22,6 +22,7 @@ Here is an overview how it roughly compares:
 |Garbage Collected              |Yes     |Yes           |Some of them    |
 |Compiles AOT & Optimized [1]   |Yes     |Usually no    |Yes             |
 |Slow dynamic scope lookups [2] |No      |Yes           |Usually no      |
+|Compile-time scope verification|Yes     |No            |Yes             |
 |Runtime eval()                 |No      |Yes           |Usually no      |
 |Runtime module load            |No      |Used often    |Used rarely     |
 |Produces Standalone Binary     |Yes     |No, or tricky |Some of them    |
