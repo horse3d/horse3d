@@ -1,7 +1,7 @@
 
-# Horse64 OOP
+# Horse64 Object-Oriented Programming
 
-## Defining a class (class, new)
+## Syntax: defining a class (class, new)
 
 To help with object-oriented programming, Horse64 allows
 defining custom classes:
@@ -29,7 +29,9 @@ func main {
 }
 ```
 
-## Basics of classes behavior
+## Semantics: behavior of a class
+
+### What is a class
 
 In Horse64, a class describes, as commonly done in OOP, how all
 so-called object instances that were created from it behave.
@@ -38,8 +40,12 @@ all object instances when they are created.
 A class may also be referred to as a class type, since it defines
 a new custom user-supplied object type.
 
+### How to create an object instance
+
 An object instance can be created from a class with the `new`
 operator. A class can be defined via the `class` statement.
+
+### What are attributes
 
 A class can specify `var` attributes which are initialised with the
 given value on each object instance once created. (The default
@@ -55,11 +61,13 @@ are fixed to the given function and can not be altered. Inside such
 a function attribute's statements, the special identifier `self`
 refers to the current object instance it runs on.
 
+### Special class functions
+
 If a class specifies the optional `init` function attribute for its
 object instances, then this function will be automatically invoked
 by `new` on creation.
 
-## OOP Best Practices
+## Best practices / when NOT to use a class
 
 We recommend you **DO NOT** use a class if all it has is one single
 function attribute, and you just set some other attribute values and
