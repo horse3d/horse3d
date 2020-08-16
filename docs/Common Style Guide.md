@@ -1,7 +1,7 @@
 
 # Common Style Guide
 
-This is the recommended **common style of coding Horse64.**
+This is the recommended **common style of coding** for Horse64.
 
 
 ## Indentation and brackets
