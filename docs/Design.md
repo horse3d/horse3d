@@ -21,10 +21,11 @@ usually is only found in statically typed or type inferred languages.
 
 This gives you:
 
-- All the simplicity of truly dynamic, annotation-free typing in
-  **all** cases
-- Vastly improved compile-time error detection
-- No potential for bugs related to dynamic scope modification as
+- The simplicity of truly dynamic, annotation-free typing in
+  *all* cases (unlike type inferred languages that only give it for
+  *most*),
+- vastly improved compile-time error detection,
+- no potential for bugs related to dynamic scope modification as
   is common in scripting languages.
 
 Read more on [the practical differences to scripting languages](
