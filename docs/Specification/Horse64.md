@@ -376,7 +376,7 @@ class MyCircle {
     }
 }
 ```
-For details on how to use them [read on Horse64 OOP
+For details on how to use them, check [Horse64 OOP
 specifications](Horse64%20OOP.md).
 
 
