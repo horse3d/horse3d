@@ -49,7 +49,7 @@ similar to those (**work in progress**):
 
 - **Readability over conciseness:**
   Keeping the language approachable is usually preferred to saving
-  advanced coders letters to type out, unless the impact is too grave.
+  advanced programmers letters to type out, unless the impact is too grave.
 
 - **Self-contained tooling over perfect implementation:**
   Having a less optimal implementation is preferred over adding in
