@@ -8,8 +8,8 @@ guidelines in mind:
   be wrong, since everyone is human.
 
 - Don't discriminate based on race, gender, age, disabilities,
-  appearance, ethnicity, or similar. Don't single out people
-  for the purpose of putting them down.
+  appearance, ethnicity, financial means, or similar. Don't single
+  out people for the purpose of putting them down.
   We have no place for this in our community.
 
 - Don't use threats, deliberate intimidation, inappropiate sexual
