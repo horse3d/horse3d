@@ -79,9 +79,9 @@ Advanced: Build it Yourself
 ---------------------------
 
 Since Horse64 is [open-source](LICENSE.md), you can
-[build it yourself by following the custom build instructions.](
+[build it yourself](
     ./docs/horsec/horsec.md#manual-build   
-)
+) if you want to.
 Please note this is an advanced task and in no way necessary to
 make your application.
 However, if you want to contribute to Horse64's compiler,
