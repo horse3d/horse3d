@@ -18,7 +18,7 @@ Here is an overview how it roughly compares:
 |*Feature List*                 |Horse64 |Scripting Lang|Backend Lang      |
 |-------------------------------|--------|--------------|------------------|
 |Dynamically typed              |Yes     |Yes           |No                |
-|Heavy duck typing              |No      |Some of them  |No                |
+|Heavy duck typing              |No      |Some          |No                |
 |Garbage collected              |Yes     |Yes           |Some              |
 |Compiles AOT & Optimized [1]   |Yes     |Usually no    |Yes               |
 |Slow dynamic scope lookups [2] |No      |Yes           |No                |
@@ -30,7 +30,7 @@ Here is an overview how it roughly compares:
 |Dynamic REPL mode              |No      |Yes           |Some              |
 |Compiler easy to include[3]    |Yes     |Yes           |No, or less so    |
 |Embeddable scripting engine[4] |No      |Yes, trivially|Often non-trivial |
-|Runs via compiled machine code |No      |No            |Some of them      |
+|Runs via compiled machine code |No      |No            |Some              |
 
 - Footnote [1]: AOT as in "Ahead of Time", so not one-shot running of
   a script with either a simple one-pass compiler or Just-In-Time compilation,
