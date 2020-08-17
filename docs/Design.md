@@ -43,13 +43,14 @@ attempts to cover all bases, to give a fully usable universal core.
 If there were to be fixed design principles, it'd probably be some
 similar to those (**work in progress**):
 
-- **Simplicity over bloat:**
+- **Simplicity over unlimited flexibility:**
   It is preferred to make rare tasks slightly more complicated,
   to making very common tasks too easy to do in too many different ways.
+  If it's not the perfect match for some uses then that's okay.
   *(This should apply mostly to the language core, less so to the
   standard library.)*
 
-- **Readability over conciseness:**
+- **Readability over universal conciseness:**
   Keeping the language approachable is usually preferred to saving
   advanced programmers letters to type out, unless the impact is too grave.
 
@@ -58,7 +59,7 @@ similar to those (**work in progress**):
   large dependencies to the core tooling.
   *(This refers e.g. to external GC libraries, LLVM, etc.)*
 
-- **Common style is encouraged:**
+- **Common shared style is encouraged:**
   Everyone using Horse64 is encouraged to stick to the
   [Common Style Guide](./Common%20Style%20Guide.md).
 
