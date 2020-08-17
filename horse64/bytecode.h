@@ -24,7 +24,8 @@ typedef enum instructiontype {
     H64INST_SETGLOBAL,
     H64INST_GETGLOBAL,
     H64INST_SETBYINDEXEXPR,
-    H64INST_SETBYATTRIBUTE,
+    H64INST_SETBYATTRIBUTENAME,
+    H64INST_SETBYATTRIBUTEIDX,
     H64INST_GETFUNC,
     H64INST_GETCLASS,
     H64INST_VALUECOPY,
@@ -160,12 +161,19 @@ typedef struct h64instruction_setbyindexexpr {
     int16_t slotvaluefrom;
 } __attribute__((packed)) h64instruction_setbyindexexpr;
 
-typedef struct h64instruction_setbyattribute {
+typedef struct h64instruction_setbyattributename {
     uint8_t type;
     int16_t slotobjto;
-    int16_t slotattributeto;
+    int64_t nameidx;
     int16_t slotvaluefrom;
-} __attribute__((packed)) h64instruction_setbyattribute;
+} __attribute__((packed)) h64instruction_setbyattributename;
+
+typedef struct h64instruction_setbyattributeidx {
+    uint8_t type;
+    int16_t slotobjto;
+    attridx_t varattrto;
+    int16_t slotvaluefrom;
+} __attribute__((packed)) h64instruction_setbyattributeidx;
 
 typedef struct h64instruction_getfunc {
     uint8_t type;
@@ -316,7 +324,7 @@ typedef struct h64instruction_newinstance {
 
 typedef struct h64classattributeinfo {
     int64_t nameid;
-    int methodorvaridx;  // vars have H64CLASS_MAX_METHODS offset
+    attridx_t methodorvaridx;  // vars have H64CLASS_MAX_METHODS offset
 } h64classattributeinfo;
 
 typedef struct h64class {
@@ -416,13 +424,13 @@ attridx_t h64program_LookupClassAttributeByName(
     h64program *p, classid_t class_id, const char *name
 );
 
-classid_t h64program_RegisterClassVariable(
+attridx_t h64program_RegisterClassVariable(
     h64program *p,
     classid_t class_id,
     const char *name
 );
 
-int h64program_ClassNameToMemberIdx(
+attridx_t h64program_ClassNameToMemberIdx(
     h64program *p, classid_t class_id, int64_t nameidx
 );
 

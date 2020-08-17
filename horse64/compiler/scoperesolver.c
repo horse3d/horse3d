@@ -137,6 +137,7 @@ static int scoperesolver_ComputeItemStorage(
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALCLASSSLOT;
             expr->storage.ref.id = global_id;
+            expr->classdef.bytecode_class_id = global_id;
             return 1;
         }
     }
@@ -173,12 +174,17 @@ static int scoperesolver_ComputeItemStorage(
                    owningclass->storage.ref.id >= 0 &&
                    owningclass->storage.ref.id < program->classes_count);
             int owningclassindex = owningclass->storage.ref.id;
-            if (!h64program_RegisterClassVariable(
+            attridx_t attrindex = -1;
+            if ((attrindex = h64program_RegisterClassVariable(
                     program, owningclassindex, expr->vardef.identifier
-                    )) {
+                    )) < 0) {
                 if (outofmemory) *outofmemory = 1;
                 return 0;
             }
+            assert(!expr->storage.set);
+            expr->storage.set = 1;
+            expr->storage.ref.type = H64STORETYPE_VARATTRSLOT;
+            expr->storage.ref.id = attrindex;
             if (!isnullvardef(expr) && !program->classes[
                     owningclassindex].hasvarinitfunc) {
                 int idx = h64program_RegisterHorse64Function(

@@ -428,7 +428,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 rinfo->pr->program->symbols, name, 0
             )
         );
-        int result = -1;
+        attridx_t result = -1;
         int found = 0;
         if (nameid >= 0) {
             while (clsid >= 0) {

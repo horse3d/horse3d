@@ -257,6 +257,8 @@ void codegen_CalculateFinalFuncStack(
 h64expression *_fakeclassinitfunc(
         asttransforminfo *rinfo, h64expression *classexpr
         ) {
+    assert(classexpr != NULL &&
+           classexpr->type == H64EXPRTYPE_CLASSDEF_STMT);
     classid_t classidx = classexpr->classdef.bytecode_class_id;
     assert(
         classidx >= 0 &&
@@ -314,6 +316,7 @@ h64expression *_fakeclassinitfunc(
         fakefunc->funcdef._storageinfo, 0,
         sizeof(*fakefunc->funcdef._storageinfo)
     );
+    fakefunc->funcdef._storageinfo->closure_with_self = 1;
     if (!hash_BytesMapSet(
             rinfo->pr->_tempclassesfakeinitfunc_map,
             (const char *)&classidx, sizeof(classidx),
@@ -1527,12 +1530,26 @@ int _codegencallback_DoCodegen_visit_out(
         }
         assert(assignfromtemporary >= 0);
         assert(str->type == H64STORETYPE_GLOBALVARSLOT ||
-               str->type == H64STORETYPE_STACKSLOT);
+               str->type == H64STORETYPE_STACKSLOT ||
+               str->type == H64STORETYPE_VARATTRSLOT);
         if (str->type == H64STORETYPE_GLOBALVARSLOT) {
             h64instruction_setglobal inst = {0};
             inst.type = H64INST_SETGLOBAL;
             inst.globalto = str->id;
             inst.slotfrom = assignfromtemporary;
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &inst, sizeof(inst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        } else if (str->type == H64STORETYPE_VARATTRSLOT) {
+            assert(surroundingclass(expr, 1) != NULL);
+            assert(func->funcdef._storageinfo->closure_with_self != 0);
+            h64instruction_setbyattributeidx inst = {0};
+            inst.type = H64INST_SETBYATTRIBUTEIDX;
+            inst.slotobjto = 0;  // 0 must always be 'self'
+            inst.varattrto = (attridx_t)str->id;
+            inst.slotvaluefrom = assignfromtemporary;
             if (!appendinst(rinfo->pr->program, func, expr,
                             &inst, sizeof(inst))) {
                 rinfo->hadoutofmemory = 1;
@@ -1554,8 +1571,8 @@ int _codegencallback_DoCodegen_visit_out(
                        H64EXPRTYPE_BINARYOP);
                 if (expr->assignstmt.lvalue->op.optype ==
                         H64OP_ATTRIBUTEBYIDENTIFIER) {
-                    h64instruction_setbyattribute inst = {0};
-                    inst.type = H64INST_SETBYATTRIBUTE;
+                    h64instruction_setbyattributename inst = {0};
+                    inst.type = H64INST_SETBYATTRIBUTENAME;
                     assert(expr->assignstmt.lvalue->
                            op.value1->storage.eval_temp_id >= 0);
                     inst.slotobjto = (
@@ -1563,17 +1580,28 @@ int _codegencallback_DoCodegen_visit_out(
                         storage.eval_temp_id
                     );
                     assert(expr->assignstmt.lvalue->
-                           op.value2->storage.eval_temp_id >= 0);
-                    inst.slotattributeto = (
-                        expr->assignstmt.lvalue->op.value2->
-                        storage.eval_temp_id
+                           op.value2->storage.eval_temp_id < 0);
+                    assert(expr->assignstmt.lvalue->op.value2->type ==
+                           H64EXPRTYPE_IDENTIFIERREF);
+                    int64_t nameidx = (
+                        h64debugsymbols_AttributeNameToAttributeNameId(
+                            rinfo->pr->program->symbols,
+                            expr->assignstmt.lvalue->op.value2->
+                                identifierref.value, 0
+                        )
                     );
-                    inst.slotvaluefrom = str->id;
-                    if (!appendinst(
-                            rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
-                        rinfo->hadoutofmemory = 1;
-                        return 0;
+                    if (nameidx < 0) {
+                        // FIXME: hardcode AttributeError raise
+                        assert(0);
+                    } else {
+                        inst.nameidx = nameidx;
+                        inst.slotvaluefrom = str->id;
+                        if (!appendinst(
+                                rinfo->pr->program, func, expr,
+                                &inst, sizeof(inst))) {
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
                     }
                 } else {
                     assert(expr->assignstmt.lvalue->op.optype ==

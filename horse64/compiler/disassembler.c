@@ -224,15 +224,28 @@ int disassembler_PrintInstruction(
         }
         break;
     }
-    case H64INST_SETBYATTRIBUTE: {
-        h64instruction_setbyattribute *inst_setbyattribute =
-            (h64instruction_setbyattribute *)inst;
+    case H64INST_SETBYATTRIBUTENAME: {
+        h64instruction_setbyattributename *inst_setbyattributename =
+            (h64instruction_setbyattributename *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d t%d t%d",
+                "    %s t%d %" PRId64 " t%d",
                 bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_setbyattribute->slotobjto,
-                (int)inst_setbyattribute->slotattributeto,
-                (int)inst_setbyattribute->slotvaluefrom)) {
+                (int)inst_setbyattributename->slotobjto,
+                (int64_t)inst_setbyattributename->nameidx,
+                (int)inst_setbyattributename->slotvaluefrom)) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_SETBYATTRIBUTEIDX: {
+        h64instruction_setbyattributeidx *inst_setbyattributeidx =
+            (h64instruction_setbyattributeidx *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d a%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_setbyattributeidx->slotobjto,
+                (int)inst_setbyattributeidx->varattrto,
+                (int)inst_setbyattributeidx->slotvaluefrom)) {
             return 0;
         }
         break;
@@ -722,7 +735,7 @@ int disassembler_Dump(
         if (p->func[i].associated_class_index >= 0) {
             snprintf(
                 clsinfo, sizeof(clsinfo) - 1,
-                " cls%" PRId64,
+                " c%" PRId64,
                 (int64_t)p->func[i].associated_class_index
             );
         }

@@ -918,11 +918,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     inst_setbyindexexpr: {
-        fprintf(stderr, "setbyindexexpr not implemened\n");
+        fprintf(stderr, "setbyindexexpr not implemented\n");
         return 0;
     }
-    inst_setbyattribute: {
-        fprintf(stderr, "setbyattribute not implemened\n");
+    inst_setbyattributename: {
+        fprintf(stderr, "setbyattributename not implemented\n");
+        return 0;
+    }
+    inst_setbyattributeidx: {
+        fprintf(stderr, "setbyattributeidx not implemented\n");
         return 0;
     }
     inst_getfunc: {
@@ -2956,7 +2960,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_SETGLOBAL] = &&inst_setglobal;
     jumptable[H64INST_GETGLOBAL] = &&inst_getglobal;
     jumptable[H64INST_SETBYINDEXEXPR] = &&inst_setbyindexexpr;
-    jumptable[H64INST_SETBYATTRIBUTE] = &&inst_setbyattribute;
+    jumptable[H64INST_SETBYATTRIBUTENAME] = &&inst_setbyattributename;
+    jumptable[H64INST_SETBYATTRIBUTEIDX] = &&inst_setbyattributeidx;
     jumptable[H64INST_GETFUNC] = &&inst_getfunc;
     jumptable[H64INST_GETCLASS] = &&inst_getclass;
     jumptable[H64INST_VALUECOPY] = &&inst_valuecopy;
