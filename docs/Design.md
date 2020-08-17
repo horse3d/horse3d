@@ -38,7 +38,7 @@ Read more on [the practical differences to scripting languages](
 
 Horse64 attempts to keep the language design simple, while versatile
 enough to take on most types of projects. The standard library
-attempts to cover all bases, to give a fully usable universal core.
+attempts to cover most bases, to give a fully usable universal experience.
 
 If there were to be design principles underlying Horse64,
 it'd probably be similar to these (**work in progress**):
