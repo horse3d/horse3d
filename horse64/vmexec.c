@@ -2791,10 +2791,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 ((h64gcvalue *)vc->ptr_value)->type ==
                 H64GCVALUETYPE_OBJINSTANCE &&
                 (addr_index = h64program_LookupClassAttribute(
-                     pr, ((h64gcvalue *)vc->ptr_value)->class_id,
-                     nameidx
-                 ) > 0)
-                ) {
+                    pr, ((h64gcvalue *)vc->ptr_value)->class_id,
+                    nameidx
+                    ) > 0)) {
             h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
             memcpy(target, &gcv->varattr[addr_index],
                    sizeof(*target));
