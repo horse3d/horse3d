@@ -9,27 +9,28 @@ details when relevant to language behavior.
 
 ## Overview
 
-In overall, Horse64 is situated somewhere between a scripting language
-(like JavaScript, Python, Lua, ...) and a generic managed
-backend programming language (like C#, Java, Go, ...).
+In overall, Horse64 is situated somewhere between a typical
+scripting language like JavaScript, Python, or Lua, and a generic
+managed backend programming language like C#, Java, or Go.
 
 Here is an overview how it roughly compares:
 
-|*Feature List*                 |Horse64 |Scripting Lang|Backend Lang    |
-|-------------------------------|--------|--------------|----------------|
-|Dynamically typed              |Yes     |Yes           |No              |
-|Heavy duck typing              |No      |Some of them  |No              |
-|Garbage collected              |Yes     |Yes           |Some of them    |
-|Compiles AOT & Optimized [1]   |Yes     |Usually no    |Yes             |
-|Slow dynamic scope lookups [2] |No      |Yes           |Usually no      |
-|Compile-time scope verification|Yes     |No            |Yes             |
-|Runtime eval()                 |No      |Yes           |Usually no      |
-|Runtime module load            |No      |Used often    |Used rarely     |
-|Produces standalone binary     |Yes     |No, or tricky |Some of them    |
-|Beginner-friendly              |Yes     |Yes           |Some of them    |
-|Dynamic REPL mode              |No      |Yes           |Some of them    |
-|Compiler easy to include[3]    |Yes     |Yes           |Some of them    |
-|Embeddable scripting engine[4] |No      |Yes, trivially|Non-trivial     |
+|*Feature List*                 |Horse64 |Scripting Lang|Backend Lang      |
+|-------------------------------|--------|--------------|------------------|
+|Dynamically typed              |Yes     |Yes           |No                |
+|Heavy duck typing              |No      |Some of them  |No                |
+|Garbage collected              |Yes     |Yes           |Some              |
+|Compiles AOT & Optimized [1]   |Yes     |Usually no    |Yes               |
+|Slow dynamic scope lookups [2] |No      |Yes           |No                |
+|Compile-time scope verification|Yes     |No            |Yes               |
+|Runtime eval()                 |No      |Yes, trivial  |No, or non-trivial|
+|Runtime module load            |No      |Yes, common   |Yes, used rarely  |
+|Produces standalone binary     |Yes     |No, or tricky |Some              |
+|Beginner-friendly              |Yes     |Yes           |No, or less so    |
+|Dynamic REPL mode              |No      |Yes           |Some              |
+|Compiler easy to include[3]    |Yes     |Yes           |No, or less so    |
+|Embeddable scripting engine[4] |No      |Yes, trivially|Often non-trivial |
+|Runs via compiled machine code |No      |No            |Some of them      |
 
 - Footnote [1]: AOT as in "Ahead of Time", so not one-shot running of
   a script with either a simple one-pass compiler or Just-In-Time compilation,

@@ -74,6 +74,10 @@ headaches in larger projects with either deployment, or development.
 pure performance is your main concern, since Horse64 relies on bytecode
 and not on compiled machine code.
 
+There is also a more [detailed comparison](
+    ./docs/Specification/Horse64.md#overview
+) available on what Horse64 offers, and what it doesn't offer.
+
 
 Advanced: Build it Yourself
 ---------------------------
@@ -83,6 +87,6 @@ Since Horse64 is [open-source](LICENSE.md), you can
     ./docs/horsec/horsec.md#manual-build   
 ) if you want to.
 Please note this is an advanced task and in no way necessary to
-make your application.
+build your application.
 However, if you want to contribute to Horse64's compiler,
 this might be your first step to enable you to do so.
