@@ -194,6 +194,9 @@ static int scoperesolver_ComputeItemStorage(
                 program->classes[
                     owningclassindex
                 ].hasvarinitfunc = 1;
+                program->classes[
+                    owningclassindex
+                ].varinitfuncidx = idx;
             }
             return 1;
         }

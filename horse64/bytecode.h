@@ -332,6 +332,7 @@ typedef struct h64class {
     h64classattributeinfo **global_name_to_attribute_hashmap;
 
     int hasvarinitfunc;
+    funcid_t varinitfuncidx;
 } h64class;
 
 typedef struct h64func {

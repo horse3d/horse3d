@@ -18,6 +18,7 @@
 #include "compiler/compileproject.h"
 #include "compiler/main.h"
 #include "compiler/varstorage.h"
+#include "hash.h"
 #include "unicode.h"
 
 
@@ -253,6 +254,85 @@ void codegen_CalculateFinalFuncStack(
         );
 }
 
+h64expression *_fakeclassinitfunc(
+        asttransforminfo *rinfo, h64expression *classexpr
+        ) {
+    classid_t classidx = classexpr->classdef.bytecode_class_id;
+    assert(
+        classidx >= 0 &&
+        classidx < rinfo->pr->program->classes_count
+    );
+    assert(rinfo->pr->program->classes[classidx].hasvarinitfunc);
+
+    // Make sure the map for registering it by class exists:
+    if (!rinfo->pr->_tempclassesfakeinitfunc_map) {
+        rinfo->pr->_tempclassesfakeinitfunc_map = (
+            hash_NewBytesMap(1024)
+        );
+        if (!rinfo->pr->_tempclassesfakeinitfunc_map) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+    }
+
+    // If we got an entry already, return it:
+    uintptr_t queryresult = 0;
+    if (hash_BytesMapGet(
+            rinfo->pr->_tempclassesfakeinitfunc_map,
+            (const char *)&classidx, sizeof(classidx),
+            &queryresult)) {
+        assert(queryresult != 0);
+        return (h64expression *)(void *)queryresult;
+    }
+
+    // Allocate new faked func expression and return it:
+    h64expression *fakefunc = malloc(sizeof(*fakefunc));
+    if (!fakefunc) {
+        rinfo->hadoutofmemory = 1;
+        return 0;
+    }
+    memset(fakefunc, 0, sizeof(*fakefunc));
+    fakefunc->storage.eval_temp_id = -1;
+    fakefunc->type = (
+        H64EXPRTYPE_FUNCDEF_STMT
+    );
+    fakefunc->funcdef.name = strdup("$$clsinit");
+    if (!fakefunc->funcdef.name) {
+        oom:
+        free(fakefunc->funcdef._storageinfo);
+        free(fakefunc->funcdef.name);
+        free(fakefunc);
+        return NULL;
+    }
+    fakefunc->funcdef.bytecode_func_id = -1;
+    fakefunc->funcdef._storageinfo = malloc(
+        sizeof(*fakefunc->funcdef._storageinfo)
+    );
+    if (!fakefunc->funcdef._storageinfo)
+        goto oom;
+    memset(
+        fakefunc->funcdef._storageinfo, 0,
+        sizeof(*fakefunc->funcdef._storageinfo)
+    );
+    if (!hash_BytesMapSet(
+            rinfo->pr->_tempclassesfakeinitfunc_map,
+            (const char *)&classidx, sizeof(classidx),
+            (uintptr_t)fakefunc
+            ))
+        goto oom;
+    fakefunc->funcdef.bytecode_func_id = (
+        rinfo->pr->program->classes[classidx].varinitfuncidx
+    );
+    fakefunc->storage.set = 1;
+    fakefunc->storage.ref.type = (
+        H64STORETYPE_GLOBALFUNCSLOT
+    );
+    fakefunc->storage.ref.id = (
+        rinfo->pr->program->classes[classidx].varinitfuncidx
+    );
+    return fakefunc;
+}
+
 h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
     if (rinfo->pr->_tempglobalfakeinitfunc)
         return rinfo->pr->_tempglobalfakeinitfunc;
@@ -263,6 +343,7 @@ h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
         return NULL;
     memset(rinfo->pr->_tempglobalfakeinitfunc, 0,
            sizeof(*rinfo->pr->_tempglobalfakeinitfunc));
+    rinfo->pr->_tempglobalfakeinitfunc->storage.eval_temp_id = -1;
     rinfo->pr->_tempglobalfakeinitfunc->type = (
         H64EXPRTYPE_FUNCDEF_STMT
     );
@@ -790,9 +871,10 @@ int _codegencallback_DoCodegen_visit_out(
     if (!func) {
         h64expression *sclass = surroundingclass(expr, 0);
         if (sclass != NULL) {
-            return 1;
+            func = _fakeclassinitfunc(rinfo, sclass);
+        } else {
+            func = _fakeglobalinitfunc(rinfo);
         }
-        func = _fakeglobalinitfunc(rinfo);
         if (!func) {
             rinfo->hadoutofmemory = 1;
             return 0;
