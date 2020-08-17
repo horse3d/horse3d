@@ -30,7 +30,7 @@ This gives you:
   is common in scripting languages.
 
 Read more on [the practical differences to scripting languages](
-    Specifications/Horse64.md#overview
+    ./Specification/Horse64.md#overview
 ), if you're interested.
 
 
