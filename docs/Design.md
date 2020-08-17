@@ -40,24 +40,25 @@ Horse64 attempts to keep the language design simple, while versatile
 enough to take on most types of projects. The standard library
 attempts to cover all bases, to give a fully usable universal core.
 
-If there were to be fixed design principles, it'd probably be some
-similar to those (**work in progress**):
+If there were to be design principles underlying Horse64,
+it'd probably be similar to these (**work in progress**):
 
-- **Simplicity over unlimited flexibility:**
-  It is preferred to make rare tasks slightly more complicated,
+- **Simplicity over flexibility:**
+  It is preferred to make rarer tasks more complicated,
   to making very common tasks too easy to do in too many different ways.
-  If it's not the perfect match for some uses then that's okay.
+  If the language is as a result a bad match for some uses then that's okay.
   *(This should apply mostly to the language core, less so to the
   standard library.)*
 
-- **Readability over universal conciseness:**
-  Keeping the language approachable is usually preferred to saving
+- **Readability over conciseness:**
+  Keeping the language approachable is in overall preferred to saving
   advanced programmers letters to type out, unless the impact is too grave.
 
-- **Self-contained tooling over perfect implementation:**
+- **Self-contained tooling over perfection:**
   Having a less optimal implementation is preferred over adding in
-  large dependencies to the core tooling.
-  *(This refers e.g. to external GC libraries, LLVM, etc.)*
+  large dependencies to core tooling. This keeps the project lean,
+  independently maintainable, and portable.
+  *(Large dependencies could be e.g. external GC libraries, LLVM, etc.)*
 
 - **Common shared style is encouraged:**
   Everyone using Horse64 is encouraged to stick to the
