@@ -86,9 +86,10 @@ were already filed!
 
 ## Sources
 
-If you want to dive deeper into contributions, you may want to
-dive deeper into the source code. In general, the issue trackers
-listed above might also be a good start to see what needs fixing.
+If you want to contribute to documentation or code, you may
+want to dive deeper into the source code. In general, the issue
+trackers listed above might also be a good start if you just
+need a clue on what needs working on.
 
 Here is where you can find the source code:
 
