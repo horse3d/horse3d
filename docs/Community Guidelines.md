@@ -28,9 +28,12 @@ If you want to report any questionable behavior in Horse64-related
 communities, for example the bug trackers, community chat, or similar,
 please approach a [moderator in the official Matrix chatroom](
   https://matrix.to/#/#horse64:matrix.org
-) using a "Direct message".
-We will try to help you out as best as we can to resolve the
-situation, and to enforce the guidelines where needed.
+) using a "Direct message", or [contact @ell1e on GitHub](
+  https://github.com/ell1e
+).
+Your report will be kept anonymous, and we will try to help you
+out as best as we can to resolve the situation and to enforce
+the guidelines where needed.
 
 If you want to give general organizational feedback, or bring
 up other public issues including related to these guidelines, please
