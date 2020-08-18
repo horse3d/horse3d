@@ -77,7 +77,9 @@ remove-main-o:
 %.oxx: %.cpp
 	$(CXX) $(CXXFLAGS) $(CFLAGS) -c -o $@ $<
 
-test: $(ALL_OBJECTS) $(TEST_BINARIES)
+checkdco:
+	python3 tools/check-dco.py
+test: checkdco $(ALL_OBJECTS) $(TEST_BINARIES)
 	for x in $(TEST_BINARIES); do echo ">>> TEST RUN: $$x"; CK_FORK=no valgrind --leak-check=full ./$$x || { exit 1; }; done
 	@echo "All tests were run."
 test_%.bin: test_%.c $(PROGRAM_OBJECTS_NO_MAIN)
