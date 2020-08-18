@@ -3,7 +3,7 @@
 
 If you want to contribute to Horse64, there are multiple tasks you
 may want to help out with. Please note that you are expected to
-keep the [Community Guidelines](./Community%20Guidelines.md) in mind
+adhere to the [Community Guidelines](./Community%20Guidelines.md)
 while participating.
 
 
