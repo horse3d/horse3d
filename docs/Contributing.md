@@ -57,6 +57,9 @@ in your commit(s):
 
 `DCO-1.1-Signed-off-by: Jane Developer Doe <jane@ddoe.example.com>`
 
+Please also add yourself to `AUTHORS.md` if not present (listing
+your GitHub profile or email in that list is optional, and up to you).
+
 
 ## Report Bugs
 
