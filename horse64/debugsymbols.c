@@ -56,6 +56,7 @@ void h64debugsymbols_ClearClassSymbol(
         ) {
     if (!csymbol)
         return;
+    free(csymbol->_tmp_varattr_expr_ptr);
     free(csymbol->name);
 }
 

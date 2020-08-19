@@ -276,6 +276,7 @@ void compileproject_Free(h64compileproject *pr) {
     if (pr->_tempglobalfakeinitfunc) {
         ast_FreeExpression(pr->_tempglobalfakeinitfunc);
     }
+    free(pr->_class_was_propagated);
     if (pr->_tempclassesfakeinitfunc_map) {
         int result = hash_BytesMapIterate(
             pr->_tempclassesfakeinitfunc_map,
