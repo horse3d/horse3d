@@ -1532,6 +1532,93 @@ int scoperesolver_ResolveAST(
         }
     }
 
+    // Propagate class attributes from base to derived classes:
+    pr->_class_was_propagated = malloc(
+        (int64_t)sizeof(*pr->_class_was_propagated) *
+        pr->program->classes_count
+    );
+    if (!pr->_class_was_propagated) {
+        result_AddMessage(
+            &unresolved_ast->resultmsg,
+            H64MSG_ERROR, "out of memory",
+            unresolved_ast->fileuri,
+            -1, -1
+        );
+        return 0;
+    }
+    memset(
+        pr->_class_was_propagated, 0,
+        (int64_t)sizeof(*pr->_class_was_propagated) *
+        pr->program->classes_count
+    );
+    classid_t i = 0;
+    while (i < pr->program->classes_count) {
+        classid_t k = i;
+        while (pr->program->classes[k].base_class_global_id >= 0 &&
+                !pr->_class_was_propagated[
+                    pr->program->classes[k].base_class_global_id
+                ]) {
+            k = pr->program->classes[k].base_class_global_id;
+        }
+        if (pr->program->classes[k].base_class_global_id < 0 ||
+                pr->_class_was_propagated[k]) {
+            pr->_class_was_propagated[k] = 1;
+            if (k == i)
+                i++;
+            continue;
+        }
+        classid_t k_parent = (
+            pr->program->classes[k].base_class_global_id
+        );
+        // Make sure we aren't overriding parent varattrs since that is not
+        // allowed:
+
+        // Pull in varattrs from parent class:
+        attridx_t newvarattr_count = (
+            pr->program->classes[k_parent].varattr_count +
+            pr->program->classes[k].varattr_count
+        );
+        if (newvarattr_count >
+                pr->program->classes[k].varattr_count) {
+            int64_t *new_varattr_global_name_idx = realloc(
+                pr->program->classes[k].varattr_global_name_idx,
+                sizeof(*new_varattr_global_name_idx) *
+                newvarattr_count
+            );
+            if (!new_varattr_global_name_idx) {
+                result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, "out of memory",
+                    unresolved_ast->fileuri,
+                    -1, -1
+                );
+                return 0;
+            }
+            pr->program->classes[k].varattr_global_name_idx = (
+                new_varattr_global_name_idx
+            );
+            attridx_t oldvarattr_count = (
+                pr->program->classes[k].varattr_count
+            );
+            attridx_t z = pr->program->classes[k].varattr_count;
+            while (z < newvarattr_count) {
+                pr->program->classes[z].
+                    varattr_global_name_idx[z] = (
+                        pr->program->classes[k_parent].
+                        varattr_global_name_idx[z - oldvarattr_count]
+                    );
+                z++;
+            }
+        }
+        // Pull in funcattrs from parent class (only non-overridden ones):
+        // FIXME
+        // Regenerate hash map:
+        // FIXME
+        // Advance:
+        if (k == i)
+            i++;
+    }
+
     // Resolve identifiers:
     int transformresult = asttransform_Apply(
         pr, unresolved_ast, NULL,

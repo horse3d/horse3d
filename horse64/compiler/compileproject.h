@@ -26,6 +26,9 @@ typedef struct h64compileproject {
     h64expression *_tempglobalfakeinitfunc;
     hashmap *_tempclassesfakeinitfunc_map;
 
+    // Temporarily used by scoperesolver:
+    int *_class_was_propagated;
+
     h64result *resultmsg;
 } h64compileproject;
 

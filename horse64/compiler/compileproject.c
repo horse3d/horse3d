@@ -1046,6 +1046,7 @@ int compileproject_CompileAllToBytecode(
             *error = strdup("project pointer is NULL");
         return 0;
     }
+    // First, make sure all files are scope resolved:
     compileallinfo cinfo;
     memset(&cinfo, 0, sizeof(cinfo));
     cinfo.pr = project;
@@ -1101,12 +1102,14 @@ int compileproject_CompileAllToBytecode(
                             "out of memory?");
         return 0;
     }
+
+    // Now, do actual codegen:
     if (!hash_StringMapIterate(
             project->astfilemap, &_codegenallcb,
             &cinfo)) {
         if (error)
             *error = strdup(
-                "unexpected resolve callback failure, "
+                "unexpected codegen callback failure, "
                 "out of memory?"
             );
         return 0;
