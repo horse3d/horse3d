@@ -191,9 +191,8 @@ attridx_t h64program_ClassNameToMemberIdx(
 
 attridx_t h64program_RegisterClassAttributeEx(
         h64program *p,
-        int64_t class_id,
-        const char *name,
-        int64_t func_idx
+        int64_t class_id, const char *name,
+        int64_t func_idx, void *tmp_expr_ptr
         ) {
     if (!p || !p->symbols)
         return -1;
@@ -279,6 +278,23 @@ attridx_t h64program_RegisterClassAttributeEx(
         p->classes[class_id].varattr_global_name_idx = (
             new_varattr_global_name_idx
         );
+        assert(p->symbols != NULL);
+        h64classsymbol *csymbol = h64debugsymbols_GetClassSymbolById(
+            p->symbols, class_id
+        );
+        assert(csymbol != NULL);
+        void **new_tmp_varattr_expr_ptr = realloc(
+            csymbol->_tmp_varattr_expr_ptr,
+            sizeof(*new_tmp_varattr_expr_ptr) * (
+            p->classes[class_id].varattr_count + 1
+            ));
+        if (!new_tmp_varattr_expr_ptr)
+            return 1;
+        csymbol->_tmp_varattr_expr_ptr =
+            new_tmp_varattr_expr_ptr;
+        csymbol->_tmp_varattr_expr_ptr[
+            p->classes[class_id].varattr_count
+        ] = tmp_expr_ptr;
         new_varattr_global_name_idx[
             p->classes[class_id].varattr_count
         ] = nameid;
@@ -911,7 +927,7 @@ funcid_t h64program_RegisterCFunction(
     if (associated_class_index >= 0) {
         if (h64program_RegisterClassAttributeEx(
                 p, associated_class_index,
-                name, p->func_count
+                name, p->func_count, NULL
                 ) < 0) {
             goto funcsymboloom;
         }
@@ -1112,11 +1128,10 @@ classid_t h64program_AddClass(
 }
 
 attridx_t h64program_RegisterClassVariable(
-        h64program *p,
-        classid_t class_id,
-        const char *name
+        h64program *p, classid_t class_id,
+        const char *name, void *tmp_expr_ptr
         ) {
     return h64program_RegisterClassAttributeEx(
-        p, class_id, name, -1
+        p, class_id, name, -1, tmp_expr_ptr
     );
 }

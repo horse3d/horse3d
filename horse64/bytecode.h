@@ -425,9 +425,8 @@ attridx_t h64program_LookupClassAttributeByName(
 );
 
 attridx_t h64program_RegisterClassVariable(
-    h64program *p,
-    classid_t class_id,
-    const char *name
+    h64program *p, classid_t class_id,
+    const char *name, void *tmp_expr_ptr
 );
 
 attridx_t h64program_ClassNameToMemberIdx(
