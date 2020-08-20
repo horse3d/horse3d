@@ -762,6 +762,15 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             } else if (!directly_in_class_func) {
                 h64expression *func = surroundingfunc(expr);
                 assert(func != NULL);
+                #ifndef NDEBUG
+                if (func->funcdef._storageinfo == NULL) {
+                    char *s = ast_ExpressionToJSONStr(func, NULL);
+                    fprintf(stderr, "horsec: error: internal error: "
+                            "invalid missing storage info on func: %s\n",
+                            s);
+                    free(s);
+                }
+                #endif
                 assert(func->funcdef._storageinfo != NULL);
                 func->funcdef._storageinfo->closure_with_self = 1;
             }
