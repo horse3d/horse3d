@@ -173,7 +173,40 @@ static int scoperesolver_ComputeItemStorage(
                        H64STORETYPE_GLOBALCLASSSLOT &&
                    owningclass->storage.ref.id >= 0 &&
                    owningclass->storage.ref.id < program->classes_count);
-            int owningclassindex = owningclass->storage.ref.id;
+            classid_t owningclassindex = owningclass->storage.ref.id;
+            if (program->classes[owningclassindex].varattr_count + 1 >
+                    H64LIMIT_MAX_CLASS_VARATTRS) {
+                h64classsymbol *csymbol = (
+                    h64debugsymbols_GetClassSymbolById(
+                        program->symbols, owningclassindex
+                    ));
+                h64expression *expr = (
+                    csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
+                );
+                char buf[128] = "";
+                char namebuf[64] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "exceeded maximum of %" PRId64 " variable "
+                    "attributes on this class",
+                    (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
+                );
+                if (!result_AddMessage(
+                        &ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf, ast->fileuri,
+                        (expr ? expr->line : - 1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
             attridx_t attrindex = -1;
             if ((attrindex = h64program_RegisterClassVariable(
                     program, owningclassindex, expr->vardef.identifier,
@@ -235,7 +268,7 @@ static int scoperesolver_ComputeItemStorage(
                 return 0;
             }
         }
-        int owningclassindex = -1;
+        classid_t owningclassindex = -1;
         if (owningclass) {
             assert(owningclass->storage.set &&
                    owningclass->storage.ref.type ==
@@ -244,6 +277,41 @@ static int scoperesolver_ComputeItemStorage(
                    owningclass->storage.ref.id < program->classes_count);
             owningclassindex = owningclass->storage.ref.id;
         }
+        if (owningclassindex >= 0) {
+            if (program->classes[owningclassindex].funcattr_count + 1 >
+                    H64LIMIT_MAX_CLASS_FUNCATTRS) {
+                h64classsymbol *csymbol = (
+                    h64debugsymbols_GetClassSymbolById(
+                        program->symbols, owningclassindex
+                    ));
+                h64expression *expr = (
+                    csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
+                );
+                char buf[128] = "";
+                char namebuf[64] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "exceeded maximum of %" PRId64 " func "
+                    "attributes on this class",
+                    (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
+                );
+                if (!result_AddMessage(
+                        &ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf, ast->fileuri,
+                        (expr ? expr->line : - 1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
+         }
 
         // Assemble names and parameter info for the function:
         const char *name = expr->funcdef.name;
@@ -561,28 +629,10 @@ int scoperesolver_EvaluateDerivedClassParent(
     }
     assert(expr->storage.ref.id >= 0 &&
            expr->storage.ref.id < atinfo->pr->program->classes_count);
-    { // Search for a cycle:
+    { // Cycles should have been detected earlier, ensure this:
         int64_t cid = expr->storage.ref.id;
         while (cid >= 0) {
-            if (cid == expr->parent->classdef.bytecode_class_id) {
-                char buf[128] = "";
-                snprintf(buf, sizeof(buf) - 1,
-                    "unexpected cycle in base classes, "
-                    "a class must not derive from itself"
-                );
-                atinfo->ast->resultmsg.success = 0;
-                if (!result_AddMessage(
-                        &atinfo->ast->resultmsg,
-                        H64MSG_ERROR,
-                        buf,
-                        atinfo->ast->fileuri,
-                        expr->line, expr->column
-                        )) {
-                    atinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-                return 1;
-            }
+            assert(cid != expr->parent->classdef.bytecode_class_id);
             cid = atinfo->pr->program->classes[
                 cid
             ].base_class_global_id;
@@ -1666,6 +1716,36 @@ int scoperesolver_ResolveAST(
         );
         if (newvarattr_count >
                 pr->program->classes[k].varattr_count) {
+            if (newvarattr_count > H64LIMIT_MAX_CLASS_VARATTRS) {
+                h64expression *expr = (
+                    csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
+                );
+                char buf[128] = "";
+                char namebuf[64] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "exceeded maximum of %" PRId64 " variable "
+                    "attributes on this class",
+                    (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
+                );
+                unresolved_ast->resultmsg.success = 0;
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        unresolved_ast->fileuri,
+                        (expr ? expr->line : - 1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        unresolved_ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
             int64_t *new_varattr_global_name_idx = realloc(
                 pr->program->classes[k].varattr_global_name_idx,
                 sizeof(*new_varattr_global_name_idx) *
@@ -1714,9 +1794,100 @@ int scoperesolver_ResolveAST(
             }
         }
         // Pull in funcattrs from parent class (only non-overridden ones):
-        // FIXME
+        i2 = 0;
+        while (i2 < pr->program->classes[k_parent].funcattr_count) {
+            attridx_t foundidx = h64program_LookupClassAttribute(
+                pr->program, k, pr->program->classes[k_parent].
+                    funcattr_global_name_idx[i2]
+            );
+            if (foundidx >= 0)
+                break;
+            attridx_t newfuncattr_count = (
+                pr->program->classes[k].funcattr_count + 1
+            );
+            if (newfuncattr_count > H64LIMIT_MAX_CLASS_FUNCATTRS) {
+                h64expression *expr = (
+                    csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
+                );
+                char buf[128] = "";
+                char namebuf[64] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "exceeded maximum of %" PRId64 " func "
+                    "attributes on this class",
+                    (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
+                );
+                unresolved_ast->resultmsg.success = 0;
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        unresolved_ast->fileuri,
+                        (expr ? expr->line : - 1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        unresolved_ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
+            int64_t *new_funcattr_global_name_idx = realloc(
+                pr->program->classes[k].funcattr_global_name_idx,
+                sizeof(*new_funcattr_global_name_idx) *
+                newfuncattr_count
+            );
+            if (!new_funcattr_global_name_idx) {
+                result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, "out of memory",
+                    unresolved_ast->fileuri,
+                    -1, -1
+                );
+                return 0;
+            }
+            pr->program->classes[k].funcattr_global_name_idx =
+                new_funcattr_global_name_idx;
+            funcid_t *new_funcattr_func_idx = realloc(
+                pr->program->classes[k].funcattr_func_idx,
+                sizeof(*new_funcattr_func_idx) *
+                newfuncattr_count
+            );
+            if (!new_funcattr_func_idx) {
+                result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, "out of memory",
+                    unresolved_ast->fileuri,
+                    -1, -1
+                );
+                return 0;
+            }
+            pr->program->classes[k].funcattr_func_idx =
+                new_funcattr_func_idx;
+            pr->program->classes[k].funcattr_global_name_idx[
+                newfuncattr_count - 1
+                ] = pr->program->classes[k_parent].
+                    funcattr_global_name_idx[i2];
+            pr->program->classes[k].funcattr_func_idx[
+                newfuncattr_count - 1
+                ] = pr->program->classes[k_parent].
+                    funcattr_func_idx[i2];
+            i2++;
+        }
         // Regenerate hash map:
-        // FIXME
+        if (!h64program_RebuildClassAttributeHashmap(
+                pr->program, k)) {
+            result_AddMessage(
+                &unresolved_ast->resultmsg,
+                H64MSG_ERROR, "out of memory",
+                unresolved_ast->fileuri,
+                -1, -1
+            );
+            return 0;
+        }
         // Advance:
         if (k == i)
             i++;

@@ -2798,6 +2798,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     pr, ((h64gcvalue *)vc->ptr_value)->class_id,
                     nameidx
                     ) > 0)) {
+            assert(addr_index < H64CLASS_METHOD_OFFSET);
             h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
             memcpy(target, &gcv->varattr[addr_index],
                    sizeof(*target));

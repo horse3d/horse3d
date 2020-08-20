@@ -319,12 +319,12 @@ typedef struct h64instruction_newinstance {
 } __attribute__ ((packed)) h64instruction_newinstance;
 
 
-#define H64CLASS_HASH_SIZE 16
-#define H64CLASS_MAX_METHODS (INT32_MAX / 4)
+#define H64CLASS_HASH_SIZE 32
+#define H64CLASS_METHOD_OFFSET (H64LIMIT_MAX_CLASS_VARATTRS)
 
 typedef struct h64classattributeinfo {
     int64_t nameid;
-    attridx_t methodorvaridx;  // vars have H64CLASS_MAX_METHODS offset
+    attridx_t methodorvaridx;  // vars have H64CLASS_METHOD_OFFSET offset
 } h64classattributeinfo;
 
 typedef struct h64class {
@@ -474,6 +474,18 @@ globalvarid_t h64program_AddGlobalvar(
     const char *fileuri,
     const char *module_path,
     const char *library_name
+);
+
+void h64program_FreeClassAttributeHashmap(
+    h64program *p, classid_t class_id
+);
+
+int h64program_AllocClassAttributeHashmap(
+    h64program *p, classid_t class_id
+);
+
+int h64program_RebuildClassAttributeHashmap(
+    h64program *p, classid_t class_id
 );
 
 void h64program_Free(h64program *p);
