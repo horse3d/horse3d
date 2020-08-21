@@ -586,7 +586,7 @@ have a `.close()` function.
 ## async/await
 
 Horse64 allows parallelism and concurrency via async/await.
-A function that is [canasync](
+A function with the [canasync property](
 ./Horse64%20Concurrency.md#canasync-property) can be called
 via these two statement types;
 
