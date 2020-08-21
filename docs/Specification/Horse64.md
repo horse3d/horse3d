@@ -583,6 +583,33 @@ As a common example, file objects from the `io` core module
 have a `.close()` function.
 
 
+## async/await
+
+Horse64 allows parallelism and concurrency via async/await.
+A function that is [canasync](
+./Horse64%20Concurrency.md#canasync-property) can be called
+via these two statement types;
+
+```
+func main {
+    async my_canasync_func()
+    let return_value = async my_other_canasync_func()
+    return_value = async my_third_canasync_func()
+}
+```
+Please note `async` is **not** a universal inline operator,
+but that it can only be used in exactly these two ways:
+either to start a standalone statement, or following the `=`
+operator in a variable declaration or assignment. No nested
+use inside arbitrary inline expression is permitted.
+
+If any return value from such an `async` call is to be used,
+it needs to be `await`ed first.
+
+[Read the concurrency specifications for details.](
+Horse64%20Concurrency.md)
+
+
 ## Datatypes
 
 Horse64 is mostly inspired by Python in its core semantics,

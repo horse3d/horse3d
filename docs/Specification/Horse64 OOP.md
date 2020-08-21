@@ -61,11 +61,23 @@ are fixed to the given function and can not be altered. Inside such
 a function attribute's statements, the special identifier `self`
 refers to the current object instance it runs on.
 
-### Special class functions
+### Special class function: init
 
 If a class specifies the optional `init` function attribute for its
-object instances, then this function will be automatically invoked
+object instances, then this function will be automatically called
 by `new` on creation.
+
+### Special class function: destroy
+
+If a class specifies the `destroy` function attribute, it will be
+called when the object is scheduled for garbage collection. **It is
+considered a programming error to reintroduce new references to
+the object** for when this function terminates, and will cause an
+`InvalidDestructorError` raised in the current [execution context](
+Horse64%20Concurrency.md#execution-context). The runtime will
+attempt to keep the object alive in such a case and prevent follow-up
+malfunctions, but do not rely on this behavior.
+
 
 ## Best practices / when NOT to use a class
 
