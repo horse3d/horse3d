@@ -92,8 +92,9 @@ The effect of explicitly marking a function as `canasync` is as follows:
 
 The effect of explicitly marking a function as `noasync` is as follows:
 
-- No matter what `horsec` determines, the function will now be blocked
-  for use inside any `async` calls. Any attempts to do so will cause
+- The function is hereby declared to be considered **not** `canasync.
+  As a consequence, the function will now be blocked for use with
+  or nested inside any `async` calls. Any attempts to do so will cause
   either a compile-time error if detected at compile time, or otherwise
   a `InvalidNoasyncCallError` at runtime, which as specified above is
   considered a programming error.
