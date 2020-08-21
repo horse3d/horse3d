@@ -94,7 +94,7 @@ It has the following notable properties:
   explicit delete operator of any kind.
 
 See the respective later sections for both the detailed [grammar](
-    (./Horse64%20Grammar.md#grammar), the
+    ./Horse64%20Grammar.md#grammar), the
 [constructs](#syntax-constructs) and how they work,
 as well as details on [data lifetime](#data-lifetime-and-scopes),
 and more.
