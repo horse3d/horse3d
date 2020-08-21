@@ -18,7 +18,7 @@ entrypoint). The restriction on globals is enforced with the help of the
 [canasync property](#canasync-property) for functions and classes.
 
 For the exact syntax of async calls, [see the syntax specification](
-Horse64.md#async-await) or [the grammar](Horse64%20Grammar.md).
+Horse64.md#asyncawait) or [the grammar](Horse64%20Grammar.md).
 
 
 ## Execution Context
