@@ -106,7 +106,9 @@ Without any explicit markings, as described above `horsec` will still
 apply one of these two categories for each function but might err in
 favor of the `canasync` side. This is meant to save you from needing to
 specify this property for each tiny helper function in your program,
-even if the category is obvious when looking at it.
+even if the category is obvious when looking at it. **In cases where
+it is not obvious to you, you should always consider applying
+`canasync`/`noasync` explicitly.**
 
 
 ## Heap separation
