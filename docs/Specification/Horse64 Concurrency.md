@@ -48,11 +48,11 @@ The `canasync` property is auto-applied to any function that
 doesn't access global variables, and doesn't have any calls, no matter
 whether conditional or not, that can be compile-time determined to
 refer to a function that does *not* have the `canasync` property.
-Please note the `canasync` property therefore says nothing about
+Please note Horse64's `canasync` property therefore says nothing about
 a function's yielding behavior or non-blocking nature (which is what
-usually is required in Python's/JavaScript for async-compatible functions),
-but rather only on whether a function will have side effects on
-global state.
+usually is required for e.g. Python's/JavaScript of async-compatible
+functions), but rather only on whether a function will have side effects
+on global state.
 
 Since the compiler will assume functions as `canasync` if in doubt
 which can yield false positives, and it's also not always obvious to the
