@@ -73,7 +73,7 @@ func main noasync {
 The effect of explicitly marking a function as `canasync` is as follows:
 
 - If the function is determined by `horsec` to definitely have a
-  potential call to a `noasync` function or access a global variable,
+  call to a `noasync` function or access a global variable,
   a compile-time error will occur. This allows you to rectify the issue
   before it would have led to a runtime error.
 
