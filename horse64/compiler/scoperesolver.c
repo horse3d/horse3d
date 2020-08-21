@@ -752,22 +752,24 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 }
                 return 1;
             }
+            h64expression *func = surroundingfunc(expr);
             int directly_in_class_func = (
-                surroundingclass(expr, 0) != NULL
+                surroundingclass(func, 0) != NULL
             );
             if (directly_in_class_func && !expr->storage.set) {
                 expr->storage.set = 1;
                 expr->storage.ref.type = H64STORETYPE_STACKSLOT;
                 expr->storage.ref.id = 0;
             } else if (!directly_in_class_func) {
-                h64expression *func = surroundingfunc(expr);
+                // This has to be a closure (nested inside other func).
+                // Any 'self' usage must have led to closure var storage:
                 assert(func != NULL);
                 #ifndef NDEBUG
                 if (func->funcdef._storageinfo == NULL) {
                     char *s = ast_ExpressionToJSONStr(func, NULL);
                     fprintf(stderr, "horsec: error: internal error: "
-                            "invalid missing storage info on func: %s\n",
-                            s);
+                            "invalid missing storage info on "
+                            "closure: %s\n", s);
                     free(s);
                 }
                 #endif
