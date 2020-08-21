@@ -203,8 +203,8 @@ This is the case because Horse64 has no significant line breaks,
 and since calls can both be inline values and statements, a `return`
 will always greedily take them in as argument if in doubt.
 
-This can only happen if you **both** 1. You use return with no
-value specified, 2. You follow up a return with a statement
+This can only happen if you **both** 1. use return with no
+value specified, 2. follow up a return with a statement
 in the same code block/scope.
 
 Please note the second step is *inherently nonsensical*, since
