@@ -44,8 +44,8 @@ to fulfill the [canasync property](#canasync-property).
 
 ## `canasync` property
 
-The `canasync` property is auto-applied to any function that
-doesn't access global variables, and doesn't have any calls, no matter
+The `canasync` property is auto-applied at compile time to any function
+not accessing global variables, and without any inner calls, no matter
 whether conditional or not, that can be compile-time determined to
 refer to a function that does *not* have the `canasync` property.
 Please note Horse64's `canasync` property therefore says nothing about
