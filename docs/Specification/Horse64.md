@@ -604,7 +604,19 @@ operator in a variable declaration or assignment. No nested
 use inside arbitrary inline expression is permitted.
 
 If any return value from such an `async` call is to be used,
-it needs to be `await`ed first.
+it needs to be `await`ed first:
+
+```horse64
+func main {
+    let value = async determine_in_parallel()
+    #  ... lots of code that runs for a bit ...
+    await value
+    print("Result: " .. value)
+}
+```
+Similarly, `await` must be used as a separate statement and
+not as inline value, and it will [block until the async
+function terminates](Horse64%20Concurrency.md#await).
 
 [Read the concurrency specifications for details.](
 Horse64%20Concurrency.md)
