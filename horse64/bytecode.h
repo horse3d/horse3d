@@ -44,7 +44,7 @@ typedef enum instructiontype {
     H64INST_ADDCATCHTYPEBYREF,
     H64INST_ADDCATCHTYPE,
     H64INST_POPCATCHFRAME,
-    H64INST_GETATTRIBUTE,
+    H64INST_GETATTRIBUTEBYNAME,
     H64INST_JUMPTOFINALLY,
     H64INST_NEWLIST,
     H64INST_NEWSET,
@@ -275,12 +275,12 @@ typedef struct h64instruction_popcatchframe {
     uint8_t type;
 } __attribute__ ((packed)) h64instruction_popcatchframe;
 
-typedef struct h64instruction_getattribute {
+typedef struct h64instruction_getattributebyname {
     uint8_t type;
     int16_t slotto;
     int16_t objslotfrom;
     int64_t nameidx;
-} __attribute__ ((packed)) h64instruction_getattribute;
+} __attribute__ ((packed)) h64instruction_getattributebyname;
 
 typedef struct h64instruction_jumptofinally {
     uint8_t type;

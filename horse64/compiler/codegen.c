@@ -931,8 +931,8 @@ int _codegencallback_DoCodegen_visit_out(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-            h64instruction_getattribute instgetattr = {0};
-            instgetattr.type = H64INST_GETATTRIBUTE;
+            h64instruction_getattributebyname instgetattr = {0};
+            instgetattr.type = H64INST_GETATTRIBUTEBYNAME;
             instgetattr.slotto = addfunctemp;
             instgetattr.objslotfrom = listtmp;
             instgetattr.nameidx = add_name_idx;
@@ -1205,8 +1205,8 @@ int _codegencallback_DoCodegen_visit_out(
             // FIXME: hard-code an error raise
             fprintf(stderr, "fix invalid member\n");
         } else {
-            h64instruction_getattribute inst_getattr = {0};
-            inst_getattr.type = H64INST_GETATTRIBUTE;
+            h64instruction_getattributebyname inst_getattr = {0};
+            inst_getattr.type = H64INST_GETATTRIBUTEBYNAME;
             inst_getattr.slotto = temp;
             inst_getattr.objslotfrom = expr->op.value1->storage.eval_temp_id;
             inst_getattr.nameidx = idx;

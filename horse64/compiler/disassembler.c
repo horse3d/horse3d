@@ -266,7 +266,7 @@ int disassembler_PrintInstruction(
         h64instruction_getclass *inst_getclass =
             (h64instruction_getclass *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d c" PRId64 "",
+                "    %s t%d c%" PRId64 "",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_getclass->slotto,
                 (int64_t)inst_getclass->classfrom)) {
@@ -375,15 +375,15 @@ int disassembler_PrintInstruction(
         }
         break;
     }
-    case H64INST_GETATTRIBUTE: {
-        h64instruction_getattribute *inst_getattribute =
-            (h64instruction_getattribute *)inst;
+    case H64INST_GETATTRIBUTEBYNAME: {
+        h64instruction_getattributebyname *inst_getattributebyname =
+            (h64instruction_getattributebyname *)inst;
         if (!disassembler_Write(di,
                 "    %s t%d t%d %" PRId64,
                 bytecode_InstructionTypeToStr(inst->type),
-                inst_getattribute->slotto,
-                inst_getattribute->objslotfrom,
-                inst_getattribute->nameidx)) {
+                inst_getattributebyname->slotto,
+                inst_getattributebyname->objslotfrom,
+                inst_getattributebyname->nameidx)) {
             return 0;
         }
         break;

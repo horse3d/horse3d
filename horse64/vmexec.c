@@ -2564,9 +2564,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         goto *jumptable[((h64instructionany *)p)->type];
     }
-    inst_getattribute: {
-        h64instruction_getattribute *inst = (
-            (h64instruction_getattribute *)p
+    inst_getattributebyname: {
+        h64instruction_getattributebyname *inst = (
+            (h64instruction_getattributebyname *)p
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
@@ -2981,7 +2981,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_ADDCATCHTYPEBYREF] = &&inst_addcatchtypebyref;
     jumptable[H64INST_ADDCATCHTYPE] = &&inst_addcatchtype;
     jumptable[H64INST_POPCATCHFRAME] = &&inst_popcatchframe;
-    jumptable[H64INST_GETATTRIBUTE] = &&inst_getattribute;
+    jumptable[H64INST_GETATTRIBUTEBYNAME] = &&inst_getattributebyname;
     jumptable[H64INST_JUMPTOFINALLY] = &&inst_jumptofinally;
     jumptable[H64INST_NEWLIST] = &&inst_newlist;
     jumptable[H64INST_NEWSET] = &&inst_newset;
