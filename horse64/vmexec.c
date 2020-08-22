@@ -922,12 +922,96 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     inst_setbyattributename: {
-        fprintf(stderr, "setbyattributename not implemented\n");
-        return 0;
+        h64instruction_setbyattributename *inst = (
+            (h64instruction_setbyattributename *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
+        if (vc->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue*)vc->ptr_value)->type !=
+                H64GCVALUETYPE_OBJINSTANCE) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "given attribute not present on this value"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        valuecontent *vfrom = STACK_ENTRY(stack, inst->slotvaluefrom);
+
+        h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+        attridx_t aindex = h64program_LookupClassAttribute(
+            pr, gcval->class_id, inst->nameidx
+        );
+        if (aindex < 0) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "given attribute not present on this value"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        if (aindex >= H64CLASS_METHOD_OFFSET) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "cannot alter func attribute"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        assert(aindex >= 0 && aindex < gcval->varattr_count);
+
+        DELREF_NONHEAP(&gcval->varattr[aindex]);
+        valuecontent_Free(&gcval->varattr[aindex]);
+        memcpy(
+            &gcval->varattr[aindex], vfrom, sizeof(*vfrom)
+        );
+        ADDREF_NONHEAP(&gcval->varattr[aindex]);
+
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_setbyattributeidx: {
-        fprintf(stderr, "setbyattributeidx not implemented\n");
-        return 0;
+        h64instruction_setbyattributeidx *inst = (
+            (h64instruction_setbyattributeidx *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
+        if (vc->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue*)vc->ptr_value)->type !=
+                H64GCVALUETYPE_OBJINSTANCE) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "given attribute not present on this value"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        valuecontent *vfrom = STACK_ENTRY(stack, inst->slotvaluefrom);
+
+        h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+        attridx_t aindex = inst->varattrto;
+        if (aindex < 0 || aindex >= gcval->varattr_count) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "given attribute not present on this value"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+
+        DELREF_NONHEAP(&gcval->varattr[aindex]);
+        valuecontent_Free(&gcval->varattr[aindex]);
+        memcpy(
+            &gcval->varattr[aindex], vfrom, sizeof(*vfrom)
+        );
+        ADDREF_NONHEAP(&gcval->varattr[aindex]);
+
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_getfunc: {
         h64instruction_getfunc *inst = (h64instruction_getfunc *)p;

@@ -15,10 +15,10 @@
 #define H64LIMIT_MAXCLASSES (INT32_MAX / 2)
 #define H64LIMIT_MAXFUNCS (INT32_MAX / 2)
 #define H64LIMIT_MAXGLOBALVAR (INT32_MAX / 2)
-#define H64LIMIT_MAX_CLASS_VARATTRS ((INT32_MAX / 4) - 2)
-#define H64LIMIT_MAX_CLASS_FUNCATTRS ((INT32_MAX / 4) - 2)
+#define H64LIMIT_MAX_CLASS_VARATTRS ((INT16_MAX / 4) - 2)
+#define H64LIMIT_MAX_CLASS_FUNCATTRS ((INT16_MAX / 4) - 2)
 
-typedef int32_t attridx_t;
+typedef int16_t attridx_t;
 typedef int32_t classid_t;
 typedef int32_t funcid_t;
 typedef int32_t globalvarid_t;
