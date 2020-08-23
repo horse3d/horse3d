@@ -77,7 +77,9 @@ and then **report the issue:**
 
 For other issues, please locate the bug tracker of the respective
 package or project. If it isn't about a specific package,
-use the [general bug tracker](https://github.com/horse64/horse64-general).
+use the [general bug tracker (ALL OTHER ISSUES/organizational stuff)](
+    https://github.com/horse64/horse64-general
+).
 
 Don't forget the [guidelines](./Community%20Guidelines.md)
 when filing tickets, and to check for duplicate tickets that
