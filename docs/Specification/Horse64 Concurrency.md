@@ -16,6 +16,8 @@ in its separate execution context and it will normally not block the
 `main` execution context (that was spawned by the initial `main` program
 entrypoint). The restriction on globals is enforced with the help of the
 [canasync property](#canasync-property) for functions and classes.
+Please note all parameters are deep copied for `async` calls due to
+[heap separation](#heap-separation).
 
 For the exact syntax of async calls, [see the syntax specification](
 Horse64.md#asyncawait) or [the grammar](Horse64%20Grammar.md).
