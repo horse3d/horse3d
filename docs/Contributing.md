@@ -68,6 +68,10 @@ tooling by testing interesting corner cases, verifying with this
 documentation and other community members that it is likely a bug,
 and then **report the issue:**
 
+- [general bug tracker (organizational bugs, or when source is unclear)](
+     https://github.com/horse64/horse64-general
+  )
+
 - [core.horse64.org Bug Tracker (for horsec/horsevm core bugs)](
      https://github.com/horse64/core.horse64.org/issues/
   )
@@ -75,11 +79,8 @@ and then **report the issue:**
      https://github.com/horse64/multimedia.horse64.org/issues/
   )
 
-For other issues, please locate the bug tracker of the respective
-package or project. If it isn't about a specific package,
-use the [general bug tracker (ALL OTHER ISSUES/organizational stuff)](
-    https://github.com/horse64/horse64-general
-).
+For issues in other third party packages, please locate the bug tracker
+of the respective package or project.
 
 Don't forget the [guidelines](./Community%20Guidelines.md)
 when filing tickets, and to check for duplicate tickets that
