@@ -501,8 +501,11 @@ static int _codegen_call_to(
     );
     int i = 0;
     while (i < callexpr->inlinecall.arguments.arg_count) {
+        assert(callexpr->inlinecall.arguments.arg_name != NULL);
         if (callexpr->inlinecall.arguments.arg_name[i])
             _reachedkwargs = 1;
+        assert(callexpr->inlinecall.arguments.arg_value != NULL);
+        assert(callexpr->inlinecall.arguments.arg_value[i] != NULL);
         int ismultiarg = 0;
         if (_reachedkwargs) {
             kwargcount++;
@@ -1898,8 +1901,22 @@ int _codegencallback_DoCodegen_visit_in(
         // This should have been enforced by the parser:
         assert(expr->op.value1->type == H64EXPRTYPE_CALL);
 
-        int objslot = -1;
+        // Visit all arguments of constructor call:
+        int i = 0;
+        while (i < expr->op.value1->funcdef.arguments.arg_count) {
+            if (!ast_VisitExpression(
+                    expr->op.value1->funcdef.arguments.arg_value[i],
+                    expr,
+                    &_codegencallback_DoCodegen_visit_in,
+                    &_codegencallback_DoCodegen_visit_out,
+                    _asttransform_cancel_visit_descend_callback,
+                    rinfo
+                    ))
+                return 0;
+            i++;
+        }
 
+        int objslot = -1;
         if (expr->op.value1->inlinecall.value->type !=
                     H64EXPRTYPE_IDENTIFIERREF ||
                 expr->op.value1->inlinecall.value->storage.set ||
@@ -1989,23 +2006,21 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-        // Visit all arguments of constructor call:
-        int i = 0;
-        while (i < expr->op.value1->funcdef.arguments.arg_count) {
-            if (!ast_VisitExpression(
-                    expr->op.value1->funcdef.arguments.arg_value[i],
-                    expr,
-                    &_codegencallback_DoCodegen_visit_in,
-                    &_codegencallback_DoCodegen_visit_out,
-                    _asttransform_cancel_visit_descend_callback,
-                    rinfo
-                    ))
-                return 0;
-            i++;
+        // Place constructor in unused result temporary:
+        h64instruction_getconstructor inst_getconstr = {0};
+        inst_getconstr.type = H64INST_GETCONSTRUCTOR;
+        inst_getconstr.slotto = temp;
+        inst_getconstr.objslotfrom = objslot;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_getconstr, sizeof(inst_getconstr))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
         }
         // Generate call to actual constructor:
+        assert(func != NULL && expr != NULL);
         if (!_codegen_call_to(
-                rinfo, func, expr, objslot, temp
+                rinfo, func, expr, temp, temp
                 )) {
             return 0;
         }

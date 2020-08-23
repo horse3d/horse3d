@@ -284,6 +284,8 @@ int _resolver_IsPossiblyGuardedInvalidMember(
             if (got_is_instance_of || got_hasattr)
                 return 1;
         }
+        if (expr->type == H64EXPRTYPE_FUNCDEF_STMT)
+            return 0;
         child = expr;
         expr = expr->parent;
     }
@@ -458,9 +460,10 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             if (!instance_of_guarded) {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
-                    "unknown identifier \"%s\" on self, "
-                    "will error at runtime - and "
-                    "no has_attr()/.is_instance_of() if guard present",
+                    "unknown identifier \"%s\" on self "
+                    "will cause AttributeError, wrap in conditional with "
+                    "has_attr() or .is_instance_of() if intended for API "
+                    "compat",
                     namebuf
                 );
                 if (!result_AddMessage(

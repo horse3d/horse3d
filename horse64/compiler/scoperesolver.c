@@ -12,6 +12,7 @@
 #include "bytecode.h"
 #include "compiler/ast.h"
 #include "compiler/asthelpers.h"
+#include "compiler/astobviousmistakes.h"
 #include "compiler/astparser.h"
 #include "compiler/asttransform.h"
 #include "compiler/compileproject.h"
@@ -1919,6 +1920,8 @@ int scoperesolver_ResolveAST(
         if (!varstorage_AssignLocalStorage(
                 pr, unresolved_ast
                 ))
+            return 0;
+        if (!astobviousmistakes_CheckAST(pr, unresolved_ast))
             return 0;
     }
     return 1;
