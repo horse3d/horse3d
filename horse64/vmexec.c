@@ -2810,7 +2810,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                    (unsigned int)strvaluelen);
             ADDREF_NONHEAP(target);
         } else if (nameidx >= 0 &&
-                (nameidx == vmexec->program->to_str_name_index ||
+                (nameidx == vmexec->program->init_name_index ||
+                 nameidx == vmexec->program->to_str_name_index ||
                  nameidx == vmexec->program->destroyed_name_index ||
                  nameidx == vmexec->program->cloned_name_index ||
                  nameidx == vmexec->program->equals_name_index ||
@@ -2819,11 +2820,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue *)vc->ptr_value)->type ==
                 H64GCVALUETYPE_OBJINSTANCE
-                ) {  // .to_str/.destroyed/.cloned/.equals/.to_hash
+                ) {  // .init/.to_str/.destroyed/.cloned/.equals/.to_hash
                      // (on a class object instance)
             // This is an internal function that is supposed to be
             // inaccessible from the outside.
-            // IMPORTANT: .init() needs to remain accessible.
             RAISE_ERROR(
                 H64STDERROR_ATTRIBUTEERROR,
                 "this special func attribute is not "
@@ -3041,6 +3041,60 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             goto *jumptable[((h64instructionany *)p)->type];
         }
     }
+    inst_getconstructor: {
+        h64instruction_getconstructor *inst = (
+            (h64instruction_getconstructor *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+        #endif
+
+        // Prepare target:
+        valuecontent _tmpbuf;
+        valuecontent *target = (
+            STACK_ENTRY(stack, inst->slotto)
+        );
+        int copyatend = 0;
+        if (inst->slotto == inst->objslotfrom) {
+            target = &_tmpbuf;
+            memset(target, 0, sizeof(*target));
+            copyatend = 1;
+        } else {
+            DELREF_NONHEAP(target);
+            valuecontent_Free(target);
+            memset(target, 0, sizeof(*target));
+        }
+        valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
+        attridx_t addr_index = -1;
+        int64_t nameidx = pr->init_name_index;
+        if (nameidx < 0) {
+            target->type = H64VALTYPE_NONE;
+        } else {
+            attridx_t idx = (
+                addr_index = h64program_LookupClassAttribute(
+                pr, ((h64gcvalue *)vc->ptr_value)->class_id,
+                nameidx
+                ));
+            if (idx < 0) {
+                target->type = H64VALTYPE_NONE;
+            } else {
+                assert(idx < H64CLASS_METHOD_OFFSET);
+                h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
+                memcpy(target, &gcv->varattr[addr_index],
+                       sizeof(*target));
+                ADDREF_NONHEAP(target);
+            }
+        }
+        if (copyatend) {
+            DELREF_NONHEAP(STACK_ENTRY(stack, inst->slotto));
+            valuecontent_Free(STACK_ENTRY(stack, inst->slotto));
+            memcpy(STACK_ENTRY(stack, inst->slotto),
+                   target, sizeof(*target));
+        }
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
+    }
 
     setupinterpreter:
     jumptable[H64INST_INVALID] = &&inst_invalid;
@@ -3076,6 +3130,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_NEWVECTOR] = &&inst_newvector;
     jumptable[H64INST_NEWINSTANCEBYREF] = &&inst_newinstancebyref;
     jumptable[H64INST_NEWINSTANCE] = &&inst_newinstance;
+    jumptable[H64INST_GETCONSTRUCTOR] = &&inst_getconstructor;
     op_jumptable[H64OP_MATH_DIVIDE] = &&binop_divide;
     op_jumptable[H64OP_MATH_ADD] = &&binop_add;
     op_jumptable[H64OP_MATH_SUBSTRACT] = &&binop_substract;

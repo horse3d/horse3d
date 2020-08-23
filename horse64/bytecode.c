@@ -56,6 +56,7 @@ static char _name_itype_newmap[] = "newmap";
 static char _name_itype_putmap[] = "putmap";
 static char _name_itype_newinstancebyref[] = "newinstancebyref";
 static char _name_itype_newinstance[] = "newinstance";
+static char _name_itype_getconstructor[] = "getconstructor";
 
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
@@ -126,6 +127,8 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_newinstancebyref;
     case H64INST_NEWINSTANCE:
         return _name_itype_newinstance;
+    case H64INST_GETCONSTRUCTOR:
+        return _name_itype_getconstructor;
     default:
         fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -586,6 +589,8 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_newinstancebyref);
     case H64INST_NEWINSTANCE:
         return sizeof(h64instruction_newinstance);
+    case H64INST_GETCONSTRUCTOR:
+        return sizeof(h64instruction_getconstructor);
     default:
         fprintf(
             stderr, "Invalid inst type for "
