@@ -32,6 +32,7 @@ typedef enum instructiontype {
     H64INST_BINOP,
     H64INST_UNOP,
     H64INST_CALL,
+    H64INST_CALLIGNOREIFNONE,
     H64INST_SETTOP,
     H64INST_CALLSETTOP,
     H64INST_RETURNVALUE,
@@ -212,15 +213,22 @@ typedef struct h64instruction_call {
     int16_t posargs, kwargs;
 } __attribute__((packed)) h64instruction_call;
 
-typedef struct h64instruction_callsettop {
+typedef struct h64instruction_callignoreifnone {
     uint8_t type;
-    int16_t topto;
-} __attribute__((packed)) h64instruction_callsettop;
+    int16_t returnto, slotcalledfrom;
+    uint8_t expandlastposarg;
+    int16_t posargs, kwargs;
+} __attribute__((packed)) h64instruction_callignoreifnone;
 
 typedef struct h64instruction_settop {
     uint8_t type;
     int16_t topto;
 } __attribute__ ((packed)) h64instruction_settop;
+
+typedef struct h64instruction_callsettop {
+    uint8_t type;
+    int16_t topto;
+} __attribute__((packed)) h64instruction_callsettop;
 
 typedef struct h64instruction_returnvalue {
     uint8_t type;

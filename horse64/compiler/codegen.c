@@ -472,7 +472,8 @@ static int _resolve_jumpid_to_jumpoffset(
 static int _codegen_call_to(
         asttransforminfo *rinfo, h64expression *func,
         h64expression *callexpr,
-        int calledexprstoragetemp, int resulttemp
+        int calledexprstoragetemp, int resulttemp,
+        int ignoreifnone
         ) {
     assert(callexpr->type == H64EXPRTYPE_CALL);
     int _argtemp = funccurrentstacktop(func);
@@ -611,23 +612,39 @@ static int _codegen_call_to(
         func->funcdef._storageinfo->codegen.max_extra_stack = (
             maxslotsused
         );
-    h64instruction_call inst_call = {0};
-    inst_call.type = H64INST_CALL;
     int temp = resulttemp;
     if (temp < 0) {
         rinfo->hadoutofmemory = 1;
         return 0;
     }
-    inst_call.returnto = temp;
-    inst_call.slotcalledfrom = calledexprstoragetemp;
-    inst_call.expandlastposarg = expandlastposarg;
-    inst_call.posargs = posargcount;
-    inst_call.kwargs = kwargcount;
-    if (!appendinst(
-            rinfo->pr->program, func, callexpr,
-            &inst_call, sizeof(inst_call))) {
-        rinfo->hadoutofmemory = 1;
-        return 0;
+    if (ignoreifnone) {
+        h64instruction_callignoreifnone inst_call = {0};
+        inst_call.type = H64INST_CALLIGNOREIFNONE;
+        inst_call.returnto = temp;
+        inst_call.slotcalledfrom = calledexprstoragetemp;
+        inst_call.expandlastposarg = expandlastposarg;
+        inst_call.posargs = posargcount;
+        inst_call.kwargs = kwargcount;
+        if (!appendinst(
+                rinfo->pr->program, func, callexpr,
+                &inst_call, sizeof(inst_call))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+    } else {
+        h64instruction_call inst_call = {0};
+        inst_call.type = H64INST_CALL;
+        inst_call.returnto = temp;
+        inst_call.slotcalledfrom = calledexprstoragetemp;
+        inst_call.expandlastposarg = expandlastposarg;
+        inst_call.posargs = posargcount;
+        inst_call.kwargs = kwargcount;
+        if (!appendinst(
+                rinfo->pr->program, func, callexpr,
+                &inst_call, sizeof(inst_call))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
     }
     callexpr->storage.eval_temp_id = temp;
     return 1;
@@ -1308,7 +1325,7 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         if (!_codegen_call_to(
-                rinfo, func, expr, calledexprstoragetemp, temp
+                rinfo, func, expr, calledexprstoragetemp, temp, 0
                 )) {
             return 0;
         }
@@ -2115,7 +2132,7 @@ int _codegencallback_DoCodegen_visit_in(
         // Generate call to actual constructor:
         assert(func != NULL && expr != NULL);
         if (!_codegen_call_to(
-                rinfo, func, expr->op.value1, temp, temp
+                rinfo, func, expr->op.value1, temp, temp, 1
                 )) {
             return 0;
         }

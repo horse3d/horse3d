@@ -847,6 +847,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     #endif
     h64vmthread *vmthread = start_thread;
     vmexec->active_thread = vmthread;
+    int callignoreifnone = 0;
 
     goto setupinterpreter;
 
@@ -1076,7 +1077,17 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     }
     #include "vmexec_inst_unopbinop_INCLUDE.c"
     inst_call: {
+        callignoreifnone = 0;
+        goto sharedending_call_callignoreifnone;
+    }
+    inst_callignoreifnone: {
+        callignoreifnone = 1;
+        goto sharedending_call_callignoreifnone;
+    }
+    sharedending_call_callignoreifnone: {
         h64instruction_call *inst = (h64instruction_call *)p;
+        assert(sizeof(h64instruction_call) ==
+               sizeof(h64instruction_callignoreifnone));
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug) {
             if (!vmthread_PrintExec(func_id, (void*)inst)) {
@@ -1103,8 +1114,17 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     *returneduncaughterror = 0;
                 return 0;
             }
-            RAISE_ERROR(H64STDERROR_TYPEERROR,
+            if (!callignoreifnone || vc->type != H64VALTYPE_NONE) {
+                RAISE_ERROR(H64STDERROR_TYPEERROR,
                             "not a callable object type");
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            valuecontent *vcreturnto = STACK_ENTRY(stack, inst->returnto);
+            DELREF_NONHEAP(vcreturnto);
+            valuecontent_Free(vcreturnto);
+            memset(vcreturnto, 0, sizeof(*vcreturnto));
+            vcreturnto->type = H64VALTYPE_NONE;
+            p += sizeof(h64instruction_call);
             goto *jumptable[((h64instructionany *)p)->type];
         }
         int64_t target_func_id = -1;
@@ -2453,7 +2473,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             DELREF_NONHEAP(vctarget);
             valuecontent_Free(vctarget);
             memset(vctarget, 0, sizeof(*vctarget));
-            assert(class_id >= 0 && class_id < vmexec->program->func_count);
+            assert(class_id >= 0 && class_id < vmexec->program->classes_count);
             vctarget->type = H64VALTYPE_GCVAL;
             vctarget->ptr_value = poolalloc_malloc(heap, 0);
             if (!vctarget->ptr_value)
@@ -2469,7 +2489,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             gcval->varattr = malloc(
                 sizeof(valuecontent) * gcval->varattr_count
             );
-            if (gcval->varattr) {
+            if (!gcval->varattr) {
                 gcval->type = H64VALTYPE_NONE;
                 goto triggeroom;
             }
@@ -2548,6 +2568,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_BINOP] = &&inst_binop;
     jumptable[H64INST_UNOP] = &&inst_unop;
     jumptable[H64INST_CALL] = &&inst_call;
+    jumptable[H64INST_CALLIGNOREIFNONE] = &&inst_callignoreifnone;
     jumptable[H64INST_SETTOP] = &&inst_settop;
     jumptable[H64INST_CALLSETTOP] = &&inst_callsettop;
     jumptable[H64INST_RETURNVALUE] = &&inst_returnvalue;
