@@ -1200,7 +1200,9 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_DO_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_IF_STMT ||
-            expr->type == H64EXPRTYPE_FOR_STMT) {
+            expr->type == H64EXPRTYPE_FOR_STMT ||
+            (expr->type == H64EXPRTYPE_UNARYOP &&
+             expr->op.optype == H64OP_NEW)) {
         // Already handled in visit_in
     } else if (expr->type == H64EXPRTYPE_BINARYOP &&
             expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
