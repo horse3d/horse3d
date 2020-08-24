@@ -474,6 +474,7 @@ static int _codegen_call_to(
         h64expression *callexpr,
         int calledexprstoragetemp, int resulttemp
         ) {
+    assert(callexpr->type == H64EXPRTYPE_CALL);
     int _argtemp = funccurrentstacktop(func);
     int posargcount = 0;
     int expandlastposarg = 0;
@@ -504,6 +505,21 @@ static int _codegen_call_to(
         assert(callexpr->inlinecall.arguments.arg_name != NULL);
         if (callexpr->inlinecall.arguments.arg_name[i])
             _reachedkwargs = 1;
+        #ifndef NDEBUG
+        if (callexpr->inlinecall.arguments.arg_value == NULL) {
+            printf(
+                "horsec: error: internal error: "
+                "invalid call expression with arg count > 0, "
+                "but arg_value array is NULL\n"
+            );
+            char *s = ast_ExpressionToJSONStr(callexpr, NULL);
+            printf(
+                "horsec: error: internal error: "
+                "expr is: %s\n", s
+            );
+            free(s);
+        }
+        #endif
         assert(callexpr->inlinecall.arguments.arg_value != NULL);
         assert(callexpr->inlinecall.arguments.arg_value[i] != NULL);
         int ismultiarg = 0;
@@ -2078,7 +2094,7 @@ int _codegencallback_DoCodegen_visit_in(
         // Generate call to actual constructor:
         assert(func != NULL && expr != NULL);
         if (!_codegen_call_to(
-                rinfo, func, expr, temp, temp
+                rinfo, func, expr->op.value1, temp, temp
                 )) {
             return 0;
         }

@@ -516,6 +516,45 @@ int disassembler_PrintInstruction(
         }
         break;
     }
+    case H64INST_NEWINSTANCEBYREF: {
+        h64instruction_newinstancebyref *inst_newibyref =
+            (h64instruction_newinstancebyref *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_newibyref->slotto,
+                (int)inst_newibyref->classtypeslotfrom
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_NEWINSTANCE: {
+        h64instruction_newinstance *inst_newinst =
+            (h64instruction_newinstance *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d c%" PRId64,
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_newinst->slotto,
+                (int64_t)inst_newinst->classidcreatefrom
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_GETCONSTRUCTOR: {
+        h64instruction_getconstructor *inst_getct =
+            (h64instruction_getconstructor *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_getct->slotto,
+                (int)inst_getct->objslotfrom
+                )) {
+            return 0;
+        }
+        break;
+    }
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>",
