@@ -163,8 +163,6 @@ unopexpr ::= unop expr
 `assignbinop` can be `+=`, `-=`, `*=`, and `/=`. Assignments
 with these assignment math operators are just a short hand,
 e.g. `lvalue += expr` means `lvalue = lvalue + expr`.
-Any side effects of lvalue, e.g. caused by getter functions,
-will also accordingly be experienced twice.
 
 `binopexpr` ignores that the index by expression binary operator
 has a closing element `']'` afterwards.

@@ -1458,7 +1458,9 @@ int _codegencallback_DoCodegen_visit_out(
                 expr, &str
             );  // Get the storage info of our assignment target
             storageref _complexsetter_buf = {0};
+            int iscomplexassign = 0;
             if (str == NULL) {  // No storage, must be complex assign:
+                iscomplexassign = 1;
                 assert(
                     expr->assignstmt.lvalue->type ==
                         H64EXPRTYPE_BINARYOP && (
@@ -1491,6 +1493,7 @@ int _codegencallback_DoCodegen_visit_out(
                 expr->assignstmt.rvalue->storage.eval_temp_id
             );
             if (expr->assignstmt.assignop != H64OP_ASSIGN) {
+                // This assign op does some sort of arithmetic!
                 int oldvaluetemp = -1;
                 if (str->type == H64STORETYPE_GLOBALVARSLOT) {
                     oldvaluetemp = new1linetemp(func, expr, 0);
@@ -1508,9 +1511,64 @@ int _codegencallback_DoCodegen_visit_out(
                         rinfo->hadoutofmemory = 1;
                         return 0;
                     }
-                } else {
+                } else if (!iscomplexassign) {
                     assert(str->type == H64STORETYPE_STACKSLOT);
                     oldvaluetemp = str->id;
+                } else {
+                    // We actually need to get this the complex way:
+                    oldvaluetemp = new1linetemp(func, expr, 0);
+                    assert(expr->assignstmt.lvalue->type ==
+                           H64EXPRTYPE_BINARYOP);
+                    if (expr->assignstmt.lvalue->op.optype ==
+                            H64OP_ATTRIBUTEBYIDENTIFIER) {
+                        assert(
+                            expr->assignstmt.lvalue->op.value2->type ==
+                            H64EXPRTYPE_IDENTIFIERREF
+                        );
+                        int64_t nameid = (
+                            h64debugsymbols_AttributeNameToAttributeNameId(
+                                rinfo->pr->program->symbols,
+                                expr->assignstmt.lvalue->op.value2->
+                                    identifierref.value, 0
+                            ));
+                        if (nameid >= 0) {
+                            h64instruction_getattributebyname inst = {0};
+                            inst.type = H64INST_GETATTRIBUTEBYNAME;
+                            inst.objslotfrom = (
+                                expr->assignstmt.lvalue->op.value1->
+                                    storage.eval_temp_id);
+                            inst.nameidx = nameid;
+                            inst.slotto = oldvaluetemp;
+                            if (!appendinst(
+                                    rinfo->pr->program, func, expr,
+                                    &inst, sizeof(inst))) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                        } else {
+                            // FIXME: hardcode attribute error
+                            assert(0);
+                        }
+                    } else {
+                        assert(expr->assignstmt.lvalue->op.optype ==
+                               H64OP_INDEXBYEXPR);
+                        h64instruction_binop inst = {0};
+                        inst.type = H64INST_BINOP;
+                        inst.optype = H64OP_INDEXBYEXPR;
+                        inst.arg1slotfrom = (
+                            expr->assignstmt.lvalue->op.value1->
+                                storage.eval_temp_id);
+                        inst.arg2slotfrom = (
+                            expr->assignstmt.lvalue->op.value2->
+                                storage.eval_temp_id);
+                        inst.slotto = oldvaluetemp;
+                        if (!appendinst(
+                                rinfo->pr->program, func, expr,
+                                &inst, sizeof(inst))) {
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
+                    }
                 }
                 int mathop = operator_AssignOpToMathOp(
                     expr->assignstmt.assignop
@@ -1598,7 +1656,7 @@ int _codegencallback_DoCodegen_visit_out(
                         assert(0);
                     } else {
                         inst.nameidx = nameidx;
-                        inst.slotvaluefrom = str->id;
+                        inst.slotvaluefrom = assignfromtemporary;
                         if (!appendinst(
                                 rinfo->pr->program, func, expr,
                                 &inst, sizeof(inst))) {
@@ -1623,7 +1681,7 @@ int _codegencallback_DoCodegen_visit_out(
                         expr->assignstmt.lvalue->op.value2->
                         storage.eval_temp_id
                     );
-                    inst.slotvaluefrom = str->id;
+                    inst.slotvaluefrom = assignfromtemporary;
                     if (!appendinst(
                             rinfo->pr->program, func, expr,
                             &inst, sizeof(inst))) {
