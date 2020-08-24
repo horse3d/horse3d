@@ -1279,6 +1279,25 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         expr->storage.eval_temp_id = temp;
+    } else if (expr->type == H64EXPRTYPE_UNARYOP &&
+            expr->op.optype != H64OP_NEW) {
+        int temp = new1linetemp(func, expr, 1);
+        if (temp < 0) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        h64instruction_unop inst_unop = {0};
+        inst_unop.type = H64INST_UNOP;
+        inst_unop.optype = expr->op.optype;
+        inst_unop.slotto = temp;
+        inst_unop.argslotfrom = expr->op.value1->storage.eval_temp_id;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_unop, sizeof(inst_unop))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        expr->storage.eval_temp_id = temp;
     } else if (expr->type == H64EXPRTYPE_CALL) {
         int calledexprstoragetemp = (
             expr->inlinecall.value->storage.eval_temp_id
