@@ -2132,7 +2132,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             memset(target, 0, sizeof(*target));
         }
         valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
-        attridx_t addr_index = -1;
+        attridx_t attr_index = -1;
         int64_t nameidx = inst->nameidx;
         if (nameidx >= 0 &&
                 nameidx == vmexec->program->as_str_name_index
@@ -2337,15 +2337,56 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue *)vc->ptr_value)->type ==
                 H64GCVALUETYPE_OBJINSTANCE &&
-                (addr_index = h64program_LookupClassAttribute(
+                ((attr_index = h64program_LookupClassAttribute(
                     pr, ((h64gcvalue *)vc->ptr_value)->class_id,
                     nameidx
-                    ) > 0)) {
-            assert(addr_index < H64CLASS_METHOD_OFFSET);
-            h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
-            memcpy(target, &gcv->varattr[addr_index],
-                   sizeof(*target));
-            ADDREF_NONHEAP(target);
+                    )) >= 0)) {
+            if (attr_index < H64CLASS_METHOD_OFFSET) {
+                // A varattr, just copy the contents:
+                h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
+                assert(attr_index >= 0 &&
+                       gcv->varattr_count);
+                memcpy(target, &gcv->varattr[attr_index],
+                       sizeof(*target));
+                ADDREF_NONHEAP(target);
+            } else {
+                // It's a function attribute, return closure:
+                classid_t class_id = (
+                    ((h64gcvalue *)vc->ptr_value)->classid
+                );
+                assert(
+                    attr_index - H64CLASS_METHOD_OFFSET <
+                    pr->classes[class_id].funcattr_count
+                );
+                target->type = H64VALTYPE_GCVAL;
+                target->ptr_value = poolalloc_malloc(
+                    heap, 0
+                );
+                if (!vc->ptr_value)
+                    goto triggeroom;
+                h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+                gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
+                gcval->heapreferencecount = 0;
+                gcval->externalreferencecount = 1;
+                gcval->closure_info = (
+                    malloc(sizeof(*gcval->closure_info))
+                );
+                if (!gcval->closure_info) {
+                    poolalloc_free(heap, gcval);
+                    target->ptr_value = NULL;
+                    goto triggeroom;
+                }
+                memset(gcval->closure_info, 0,
+                       sizeof(*gcval->closure_info));
+                gcval->closure_info->closure_func_id = (
+                    pr->classes[class_id].funcattr_func_idx[
+                        (attr_index - H64CLASS_METHOD_OFFSET)
+                    ]
+                );
+                gcval->closure_info->closure_self = (
+                    (h64gcvalue *)vc->ptr_value
+                );
+            }
         } else {
             RAISE_ERROR(
                 H64STDERROR_ATTRIBUTEERROR,
@@ -2493,7 +2534,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 gcval->type = H64VALTYPE_NONE;
                 goto triggeroom;
             }
-            memset(gcval->varattr, 0, sizeof(*gcval->varattr));
+            memset(gcval->varattr, 0, sizeof(*gcval->varattr) *
+                   gcval->varattr_count);
 
             p += skipbytes;
             goto *jumptable[((h64instructionany *)p)->type];
@@ -2524,24 +2566,48 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             memset(target, 0, sizeof(*target));
         }
         valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
-        attridx_t addr_index = -1;
+        attridx_t attr_index = -1;
         int64_t nameidx = pr->init_name_index;
         if (nameidx < 0) {
             target->type = H64VALTYPE_NONE;
         } else {
+            classid_t class_id = ((h64gcvalue *)vc->ptr_value)->class_id;
             attridx_t idx = (
-                addr_index = h64program_LookupClassAttribute(
-                pr, ((h64gcvalue *)vc->ptr_value)->class_id,
-                nameidx
+                attr_index = h64program_LookupClassAttribute(
+                    pr, class_id, nameidx
                 ));
             if (idx < 0) {
                 target->type = H64VALTYPE_NONE;
             } else {
-                assert(idx < H64CLASS_METHOD_OFFSET);
-                h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
-                memcpy(target, &gcv->varattr[addr_index],
-                       sizeof(*target));
-                ADDREF_NONHEAP(target);
+                assert(idx >= H64CLASS_METHOD_OFFSET);
+                target->type = H64VALTYPE_GCVAL;
+                target->ptr_value = poolalloc_malloc(
+                    heap, 0
+                );
+                if (!vc->ptr_value)
+                    goto triggeroom;
+                h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+                gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
+                gcval->heapreferencecount = 0;
+                gcval->externalreferencecount = 1;
+                gcval->closure_info = (
+                    malloc(sizeof(*gcval->closure_info))
+                );
+                if (!gcval->closure_info) {
+                    poolalloc_free(heap, gcval);
+                    target->ptr_value = NULL;
+                    goto triggeroom;
+                }
+                memset(gcval->closure_info, 0,
+                       sizeof(*gcval->closure_info));
+                gcval->closure_info->closure_func_id = (
+                    pr->classes[class_id].funcattr_func_idx[
+                        (idx - H64CLASS_METHOD_OFFSET)
+                    ]
+                );
+                gcval->closure_info->closure_self = (
+                    (h64gcvalue *)vc->ptr_value
+                );
             }
         }
         if (copyatend) {
