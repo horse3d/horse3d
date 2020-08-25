@@ -228,7 +228,7 @@ int disassembler_PrintInstruction(
         h64instruction_setbyattributename *inst_setbyattributename =
             (h64instruction_setbyattributename *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d %" PRId64 " t%d",
+                "    %s t%d n%" PRId64 " t%d",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_setbyattributename->slotobjto,
                 (int64_t)inst_setbyattributename->nameidx,
@@ -379,7 +379,7 @@ int disassembler_PrintInstruction(
         h64instruction_getattributebyname *inst_getattributebyname =
             (h64instruction_getattributebyname *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d t%d %" PRId64,
+                "    %s t%d t%d n%" PRId64,
                 bytecode_InstructionTypeToStr(inst->type),
                 inst_getattributebyname->slotto,
                 inst_getattributebyname->objslotfrom,
@@ -661,47 +661,56 @@ int disassembler_Dump(
     }
     if (p->add_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d add\n", p->add_name_index))
+                "NAMEIDX n%" PRId64 " add\n",
+                p->add_name_index))
             return 0;
     }
     if (p->as_str_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d as_str\n", p->as_str_name_index))
+                "NAMEIDX n%" PRId64 " as_str\n",
+                p->as_str_name_index))
             return 0;
     }
     if (p->to_str_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d to_str\n", p->to_str_name_index))
+                "NAMEIDX n%" PRId64 " to_str\n",
+                p->to_str_name_index))
             return 0;
     }
     if (p->length_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d length\n", p->length_name_index))
+                "NAMEIDX n%" PRId64 " length\n",
+                p->length_name_index))
             return 0;
     }
     if (p->init_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d init\n", p->init_name_index))
+                "NAMEIDX n%" PRId64 " init\n",
+                p->init_name_index))
             return 0;
     }
     if (p->destroyed_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d destroyed\n", p->destroyed_name_index))
+                "NAMEIDX n%" PRId64 " destroyed\n",
+                p->destroyed_name_index))
             return 0;
     }
     if (p->cloned_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d cloned\n", p->cloned_name_index))
+                "NAMEIDX n%" PRId64 " cloned\n",
+                p->cloned_name_index))
             return 0;
     }
     if (p->equals_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d equals\n", p->equals_name_index))
+                "NAMEIDX n%" PRId64 " equals\n",
+                p->equals_name_index))
             return 0;
     }
     if (p->to_hash_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d to_hash\n", p->to_hash_name_index))
+                "NAMEIDX n%" PRId64 " to_hash\n",
+                p->to_hash_name_index))
             return 0;
     }
     int64_t i = 0;
@@ -747,7 +756,7 @@ int disassembler_Dump(
         int k = 0;
         while (k < (int)p->classes[i].varattr_count) {
             if (!disassembler_Write(di,
-                    "    VARATTR %" PRId64 "\n",
+                    "    VARATTR n%" PRId64 "\n",
                     (int64_t)p->classes[i].varattr_global_name_idx[k]
                     ))
                 return 0;
@@ -756,7 +765,7 @@ int disassembler_Dump(
         k = 0;
         while (k < (int)p->classes[i].funcattr_count) {
             if (!disassembler_Write(di,
-                    "    FUNCATTR %" PRId64 " %" PRId64 "\n",
+                    "    FUNCATTR n%" PRId64 " f%" PRId64 "\n",
                     (int64_t)p->classes[i].funcattr_global_name_idx[k],
                     (int64_t)p->classes[i].funcattr_func_idx[k]
                     ))
