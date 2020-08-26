@@ -7,7 +7,7 @@ the Horse64 Logo with files found in `misc/`
 (`misc/logo.svg` and others starting with "logo") and the logo files
 possibly baked into the official binaries, and excluding 2. third-party
 code found in `vendor/`, and excluding 3. the documentation in `docs/` and
-the root folder `*.md` files, is licensed under the following terms:
+in the `README.md`, is licensed under the following terms:
 
 ```
 Copyright (c) 2020,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
@@ -39,8 +39,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Horse64 Documentation License
 -----------------------------
 
-The documentation, as found in the `docs/` folder and in the `*.md`
-files in the repository root folder, is CC-BY-SA-4.0 licensed.
+The documentation, as found in the `docs/` folder and in the `README.md` file
+in the repository root, is CC-BY-SA-4.0 licensed.
 ( https://creativecommons.org/licenses/by-sa/4.0/ )
 It should be credited as `Copyright (C) 2020 Horse64 Team (See AUTHORS.md)`.
 
