@@ -869,6 +869,25 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
+
+        #ifndef NDEBUG
+        if (stack != NULL && !(inst->slot >= 0 &&
+                inst->slot < stack->entry_count -
+                stack->current_func_floor &&
+                stack->alloc_count >= stack->entry_count)) {
+            fprintf(
+                stderr, "horsevm: error: "
+                "invalid setconst outside of stack, "
+                "stack func floor: %" PRId64
+                ", stack total size: %" PRId64
+                ", setconst target stack slot: %d\n",
+                (int64_t)stack->current_func_floor,
+                (int64_t)STACK_TOTALSIZE(stack),
+                (int)inst->slot
+            );
+            stack_PrintDebug(stack);
+        }
+        #endif
         assert(
             stack != NULL && inst->slot >= 0 &&
             inst->slot < stack->entry_count -
@@ -2553,12 +2572,16 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     varinitfuncidx;
                 assert(varinit_func_id >= 0 &&
                        varinit_func_id < pr->func_count);
+
+                // Make sure the function properties are correct:
                 assert(!pr->func[varinit_func_id].iscfunc);
-                // Set up call and return to after this instruction:
+                assert(pr->func[varinit_func_id].input_stack_size == 1);
+                assert(pr->func[varinit_func_id].
+                       last_posarg_is_multiarg == 0);
+                assert(pr->func[varinit_func_id].kwarg_count == 0);
+
+                // Push function frame:
                 int64_t new_func_floor = STACK_TOTALSIZE(stack) + 1;
-                if (!stack_ToSize(stack, new_func_floor, 0)) {
-                    goto triggeroom;
-                }
                 int64_t offset = (ptrdiff_t)(
                     p - pr->func[func_id].instructions
                 ) + skipbytes;
@@ -2568,6 +2591,20 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         )) {
                     goto triggeroom;
                 }
+                assert(STACK_TOTALSIZE(stack) >= new_func_floor +
+                       pr->func[varinit_func_id].input_stack_size);
+
+                // Push self reference into closure argument:
+                valuecontent *closurearg = (
+                    &stack->entry[(int64_t)new_func_floor]
+                );
+                assert(closurearg->type ==
+                       H64VALTYPE_NONE);  // stack was grown, must be none
+                closurearg->type = H64VALTYPE_GCVAL;
+                closurearg->ptr_value = gcval;
+                ADDREF_NONHEAP(closurearg);
+
+                // Enter function:
                 #ifndef NDEBUG
                 if (vmthread->vmexec_owner->moptions.vmexec_debug)
                     fprintf(
