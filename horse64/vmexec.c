@@ -1670,7 +1670,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (vmthread->vmexec_owner->moptions.vmexec_debug)
                 fprintf(
                     stderr, "horsevm: debug: vmexec jump into cfunc "
-                    "%" PRId64 "/addr=%p with floor %" PRId64 "\n",
+                    "%" PRId64 "/addr=%p with floor %" PRId64
+                    " (via call)\n",
                     target_func_id, cfunc, new_func_floor
                 );
             #endif
@@ -1751,7 +1752,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (vmthread->vmexec_owner->moptions.vmexec_debug)
                 fprintf(
                     stderr, "horsevm: debug: vmexec jump into "
-                    "h64 func %" PRId64 "\n",
+                    "h64 func %" PRId64 " (via call)\n",
                     (int64_t)target_func_id
                 );
             #endif
@@ -2465,10 +2466,13 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     {
-        valuecontent *vctarget = NULL;
-        classid_t class_id = -1;
-        int16_t slot_to = -1;
-        int skipbytes = 0;
+        // WARNING: ALL UNINITIALIZED, since goto jumps over them:
+        classid_t class_id;
+        #ifndef NDEBUG
+        int wasbyref;
+        #endif
+        int16_t slot_to;
+        int skipbytes;
         inst_newinstancebyref: {
             h64instruction_newinstancebyref *inst = (
                 (h64instruction_newinstancebyref *)p
@@ -2479,6 +2483,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 goto triggeroom;
             #endif
 
+            #ifndef NDEBUG
+            wasbyref = 1;
+            #endif
             skipbytes = sizeof(*inst);
             slot_to = inst->slotto;
             valuecontent *vcfrom = STACK_ENTRY(
@@ -2504,6 +2511,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                  goto triggeroom;
             #endif
 
+            #ifndef NDEBUG
+            wasbyref = 0;
+            #endif
             skipbytes = sizeof(*inst);
             slot_to = inst->slotto;
             class_id = inst->classidcreatefrom;
@@ -2539,13 +2549,38 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
             // Call into $$varinit if it exists:
             if (pr->classes[class_id].varinitfuncidx >= 0) {
-                funcid_t func_id = pr->classes[class_id].
+                funcid_t varinit_func_id = pr->classes[class_id].
                     varinitfuncidx;
-                assert(func_id >= 0 && func_id < pr->func_count);
-                assert(!pr->func[func_id].iscfunc);
+                assert(varinit_func_id >= 0 &&
+                       varinit_func_id < pr->func_count);
+                assert(!pr->func[varinit_func_id].iscfunc);
                 // Set up call and return to after this instruction:
-                // FIXME
-                assert(0);
+                int64_t new_func_floor = STACK_TOTALSIZE(stack) + 1;
+                if (!stack_ToSize(stack, new_func_floor, 0)) {
+                    goto triggeroom;
+                }
+                int64_t offset = (ptrdiff_t)(
+                    p - pr->func[func_id].instructions
+                ) + skipbytes;
+                if (!pushfuncframe(vmthread, varinit_func_id,
+                        new_func_floor - 1, func_id, offset,
+                        new_func_floor
+                        )) {
+                    goto triggeroom;
+                }
+                #ifndef NDEBUG
+                if (vmthread->vmexec_owner->moptions.vmexec_debug)
+                    fprintf(
+                        stderr, "horsevm: debug: vmexec jump into "
+                        "h64 func %" PRId64 " (via %s/$$varinit)\n",
+                        (int64_t)varinit_func_id,
+                        (wasbyref ? "newinstancebyref" : "newinstance")
+                    );
+                #endif
+                func_id = varinit_func_id;
+                vmthread->call_settop_reverse = -1;
+                p = pr->func[func_id].instructions;
+                goto *jumptable[((h64instructionany *)p)->type];
             } else {
                 // No $$varinit
                 p += skipbytes;
