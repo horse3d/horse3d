@@ -12,6 +12,7 @@
 #include "bytecode.h"
 #include "compiler/ast.h"
 #include "compiler/asthelpers.h"
+#include "compiler/astobviousmistakes.h"
 #include "compiler/astparser.h"
 #include "compiler/asttransform.h"
 #include "compiler/compileproject.h"
@@ -99,6 +100,7 @@ static int scoperesolver_ComputeItemStorage(
     h64scope *scope = ast_GetScope(expr, &ast->scope);
     assert(program->symbols != NULL);
     assert(scope != NULL);
+
     // Assign global variables + classes storage:
     if (scope->is_global ||
             expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
@@ -136,9 +138,11 @@ static int scoperesolver_ComputeItemStorage(
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALCLASSSLOT;
             expr->storage.ref.id = global_id;
+            expr->classdef.bytecode_class_id = global_id;
             return 1;
         }
     }
+
     // Handle class attributes:
     if (!scope->is_global && expr->type == H64EXPRTYPE_VARDEF_STMT) {
         h64expression *owningclass = expr->parent;
@@ -170,13 +174,52 @@ static int scoperesolver_ComputeItemStorage(
                        H64STORETYPE_GLOBALCLASSSLOT &&
                    owningclass->storage.ref.id >= 0 &&
                    owningclass->storage.ref.id < program->classes_count);
-            int owningclassindex = owningclass->storage.ref.id;
-            if (!h64program_RegisterClassVariable(
-                    program, owningclassindex, expr->vardef.identifier
-                    )) {
+            classid_t owningclassindex = owningclass->storage.ref.id;
+            if (program->classes[owningclassindex].varattr_count + 1 >
+                    H64LIMIT_MAX_CLASS_VARATTRS) {
+                h64classsymbol *csymbol = (
+                    h64debugsymbols_GetClassSymbolById(
+                        program->symbols, owningclassindex
+                    ));
+                h64expression *expr = (
+                    csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
+                );
+                char buf[128] = "";
+                char namebuf[64] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "exceeded maximum of %" PRId64 " variable "
+                    "attributes on this class",
+                    (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
+                );
+                if (!result_AddMessage(
+                        &ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf, ast->fileuri,
+                        (expr ? expr->line : - 1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
+            attridx_t attrindex = -1;
+            if ((attrindex = h64program_RegisterClassVariable(
+                    program, owningclassindex, expr->vardef.identifier,
+                    expr
+                    )) < 0) {
                 if (outofmemory) *outofmemory = 1;
                 return 0;
             }
+            assert(!expr->storage.set);
+            expr->storage.set = 1;
+            expr->storage.ref.type = H64STORETYPE_VARATTRSLOT;
+            expr->storage.ref.id = attrindex;
             if (!isnullvardef(expr) && !program->classes[
                     owningclassindex].hasvarinitfunc) {
                 int idx = h64program_RegisterHorse64Function(
@@ -189,6 +232,12 @@ static int scoperesolver_ComputeItemStorage(
                     if (outofmemory) *outofmemory = 1;
                     return 0;
                 }
+                program->classes[
+                    owningclassindex
+                ].hasvarinitfunc = 1;
+                program->classes[
+                    owningclassindex
+                ].varinitfuncidx = idx;
             }
             return 1;
         }
@@ -220,7 +269,7 @@ static int scoperesolver_ComputeItemStorage(
                 return 0;
             }
         }
-        int owningclassindex = -1;
+        classid_t owningclassindex = -1;
         if (owningclass) {
             assert(owningclass->storage.set &&
                    owningclass->storage.ref.type ==
@@ -229,6 +278,41 @@ static int scoperesolver_ComputeItemStorage(
                    owningclass->storage.ref.id < program->classes_count);
             owningclassindex = owningclass->storage.ref.id;
         }
+        if (owningclassindex >= 0) {
+            if (program->classes[owningclassindex].funcattr_count + 1 >
+                    H64LIMIT_MAX_CLASS_FUNCATTRS) {
+                h64classsymbol *csymbol = (
+                    h64debugsymbols_GetClassSymbolById(
+                        program->symbols, owningclassindex
+                    ));
+                h64expression *expr = (
+                    csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
+                );
+                char buf[128] = "";
+                char namebuf[64] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "exceeded maximum of %" PRId64 " func "
+                    "attributes on this class",
+                    (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
+                );
+                if (!result_AddMessage(
+                        &ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf, ast->fileuri,
+                        (expr ? expr->line : - 1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
+         }
 
         // Assemble names and parameter info for the function:
         const char *name = expr->funcdef.name;
@@ -375,6 +459,38 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
         }
     }
 
+    // Make sure storage is computed for class varattrs:
+    if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+        h64expression *owningclass = surroundingclass(expr, 0);
+        if (owningclass) {
+            int outofmemory = 0;
+            if (!scoperesolver_ComputeItemStorage(
+                    atinfo->pr, expr, atinfo->pr->program, atinfo->ast,
+                    rinfo->extract_main,
+                    &outofmemory)) {
+                if (outofmemory) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "internal error: failed to compute storage for "
+                    "expr: %s", ast_ExpressionTypeToStr(expr->type)
+                );
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+        }
+    }
+
     // Add file-global items to the project-global item lookups:
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_CLASSDEF_STMT ||
@@ -392,13 +508,13 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                 char *_bufheap = malloc(strlen(s) + 2048);
                 char *buf = _bufstack;
                 if (_bufheap) {
-                    buflen = strlen(s) + 2048;
+                    buflen = (s ? strlen(s) : 512) + 2048;
                     buf = _bufheap;
                 }
                 snprintf(buf, buflen - 1,
                     "internal error: failed to obtain scope, "
                     "malformed AST? expr: %s/%s, parent: %s",
-                    ast_ExpressionTypeToStr(expr->type), s,
+                    ast_ExpressionTypeToStr(expr->type), (s ? s : ""),
                     (expr->parent ? ast_ExpressionTypeToStr(expr->parent->type) :
                      "none")
                 );
@@ -468,7 +584,7 @@ static int funchasparamwithname(h64expression *expr, const char *param) {
     return 0;
 }
 
-int scoperesolver_EvaluteDerivedClassParent(
+int scoperesolver_EvaluateDerivedClassParent(
         asttransforminfo *atinfo, h64expression *expr
         ) {
     if (expr->parent->type != H64EXPRTYPE_CLASSDEF_STMT ||
@@ -514,28 +630,10 @@ int scoperesolver_EvaluteDerivedClassParent(
     }
     assert(expr->storage.ref.id >= 0 &&
            expr->storage.ref.id < atinfo->pr->program->classes_count);
-    { // Search for a cycle:
+    { // Cycles should have been detected earlier, ensure this:
         int64_t cid = expr->storage.ref.id;
         while (cid >= 0) {
-            if (cid == expr->parent->classdef.bytecode_class_id) {
-                char buf[128] = "";
-                snprintf(buf, sizeof(buf) - 1,
-                    "unexpected cycle in base classes, "
-                    "a class must not derive from itself"
-                );
-                atinfo->ast->resultmsg.success = 0;
-                if (!result_AddMessage(
-                        &atinfo->ast->resultmsg,
-                        H64MSG_ERROR,
-                        buf,
-                        atinfo->ast->fileuri,
-                        expr->line, expr->column
-                        )) {
-                    atinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-                return 1;
-            }
+            assert(cid != expr->parent->classdef.bytecode_class_id);
             cid = atinfo->pr->program->classes[
                 cid
             ].base_class_global_id;
@@ -655,16 +753,27 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 }
                 return 1;
             }
+            h64expression *func = surroundingfunc(expr);
             int directly_in_class_func = (
-                surroundingclass(expr, 0) != NULL
+                surroundingclass(func, 0) != NULL
             );
             if (directly_in_class_func && !expr->storage.set) {
                 expr->storage.set = 1;
                 expr->storage.ref.type = H64STORETYPE_STACKSLOT;
                 expr->storage.ref.id = 0;
             } else if (!directly_in_class_func) {
-                h64expression *func = surroundingfunc(expr);
+                // This has to be a closure (nested inside other func).
+                // Any 'self' usage must have led to closure var storage:
                 assert(func != NULL);
+                #ifndef NDEBUG
+                if (func->funcdef._storageinfo == NULL) {
+                    char *s = ast_ExpressionToJSONStr(func, NULL);
+                    fprintf(stderr, "horsec: error: internal error: "
+                            "invalid missing storage info on "
+                            "closure: %s\n", s);
+                    free(s);
+                }
+                #endif
                 assert(func->funcdef._storageinfo != NULL);
                 func->funcdef._storageinfo->closure_with_self = 1;
             }
@@ -684,7 +793,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             } else {
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
-                    "unexpected unknown identifier \"%s\", variable "
+                    "unknown identifier \"%s\", variable "
                     "or module not found",
                     _shortenedname(describebuf, expr->identifierref.value)
                 );
@@ -795,7 +904,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 // so this shouldn't happen. Log as error:
                 atinfo->hadunexpectederror = 1;
             }
-            if (!scoperesolver_EvaluteDerivedClassParent(
+            if (!scoperesolver_EvaluateDerivedClassParent(
                     atinfo, expr
                     )) {
                 atinfo->hadoutofmemory = 1;
@@ -926,7 +1035,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             if (_mapto == NULL) {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
-                    "unexpected reference to module path \"%s\", "
+                    "unknown reference to module path \"%s\", "
                     "not found among this file's imports",
                     full_imp_path
                 );
@@ -1008,7 +1117,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     refitemname, &number) || number == 0) {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
-                    "unexpected unknown identifier \"%s\" "
+                    "unknown identifier \"%s\" "
                     "not found in module \"%s\"",
                     refitemname,
                     full_imp_path
@@ -1081,7 +1190,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
 
             // Evaluate the identifiers pointing to base classes,
             // if this is any:
-            if (!scoperesolver_EvaluteDerivedClassParent(
+            if (!scoperesolver_EvaluateDerivedClassParent(
                     atinfo, pexpr->parent->op.value2
                     )) {
                 atinfo->hadoutofmemory = 1;
@@ -1486,6 +1595,316 @@ int scoperesolver_ResolveAST(
         }
     }
 
+    // Propagate class attributes from base to derived classes:
+    pr->_class_was_propagated = malloc(
+        (int64_t)sizeof(*pr->_class_was_propagated) *
+        pr->program->classes_count
+    );
+    if (!pr->_class_was_propagated) {
+        result_AddMessage(
+            &unresolved_ast->resultmsg,
+            H64MSG_ERROR, "out of memory",
+            unresolved_ast->fileuri,
+            -1, -1
+        );
+        return 0;
+    }
+    memset(
+        pr->_class_was_propagated, 0,
+        (int64_t)sizeof(*pr->_class_was_propagated) *
+        pr->program->classes_count
+    );
+    classid_t i = 0;
+    while (i < pr->program->classes_count) {
+        classid_t k = i;
+        while (pr->program->classes[k].base_class_global_id >= 0 &&
+                !pr->_class_was_propagated[
+                    pr->program->classes[k].base_class_global_id
+                ]) {
+            k = pr->program->classes[k].base_class_global_id;
+            if (k >= 0 && k == i) {
+                h64classsymbol *csymbol = (
+                    h64debugsymbols_GetClassSymbolById(
+                        pr->program->symbols, k
+                    ));
+                h64expression *expr = (
+                    csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
+                );
+                char buf[128] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected cycle in base classes, "
+                    "a class must not derive from itself"
+                );
+                unresolved_ast->resultmsg.success = 0;
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        unresolved_ast->fileuri,
+                        (expr ? expr->line : -1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        unresolved_ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
+        }
+        if (pr->program->classes[k].base_class_global_id < 0 ||
+                pr->_class_was_propagated[k]) {
+            pr->_class_was_propagated[k] = 1;
+            if (k == i)
+                i++;
+            continue;
+        }
+        h64classsymbol *csymbol = (
+            h64debugsymbols_GetClassSymbolById(
+                pr->program->symbols, k
+            ));
+        assert(csymbol != NULL);
+        classid_t k_parent = (
+            pr->program->classes[k].base_class_global_id
+        );
+        h64classsymbol *csymbol_parent = (
+            h64debugsymbols_GetClassSymbolById(
+                pr->program->symbols, k_parent
+            ));
+        assert(csymbol_parent != NULL);
+        // Make sure we aren't overriding parent varattrs since that is not
+        // allowed:
+        attridx_t i2 = 0;
+        while (i2 < pr->program->classes[k].varattr_count &&
+                k_parent >= 0) {
+            int64_t nameidx = pr->program->classes[k].
+                varattr_global_name_idx[i2];
+            attridx_t foundidx = h64program_LookupClassAttribute(
+                pr->program, k_parent, nameidx
+            );
+            if (foundidx >= 0) {
+                h64expression *expr = (
+                    csymbol && csymbol->_tmp_varattr_expr_ptr ?
+                    csymbol->_tmp_varattr_expr_ptr[i2] : NULL
+                );
+                char buf[128] = "";
+                char namebuf[64] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "blocked name \"%s\", "
+                    "variable attributes must not be overriding base class "
+                    "attributes",
+                    ((expr && expr->type == H64EXPRTYPE_VARDEF_STMT) ?
+                     _shortenedname(namebuf, expr->vardef.identifier) :
+                     NULL)
+                );
+                unresolved_ast->resultmsg.success = 0;
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        unresolved_ast->fileuri,
+                        (expr ? expr->line : - 1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        unresolved_ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
+            i2++;
+        }
+        // Pull in varattrs from parent class:
+        attridx_t newvarattr_count = (
+            pr->program->classes[k_parent].varattr_count +
+            pr->program->classes[k].varattr_count
+        );
+        if (newvarattr_count >
+                pr->program->classes[k].varattr_count) {
+            if (newvarattr_count > H64LIMIT_MAX_CLASS_VARATTRS) {
+                h64expression *expr = (
+                    csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
+                );
+                char buf[128] = "";
+                char namebuf[64] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "exceeded maximum of %" PRId64 " variable "
+                    "attributes on this class",
+                    (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
+                );
+                unresolved_ast->resultmsg.success = 0;
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        unresolved_ast->fileuri,
+                        (expr ? expr->line : - 1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        unresolved_ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
+            int64_t *new_varattr_global_name_idx = realloc(
+                pr->program->classes[k].varattr_global_name_idx,
+                sizeof(*new_varattr_global_name_idx) *
+                newvarattr_count
+            );
+            if (!new_varattr_global_name_idx) {
+                result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, "out of memory",
+                    unresolved_ast->fileuri,
+                    -1, -1
+                );
+                return 0;
+            }
+            void **new_tmp_varattr_expr_ptr = realloc(
+                csymbol->_tmp_varattr_expr_ptr,
+                sizeof(*new_tmp_varattr_expr_ptr) * newvarattr_count
+            );
+            if (!new_tmp_varattr_expr_ptr) {
+                result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, "out of memory",
+                    unresolved_ast->fileuri,
+                    -1, -1
+                );
+                return 0;
+            }
+            pr->program->classes[k].varattr_global_name_idx = (
+                new_varattr_global_name_idx
+            );
+            attridx_t oldvarattr_count = (
+                pr->program->classes[k].varattr_count
+            );
+            attridx_t z = pr->program->classes[k].varattr_count;
+            while (z < newvarattr_count) {
+                pr->program->classes[z].
+                    varattr_global_name_idx[z] = (
+                        pr->program->classes[k_parent].
+                        varattr_global_name_idx[z - oldvarattr_count]
+                    );
+                csymbol->_tmp_varattr_expr_ptr[z] = (
+                    csymbol_parent->_tmp_varattr_expr_ptr[
+                        z - oldvarattr_count
+                    ]);
+                z++;
+            }
+        }
+        // Pull in funcattrs from parent class (only non-overridden ones):
+        i2 = 0;
+        while (i2 < pr->program->classes[k_parent].funcattr_count) {
+            attridx_t foundidx = h64program_LookupClassAttribute(
+                pr->program, k, pr->program->classes[k_parent].
+                    funcattr_global_name_idx[i2]
+            );
+            if (foundidx >= 0)
+                break;
+            attridx_t newfuncattr_count = (
+                pr->program->classes[k].funcattr_count + 1
+            );
+            if (newfuncattr_count > H64LIMIT_MAX_CLASS_FUNCATTRS) {
+                h64expression *expr = (
+                    csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
+                );
+                char buf[128] = "";
+                char namebuf[64] = "";
+                snprintf(buf, sizeof(buf) - 1,
+                    "exceeded maximum of %" PRId64 " func "
+                    "attributes on this class",
+                    (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
+                );
+                unresolved_ast->resultmsg.success = 0;
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        unresolved_ast->fileuri,
+                        (expr ? expr->line : - 1),
+                        (expr ? expr->column : -1)
+                        )) {
+                    result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, "out of memory",
+                        unresolved_ast->fileuri,
+                        -1, -1
+                    );
+                    return 0;
+                }
+                return 1;
+            }
+            int64_t *new_funcattr_global_name_idx = realloc(
+                pr->program->classes[k].funcattr_global_name_idx,
+                sizeof(*new_funcattr_global_name_idx) *
+                newfuncattr_count
+            );
+            if (!new_funcattr_global_name_idx) {
+                result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, "out of memory",
+                    unresolved_ast->fileuri,
+                    -1, -1
+                );
+                return 0;
+            }
+            pr->program->classes[k].funcattr_global_name_idx =
+                new_funcattr_global_name_idx;
+            funcid_t *new_funcattr_func_idx = realloc(
+                pr->program->classes[k].funcattr_func_idx,
+                sizeof(*new_funcattr_func_idx) *
+                newfuncattr_count
+            );
+            if (!new_funcattr_func_idx) {
+                result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, "out of memory",
+                    unresolved_ast->fileuri,
+                    -1, -1
+                );
+                return 0;
+            }
+            pr->program->classes[k].funcattr_func_idx =
+                new_funcattr_func_idx;
+            pr->program->classes[k].funcattr_global_name_idx[
+                newfuncattr_count - 1
+                ] = pr->program->classes[k_parent].
+                    funcattr_global_name_idx[i2];
+            pr->program->classes[k].funcattr_func_idx[
+                newfuncattr_count - 1
+                ] = pr->program->classes[k_parent].
+                    funcattr_func_idx[i2];
+            i2++;
+        }
+        // Regenerate hash map:
+        if (!h64program_RebuildClassAttributeHashmap(
+                pr->program, k)) {
+            result_AddMessage(
+                &unresolved_ast->resultmsg,
+                H64MSG_ERROR, "out of memory",
+                unresolved_ast->fileuri,
+                -1, -1
+            );
+            return 0;
+        }
+        // Advance:
+        if (k == i)
+            i++;
+    }
+
     // Resolve identifiers:
     int transformresult = asttransform_Apply(
         pr, unresolved_ast, NULL,
@@ -1501,6 +1920,8 @@ int scoperesolver_ResolveAST(
         if (!varstorage_AssignLocalStorage(
                 pr, unresolved_ast
                 ))
+            return 0;
+        if (!astobviousmistakes_CheckAST(pr, unresolved_ast))
             return 0;
     }
     return 1;

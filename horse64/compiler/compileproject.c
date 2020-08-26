@@ -258,6 +258,16 @@ int _compileproject_astfreecallback(
     return 1;
 }
 
+int _free_fakevarinitexpr_cb(
+        ATTR_UNUSED hashmap *map, ATTR_UNUSED const char *bytes,
+        ATTR_UNUSED uint64_t byteslen, uint64_t number,
+        ATTR_UNUSED void *userdata
+        ) {
+    h64expression *fakefunc = (h64expression *)(uintptr_t)number;
+    ast_FreeExpression(fakefunc);
+    return 1;
+}
+
 void compileproject_Free(h64compileproject *pr) {
     if (!pr) return;
 
@@ -265,6 +275,15 @@ void compileproject_Free(h64compileproject *pr) {
 
     if (pr->_tempglobalfakeinitfunc) {
         ast_FreeExpression(pr->_tempglobalfakeinitfunc);
+    }
+    free(pr->_class_was_propagated);
+    if (pr->_tempclassesfakeinitfunc_map) {
+        int result = hash_BytesMapIterate(
+            pr->_tempclassesfakeinitfunc_map,
+            _free_fakevarinitexpr_cb, NULL
+        );
+        assert(result != 0);
+        hash_FreeMap(pr->_tempclassesfakeinitfunc_map);
     }
     if (pr->astfilemap) {
         hash_StringMapIterate(
@@ -1028,6 +1047,7 @@ int compileproject_CompileAllToBytecode(
             *error = strdup("project pointer is NULL");
         return 0;
     }
+    // First, make sure all files are scope resolved:
     compileallinfo cinfo;
     memset(&cinfo, 0, sizeof(cinfo));
     cinfo.pr = project;
@@ -1083,12 +1103,14 @@ int compileproject_CompileAllToBytecode(
                             "out of memory?");
         return 0;
     }
+
+    // Now, do actual codegen:
     if (!hash_StringMapIterate(
             project->astfilemap, &_codegenallcb,
             &cinfo)) {
         if (error)
             *error = strdup(
-                "unexpected resolve callback failure, "
+                "unexpected codegen callback failure, "
                 "out of memory?"
             );
         return 0;

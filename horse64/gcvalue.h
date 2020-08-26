@@ -17,16 +17,15 @@ typedef struct hashmap hashmap;
 
 typedef enum gcvaluetype {
     H64GCVALUETYPE_INVALID = 0,
-    H64GCVALUETYPE_CLASSINSTANCE = 1,
-    H64GCVALUETYPE_ERRORCLASSINSTANCE,
+    H64GCVALUETYPE_ERRORCLASSINSTANCE = 1,
     H64GCVALUETYPE_FUNCREF_CLOSURE,
     H64GCVALUETYPE_EMPTYARG,
     H64GCVALUETYPE_ERROR,
     H64GCVALUETYPE_STRING,
     H64GCVALUETYPE_LIST,
     H64GCVALUETYPE_SET,
-    H64GCVALUETYPE_VECTOR,
     H64GCVALUETYPE_MAP,
+    H64GCVALUETYPE_OBJINSTANCE,
     H64GCVALUETYPE_TOTAL_COUNT
 } gcvaluetype;
 
@@ -59,11 +58,12 @@ typedef struct h64gcvalue {
             genericlist *list_values;
         };
         struct {
-            int vector_len;
-            vectorentry *vector_values;
+            h64closureinfo *closure_info;
         };
         struct {
-            h64closureinfo *closure_info;
+            classid_t class_id;
+            int16_t varattr_count;
+            valuecontent *varattr;
         };
     };
 } h64gcvalue;

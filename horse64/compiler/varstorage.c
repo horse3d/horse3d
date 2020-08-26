@@ -240,6 +240,58 @@ int _resolver_EnsureLocalDefStorage(
     return 1;
 }
 
+static int _expr_visit_find_is_instance_of_guard(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    int *result = (int *)ud;
+    if (expr->type == H64EXPRTYPE_BINARYOP &&
+            expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
+            expr->op.value1->type == H64EXPRTYPE_IDENTIFIERREF &&
+            expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF &&
+            strcmp(expr->op.value2->identifierref.value, "is_instance_of"))
+        *result = 1;
+    return 1;
+}
+
+static int _expr_visit_find_hasattr_guard(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    int *result = (int *)ud;
+    if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
+            strcmp(expr->identifierref.value, "has_attr"))
+        *result = 1;
+    return 1;
+}
+
+int _resolver_IsPossiblyGuardedInvalidMember(
+        h64expression *expr
+        ) {
+    h64expression *child = NULL;
+    while (expr) {
+        if (child != NULL &&
+                expr->type == H64EXPRTYPE_IF_STMT) {
+            int got_is_instance_of = 0;
+            int got_hasattr = 0;
+            int visit_result = ast_VisitExpression(
+                expr, NULL, &_expr_visit_find_is_instance_of_guard,
+                NULL, NULL, &got_is_instance_of
+            );
+            assert(visit_result);
+            visit_result = ast_VisitExpression(
+                expr, NULL, &_expr_visit_find_hasattr_guard,
+                NULL, NULL, &got_hasattr
+            );
+            if (got_is_instance_of || got_hasattr)
+                return 1;
+        }
+        if (expr->type == H64EXPRTYPE_FUNCDEF_STMT)
+            return 0;
+        child = expr;
+        expr = expr->parent;
+    }
+    return 0;
+}
+
 int _resolvercallback_AssignNonglobalStorage_visit_out(
         h64expression *expr, ATTR_UNUSED h64expression *parent,
         void *ud
@@ -325,6 +377,110 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                     i++;
                 }
                 assert(_found != 0 && expr->storage.set);
+            }
+        }
+    }
+    // If we had no errors so far, resolve self.X fully at compile time:
+    if (rinfo->pr->resultmsg->success &&
+            rinfo->ast->resultmsg.success &&
+            expr->type == H64EXPRTYPE_BINARYOP &&
+            expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
+            expr->op.value1->type == H64EXPRTYPE_IDENTIFIERREF &&
+            strcmp(expr->op.value1->identifierref.value, "self") == 0 &&
+            expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF) {
+        h64expression *func = surroundingfunc(expr);
+        if (!func) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected \"self\" reference outside of function"
+            );
+            if (!result_AddMessage(
+                    &rinfo->ast->resultmsg,
+                    H64MSG_ERROR, buf, rinfo->ast->fileuri,
+                    expr->line,
+                    expr->column
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            return 1;
+        }
+        h64expression *cls = surroundingclass(expr, 1);
+        if (!cls) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected \"self\" reference outside of class"
+            );
+            if (!result_AddMessage(
+                    &rinfo->ast->resultmsg,
+                    H64MSG_ERROR, buf, rinfo->ast->fileuri,
+                    expr->line,
+                    expr->column
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            return 1;
+        }
+        classid_t clsid = cls->classdef.bytecode_class_id;
+        assert(clsid >= 0 && clsid < rinfo->pr->program->classes_count);
+        const char *name = expr->op.value2->identifierref.value;
+        int64_t nameid = (
+            h64debugsymbols_AttributeNameToAttributeNameId(
+                rinfo->pr->program->symbols, name, 0
+            )
+        );
+        attridx_t result = -1;
+        int found = 0;
+        if (nameid >= 0) {
+            while (clsid >= 0) {
+                if ((result = h64program_ClassNameToMemberIdx(
+                        rinfo->pr->program, clsid, nameid
+                        )) >= 0) {
+                    found = 1;
+                    break;
+                }
+                clsid = (
+                    rinfo->pr->program->classes[clsid].
+                    base_class_global_id);
+            }
+        }
+        if (!found) {
+            char namebuf[64];
+            snprintf(namebuf, sizeof(namebuf) - 1, "%s", name);
+            if (strlen(namebuf) >= sizeof(namebuf) - 2) {
+                namebuf[sizeof(namebuf) - 4] = '.';
+                namebuf[sizeof(namebuf) - 3] = '.';
+                namebuf[sizeof(namebuf) - 2] = '.';
+                namebuf[sizeof(namebuf) - 1] = '\0';
+            }
+            int instance_of_guarded = (
+                _resolver_IsPossiblyGuardedInvalidMember(expr)
+            );
+            if (!instance_of_guarded) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unknown identifier \"%s\" on self "
+                    "will cause AttributeError, wrap in conditional with "
+                    "has_attr() or .is_instance_of() if intended for API "
+                    "compat",
+                    namebuf
+                );
+                if (!result_AddMessage(
+                        &rinfo->ast->resultmsg,
+                        H64MSG_WARNING, buf, rinfo->ast->fileuri,
+                        expr->line,
+                        expr->column
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+        } else {
+            if (!expr->storage.set) {
+                expr->storage.set = 1;
+                expr->storage.ref.type = H64STORETYPE_VARATTRSLOT;
+                expr->storage.ref.id = result;
             }
         }
     }

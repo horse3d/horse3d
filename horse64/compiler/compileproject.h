@@ -22,7 +22,12 @@ typedef struct h64compileproject {
     int astfilemap_count;
     h64program *program;
 
+    // Temporarily used by codegen:
     h64expression *_tempglobalfakeinitfunc;
+    hashmap *_tempclassesfakeinitfunc_map;
+
+    // Temporarily used by scoperesolver:
+    int *_class_was_propagated;
 
     h64result *resultmsg;
 } h64compileproject;

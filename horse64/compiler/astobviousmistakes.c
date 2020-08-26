@@ -1,0 +1,109 @@
+// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// also see LICENSE.md file.
+// SPDX-License-Identifier: BSD-2-Clause
+
+#include "compileconfig.h"
+
+#include <assert.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "compiler/ast.h"
+#include "compiler/asthelpers.h"
+#include "compiler/astobviousmistakes.h"
+#include "compiler/astparser.h"
+#include "compiler/asttransform.h"
+#include "compiler/compileproject.h"
+
+static int _expr_visit_find_is_instance_of_guard(
+        h64expression *expr, h64expression *parent, void *ud
+        ) {
+    int *result = (int *)ud;
+    if (expr->type == H64EXPRTYPE_BINARYOP &&
+            expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
+            expr->op.value1->type == H64EXPRTYPE_IDENTIFIERREF &&
+            expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF &&
+            strcmp(expr->op.value2->identifierref.value, "is_instance_of"))
+        *result = 1;
+    return 1;
+}
+
+int _resolver_IsPossiblyGuardedInvalidType(
+        h64expression *expr
+        ) {
+    h64expression *child = NULL;
+    while (expr) {
+        if (child != NULL &&
+                expr->type == H64EXPRTYPE_IF_STMT) {
+            int got_is_instance_of = 0;
+            int visit_result = ast_VisitExpression(
+                expr, NULL, &_expr_visit_find_is_instance_of_guard,
+                NULL, NULL, &got_is_instance_of
+            );
+            assert(visit_result);
+            if (got_is_instance_of)
+                return 1;
+        }
+        if (expr->type == H64EXPRTYPE_FUNCDEF_STMT)
+            return 0;
+        child = expr;
+        expr = expr->parent;
+    }
+    return 0;
+}
+
+int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
+        h64expression *expr, ATTR_UNUSED h64expression *parent,
+        void *ud
+        ) {
+    asttransforminfo *rinfo = (asttransforminfo *)ud; 
+
+    // Check for invalid calls to class types without "new":
+    if (expr->type == H64EXPRTYPE_CALL &&
+            (parent == NULL ||
+             parent->type != H64EXPRTYPE_UNARYOP ||
+             parent->op.optype != H64OP_NEW)) {
+        if (expr->inlinecall.value->storage.set) {
+            if (expr->inlinecall.value->storage.ref.type ==
+                    H64STORETYPE_GLOBALCLASSSLOT &&
+                    !_resolver_IsPossiblyGuardedInvalidType(expr)) {
+                char buf[512];
+                snprintf(
+                    buf, sizeof(buf) - 1,
+                    "calling a class type will cause TypeError, "
+                    "use \"new\" or wrap in conditional with "
+                    ".is_instance_of() if intended for API compat"
+                );
+                if (!result_AddMessage(
+                        &rinfo->ast->resultmsg,
+                        H64MSG_ERROR, buf, rinfo->ast->fileuri,
+                        expr->line,
+                        expr->column
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+        }
+    }
+    return 1;
+}
+
+int astobviousmistakes_CheckAST(
+        h64compileproject *pr, h64ast *ast
+        ) {
+    // Assign storage for all local variables and parameters:
+    int transformresult = asttransform_Apply(
+        pr, ast,
+        NULL,
+        &_astobviousmistakes_cb_CheckObviousErrors_visit_out,
+        NULL
+    );
+    if (!transformresult)
+        return 0;
+
+    return 1;
+}
+
+

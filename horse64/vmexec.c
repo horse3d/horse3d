@@ -139,11 +139,12 @@ static const char *_classnamelookup(h64program *pr, int64_t classid) {
 
 #if defined(DEBUGVMEXEC)
 static int vmthread_PrintExec(
-        h64instructionany *inst
+        funcid_t fid, h64instructionany *inst
         ) {
     char *_s = disassembler_InstructionToStr(inst);
     if (!_s) return 0;
-    fprintf(stderr, "horsevm: debug: vmexec %s\n", _s);
+    fprintf(stderr, "horsevm: debug: vmexec f%" PRId64 " %s\n",
+            (int64_t)fid, _s);
     free(_s);
     return 1;
 }
@@ -846,6 +847,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     #endif
     h64vmthread *vmthread = start_thread;
     vmexec->active_thread = vmthread;
+    int callignoreifnone = 0;
 
     goto setupinterpreter;
 
@@ -865,7 +867,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_setconst *inst = (h64instruction_setconst *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
         assert(
             stack != NULL && inst->slot >= 0 &&
@@ -918,18 +920,106 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     inst_setbyindexexpr: {
-        fprintf(stderr, "setbyindexexpr not implemened\n");
+        fprintf(stderr, "setbyindexexpr not implemented\n");
         return 0;
     }
-    inst_setbyattribute: {
-        fprintf(stderr, "setbyattribute not implemened\n");
-        return 0;
+    inst_setbyattributename: {
+        h64instruction_setbyattributename *inst = (
+            (h64instruction_setbyattributename *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
+        if (vc->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue*)vc->ptr_value)->type !=
+                H64GCVALUETYPE_OBJINSTANCE) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "given attribute not present on this value"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        valuecontent *vfrom = STACK_ENTRY(stack, inst->slotvaluefrom);
+
+        h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+        attridx_t aindex = h64program_LookupClassAttribute(
+            pr, gcval->class_id, inst->nameidx
+        );
+        if (aindex < 0) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "given attribute not present on this value"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        if (aindex >= H64CLASS_METHOD_OFFSET) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "cannot alter func attribute"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        assert(aindex >= 0 && aindex < gcval->varattr_count);
+
+        DELREF_NONHEAP(&gcval->varattr[aindex]);
+        valuecontent_Free(&gcval->varattr[aindex]);
+        memcpy(
+            &gcval->varattr[aindex], vfrom, sizeof(*vfrom)
+        );
+        ADDREF_NONHEAP(&gcval->varattr[aindex]);
+
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
+    }
+    inst_setbyattributeidx: {
+        h64instruction_setbyattributeidx *inst = (
+            (h64instruction_setbyattributeidx *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
+        if (vc->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue*)vc->ptr_value)->type !=
+                H64GCVALUETYPE_OBJINSTANCE) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "given attribute not present on this value"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        valuecontent *vfrom = STACK_ENTRY(stack, inst->slotvaluefrom);
+
+        h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+        attridx_t aindex = inst->varattrto;
+        if (aindex < 0 || aindex >= gcval->varattr_count) {
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "given attribute not present on this value"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+
+        DELREF_NONHEAP(&gcval->varattr[aindex]);
+        valuecontent_Free(&gcval->varattr[aindex]);
+        memcpy(
+            &gcval->varattr[aindex], vfrom, sizeof(*vfrom)
+        );
+        ADDREF_NONHEAP(&gcval->varattr[aindex]);
+
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_getfunc: {
         h64instruction_getfunc *inst = (h64instruction_getfunc *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
@@ -945,7 +1035,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_getclass *inst = (h64instruction_getclass *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
@@ -961,7 +1051,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_valuecopy *inst = (h64instruction_valuecopy *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         assert(STACK_ENTRY(stack, inst->slotfrom)->type !=
@@ -985,574 +1075,22 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         p += sizeof(h64instruction_valuecopy);
         goto *jumptable[((h64instructionany *)p)->type];
     }
-    inst_binop: {
-        h64instruction_binop *inst = (h64instruction_binop *)p;
-        #ifndef NDEBUG
-        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
-        #endif
-
-        int copyatend = 0;
-        valuecontent _tmpresultbuf = {0};
-        valuecontent *tmpresult = STACK_ENTRY(stack, inst->slotto);
-        if (likely(inst->slotto == inst->arg1slotfrom ||
-                inst->slotto == inst->arg2slotfrom)) {
-            copyatend = 1;
-            tmpresult = &_tmpresultbuf;
-        } else {
-            DELREF_NONHEAP(tmpresult);
-            valuecontent_Free(tmpresult);
-            memset(tmpresult, 0, sizeof(*tmpresult));
-        }
-
-        valuecontent *v1 = STACK_ENTRY(stack, inst->arg1slotfrom);
-        valuecontent *v2 = STACK_ENTRY(stack, inst->arg2slotfrom);
-        #ifndef NDEBUG
-        if (!op_jumptable[inst->optype]) {
-            fprintf(stderr, "binop %d missing in jump table\n",
-                    inst->optype);
-            return 0;
-        }
-        #endif
-        int invalidtypes = 1;
-        int divisionbyzero = 0;
-        goto *op_jumptable[inst->optype];
-        binop_divide: {
-            if (unlikely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    tmpresult->float_value = (v1no / v2no);
-                    if (isnan(tmpresult->float_value) || v2no == 0) {
-                        divisionbyzero = 1;
-                    }
-                } else {
-                    tmpresult->type = H64VALTYPE_INT64;
-                    if (v2->int_value == 0) {
-                        divisionbyzero = 1;
-                    } else {
-                        tmpresult->int_value = (
-                            v1->int_value / v2->int_value
-                        );
-                    }
-                }
-            }
-            goto binop_done;
-        }
-        binop_add: {
-            if (unlikely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                if (likely((
-                        ((v1->type == H64VALTYPE_GCVAL &&
-                         ((h64gcvalue *)v1->ptr_value)->type ==
-                            H64GCVALUETYPE_STRING) ||
-                         v1->type == H64VALTYPE_SHORTSTR)) &&
-                        ((v2->type == H64VALTYPE_GCVAL &&
-                         ((h64gcvalue *)v2->ptr_value)->type ==
-                            H64GCVALUETYPE_STRING) ||
-                         v2->type == H64VALTYPE_SHORTSTR))) { // string concat
-                    invalidtypes = 0;
-                    int64_t len1 = -1;
-                    char *ptr1 = NULL;
-                    if (v1->type == H64VALTYPE_SHORTSTR) {
-                        len1 = v1->shortstr_len;
-                        ptr1 = (char*)v1->shortstr_value;
-                    } else {
-                        len1 = (
-                            (int64_t)((h64gcvalue *)v1->ptr_value)->
-                            str_val.len
-                        );
-                        ptr1 = (char*)(
-                            (int64_t)((h64gcvalue *)v1->ptr_value)->
-                            str_val.s
-                        );
-                    }
-                    int64_t len2 = -1;
-                    char *ptr2 = NULL;
-                    if (v2->type == H64VALTYPE_SHORTSTR) {
-                        len2 = v2->shortstr_len;
-                        ptr2 = (char*)v2->shortstr_value;
-                    } else {
-                        len2 = (
-                            (int64_t)((h64gcvalue *)v2->ptr_value)->
-                            str_val.len
-                        );
-                        ptr2 = (char*)(
-                            (int64_t)((h64gcvalue *)v2->ptr_value)->
-                            str_val.s
-                        );
-                    }
-                    if (len1 + len2 <= VALUECONTENT_SHORTSTRLEN) {
-                        tmpresult->type = H64VALTYPE_SHORTSTR;
-                        tmpresult->shortstr_len = len1 + len2;
-                        if (len1 > 0) {
-                            memcpy(
-                                tmpresult->shortstr_value,
-                                ptr1, len1 * sizeof(unicodechar)
-                            );
-                        }
-                        if (len2 > 0) {
-                            memcpy(
-                                tmpresult->shortstr_value +
-                                len1 * sizeof(unicodechar),
-                                ptr2, len2 * sizeof(unicodechar)
-                            );
-                        }
-                    } else {
-                        tmpresult->type = H64VALTYPE_GCVAL;
-                        h64gcvalue *gcval = poolalloc_malloc(
-                            heap, 0
-                        );
-                        if (!gcval) {
-                            tmpresult->ptr_value = NULL;
-                            goto triggeroom;
-                        }
-                        tmpresult->ptr_value = gcval;
-                        gcval->type = H64GCVALUETYPE_STRING;
-                        gcval->heapreferencecount = 0;
-                        gcval->externalreferencecount = 1;
-                        memset(&gcval->str_val, 0,
-                               sizeof(gcval->str_val));
-                        if (!vmstrings_AllocBuffer(
-                                vmthread, &gcval->str_val,
-                                len1 + len2)) {
-                            poolalloc_free(heap, gcval);
-                            tmpresult->ptr_value = NULL;
-                            goto triggeroom;
-                        }
-                        if (len1 > 0) {
-                            memcpy(
-                                gcval->str_val.s,
-                                ptr1, len1 * sizeof(unicodechar)
-                            );
-                        }
-                        if (len2 > 0) {
-                            memcpy(
-                                ((char*)gcval->str_val.s) +
-                                len1 * sizeof(unicodechar),
-                                ptr2, len2 * sizeof(unicodechar)
-                            );
-                        }
-                    }
-                } else {
-                    // invalid
-                }
-            } else {  // number addition
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    tmpresult->float_value = (v1no + v2no);
-                } else {
-                    tmpresult->type = H64VALTYPE_INT64;
-                    tmpresult->int_value = (
-                        v1->int_value + v2->int_value
-                    );
-                }
-            }
-            goto binop_done;
-        }
-        binop_substract: {
-            if (unlikely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    tmpresult->float_value = (v1no - v2no);
-                } else {
-                    tmpresult->type = H64VALTYPE_INT64;
-                    tmpresult->int_value = (
-                        v1->int_value - v2->int_value
-                    );
-                }
-            }
-            goto binop_done;
-        }
-        binop_multiply: {
-            if (unlikely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    tmpresult->float_value = (v1no * v2no);
-                } else {
-                    tmpresult->type = H64VALTYPE_INT64;
-                    tmpresult->int_value = (
-                        v1->int_value * v2->int_value
-                    );
-                }
-            }
-            goto binop_done;
-        }
-        binop_modulo: {
-            if (unlikely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_FLOAT64;
-                    if (unlikely(v1no < 0 || v2no < 0)) {
-                        if (v1no >= 0 && v2no < 0) {
-                            tmpresult->float_value = -(
-                                (-v2no) - fmod(v1no, -v2no)
-                            );
-                        } else if (v2no >= 0) {
-                            tmpresult->float_value = (
-                                v2no - fmod(-v1no, v2no)
-                            );
-                        } else {
-                            tmpresult->float_value = (
-                                -fmod(-v1no, -v2no)
-                            );
-                        }
-                    } else {
-                        tmpresult->float_value = fmod(v1no, v2no);
-                    }
-                    if (isnan(tmpresult->float_value) || v2no == 0) {
-                        divisionbyzero = 1;
-                    }
-                } else {
-                    tmpresult->type = H64VALTYPE_INT64;
-                    if (v2->int_value == 0) {
-                        divisionbyzero = 1;
-                    } else {
-                        tmpresult->int_value = (
-                            v1->int_value % v2->int_value
-                        );
-                    }
-                }
-            }
-            goto binop_done;
-        }
-        binop_cmp_equal: {
-            if (likely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // generic case:
-                fprintf(stderr, "equality case not implemented\n");
-                return 0;
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no == v2no);
-                } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value == v2->int_value
-                    );
-                }
-            }
-            goto binop_done;
-        }
-        binop_cmp_notequal: {
-            fprintf(stderr, "oopsie daisy\n");
-            return 0;
-        }
-        binop_cmp_largerorequal: {
-            if (likely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no >= v2no);
-                } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value >= v2->int_value
-                    );
-                }
-            }
-            goto binop_done;
-        }
-        binop_cmp_smallerorequal: {
-            if (likely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no <= v2no);
-                } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value <= v2->int_value
-                    );
-                }
-            }
-            goto binop_done;
-        }
-        binop_cmp_larger: {
-            if (likely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no > v2no);
-                } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value > v2->int_value
-                    );
-                }
-            }
-            goto binop_done;
-        }
-        binop_cmp_smaller: {
-            if (unlikely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no < v2no);
-                } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value < v2->int_value
-                    );
-                }
-            }
-            goto binop_done;
-        }
-        binop_indexbyexpr: {
-            if (unlikely(v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64)) {
-                RAISE_ERROR(
-                    H64STDERROR_TYPEERROR,
-                    "cannot index using a non-number type"
-                );
-                goto *jumptable[((h64instructionany *)p)->type];
-            }
-            int64_t index_by = -1;
-            if (likely(v2->type == H64VALTYPE_INT64)) {
-                index_by = v2->int_value;
-            } else {
-                assert(v2->type == H64VALTYPE_FLOAT64);
-                index_by = roundl(v2->float_value);
-            }
-            invalidtypes = 0;
-            if (v1->type == H64VALTYPE_GCVAL && (
-                    ((h64gcvalue *)v1->ptr_value)->type ==
-                    H64GCVALUETYPE_LIST
-                    )) {
-                valuecontent *v = vmlist_Get(
-                    ((h64gcvalue *)v1->ptr_value)->list_values, index_by
-                );
-                if (!v) {
-                    RAISE_ERROR(
-                        H64STDERROR_INDEXERROR,
-                        "index %" PRId64 " is out of range",
-                        (int64_t)index_by
-                    );
-                    goto *jumptable[((h64instructionany *)p)->type];
-                }
-                memcpy(tmpresult, v, sizeof(*v));
-                ADDREF_NONHEAP(tmpresult);
-            } else {
-                RAISE_ERROR(
-                    H64STDERROR_TYPEERROR,
-                    "object of this type cannot be indexed"
-                );
-                goto *jumptable[((h64instructionany *)p)->type];
-            }
-            goto binop_done;
-        }
-        binop_done:
-        if (invalidtypes) {
-            RAISE_ERROR(
-                H64STDERROR_TYPEERROR,
-                "cannot apply %s operator to given types",
-                operator_OpPrintedAsStr(inst->optype)
-            );
-            goto *jumptable[((h64instructionany *)p)->type];
-        } else if (divisionbyzero) {
-            RAISE_ERROR(
-                H64STDERROR_MATHERROR,
-                "division by zero"
-            );
-            goto *jumptable[((h64instructionany *)p)->type];
-        }
-        if (copyatend) {
-            valuecontent *target = STACK_ENTRY(stack, inst->slotto);
-            DELREF_NONHEAP(target);
-            valuecontent_Free(target);
-            memcpy(target, tmpresult, sizeof(*tmpresult));
-        }
-        p += sizeof(h64instruction_binop);
-        goto *jumptable[((h64instructionany *)p)->type];
-    }
-    inst_unop: {
-        fprintf(stderr, "unop not implemented\n");
-        return 0;
-    }
+    #include "vmexec_inst_unopbinop_INCLUDE.c"
     inst_call: {
+        callignoreifnone = 0;
+        goto sharedending_call_callignoreifnone;
+    }
+    inst_callignoreifnone: {
+        callignoreifnone = 1;
+        goto sharedending_call_callignoreifnone;
+    }
+    sharedending_call_callignoreifnone: {
         h64instruction_call *inst = (h64instruction_call *)p;
+        assert(sizeof(h64instruction_call) ==
+               sizeof(h64instruction_callignoreifnone));
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug) {
-            if (!vmthread_PrintExec((void*)inst)) {
+            if (!vmthread_PrintExec(func_id, (void*)inst)) {
                 if (!vmthread_ResetCallTempStack(vmthread)) {
                     if (returneduncaughterror)
                         *returneduncaughterror = 0;
@@ -1576,8 +1114,17 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     *returneduncaughterror = 0;
                 return 0;
             }
-            RAISE_ERROR(H64STDERROR_TYPEERROR,
+            if (!callignoreifnone || vc->type != H64VALTYPE_NONE) {
+                RAISE_ERROR(H64STDERROR_TYPEERROR,
                             "not a callable object type");
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            valuecontent *vcreturnto = STACK_ENTRY(stack, inst->returnto);
+            DELREF_NONHEAP(vcreturnto);
+            valuecontent_Free(vcreturnto);
+            memset(vcreturnto, 0, sizeof(*vcreturnto));
+            vcreturnto->type = H64VALTYPE_NONE;
+            p += sizeof(h64instruction_call);
             goto *jumptable[((h64instructionany *)p)->type];
         }
         int64_t target_func_id = -1;
@@ -2218,7 +1765,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_settop *inst = (h64instruction_settop *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         assert(inst->topto >= 0);
@@ -2238,7 +1785,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_callsettop *inst = (h64instruction_callsettop *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         if (!vmthread_ResetCallTempStack(vmthread)) {
@@ -2266,7 +1813,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_returnvalue *inst = (h64instruction_returnvalue *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         // Get return value:
@@ -2374,7 +1921,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_condjump *inst = (h64instruction_condjump *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         int jumpevalvalue = 1;
@@ -2404,7 +1951,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_jump *inst = (h64instruction_jump *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         p += (
@@ -2428,7 +1975,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         #ifndef NDEBUG
@@ -2456,7 +2003,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 ) {
             #ifndef NDEBUG
             if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                    !vmthread_PrintExec((void*)p)) goto triggeroom;
+                    !vmthread_PrintExec(func_id, (void*)p)) goto triggeroom;
             #endif
             int64_t class_id = -1;
             if (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE) {
@@ -2522,7 +2069,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         // See if we got a finally block to terminate:
@@ -2560,13 +2107,13 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         goto *jumptable[((h64instructionany *)p)->type];
     }
-    inst_getattribute: {
-        h64instruction_getattribute *inst = (
-            (h64instruction_getattribute *)p
+    inst_getattributebyname: {
+        h64instruction_getattributebyname *inst = (
+            (h64instruction_getattributebyname *)p
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         // Prepare target:
@@ -2585,8 +2132,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             memset(target, 0, sizeof(*target));
         }
         valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
+        attridx_t attr_index = -1;
         int64_t nameidx = inst->nameidx;
-        if (nameidx == vmexec->program->as_str_name_index
+        if (nameidx >= 0 &&
+                nameidx == vmexec->program->as_str_name_index
                 ) {  // .as_str
             // See what this actually is as a string with .as_str:
             unicodechar strvalue[128];
@@ -2718,8 +2267,33 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             assert((unsigned int)gcval->str_val.len ==
                    (unsigned int)strvaluelen);
             ADDREF_NONHEAP(target);
-        } else if (nameidx == vmexec->program->add_name_index
-                ) {  // .add
+        } else if (nameidx >= 0 &&
+                (nameidx == vmexec->program->init_name_index ||
+                 nameidx == vmexec->program->to_str_name_index ||
+                 nameidx == vmexec->program->destroyed_name_index ||
+                 nameidx == vmexec->program->cloned_name_index ||
+                 nameidx == vmexec->program->equals_name_index ||
+                 nameidx == vmexec->program->to_hash_name_index
+                ) &&
+                vc->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE
+                ) {  // .init/.to_str/.destroyed/.cloned/.equals/.to_hash
+                     // (on a class object instance)
+            // This is an internal function that is supposed to be
+            // inaccessible from the outside.
+            RAISE_ERROR(
+                H64STDERROR_ATTRIBUTEERROR,
+                "this special func attribute is not "
+                "directly accessible"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        } else if (nameidx >= 0 &&
+                nameidx == vmexec->program->add_name_index &&
+                (vc->type != H64VALTYPE_GCVAL ||
+                 ((h64gcvalue *)vc->ptr_value)->type !=
+                 H64GCVALUETYPE_OBJINSTANCE)
+                ) {  // .add, not on class object
             if (vc->type == H64VALTYPE_GCVAL && (
                     ((h64gcvalue *)vc->ptr_value)->type ==
                     H64GCVALUETYPE_LIST ||
@@ -2759,6 +2333,60 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
+        } else if (nameidx >= 0 &&
+                vc->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE &&
+                ((attr_index = h64program_LookupClassAttribute(
+                    pr, ((h64gcvalue *)vc->ptr_value)->class_id,
+                    nameidx
+                    )) >= 0)) {
+            if (attr_index < H64CLASS_METHOD_OFFSET) {
+                // A varattr, just copy the contents:
+                h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
+                assert(attr_index >= 0 &&
+                       gcv->varattr_count);
+                memcpy(target, &gcv->varattr[attr_index],
+                       sizeof(*target));
+                ADDREF_NONHEAP(target);
+            } else {
+                // It's a function attribute, return closure:
+                classid_t class_id = (
+                    ((h64gcvalue *)vc->ptr_value)->classid
+                );
+                assert(
+                    attr_index - H64CLASS_METHOD_OFFSET <
+                    pr->classes[class_id].funcattr_count
+                );
+                target->type = H64VALTYPE_GCVAL;
+                target->ptr_value = poolalloc_malloc(
+                    heap, 0
+                );
+                if (!vc->ptr_value)
+                    goto triggeroom;
+                h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+                gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
+                gcval->heapreferencecount = 0;
+                gcval->externalreferencecount = 1;
+                gcval->closure_info = (
+                    malloc(sizeof(*gcval->closure_info))
+                );
+                if (!gcval->closure_info) {
+                    poolalloc_free(heap, gcval);
+                    target->ptr_value = NULL;
+                    goto triggeroom;
+                }
+                memset(gcval->closure_info, 0,
+                       sizeof(*gcval->closure_info));
+                gcval->closure_info->closure_func_id = (
+                    pr->classes[class_id].funcattr_func_idx[
+                        (attr_index - H64CLASS_METHOD_OFFSET)
+                    ]
+                );
+                gcval->closure_info->closure_self = (
+                    (h64gcvalue *)vc->ptr_value
+                );
+            }
         } else {
             RAISE_ERROR(
                 H64STDERROR_ATTRIBUTEERROR,
@@ -2781,7 +2409,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         int64_t offset = (p - pr->func[func_id].instructions);
@@ -2797,7 +2425,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
@@ -2836,49 +2464,172 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         fprintf(stderr, "newvector not implemented\n");
         return 0;
     }
-    inst_newinstancebyref: {
-        h64instruction_newinstancebyref *inst = (
-            (h64instruction_newinstancebyref *)p
+    {
+        valuecontent *vctarget = NULL;
+        classid_t class_id = -1;
+        int16_t slot_to = -1;
+        int skipbytes = 0;
+        inst_newinstancebyref: {
+            h64instruction_newinstancebyref *inst = (
+                (h64instruction_newinstancebyref *)p
+            );
+            #ifndef NDEBUG
+            if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                    !vmthread_PrintExec(func_id, (void*)inst))
+                goto triggeroom;
+            #endif
+
+            skipbytes = sizeof(*inst);
+            slot_to = inst->slotto;
+            valuecontent *vcfrom = STACK_ENTRY(
+                stack, inst->classtypeslotfrom
+            );
+            if (vcfrom->type != H64VALTYPE_CLASSREF) {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "new must be called on a class type"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            class_id = vcfrom->int_value;
+            goto sharedending_newinstance_newinstancebyref;
+        }
+        inst_newinstance: {
+            h64instruction_newinstance *inst = (
+                (h64instruction_newinstance *)p
+            );
+            #ifndef NDEBUG
+            if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                    !vmthread_PrintExec(func_id, (void*)inst))
+                 goto triggeroom;
+            #endif
+
+            skipbytes = sizeof(*inst);
+            slot_to = inst->slotto;
+            class_id = inst->classidcreatefrom;
+            goto sharedending_newinstance_newinstancebyref;
+        }
+        sharedending_newinstance_newinstancebyref: {
+            valuecontent *vctarget = STACK_ENTRY(stack, slot_to);
+            DELREF_NONHEAP(vctarget);
+            valuecontent_Free(vctarget);
+            memset(vctarget, 0, sizeof(*vctarget));
+            assert(class_id >= 0 && class_id < vmexec->program->classes_count);
+            vctarget->type = H64VALTYPE_GCVAL;
+            vctarget->ptr_value = poolalloc_malloc(heap, 0);
+            if (!vctarget->ptr_value)
+                goto triggeroom;
+            h64gcvalue *gcval = (h64gcvalue *)vctarget->ptr_value;
+            gcval->type = H64GCVALUETYPE_OBJINSTANCE;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            gcval->class_id = class_id;
+            gcval->varattr_count = (
+                vmexec->program->classes[class_id].varattr_count
+            );
+            gcval->varattr = malloc(
+                sizeof(valuecontent) * gcval->varattr_count
+            );
+            if (!gcval->varattr) {
+                gcval->type = H64VALTYPE_NONE;
+                goto triggeroom;
+            }
+            memset(gcval->varattr, 0, sizeof(*gcval->varattr) *
+                   gcval->varattr_count);
+
+            // Call into $$varinit if it exists:
+            if (pr->classes[class_id].varinitfuncidx >= 0) {
+                funcid_t func_id = pr->classes[class_id].
+                    varinitfuncidx;
+                assert(func_id >= 0 && func_id < pr->func_count);
+                assert(!pr->func[func_id].iscfunc);
+                // Set up call and return to after this instruction:
+                // FIXME
+                assert(0);
+            } else {
+                // No $$varinit
+                p += skipbytes;
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+        }
+    }
+    inst_getconstructor: {
+        h64instruction_getconstructor *inst = (
+            (h64instruction_getconstructor *)p
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec((void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
-        valuecontent *vctarget = STACK_ENTRY(stack, inst->slotto);
-        DELREF_NONHEAP(vctarget);
-        valuecontent_Free(vctarget);
-        memset(vctarget, 0, sizeof(*vctarget));
-        valuecontent *vcfrom = STACK_ENTRY(
-            stack, inst->classtypeslotfrom
+        // Prepare target:
+        valuecontent _tmpbuf;
+        valuecontent *target = (
+            STACK_ENTRY(stack, inst->slotto)
         );
-        if (vcfrom->type != H64VALTYPE_CLASSREF) {
-            RAISE_ERROR(
-                H64STDERROR_TYPEERROR,
-                "new must be called on a class type"
-            );
-            goto *jumptable[((h64instructionany *)p)->type];
+        int copyatend = 0;
+        if (inst->slotto == inst->objslotfrom) {
+            target = &_tmpbuf;
+            memset(target, 0, sizeof(*target));
+            copyatend = 1;
+        } else {
+            DELREF_NONHEAP(target);
+            valuecontent_Free(target);
+            memset(target, 0, sizeof(*target));
         }
-        int64_t class_id = vcfrom->int_value;
-        assert(class_id >= 0 && class_id < vmexec->program->func_count);
-        vctarget->type = H64VALTYPE_OBJINSTANCE;
-        vctarget->varattr_count = (
-            vmexec->program->classes[class_id].varattr_count
-        );
-        vctarget->varattr = malloc(
-            sizeof(valuecontent) * vctarget->varattr_count
-        );
-        if (vctarget->varattr) {
-            vctarget->type = H64VALTYPE_NONE;
-            goto triggeroom;
+        valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
+        attridx_t attr_index = -1;
+        int64_t nameidx = pr->init_name_index;
+        if (nameidx < 0) {
+            target->type = H64VALTYPE_NONE;
+        } else {
+            classid_t class_id = ((h64gcvalue *)vc->ptr_value)->class_id;
+            attridx_t idx = (
+                attr_index = h64program_LookupClassAttribute(
+                    pr, class_id, nameidx
+                ));
+            if (idx < 0) {
+                target->type = H64VALTYPE_NONE;
+            } else {
+                assert(idx >= H64CLASS_METHOD_OFFSET);
+                target->type = H64VALTYPE_GCVAL;
+                target->ptr_value = poolalloc_malloc(
+                    heap, 0
+                );
+                if (!vc->ptr_value)
+                    goto triggeroom;
+                h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+                gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
+                gcval->heapreferencecount = 0;
+                gcval->externalreferencecount = 1;
+                gcval->closure_info = (
+                    malloc(sizeof(*gcval->closure_info))
+                );
+                if (!gcval->closure_info) {
+                    poolalloc_free(heap, gcval);
+                    target->ptr_value = NULL;
+                    goto triggeroom;
+                }
+                memset(gcval->closure_info, 0,
+                       sizeof(*gcval->closure_info));
+                gcval->closure_info->closure_func_id = (
+                    pr->classes[class_id].funcattr_func_idx[
+                        (idx - H64CLASS_METHOD_OFFSET)
+                    ]
+                );
+                gcval->closure_info->closure_self = (
+                    (h64gcvalue *)vc->ptr_value
+                );
+            }
         }
-        memset(vctarget->varattr, 0, sizeof(*vctarget->varattr));
-        fprintf(stderr, "newinstancebyref not implemented\n");
-        return 0;
-    }
-    inst_newinstance: {
-        fprintf(stderr, "newinstance not implemented\n");
-        return 0;
+        if (copyatend) {
+            DELREF_NONHEAP(STACK_ENTRY(stack, inst->slotto));
+            valuecontent_Free(STACK_ENTRY(stack, inst->slotto));
+            memcpy(STACK_ENTRY(stack, inst->slotto),
+                   target, sizeof(*target));
+        }
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
 
     setupinterpreter:
@@ -2887,13 +2638,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_SETGLOBAL] = &&inst_setglobal;
     jumptable[H64INST_GETGLOBAL] = &&inst_getglobal;
     jumptable[H64INST_SETBYINDEXEXPR] = &&inst_setbyindexexpr;
-    jumptable[H64INST_SETBYATTRIBUTE] = &&inst_setbyattribute;
+    jumptable[H64INST_SETBYATTRIBUTENAME] = &&inst_setbyattributename;
+    jumptable[H64INST_SETBYATTRIBUTEIDX] = &&inst_setbyattributeidx;
     jumptable[H64INST_GETFUNC] = &&inst_getfunc;
     jumptable[H64INST_GETCLASS] = &&inst_getclass;
     jumptable[H64INST_VALUECOPY] = &&inst_valuecopy;
     jumptable[H64INST_BINOP] = &&inst_binop;
     jumptable[H64INST_UNOP] = &&inst_unop;
     jumptable[H64INST_CALL] = &&inst_call;
+    jumptable[H64INST_CALLIGNOREIFNONE] = &&inst_callignoreifnone;
     jumptable[H64INST_SETTOP] = &&inst_settop;
     jumptable[H64INST_CALLSETTOP] = &&inst_callsettop;
     jumptable[H64INST_RETURNVALUE] = &&inst_returnvalue;
@@ -2906,7 +2659,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_ADDCATCHTYPEBYREF] = &&inst_addcatchtypebyref;
     jumptable[H64INST_ADDCATCHTYPE] = &&inst_addcatchtype;
     jumptable[H64INST_POPCATCHFRAME] = &&inst_popcatchframe;
-    jumptable[H64INST_GETATTRIBUTE] = &&inst_getattribute;
+    jumptable[H64INST_GETATTRIBUTEBYNAME] = &&inst_getattributebyname;
     jumptable[H64INST_JUMPTOFINALLY] = &&inst_jumptofinally;
     jumptable[H64INST_NEWLIST] = &&inst_newlist;
     jumptable[H64INST_NEWSET] = &&inst_newset;
@@ -2914,6 +2667,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_NEWVECTOR] = &&inst_newvector;
     jumptable[H64INST_NEWINSTANCEBYREF] = &&inst_newinstancebyref;
     jumptable[H64INST_NEWINSTANCE] = &&inst_newinstance;
+    jumptable[H64INST_GETCONSTRUCTOR] = &&inst_getconstructor;
     op_jumptable[H64OP_MATH_DIVIDE] = &&binop_divide;
     op_jumptable[H64OP_MATH_ADD] = &&binop_add;
     op_jumptable[H64OP_MATH_SUBSTRACT] = &&binop_substract;

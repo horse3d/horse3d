@@ -8,8 +8,8 @@ guidelines in mind:
   be wrong, since everyone is human.
 
 - Don't discriminate based on race, gender, age, disabilities,
-  appearance, ethnicity, or similar. Don't single out people
-  for the purpose of putting them down.
+  appearance, ethnicity, financial means, or similar. Don't single
+  out people for the purpose of putting them down.
   We have no place for this in our community.
 
 - Don't use threats, deliberate intimidation, inappropiate sexual
@@ -28,11 +28,20 @@ If you want to report any questionable behavior in Horse64-related
 communities, for example the bug trackers, community chat, or similar,
 please approach a [moderator in the official Matrix chatroom](
   https://matrix.to/#/#horse64:matrix.org
-) using a "Direct message".
-We will try to help you out as best as we can to resolve the
-situation, and to enforce the guidelines where needed.
+) using a "Direct message", or [contact @ell1e on GitHub](
+  https://github.com/ell1e
+).
+Your report will be kept anonymous, and we will try to help you
+out as best as we can to resolve the situation and to enforce
+the guidelines where needed.
 
 If you want to give general organizational feedback, or bring
 up other public issues including related to these guidelines, please
 head to the [horse64 organizational discussion repo](
 https://github.com/horse64/horse64-general).
+
+
+---
+*This documentation is CC-BY-SA-4.0 licensed.
+( https://creativecommons.org/licenses/by-sa/4.0/ )
+Copyright (C) 2020  Horse64 Team (See AUTHORS.md)*

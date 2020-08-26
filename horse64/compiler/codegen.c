@@ -18,6 +18,7 @@
 #include "compiler/compileproject.h"
 #include "compiler/main.h"
 #include "compiler/varstorage.h"
+#include "hash.h"
 #include "unicode.h"
 
 
@@ -253,6 +254,88 @@ void codegen_CalculateFinalFuncStack(
         );
 }
 
+h64expression *_fakeclassinitfunc(
+        asttransforminfo *rinfo, h64expression *classexpr
+        ) {
+    assert(classexpr != NULL &&
+           classexpr->type == H64EXPRTYPE_CLASSDEF_STMT);
+    classid_t classidx = classexpr->classdef.bytecode_class_id;
+    assert(
+        classidx >= 0 &&
+        classidx < rinfo->pr->program->classes_count
+    );
+    assert(rinfo->pr->program->classes[classidx].hasvarinitfunc);
+
+    // Make sure the map for registering it by class exists:
+    if (!rinfo->pr->_tempclassesfakeinitfunc_map) {
+        rinfo->pr->_tempclassesfakeinitfunc_map = (
+            hash_NewBytesMap(1024)
+        );
+        if (!rinfo->pr->_tempclassesfakeinitfunc_map) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+    }
+
+    // If we got an entry already, return it:
+    uintptr_t queryresult = 0;
+    if (hash_BytesMapGet(
+            rinfo->pr->_tempclassesfakeinitfunc_map,
+            (const char *)&classidx, sizeof(classidx),
+            &queryresult)) {
+        assert(queryresult != 0);
+        return (h64expression *)(void *)queryresult;
+    }
+
+    // Allocate new faked func expression and return it:
+    h64expression *fakefunc = malloc(sizeof(*fakefunc));
+    if (!fakefunc) {
+        rinfo->hadoutofmemory = 1;
+        return 0;
+    }
+    memset(fakefunc, 0, sizeof(*fakefunc));
+    fakefunc->storage.eval_temp_id = -1;
+    fakefunc->type = (
+        H64EXPRTYPE_FUNCDEF_STMT
+    );
+    fakefunc->funcdef.name = strdup("$$clsinit");
+    if (!fakefunc->funcdef.name) {
+        oom:
+        free(fakefunc->funcdef._storageinfo);
+        free(fakefunc->funcdef.name);
+        free(fakefunc);
+        return NULL;
+    }
+    fakefunc->funcdef.bytecode_func_id = -1;
+    fakefunc->funcdef._storageinfo = malloc(
+        sizeof(*fakefunc->funcdef._storageinfo)
+    );
+    if (!fakefunc->funcdef._storageinfo)
+        goto oom;
+    memset(
+        fakefunc->funcdef._storageinfo, 0,
+        sizeof(*fakefunc->funcdef._storageinfo)
+    );
+    fakefunc->funcdef._storageinfo->closure_with_self = 1;
+    if (!hash_BytesMapSet(
+            rinfo->pr->_tempclassesfakeinitfunc_map,
+            (const char *)&classidx, sizeof(classidx),
+            (uintptr_t)fakefunc
+            ))
+        goto oom;
+    fakefunc->funcdef.bytecode_func_id = (
+        rinfo->pr->program->classes[classidx].varinitfuncidx
+    );
+    fakefunc->storage.set = 1;
+    fakefunc->storage.ref.type = (
+        H64STORETYPE_GLOBALFUNCSLOT
+    );
+    fakefunc->storage.ref.id = (
+        rinfo->pr->program->classes[classidx].varinitfuncidx
+    );
+    return fakefunc;
+}
+
 h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
     if (rinfo->pr->_tempglobalfakeinitfunc)
         return rinfo->pr->_tempglobalfakeinitfunc;
@@ -263,6 +346,7 @@ h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
         return NULL;
     memset(rinfo->pr->_tempglobalfakeinitfunc, 0,
            sizeof(*rinfo->pr->_tempglobalfakeinitfunc));
+    rinfo->pr->_tempglobalfakeinitfunc->storage.eval_temp_id = -1;
     rinfo->pr->_tempglobalfakeinitfunc->type = (
         H64EXPRTYPE_FUNCDEF_STMT
     );
@@ -388,8 +472,10 @@ static int _resolve_jumpid_to_jumpoffset(
 static int _codegen_call_to(
         asttransforminfo *rinfo, h64expression *func,
         h64expression *callexpr,
-        int calledexprstoragetemp, int resulttemp
+        int calledexprstoragetemp, int resulttemp,
+        int ignoreifnone
         ) {
+    assert(callexpr->type == H64EXPRTYPE_CALL);
     int _argtemp = funccurrentstacktop(func);
     int posargcount = 0;
     int expandlastposarg = 0;
@@ -417,8 +503,26 @@ static int _codegen_call_to(
     );
     int i = 0;
     while (i < callexpr->inlinecall.arguments.arg_count) {
+        assert(callexpr->inlinecall.arguments.arg_name != NULL);
         if (callexpr->inlinecall.arguments.arg_name[i])
             _reachedkwargs = 1;
+        #ifndef NDEBUG
+        if (callexpr->inlinecall.arguments.arg_value == NULL) {
+            printf(
+                "horsec: error: internal error: "
+                "invalid call expression with arg count > 0, "
+                "but arg_value array is NULL\n"
+            );
+            char *s = ast_ExpressionToJSONStr(callexpr, NULL);
+            printf(
+                "horsec: error: internal error: "
+                "expr is: %s\n", s
+            );
+            free(s);
+        }
+        #endif
+        assert(callexpr->inlinecall.arguments.arg_value != NULL);
+        assert(callexpr->inlinecall.arguments.arg_value[i] != NULL);
         int ismultiarg = 0;
         if (_reachedkwargs) {
             kwargcount++;
@@ -508,23 +612,39 @@ static int _codegen_call_to(
         func->funcdef._storageinfo->codegen.max_extra_stack = (
             maxslotsused
         );
-    h64instruction_call inst_call = {0};
-    inst_call.type = H64INST_CALL;
     int temp = resulttemp;
     if (temp < 0) {
         rinfo->hadoutofmemory = 1;
         return 0;
     }
-    inst_call.returnto = temp;
-    inst_call.slotcalledfrom = calledexprstoragetemp;
-    inst_call.expandlastposarg = expandlastposarg;
-    inst_call.posargs = posargcount;
-    inst_call.kwargs = kwargcount;
-    if (!appendinst(
-            rinfo->pr->program, func, callexpr,
-            &inst_call, sizeof(inst_call))) {
-        rinfo->hadoutofmemory = 1;
-        return 0;
+    if (ignoreifnone) {
+        h64instruction_callignoreifnone inst_call = {0};
+        inst_call.type = H64INST_CALLIGNOREIFNONE;
+        inst_call.returnto = temp;
+        inst_call.slotcalledfrom = calledexprstoragetemp;
+        inst_call.expandlastposarg = expandlastposarg;
+        inst_call.posargs = posargcount;
+        inst_call.kwargs = kwargcount;
+        if (!appendinst(
+                rinfo->pr->program, func, callexpr,
+                &inst_call, sizeof(inst_call))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+    } else {
+        h64instruction_call inst_call = {0};
+        inst_call.type = H64INST_CALL;
+        inst_call.returnto = temp;
+        inst_call.slotcalledfrom = calledexprstoragetemp;
+        inst_call.expandlastposarg = expandlastposarg;
+        inst_call.posargs = posargcount;
+        inst_call.kwargs = kwargcount;
+        if (!appendinst(
+                rinfo->pr->program, func, callexpr,
+                &inst_call, sizeof(inst_call))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
     }
     callexpr->storage.eval_temp_id = temp;
     return 1;
@@ -790,9 +910,10 @@ int _codegencallback_DoCodegen_visit_out(
     if (!func) {
         h64expression *sclass = surroundingclass(expr, 0);
         if (sclass != NULL) {
-            return 1;
+            func = _fakeclassinitfunc(rinfo, sclass);
+        } else {
+            func = _fakeglobalinitfunc(rinfo);
         }
-        func = _fakeglobalinitfunc(rinfo);
         if (!func) {
             rinfo->hadoutofmemory = 1;
             return 0;
@@ -846,8 +967,8 @@ int _codegencallback_DoCodegen_visit_out(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-            h64instruction_getattribute instgetattr = {0};
-            instgetattr.type = H64INST_GETATTRIBUTE;
+            h64instruction_getattributebyname instgetattr = {0};
+            instgetattr.type = H64INST_GETATTRIBUTEBYNAME;
             instgetattr.slotto = addfunctemp;
             instgetattr.objslotfrom = listtmp;
             instgetattr.nameidx = add_name_idx;
@@ -1096,7 +1217,9 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_DO_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_IF_STMT ||
-            expr->type == H64EXPRTYPE_FOR_STMT) {
+            expr->type == H64EXPRTYPE_FOR_STMT ||
+            (expr->type == H64EXPRTYPE_UNARYOP &&
+             expr->op.optype == H64OP_NEW)) {
         // Already handled in visit_in
     } else if (expr->type == H64EXPRTYPE_BINARYOP &&
             expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
@@ -1120,8 +1243,8 @@ int _codegencallback_DoCodegen_visit_out(
             // FIXME: hard-code an error raise
             fprintf(stderr, "fix invalid member\n");
         } else {
-            h64instruction_getattribute inst_getattr = {0};
-            inst_getattr.type = H64INST_GETATTRIBUTE;
+            h64instruction_getattributebyname inst_getattr = {0};
+            inst_getattr.type = H64INST_GETATTRIBUTEBYNAME;
             inst_getattr.slotto = temp;
             inst_getattr.objslotfrom = expr->op.value1->storage.eval_temp_id;
             inst_getattr.nameidx = idx;
@@ -1173,6 +1296,25 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         expr->storage.eval_temp_id = temp;
+    } else if (expr->type == H64EXPRTYPE_UNARYOP &&
+            expr->op.optype != H64OP_NEW) {
+        int temp = new1linetemp(func, expr, 1);
+        if (temp < 0) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        h64instruction_unop inst_unop = {0};
+        inst_unop.type = H64INST_UNOP;
+        inst_unop.optype = expr->op.optype;
+        inst_unop.slotto = temp;
+        inst_unop.argslotfrom = expr->op.value1->storage.eval_temp_id;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_unop, sizeof(inst_unop))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        expr->storage.eval_temp_id = temp;
     } else if (expr->type == H64EXPRTYPE_CALL) {
         int calledexprstoragetemp = (
             expr->inlinecall.value->storage.eval_temp_id
@@ -1183,7 +1325,7 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         if (!_codegen_call_to(
-                rinfo, func, expr, calledexprstoragetemp, temp
+                rinfo, func, expr, calledexprstoragetemp, temp, 0
                 )) {
             return 0;
         }
@@ -1370,7 +1512,9 @@ int _codegencallback_DoCodegen_visit_out(
                 expr, &str
             );  // Get the storage info of our assignment target
             storageref _complexsetter_buf = {0};
+            int iscomplexassign = 0;
             if (str == NULL) {  // No storage, must be complex assign:
+                iscomplexassign = 1;
                 assert(
                     expr->assignstmt.lvalue->type ==
                         H64EXPRTYPE_BINARYOP && (
@@ -1403,6 +1547,7 @@ int _codegencallback_DoCodegen_visit_out(
                 expr->assignstmt.rvalue->storage.eval_temp_id
             );
             if (expr->assignstmt.assignop != H64OP_ASSIGN) {
+                // This assign op does some sort of arithmetic!
                 int oldvaluetemp = -1;
                 if (str->type == H64STORETYPE_GLOBALVARSLOT) {
                     oldvaluetemp = new1linetemp(func, expr, 0);
@@ -1420,9 +1565,64 @@ int _codegencallback_DoCodegen_visit_out(
                         rinfo->hadoutofmemory = 1;
                         return 0;
                     }
-                } else {
+                } else if (!iscomplexassign) {
                     assert(str->type == H64STORETYPE_STACKSLOT);
                     oldvaluetemp = str->id;
+                } else {
+                    // We actually need to get this the complex way:
+                    oldvaluetemp = new1linetemp(func, expr, 0);
+                    assert(expr->assignstmt.lvalue->type ==
+                           H64EXPRTYPE_BINARYOP);
+                    if (expr->assignstmt.lvalue->op.optype ==
+                            H64OP_ATTRIBUTEBYIDENTIFIER) {
+                        assert(
+                            expr->assignstmt.lvalue->op.value2->type ==
+                            H64EXPRTYPE_IDENTIFIERREF
+                        );
+                        int64_t nameid = (
+                            h64debugsymbols_AttributeNameToAttributeNameId(
+                                rinfo->pr->program->symbols,
+                                expr->assignstmt.lvalue->op.value2->
+                                    identifierref.value, 0
+                            ));
+                        if (nameid >= 0) {
+                            h64instruction_getattributebyname inst = {0};
+                            inst.type = H64INST_GETATTRIBUTEBYNAME;
+                            inst.objslotfrom = (
+                                expr->assignstmt.lvalue->op.value1->
+                                    storage.eval_temp_id);
+                            inst.nameidx = nameid;
+                            inst.slotto = oldvaluetemp;
+                            if (!appendinst(
+                                    rinfo->pr->program, func, expr,
+                                    &inst, sizeof(inst))) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                        } else {
+                            // FIXME: hardcode attribute error
+                            assert(0);
+                        }
+                    } else {
+                        assert(expr->assignstmt.lvalue->op.optype ==
+                               H64OP_INDEXBYEXPR);
+                        h64instruction_binop inst = {0};
+                        inst.type = H64INST_BINOP;
+                        inst.optype = H64OP_INDEXBYEXPR;
+                        inst.arg1slotfrom = (
+                            expr->assignstmt.lvalue->op.value1->
+                                storage.eval_temp_id);
+                        inst.arg2slotfrom = (
+                            expr->assignstmt.lvalue->op.value2->
+                                storage.eval_temp_id);
+                        inst.slotto = oldvaluetemp;
+                        if (!appendinst(
+                                rinfo->pr->program, func, expr,
+                                &inst, sizeof(inst))) {
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
+                    }
                 }
                 int mathop = operator_AssignOpToMathOp(
                     expr->assignstmt.assignop
@@ -1445,12 +1645,26 @@ int _codegencallback_DoCodegen_visit_out(
         }
         assert(assignfromtemporary >= 0);
         assert(str->type == H64STORETYPE_GLOBALVARSLOT ||
-               str->type == H64STORETYPE_STACKSLOT);
+               str->type == H64STORETYPE_STACKSLOT ||
+               str->type == H64STORETYPE_VARATTRSLOT);
         if (str->type == H64STORETYPE_GLOBALVARSLOT) {
             h64instruction_setglobal inst = {0};
             inst.type = H64INST_SETGLOBAL;
             inst.globalto = str->id;
             inst.slotfrom = assignfromtemporary;
+            if (!appendinst(rinfo->pr->program, func, expr,
+                            &inst, sizeof(inst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        } else if (str->type == H64STORETYPE_VARATTRSLOT) {
+            assert(surroundingclass(expr, 1) != NULL);
+            assert(func->funcdef._storageinfo->closure_with_self != 0);
+            h64instruction_setbyattributeidx inst = {0};
+            inst.type = H64INST_SETBYATTRIBUTEIDX;
+            inst.slotobjto = 0;  // 0 must always be 'self'
+            inst.varattrto = (attridx_t)str->id;
+            inst.slotvaluefrom = assignfromtemporary;
             if (!appendinst(rinfo->pr->program, func, expr,
                             &inst, sizeof(inst))) {
                 rinfo->hadoutofmemory = 1;
@@ -1472,8 +1686,8 @@ int _codegencallback_DoCodegen_visit_out(
                        H64EXPRTYPE_BINARYOP);
                 if (expr->assignstmt.lvalue->op.optype ==
                         H64OP_ATTRIBUTEBYIDENTIFIER) {
-                    h64instruction_setbyattribute inst = {0};
-                    inst.type = H64INST_SETBYATTRIBUTE;
+                    h64instruction_setbyattributename inst = {0};
+                    inst.type = H64INST_SETBYATTRIBUTENAME;
                     assert(expr->assignstmt.lvalue->
                            op.value1->storage.eval_temp_id >= 0);
                     inst.slotobjto = (
@@ -1481,17 +1695,28 @@ int _codegencallback_DoCodegen_visit_out(
                         storage.eval_temp_id
                     );
                     assert(expr->assignstmt.lvalue->
-                           op.value2->storage.eval_temp_id >= 0);
-                    inst.slotattributeto = (
-                        expr->assignstmt.lvalue->op.value2->
-                        storage.eval_temp_id
+                           op.value2->storage.eval_temp_id < 0);
+                    assert(expr->assignstmt.lvalue->op.value2->type ==
+                           H64EXPRTYPE_IDENTIFIERREF);
+                    int64_t nameidx = (
+                        h64debugsymbols_AttributeNameToAttributeNameId(
+                            rinfo->pr->program->symbols,
+                            expr->assignstmt.lvalue->op.value2->
+                                identifierref.value, 0
+                        )
                     );
-                    inst.slotvaluefrom = str->id;
-                    if (!appendinst(
-                            rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
-                        rinfo->hadoutofmemory = 1;
-                        return 0;
+                    if (nameidx < 0) {
+                        // FIXME: hardcode AttributeError raise
+                        assert(0);
+                    } else {
+                        inst.nameidx = nameidx;
+                        inst.slotvaluefrom = assignfromtemporary;
+                        if (!appendinst(
+                                rinfo->pr->program, func, expr,
+                                &inst, sizeof(inst))) {
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
                     }
                 } else {
                     assert(expr->assignstmt.lvalue->op.optype ==
@@ -1510,7 +1735,7 @@ int _codegencallback_DoCodegen_visit_out(
                         expr->assignstmt.lvalue->op.value2->
                         storage.eval_temp_id
                     );
-                    inst.slotvaluefrom = str->id;
+                    inst.slotvaluefrom = assignfromtemporary;
                     if (!appendinst(
                             rinfo->pr->program, func, expr,
                             &inst, sizeof(inst))) {
@@ -1788,8 +2013,22 @@ int _codegencallback_DoCodegen_visit_in(
         // This should have been enforced by the parser:
         assert(expr->op.value1->type == H64EXPRTYPE_CALL);
 
-        int objslot = -1;
+        // Visit all arguments of constructor call:
+        int i = 0;
+        while (i < expr->op.value1->funcdef.arguments.arg_count) {
+            if (!ast_VisitExpression(
+                    expr->op.value1->funcdef.arguments.arg_value[i],
+                    expr,
+                    &_codegencallback_DoCodegen_visit_in,
+                    &_codegencallback_DoCodegen_visit_out,
+                    _asttransform_cancel_visit_descend_callback,
+                    rinfo
+                    ))
+                return 0;
+            i++;
+        }
 
+        int objslot = -1;
         if (expr->op.value1->inlinecall.value->type !=
                     H64EXPRTYPE_IDENTIFIERREF ||
                 expr->op.value1->inlinecall.value->storage.set ||
@@ -1879,23 +2118,21 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-        // Visit all arguments of constructor call:
-        int i = 0;
-        while (i < expr->op.value1->funcdef.arguments.arg_count) {
-            if (!ast_VisitExpression(
-                    expr->op.value1->funcdef.arguments.arg_value[i],
-                    expr,
-                    &_codegencallback_DoCodegen_visit_in,
-                    &_codegencallback_DoCodegen_visit_out,
-                    _asttransform_cancel_visit_descend_callback,
-                    rinfo
-                    ))
-                return 0;
-            i++;
+        // Place constructor in unused result temporary:
+        h64instruction_getconstructor inst_getconstr = {0};
+        inst_getconstr.type = H64INST_GETCONSTRUCTOR;
+        inst_getconstr.slotto = temp;
+        inst_getconstr.objslotfrom = objslot;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_getconstr, sizeof(inst_getconstr))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
         }
         // Generate call to actual constructor:
+        assert(func != NULL && expr != NULL);
         if (!_codegen_call_to(
-                rinfo, func, expr, objslot, temp
+                rinfo, func, expr->op.value1, temp, temp, 1
                 )) {
             return 0;
         }

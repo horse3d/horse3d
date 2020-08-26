@@ -561,8 +561,8 @@ int ast_ParseExprInlineOperator_Recurse(
                                 *parsefail == 0 AND *outofmemory == 0)
 
        In case lefthandside is NOT taken from you after the call, YOU MUST
-       MARK IT DESTROYED or reuse it. In case lefthandside is taken from
-       you, you MUST NOT mark it destroyed or reuse it afterwards!
+       MARK IT DESTROYED or reuse it. However, if lefthandside is taken from
+       you, you MUST NOT EVER mark it destroyed or reuse it afterwards!
     */
 
     int max_tokens_touse = parsethis->max_tokens_touse;

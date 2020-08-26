@@ -24,13 +24,15 @@ typedef enum instructiontype {
     H64INST_SETGLOBAL,
     H64INST_GETGLOBAL,
     H64INST_SETBYINDEXEXPR,
-    H64INST_SETBYATTRIBUTE,
+    H64INST_SETBYATTRIBUTENAME,
+    H64INST_SETBYATTRIBUTEIDX,
     H64INST_GETFUNC,
     H64INST_GETCLASS,
     H64INST_VALUECOPY,
     H64INST_BINOP,
     H64INST_UNOP,
     H64INST_CALL,
+    H64INST_CALLIGNOREIFNONE,
     H64INST_SETTOP,
     H64INST_CALLSETTOP,
     H64INST_RETURNVALUE,
@@ -43,7 +45,7 @@ typedef enum instructiontype {
     H64INST_ADDCATCHTYPEBYREF,
     H64INST_ADDCATCHTYPE,
     H64INST_POPCATCHFRAME,
-    H64INST_GETATTRIBUTE,
+    H64INST_GETATTRIBUTEBYNAME,
     H64INST_JUMPTOFINALLY,
     H64INST_NEWLIST,
     H64INST_NEWSET,
@@ -51,6 +53,7 @@ typedef enum instructiontype {
     H64INST_NEWVECTOR,
     H64INST_NEWINSTANCEBYREF,
     H64INST_NEWINSTANCE,
+    H64INST_GETCONSTRUCTOR,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -91,11 +94,13 @@ typedef enum valuetype {
     H64VALTYPE_GCVAL,
     H64VALTYPE_SHORTSTR,
     H64VALTYPE_CONSTPREALLOCSTR,
-    H64VALTYPE_OBJINSTANCE,
+    H64VALTYPE_VECTOR,
     H64VALTYPE_UNSPECIFIED_KWARG,
 } valuetype;
 
 #define VALUECONTENT_SHORTSTRLEN 3
+
+typedef struct vectorentry vectorentry;
 
 typedef struct valuecontent {
     uint8_t type;
@@ -112,15 +117,19 @@ typedef struct valuecontent {
         struct {
             unicodechar *constpreallocstr_value;
             int32_t constpreallocstr_len;
-            int constpreallocstr_refcount;
         } __attribute__((packed));
         struct {
             classid_t error_class_id;
             h64errorinfo *einfo;
         } __attribute__((packed));
         struct {
-            int varattr_count;
+            classid_t class_id;
+            int16_t varattr_count;
             valuecontent *varattr;
+        } __attribute__((packed));
+        struct {
+            int32_t vector_len;
+            vectorentry *vector_values;
         } __attribute__((packed));
     } __attribute__((packed));
 } __attribute__((packed)) valuecontent;
@@ -154,12 +163,19 @@ typedef struct h64instruction_setbyindexexpr {
     int16_t slotvaluefrom;
 } __attribute__((packed)) h64instruction_setbyindexexpr;
 
-typedef struct h64instruction_setbyattribute {
+typedef struct h64instruction_setbyattributename {
     uint8_t type;
     int16_t slotobjto;
-    int16_t slotattributeto;
+    int64_t nameidx;
     int16_t slotvaluefrom;
-} __attribute__((packed)) h64instruction_setbyattribute;
+} __attribute__((packed)) h64instruction_setbyattributename;
+
+typedef struct h64instruction_setbyattributeidx {
+    uint8_t type;
+    int16_t slotobjto;
+    attridx_t varattrto;
+    int16_t slotvaluefrom;
+} __attribute__((packed)) h64instruction_setbyattributeidx;
 
 typedef struct h64instruction_getfunc {
     uint8_t type;
@@ -197,15 +213,22 @@ typedef struct h64instruction_call {
     int16_t posargs, kwargs;
 } __attribute__((packed)) h64instruction_call;
 
-typedef struct h64instruction_callsettop {
+typedef struct h64instruction_callignoreifnone {
     uint8_t type;
-    int16_t topto;
-} __attribute__((packed)) h64instruction_callsettop;
+    int16_t returnto, slotcalledfrom;
+    uint8_t expandlastposarg;
+    int16_t posargs, kwargs;
+} __attribute__((packed)) h64instruction_callignoreifnone;
 
 typedef struct h64instruction_settop {
     uint8_t type;
     int16_t topto;
 } __attribute__ ((packed)) h64instruction_settop;
+
+typedef struct h64instruction_callsettop {
+    uint8_t type;
+    int16_t topto;
+} __attribute__((packed)) h64instruction_callsettop;
 
 typedef struct h64instruction_returnvalue {
     uint8_t type;
@@ -261,12 +284,12 @@ typedef struct h64instruction_popcatchframe {
     uint8_t type;
 } __attribute__ ((packed)) h64instruction_popcatchframe;
 
-typedef struct h64instruction_getattribute {
+typedef struct h64instruction_getattributebyname {
     uint8_t type;
     int16_t slotto;
     int16_t objslotfrom;
     int64_t nameidx;
-} __attribute__ ((packed)) h64instruction_getattribute;
+} __attribute__ ((packed)) h64instruction_getattributebyname;
 
 typedef struct h64instruction_jumptofinally {
     uint8_t type;
@@ -304,28 +327,35 @@ typedef struct h64instruction_newinstance {
     classid_t classidcreatefrom;
 } __attribute__ ((packed)) h64instruction_newinstance;
 
+typedef struct h64instruction_getconstructor {
+    uint8_t type;
+    int16_t slotto;
+    int16_t objslotfrom;
+} __attribute__ ((packed)) h64instruction_getconstructor;
 
-#define H64CLASS_HASH_SIZE 16
-#define H64CLASS_MAX_METHODS (INT32_MAX / 4)
+
+#define H64CLASS_HASH_SIZE 32
+#define H64CLASS_METHOD_OFFSET (H64LIMIT_MAX_CLASS_VARATTRS)
 
 typedef struct h64classattributeinfo {
     int64_t nameid;
-    int methodorvaridx;  // vars have H64CLASS_MAX_METHODS offset
+    attridx_t methodorvaridx;  // vars have H64CLASS_METHOD_OFFSET offset
 } h64classattributeinfo;
 
 typedef struct h64class {
-    int method_count;
-    int64_t *method_global_name_idx;
-    funcid_t *method_func_idx;
-    int64_t base_class_global_id;
+    classid_t base_class_global_id;
     int is_error;
 
-    int varattr_count;
+    attridx_t funcattr_count;
+    int64_t *funcattr_global_name_idx;
+    funcid_t *funcattr_func_idx;
+    attridx_t varattr_count;
     int64_t *varattr_global_name_idx;
 
     h64classattributeinfo **global_name_to_attribute_hashmap;
 
     int hasvarinitfunc;
+    funcid_t varinitfuncidx;
 } h64class;
 
 typedef struct h64func {
@@ -370,12 +400,13 @@ typedef struct h64program {
     funcid_t containeradd_func_index;
 
     int64_t as_str_name_index;
+    int64_t to_str_name_index;
     int64_t length_name_index;
     int64_t init_name_index;
-    int64_t destroy_name_index;
-    int64_t clone_name_index;
+    int64_t destroyed_name_index;
+    int64_t cloned_name_index;
     int64_t equals_name_index;
-    int64_t hash_name_index;
+    int64_t to_hash_name_index;
     int64_t add_name_index;
 
     globalvarid_t globalvar_count;
@@ -400,15 +431,21 @@ void h64program_FreeInstructions(
     char *instructionbytes, int instructionbytes_len
 );
 
-void h64program_LookupClassAttribute(
-    h64program *p, classid_t class_id, int64_t nameid,
-    int *out_attributevarid, int *out_attributefuncid
+attridx_t h64program_LookupClassAttribute(
+    h64program *p, classid_t class_id, int64_t nameid
 );
 
-classid_t h64program_RegisterClassVariable(
-    h64program *p,
-    classid_t class_id,
-    const char *name
+attridx_t h64program_LookupClassAttributeByName(
+    h64program *p, classid_t class_id, const char *name
+);
+
+attridx_t h64program_RegisterClassVariable(
+    h64program *p, classid_t class_id,
+    const char *name, void *tmp_expr_ptr
+);
+
+attridx_t h64program_ClassNameToMemberIdx(
+    h64program *p, classid_t class_id, int64_t nameidx
 );
 
 funcid_t h64program_RegisterCFunction(
@@ -454,6 +491,18 @@ globalvarid_t h64program_AddGlobalvar(
     const char *library_name
 );
 
+void h64program_FreeClassAttributeHashmap(
+    h64program *p, classid_t class_id
+);
+
+int h64program_AllocClassAttributeHashmap(
+    h64program *p, classid_t class_id
+);
+
+int h64program_RebuildClassAttributeHashmap(
+    h64program *p, classid_t class_id
+);
+
 void h64program_Free(h64program *p);
 
 void h64program_PrintBytecodeStats(h64program *p);
@@ -468,8 +517,6 @@ static inline void DELREF_NONHEAP(valuecontent *content) {
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount--;
-    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        content->constpreallocstr_refcount--;
     }
 }
 
@@ -479,8 +526,6 @@ static inline void ADDREF_NONHEAP(valuecontent *content) {
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount++;
-    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        content->constpreallocstr_refcount++;
     }
 }
 
@@ -490,8 +535,6 @@ static inline void DELREF_HEAP(valuecontent *content) {
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount--;
-    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        content->constpreallocstr_refcount--;
     }
 }
 
@@ -501,8 +544,6 @@ static inline void ADDREF_HEAP(valuecontent *content) {
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount++;
-    } else if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        content->constpreallocstr_refcount++;
     }
 }
 

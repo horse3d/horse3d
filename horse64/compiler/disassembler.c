@@ -224,15 +224,28 @@ int disassembler_PrintInstruction(
         }
         break;
     }
-    case H64INST_SETBYATTRIBUTE: {
-        h64instruction_setbyattribute *inst_setbyattribute =
-            (h64instruction_setbyattribute *)inst;
+    case H64INST_SETBYATTRIBUTENAME: {
+        h64instruction_setbyattributename *inst_setbyattributename =
+            (h64instruction_setbyattributename *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d t%d t%d",
+                "    %s t%d n%" PRId64 " t%d",
                 bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_setbyattribute->slotobjto,
-                (int)inst_setbyattribute->slotattributeto,
-                (int)inst_setbyattribute->slotvaluefrom)) {
+                (int)inst_setbyattributename->slotobjto,
+                (int64_t)inst_setbyattributename->nameidx,
+                (int)inst_setbyattributename->slotvaluefrom)) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_SETBYATTRIBUTEIDX: {
+        h64instruction_setbyattributeidx *inst_setbyattributeidx =
+            (h64instruction_setbyattributeidx *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d a%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_setbyattributeidx->slotobjto,
+                (int)inst_setbyattributeidx->varattrto,
+                (int)inst_setbyattributeidx->slotvaluefrom)) {
             return 0;
         }
         break;
@@ -253,7 +266,7 @@ int disassembler_PrintInstruction(
         h64instruction_getclass *inst_getclass =
             (h64instruction_getclass *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d c" PRId64 "",
+                "    %s t%d c%" PRId64 "",
                 bytecode_InstructionTypeToStr(inst->type),
                 (int)inst_getclass->slotto,
                 (int64_t)inst_getclass->classfrom)) {
@@ -362,15 +375,15 @@ int disassembler_PrintInstruction(
         }
         break;
     }
-    case H64INST_GETATTRIBUTE: {
-        h64instruction_getattribute *inst_getattribute =
-            (h64instruction_getattribute *)inst;
+    case H64INST_GETATTRIBUTEBYNAME: {
+        h64instruction_getattributebyname *inst_getattributebyname =
+            (h64instruction_getattributebyname *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d t%d %" PRId64,
+                "    %s t%d t%d n%" PRId64,
                 bytecode_InstructionTypeToStr(inst->type),
-                inst_getattribute->slotto,
-                inst_getattribute->objslotfrom,
-                inst_getattribute->nameidx)) {
+                inst_getattributebyname->slotto,
+                inst_getattributebyname->objslotfrom,
+                inst_getattributebyname->nameidx)) {
             return 0;
         }
         break;
@@ -503,6 +516,45 @@ int disassembler_PrintInstruction(
         }
         break;
     }
+    case H64INST_NEWINSTANCEBYREF: {
+        h64instruction_newinstancebyref *inst_newibyref =
+            (h64instruction_newinstancebyref *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_newibyref->slotto,
+                (int)inst_newibyref->classtypeslotfrom
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_NEWINSTANCE: {
+        h64instruction_newinstance *inst_newinst =
+            (h64instruction_newinstance *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d c%" PRId64,
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_newinst->slotto,
+                (int64_t)inst_newinst->classidcreatefrom
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_GETCONSTRUCTOR: {
+        h64instruction_getconstructor *inst_getct =
+            (h64instruction_getconstructor *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_getct->slotto,
+                (int)inst_getct->objslotfrom
+                )) {
+            return 0;
+        }
+        break;
+    }
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>",
@@ -609,42 +661,56 @@ int disassembler_Dump(
     }
     if (p->add_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d add\n", p->add_name_index))
+                "NAMEIDX n%" PRId64 " add\n",
+                p->add_name_index))
             return 0;
     }
     if (p->as_str_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d as_str\n", p->as_str_name_index))
+                "NAMEIDX n%" PRId64 " as_str\n",
+                p->as_str_name_index))
+            return 0;
+    }
+    if (p->to_str_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX n%" PRId64 " to_str\n",
+                p->to_str_name_index))
             return 0;
     }
     if (p->length_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d length\n", p->length_name_index))
+                "NAMEIDX n%" PRId64 " length\n",
+                p->length_name_index))
             return 0;
     }
     if (p->init_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d init\n", p->init_name_index))
+                "NAMEIDX n%" PRId64 " init\n",
+                p->init_name_index))
             return 0;
     }
-    if (p->destroy_name_index >= 0) {
+    if (p->destroyed_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d destroy\n", p->destroy_name_index))
+                "NAMEIDX n%" PRId64 " destroyed\n",
+                p->destroyed_name_index))
             return 0;
     }
-    if (p->clone_name_index >= 0) {
+    if (p->cloned_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d clone\n", p->clone_name_index))
+                "NAMEIDX n%" PRId64 " cloned\n",
+                p->cloned_name_index))
             return 0;
     }
     if (p->equals_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d equals\n", p->equals_name_index))
+                "NAMEIDX n%" PRId64 " equals\n",
+                p->equals_name_index))
             return 0;
     }
-    if (p->hash_name_index >= 0) {
+    if (p->to_hash_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX %d hash\n", p->hash_name_index))
+                "NAMEIDX n%" PRId64 " to_hash\n",
+                p->to_hash_name_index))
             return 0;
     }
     int64_t i = 0;
@@ -675,7 +741,7 @@ int disassembler_Dump(
         if (p->classes[i].base_class_global_id >= 0)
             snprintf(
                 baseclass_str, sizeof(baseclass_str) - 1,
-                "c%" PRId64, p->classes[i].base_class_global_id
+                "c%" PRId64, (int64_t)p->classes[i].base_class_global_id
             );
         char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
         snprintf(linebuf, sizeof(linebuf) - 1,
@@ -690,8 +756,18 @@ int disassembler_Dump(
         int k = 0;
         while (k < (int)p->classes[i].varattr_count) {
             if (!disassembler_Write(di,
-                    "VARATTR %" PRId64 "\n",
-                    (int64_t)p->classes[i].varattr_global_name_idx
+                    "    VARATTR n%" PRId64 "\n",
+                    (int64_t)p->classes[i].varattr_global_name_idx[k]
+                    ))
+                return 0;
+            k++;
+        }
+        k = 0;
+        while (k < (int)p->classes[i].funcattr_count) {
+            if (!disassembler_Write(di,
+                    "    FUNCATTR n%" PRId64 " f%" PRId64 "\n",
+                    (int64_t)p->classes[i].funcattr_global_name_idx[k],
+                    (int64_t)p->classes[i].funcattr_func_idx[k]
                     ))
                 return 0;
             k++;
@@ -707,7 +783,7 @@ int disassembler_Dump(
         if (p->func[i].associated_class_index >= 0) {
             snprintf(
                 clsinfo, sizeof(clsinfo) - 1,
-                " cls%" PRId64,
+                " c%" PRId64,
                 (int64_t)p->func[i].associated_class_index
             );
         }

@@ -26,6 +26,9 @@ typedef struct h64classsymbol {
     char *name;
     int fileuri_index;
 
+    void *_tmp_classdef_expr_ptr;
+    void **_tmp_varattr_expr_ptr;
+
     int global_id;
 } h64classsymbol;
 
