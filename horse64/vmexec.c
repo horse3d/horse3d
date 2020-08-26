@@ -2537,8 +2537,20 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             memset(gcval->varattr, 0, sizeof(*gcval->varattr) *
                    gcval->varattr_count);
 
-            p += skipbytes;
-            goto *jumptable[((h64instructionany *)p)->type];
+            // Call into $$varinit if it exists:
+            if (pr->classes[class_id].varinitfuncidx >= 0) {
+                funcid_t func_id = pr->classes[class_id].
+                    varinitfuncidx;
+                assert(func_id >= 0 && func_id < pr->func_count);
+                assert(!pr->func[func_id].iscfunc);
+                // Set up call and return to after this instruction:
+                // FIXME
+                assert(0);
+            } else {
+                // No $$varinit
+                p += skipbytes;
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
         }
     }
     inst_getconstructor: {
