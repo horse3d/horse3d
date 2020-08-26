@@ -52,8 +52,8 @@ Horse64 Logo is Copyright (C)  2020, ellie/@ell1e. All Rights Reserved.
 The "Horse64 Logo"'s files are located in `misc/` with the filenames starting
 with "logo".
 The Horse64 Logo and its files may only be used in the official, unmodified
-"Horse64" as maintained by Ellie June at `https://github.com/horse64/horse64`,
-and at `https://horse64.org/download`.
+"Horse64" as maintained by Ellie June (currently at
+`https://github.com/horse64`, and at `https://horse64.org/download`).
 **If you distribute modified versions of Horse64, don't use
 the Horse64 Logo and please don't use the official name "Horse64" either.**
 Temporary forks only made for the personal use of preparing
