@@ -6,7 +6,7 @@ All of Horse64 contents as found in this repository, excluding 1.
 the Horse64 Logo with files found in `misc/`
 (`misc/logo.svg` and others starting with "logo") and the logo files
 possibly baked into the official binaries, and excluding 2. third-party
-code found in `vendor/`, and 3. excluding the documentation in `docs/` and
+code found in `vendor/`, and excluding 3. the documentation in `docs/` and
 the root folder `*.md` files, is licensed under the following terms:
 
 ```
