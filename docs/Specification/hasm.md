@@ -20,13 +20,13 @@ but the entire generated program.*
 
 ## Storage Types
 
-| Storage Type     | Referenced as | Created by ... |
-|------------------|---------------|----------------|
-|Global function   | `f<id>`       | `BEGINFUNC`    |
-|Global class      | `c<id>`       | `BEGINCLASS`   |
-|Global variable   | `g<id>`       | FIXME          |
-|Varattr (on class)| `a<id>`       | `VARATTR`      |
-
+| Storage Type     | Referenced as | Created with ...         |
+|------------------|---------------|--------------------------|
+|Global function   | `f<id>`       | `BEGINFUNC`              |
+|Global class      | `c<id>`       | `BEGINCLASS`             |
+|Global variable   | `g<id>`       | FIXME - document this    |
+|Varattr (on class)| `a<id>`       | `VARATTR`                |
+|Name label        | `n<id>`       | *(use without creation)* |
 
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
