@@ -1312,8 +1312,24 @@ int scoperesolver_BuildASTGlobalStorage(
                 memcmp(module_path + strlen(module_path) -
                        strlen(".h64"), ".h64", strlen(".h64")) == 0 ||
                 memcmp(module_path + strlen(module_path) -
-                       strlen(".h64"), ".h64", strlen(".h64")) == 0)) {
+                       strlen(".H64"), ".H64", strlen(".H64")) == 0)) {
             module_path[strlen(module_path) - strlen(".h64")] = '\0';
+        } else {
+            free(library_source);
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "cannot import code from file not ending in "
+                ".h64: %s", unresolved_ast->fileuri
+            );
+            free(module_path);
+            if (!result_AddMessage(
+                    &unresolved_ast->resultmsg,
+                    H64MSG_ERROR, buf,
+                    unresolved_ast->fileuri,
+                    -1, -1
+                ))
+                return 0;  // Out of memory
+            return 1;  // regular abort with failure
         }
         char *new_module_path = filesys_Normalize(module_path);
         free(module_path);
@@ -1331,8 +1347,8 @@ int scoperesolver_BuildASTGlobalStorage(
                 free(library_source);
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
-                    "cannot integrate module with dots in file path: "
-                    "%s", module_path);
+                    "cannot integrate module with dots in name: "
+                    "\"%s\"", module_path);
                 free(module_path);
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
