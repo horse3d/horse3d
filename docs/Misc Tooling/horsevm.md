@@ -15,7 +15,7 @@ An overview over horsevm's runtime behavior:
 
 | Feature                             | horsevm                 |
 |-------------------------------------|-------------------------|
-| Just-In-Time Compilation            | no                      |
+| Just-in-time compilation            | no                      |
 | Recurse deeply beyond libc stack    | yes, up to full heap    |
 | True concurrent OS threads          | yes, with `async`       |
 | Concurrency isn't limited by GIL    | yes                     |
