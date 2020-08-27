@@ -398,14 +398,6 @@ static int scoperesolver_ComputeItemStorage(
                         if (outofmemory) *outofmemory = 1;
                         return 0;
                     }
-                    ast->resultmsg.success = 0;
-                    if (!result_TransferMessages(
-                            &ast->resultmsg, project->resultmsg
-                            )) {
-                        if (outofmemory) *outofmemory = 1;
-                        return 0;
-                    }
-                    project->resultmsg->success = 0;
                 } else {
                     assert(bytecode_func_id >= 0);
                     program->main_func_index = bytecode_func_id;
@@ -521,7 +513,6 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                 buf[buflen - 1] = '\0';
                 free(_bufheap);
                 free(s);
-                atinfo->ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &atinfo->ast->resultmsg,
                         H64MSG_ERROR,
@@ -607,7 +598,6 @@ int scoperesolver_EvaluateDerivedClassParent(
                 "unexpected derived from expression, "
                 "must refer to another class"
             );
-            atinfo->ast->resultmsg.success = 0;
             if (!result_AddMessage(
                     &atinfo->ast->resultmsg,
                     H64MSG_ERROR,
@@ -715,7 +705,6 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 buf[buflen - 1] = '\0';
                 free(_bufheap);
                 free(s);
-                atinfo->ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &atinfo->ast->resultmsg,
                         H64MSG_ERROR,
@@ -797,7 +786,6 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     "or module not found",
                     _shortenedname(describebuf, expr->identifierref.value)
                 );
-                atinfo->ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &atinfo->ast->resultmsg,
                         H64MSG_ERROR,
@@ -1435,7 +1423,6 @@ int scoperesolver_BuildASTGlobalStorage(
                     "couldn't resolve import, module \"%s\" not found",
                     modpath
                 );
-                unresolved_ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, buf,
@@ -1464,7 +1451,6 @@ int scoperesolver_BuildASTGlobalStorage(
                 "unexpected failure to process import: %s",
                 error);
             free(error);
-            unresolved_ast->resultmsg.success = 0;
             if (!result_AddMessage(
                     &unresolved_ast->resultmsg,
                     H64MSG_ERROR, buf,
@@ -1517,6 +1503,12 @@ int scoperesolver_BuildASTGlobalStorage(
                         pr, miscoptions,
                         expr->importstmt.referenced_ast, 0, &rinfo2
                         )) {
+                    // Try to transfer messages anyway, but
+                    // ignore failure:
+                    result_TransferMessages(
+                        &expr->importstmt.referenced_ast->resultmsg,
+                        pr->resultmsg
+                    );
                     return 0;
                 }
                 if (!result_TransferMessages(
@@ -1544,14 +1536,20 @@ int scoperesolver_ResolveAST(
         h64compileproject *pr, h64misccompileroptions *miscoptions,
         h64ast *unresolved_ast, int extract_program_main
         ) {
+    // Abort if we're obviously already done:
     assert(unresolved_ast != NULL);
     if (unresolved_ast->identifiers_resolved)
         return 1;
+    if (!pr->resultmsg->success || !unresolved_ast->resultmsg.success) {
+        pr->resultmsg->success = 0;
+        unresolved_ast->resultmsg.success = 0;
+        return 1;
+    }
+
     unresolved_ast->identifiers_resolved = 1;  // mark done even if failing
     assert(
         pr->program->main_func_index < 0 || !extract_program_main
     );
-
     resolveinfo rinfo;
     memset(&rinfo, 0, sizeof(rinfo));
     rinfo.extract_main = (extract_program_main != 0);
@@ -1564,7 +1562,22 @@ int scoperesolver_ResolveAST(
         pr->resultmsg->success = 0;
         unresolved_ast->resultmsg.success = 0;
         return 0;
+    } else {
+        // Copy any generated errors or warnings:
+        if (!result_TransferMessages(
+                &unresolved_ast->resultmsg, pr->resultmsg
+                )) {
+            result_AddMessage(
+                &unresolved_ast->resultmsg,
+                H64MSG_ERROR, "out of memory",
+                unresolved_ast->fileuri,
+                -1, -1
+            );
+            return 0;
+        }
     }
+
+    // Abort if we ran into an error at this point:
     if (!pr->resultmsg->success || !unresolved_ast->resultmsg.success) {
         pr->resultmsg->success = 0;
         unresolved_ast->resultmsg.success = 0;
@@ -1635,7 +1648,6 @@ int scoperesolver_ResolveAST(
                     "unexpected cycle in base classes, "
                     "a class must not derive from itself"
                 );
-                unresolved_ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR,
@@ -1700,7 +1712,6 @@ int scoperesolver_ResolveAST(
                      _shortenedname(namebuf, expr->vardef.identifier) :
                      NULL)
                 );
-                unresolved_ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR,
@@ -1739,7 +1750,6 @@ int scoperesolver_ResolveAST(
                     "attributes on this class",
                     (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
                 );
-                unresolved_ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR,
@@ -1828,7 +1838,6 @@ int scoperesolver_ResolveAST(
                     "attributes on this class",
                     (int64_t) H64LIMIT_MAX_CLASS_FUNCATTRS
                 );
-                unresolved_ast->resultmsg.success = 0;
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR,
@@ -1923,6 +1932,18 @@ int scoperesolver_ResolveAST(
             return 0;
         if (!astobviousmistakes_CheckAST(pr, unresolved_ast))
             return 0;
+    }
+    // Finally, make sure we copy all errors/warnngs/...:
+    if (!result_TransferMessages(
+            &unresolved_ast->resultmsg, pr->resultmsg
+            )) {
+        result_AddMessage(
+            &unresolved_ast->resultmsg,
+            H64MSG_ERROR, "out of memory",
+            unresolved_ast->fileuri,
+            -1, -1
+        );
+        return 0;
     }
     return 1;
 }

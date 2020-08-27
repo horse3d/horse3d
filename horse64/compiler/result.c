@@ -59,6 +59,11 @@ int result_AddMessageEx(
         int64_t line, int64_t column,
         const char id[32]
         ) {
+    if (type == H64MSG_ERROR) {
+        // Do this first in any case, even if we fail to actually
+        // allocate the added error message later:
+        result->success = 0;
+    }
     int newcount = result->message_count + 1;
     h64resultmessage *newmsgs = realloc(
         result->message, sizeof(*newmsgs) * newcount
@@ -84,9 +89,6 @@ int result_AddMessageEx(
             free(result->message[newcount - 1].message);
             return 0;
         }
-    }
-    if (type == H64MSG_ERROR) {
-        result->success = 0;
     }
     result->message_count = newcount;
     return 1;

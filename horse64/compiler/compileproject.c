@@ -1099,7 +1099,7 @@ int compileproject_CompileAllToBytecode(
     if (!cinfo.pr->resultmsg->success) {
         // Probably out of memory
         if (error)
-            *error = strdup("unexpectedly failed to get error mesage, "
+            *error = strdup("unexpectedly failed to get error message, "
                             "out of memory?");
         return 0;
     }
