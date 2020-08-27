@@ -1347,7 +1347,7 @@ int scoperesolver_BuildASTGlobalStorage(
                 free(library_source);
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
-                    "cannot integrate module with dots in name: "
+                    "cannot import code from file with dots in name: "
                     "\"%s\"", module_path);
                 free(module_path);
                 if (!result_AddMessage(
