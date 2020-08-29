@@ -939,6 +939,35 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     inst_setbyindexexpr: {
+        h64instruction_setbyindexexpr *inst = (
+            (h64instruction_setbyindexexpr *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
+        if (vc->type == H64VALTYPE_SHORTSTR) {
+
+        } else if (vc->type == H64VALTYPE_CONSTPREALLOCSTR) {
+
+        }
+        if (vc->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue*)vc->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE) {
+
+        } else if (vc->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue*)vc->ptr_value)->type ==
+                H64GCVALUETYPE_STRING) {
+
+        } else {
+            RAISE_ERROR(
+                H64STDERROR_TYPEERROR,
+                "given value cannot be indexed"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
         fprintf(stderr, "setbyindexexpr not implemented\n");
         return 0;
     }
