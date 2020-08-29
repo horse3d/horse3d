@@ -29,6 +29,18 @@ START_TEST (test_uribasics)
     #endif
     uri_Free(uri);
 
+    uri = uri_ParseEx("/code blah.h64", NULL);
+    #if defined(_WIN32) || defined(_WIN64)
+    assert(strcmp(uri->path, "\\code blah.h64") == 0);
+    #else
+    assert(strcmp(uri->path, "/code blah.h64") == 0);
+    #endif
+    {
+        char *s = uri_Dump(uri);
+        assert(strcmp(s, "file:///code%20blah.h64") == 0);
+        free(s);
+    }
+
     uri = uri_ParseEx("test.com:20/blubb", NULL);
     assert(!uri->protocol);
     assert(strcmp(uri->host, "test.com") == 0);

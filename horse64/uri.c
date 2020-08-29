@@ -270,7 +270,7 @@ char *uriencode(const char *path) {
                 path[i] == '@' || path[i] == '#') {
             char hexval[4];
             snprintf(hexval, sizeof(hexval) - 1,
-                "%o", (int)((uint8_t*)path)[i]);
+                "%x", (int)((uint8_t*)path)[i]);
             buf[buffill] = '%'; buffill++;
             unsigned int z = strlen(hexval);
             while (z < 2) {
