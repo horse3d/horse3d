@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-typedef uint32_t __attribute__((__may_alias__)) unicodechar __attribute__((aligned(1)));
+typedef uint32_t __attribute__((__may_alias__)) unicodechar;
 
 int is_valid_utf8_char(
     const unsigned char *p, int size
