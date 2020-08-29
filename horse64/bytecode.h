@@ -109,10 +109,10 @@ typedef struct valuecontent {
         double float_value;
         void *ptr_value;
         struct {
+            uint8_t shortstr_len;
             unicodechar shortstr_value[
                 VALUECONTENT_SHORTSTRLEN
-            ];
-            uint8_t shortstr_len;
+            ];  // should be 2byte/16bit aligned
         } __attribute__((packed));
         struct {
             unicodechar *constpreallocstr_value;

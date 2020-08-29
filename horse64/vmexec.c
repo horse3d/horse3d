@@ -948,19 +948,101 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
-        if (vc->type == H64VALTYPE_SHORTSTR) {
-
-        } else if (vc->type == H64VALTYPE_CONSTPREALLOCSTR) {
-
+        valuecontent *vcset = STACK_ENTRY(stack, inst->slotvaluefrom);
+        assert(vc->type != H64VALTYPE_CONSTPREALLOCSTR);
+        valuecontent *vcindex = STACK_ENTRY(stack, inst->slotindexto);
+        if (unlikely(vcindex->type != H64VALTYPE_FLOAT64 &&
+                vcindex->type != H64VALTYPE_INT64)) {
+            RAISE_ERROR(
+                H64STDERROR_TYPEERROR,
+                "indexing value must be a number"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        int64_t index_value = -1;
+        if (likely(vcindex->type == H64VALTYPE_INT64)) {
+            index_value = vcindex->int_value;
+        } else {
+            assert(vcindex->type = H64VALTYPE_FLOAT64);
+            int64_t rounded_value = (
+                (int64_t)roundl(vcindex->float_value)
+            );
+            if (fabs(vcindex->float_value - round(rounded_value)) > 0.001) {
+                RAISE_ERROR(
+                    H64STDERROR_INDEXERROR,
+                    "index must not have fractional part"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            index_value = rounded_value;
         }
         if (vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue*)vc->ptr_value)->type ==
-                H64GCVALUETYPE_OBJINSTANCE) {
-
-        } else if (vc->type == H64VALTYPE_GCVAL &&
+                H64GCVALUETYPE_LIST) {
+            h64gcvalue *gcval = ((h64gcvalue*)vc->ptr_value);
+            if (index_value < 1 || index_value >
+                    gcval->list_values->list_total_entry_count + 1) {
+                RAISE_ERROR(
+                    H64STDERROR_INDEXERROR,
+                    "index outside of range"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            assert(vcset->type != H64VALTYPE_CONSTPREALLOCSTR);
+            // Note: vmlist_Set handles the appending case of
+            // index_value == list_total_entry_count + 1 already.
+            if (!vmlist_Set(
+                    gcval->list_values,
+                    index_value,
+                    vcset))
+                goto triggeroom;
+        } else if ((vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue*)vc->ptr_value)->type ==
-                H64GCVALUETYPE_STRING) {
-
+                H64GCVALUETYPE_STRING) ||
+                vc->type == H64VALTYPE_SHORTSTR) {
+            int64_t assignto_len = -1;
+            char *assignto_buf = NULL;
+            if (vc->type == H64VALTYPE_SHORTSTR) {
+                assignto_len = vc->shortstr_len;
+                assignto_buf = (char *)vc->shortstr_value;
+                    // ^ char* since unaligned
+            } else {
+                h64gcvalue *gcval = ((h64gcvalue*)vc->ptr_value);
+                assignto_len = gcval->str_val.len;
+                assignto_buf = (char *)gcval->str_val.s;
+            }
+            if (index_value < 1 || index_value > assignto_len) {
+                RAISE_ERROR(
+                    H64STDERROR_INDEXERROR,
+                    "index outside of range"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            assert(assignto_buf != NULL && assignto_len > 0);
+            unicodechar setchar;
+            if (likely(vcset->type == H64VALTYPE_SHORTSTR &&
+                    vcset->shortstr_len == 1)) {
+                setchar = vcset->shortstr_value[0];
+            } else if (likely(vc->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue *)vc->ptr_value)->type ==
+                        H64GCVALUETYPE_STRING &&
+                    ((h64gcvalue *)vc->ptr_value)->str_val.len == 1)) {
+                setchar = (
+                    ((h64gcvalue *)vc->ptr_value)->str_val.s[0]
+                );
+            } else {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "can only assign single character string "
+                    "when indexing a string"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            assert(index_value - 1 >= 0 && index_value - 1 < assignto_len);
+            memcpy(
+                assignto_buf + (index_value - 1) * sizeof(unicodechar),
+                &setchar, sizeof(unicodechar)
+            );
         } else {
             RAISE_ERROR(
                 H64STDERROR_TYPEERROR,
@@ -968,8 +1050,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
             goto *jumptable[((h64instructionany *)p)->type];
         }
-        fprintf(stderr, "setbyindexexpr not implemented\n");
-        return 0;
+        p += sizeof(h64instruction_setbyindexexpr);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_setbyattributename: {
         h64instruction_setbyattributename *inst = (
