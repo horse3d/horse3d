@@ -3088,7 +3088,10 @@ int vmexec_ReturnFuncError(
         const char *msg, ...
         ) {
     if (STACK_TOP(vmthread->stack) == 0) {
-        if (!stack_ToSize(vmthread->stack, 1, 1))
+        if (!stack_ToSize(
+                vmthread->stack,
+                STACK_TOTALSIZE(vmthread->stack) + 1, 1
+                ))
             return 0;
     }
     valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
