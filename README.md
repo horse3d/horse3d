@@ -18,7 +18,7 @@ func main {
 **Features:**
 
 - **Simple.** Horse64 strives for [approachable design](
-  ./docs/Design.md), including its intuitive dynamic typing.
+  ./docs/Design.md#overview), including its intuitive dynamic typing.
 
 - **Self-contained.** Single-binary compiler, no complex
   toolchains or giant IDEs. (Unless you want them!) It's cross-platform
@@ -75,7 +75,7 @@ pure performance is your main concern, since Horse64 relies on bytecode
 and not on compiled machine code.
 
 There is also a more [detailed comparison](
-    ./docs/Specification/Horse64.md#overview
+    ./docs/Design.md#overview
 ) available on what Horse64 offers, and what it doesn't offer.
 
 

@@ -14,6 +14,54 @@ end-user applications, networking, and terminal tools.
 Use for multimedia and basic 3D is also possible.
 
 
+## Overview
+
+In overall, Horse64 is designed to be somewhere between a typical
+scripting language like JavaScript, Python, or Lua, and a generic
+managed backend programming language like C#, Java, or Go.
+
+Here is an overview how it roughly compares:
+
+|*Feature List*                 |Horse64 |Scripting Lang|Backend Lang      |
+|-------------------------------|--------|--------------|------------------|
+|Dynamically typed              |Yes     |Yes           |No                |
+|Heavy duck typing              |No      |Some          |No                |
+|Garbage collected              |Yes     |Yes           |Some              |
+|Compiles AOT & Optimized [1]   |Yes     |Usually no    |Yes               |
+|Slow dynamic scope lookups [2] |No      |Yes           |No                |
+|Compile-time scope verification|Yes     |No            |Yes               |
+|Runtime eval()                 |No      |Yes, trivial  |No, or non-trivial|
+|Runtime module load            |No      |Yes, common   |Yes, used rarely  |
+|Produces standalone binary     |Yes     |No, or tricky |Some              |
+|Beginner-friendly              |Yes     |Yes           |No, or less so    |
+|Dynamic REPL mode              |No      |Yes           |Some              |
+|Compiler easy to include[3]    |Yes     |Yes           |No, or less so    |
+|Embeddable scripting engine[4] |No      |Yes, trivially|Often non-trivial |
+|Runs via compiled machine code |No      |No            |Some              |
+
+- Footnote [1]: AOT as in "Ahead of Time", so not one-shot running of
+  a script with either a simple one-pass compiler or Just-In-Time compilation,
+  but rather a separate slower compilation step that produces a binary
+  that is then executed later.
+
+- Footnote [2]: This refers to whether calling a global variable, or a member
+  / attribute on a class object instance will occasionally invoke a slow
+  string hash name lookup at runtime.
+
+- Footnote [3]: Easy to include compiler refers to using the compiler
+  of a language from a program inside the same language as a library,
+  without the need of separately installing an entire SDK.
+
+- Footnote [4]: Embeddable scripting engine refers to using the compiler
+  from inside a *different* lowlevel language, e.g. to embed it for user
+  scripts in a video game written in C/C++. Horse64 is not easily suitable
+  for this right now.
+
+
+**There are also [detailed specifications](./Specification/Horse64.md)
+available.**
+
+
 ## Design Twist: Static Scope
 
 The main difference of Horse64 to most scripting languages is
