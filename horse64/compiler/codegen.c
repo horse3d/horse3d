@@ -51,6 +51,20 @@ static void get_assign_lvalue_storage(
     }
 }
 
+static int is_in_extends_arg(h64expression *expr) {
+    h64expression *child = expr;
+    h64expression *parent = expr->parent;
+    while (parent) {
+        if (parent->type == H64EXPRTYPE_CLASSDEF_STMT)
+            return (
+                child == parent->classdef.baseclass_ref
+            );
+        child = parent;
+        parent = parent->parent;
+    }
+    return 0;
+}
+
 static int _newtemp_ex(h64expression *func, int deletepastline) {
     int i = 0;
     while (i < func->funcdef._storageinfo->codegen.extra_temps_count) {
@@ -1338,7 +1352,8 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_CALL_STMT ||
             expr->type == H64EXPRTYPE_IMPORT_STMT) {
         // Nothing to do with those!
-    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
+    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
+            !is_in_extends_arg(expr)) {
         if (expr->parent != NULL && (
                 (expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
                  expr->parent->assignstmt.lvalue == expr) ||
