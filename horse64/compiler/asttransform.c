@@ -50,19 +50,25 @@ int asttransform_Apply(
             &atinfo
         );
         if (!result || atinfo.hadoutofmemory) {
-            result_AddMessage(
-                &ast->resultmsg,
-                H64MSG_ERROR, "out of memory during ast transform",
-                ast->fileuri,
-                -1, -1
-            );
-            // At least try to transfer messages:
-            result_TransferMessages(
-                &ast->resultmsg, pr->resultmsg
-            );   // return value ignored, if we're oom nothing we can do
             pr->resultmsg->success = 0;
             ast->resultmsg.success = 0;
-            return 0;
+            if (atinfo.hadoutofmemory) {
+                result_AddMessage(
+                    &ast->resultmsg,
+                    H64MSG_ERROR, "out of memory during ast transform",
+                    ast->fileuri,
+                    -1, -1
+                );
+                // At least try to transfer messages:
+                result_TransferMessages(
+                    &ast->resultmsg, pr->resultmsg
+                );   // return value ignored, if we're oom nothing we can do
+                return 0;
+            } else if (!result_TransferMessages(
+                    &ast->resultmsg, pr->resultmsg
+                    )) {
+                return 0;
+            }
         }
         k++;
     }

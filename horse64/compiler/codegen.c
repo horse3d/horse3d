@@ -334,6 +334,7 @@ h64expression *_fakeclassinitfunc(
         sizeof(*fakefunc->funcdef._storageinfo)
     );
     fakefunc->funcdef._storageinfo->closure_with_self = 1;
+    fakefunc->funcdef._storageinfo->lowest_guaranteed_free_temp = 1;
     if (!hash_BytesMapSet(
             rinfo->pr->_tempclassesfakeinitfunc_map,
             (const char *)&classidx, sizeof(classidx),
@@ -1244,6 +1245,11 @@ int _codegencallback_DoCodegen_visit_out(
              expr->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
              expr->parent->assignstmt.lvalue != expr)
             ) {
+        if (is_in_extends_arg(expr)) {
+            // Nothing to do if in 'extends' clause, since that
+            // has all been resolved already by varstorage handling.
+            return 1;
+        }
         // Regular get by member that needs to be evaluated at runtime:
         assert(!expr->op.value2->storage.set);
         assert(expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF);
@@ -1352,8 +1358,12 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_CALL_STMT ||
             expr->type == H64EXPRTYPE_IMPORT_STMT) {
         // Nothing to do with those!
-    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
-            !is_in_extends_arg(expr)) {
+    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
+        if (is_in_extends_arg(expr)) {
+            // Nothing to do if in 'extends' clause, since that
+            // has all been resolved already by varstorage handling.
+            return 1;
+        }
         if (expr->parent != NULL && (
                 (expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
                  expr->parent->assignstmt.lvalue == expr) ||
@@ -2662,7 +2672,6 @@ static int _codegen_calc_tempclassfakeinitfuncstack_cb(
     memcpy(&classidx, bytes, byteslen);
     h64expression *func = (h64expression *)(uintptr_t)number;
     assert(func != NULL);
-    printf("PROJECT PTR: %p\n", fiterinfo->pr);
     assert(fiterinfo->pr->program != NULL);
     codegen_CalculateFinalFuncStack(
         fiterinfo->pr->program, func
