@@ -197,13 +197,13 @@ struct bytemapiterateentry {
     uint64_t number;
 };
 
-static int hash_BytesMapIterateEx(
-        hashmap *map, int checktype,
+static int _hash_MapIterateEx(
+        hashmap *map,
         int (*cb)(hashmap *map, const char *bytes,
                   uint64_t byteslen, uint64_t number, void *ud),
         void *ud
         ) {
-    if (!map || (map->type != HASHTYPE_BYTES && checktype))
+    if (!map)
         return 0;
 
     struct bytemapiterateentry *entries = NULL;
@@ -250,11 +250,14 @@ static int hash_BytesMapIterateEx(
         }
         i++;
     }
+    int haderror = 0;
     i = 0;
     while (i < found_entries) {
         if (!cb(map, entries[i].bytes, entries[i].byteslen,
-                entries[i].number, ud))
+                entries[i].number, ud)) {
+            haderror = 1;
             break;
+        }
         i++;
     }
     i = 0;
@@ -264,7 +267,7 @@ static int hash_BytesMapIterateEx(
         i++;
     }
     free(entries);
-    return 1;
+    return !haderror;
 }
 
 int hash_BytesMapIterate(
@@ -273,8 +276,10 @@ int hash_BytesMapIterate(
                   uint64_t byteslen, uint64_t number, void *ud),
         void *ud
         ) {
-    return hash_BytesMapIterateEx(
-        map, 1, cb, ud
+    if (!map || map->type != HASHTYPE_BYTES)
+        return 0;
+    return _hash_MapIterateEx(
+        map, cb, ud
     );
 }
 
@@ -343,8 +348,8 @@ int hash_StringMapIterate(
     iinfo.ud = userdata;
     iinfo.cb = callback;
 
-    return hash_BytesMapIterateEx(
-        map, 0, &_hashstringmap_iterate, &iinfo
+    return _hash_MapIterateEx(
+        map, &_hashstringmap_iterate, &iinfo
     );
 }
 
