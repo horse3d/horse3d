@@ -282,7 +282,13 @@ void compileproject_Free(h64compileproject *pr) {
             pr->_tempclassesfakeinitfunc_map,
             _free_fakevarinitexpr_cb, NULL
         );
-        assert(result != 0);
+        if (result != 0) {
+            fprintf(stderr,
+                "horsec: warning: out of memory during "
+                "iteration in compileproject_Free, "
+                "likely memory leaking\n"
+            );
+        }
         hash_FreeMap(pr->_tempclassesfakeinitfunc_map);
     }
     if (pr->astfilemap) {
