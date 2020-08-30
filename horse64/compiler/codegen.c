@@ -189,7 +189,9 @@ int new1linetemp(
 
 int appendinstbyfuncid(
         h64program *p,
-        int id, h64expression *correspondingexpr,
+        int id,
+        h64expression *correspondingexpr,
+        // ^ FIXME: extract & attach debug info from this, like location
         void *ptr, size_t len
         ) {
     assert(id >= 0 && id < p->func_count);
@@ -229,6 +231,7 @@ int appendinst(
 
 void codegen_CalculateFinalFuncStack(
         h64program *program, h64expression *expr) {
+    assert(expr != NULL && program != NULL);
     if (expr->type != H64EXPRTYPE_FUNCDEF_STMT)
         return;
     // Determine final amount of temporaries/stack slots used:
@@ -2631,6 +2634,27 @@ int _codegencallback_DoCodegen_visit_in(
     return 1;
 }
 
+static int _codegen_calc_tempclassfakeinitfuncstack_cb(
+        ATTR_UNUSED hashmap *map, const char *bytes,
+        uint64_t byteslen, uint64_t number,
+        void *userdata
+        ) {
+    struct asttransforminfo *fiterinfo = (
+        (struct asttransforminfo *)userdata
+    );
+    classid_t classidx;
+    assert(byteslen == sizeof(classidx));
+    memcpy(&classidx, bytes, byteslen);
+    h64expression *func = (h64expression *)(uintptr_t)number;
+    assert(func != NULL);
+    printf("PROJECT PTR: %p\n", fiterinfo->pr);
+    assert(fiterinfo->pr->program != NULL);
+    codegen_CalculateFinalFuncStack(
+        fiterinfo->pr->program, func
+    );
+    return 1;
+}
+
 int codegen_GenerateBytecodeForFile(
         h64compileproject *project, h64misccompileroptions *miscoptions,
         h64ast *resolved_ast
@@ -2655,6 +2679,37 @@ int codegen_GenerateBytecodeForFile(
     );
     if (!transformresult)
         return 0;
+    // Ensure final stack is calculated for "made-up" func expressions:
+    {
+        asttransforminfo rinfo = {0};
+        rinfo.pr = project;
+        rinfo.ast = resolved_ast;
+        if (project->_tempglobalfakeinitfunc) {
+            codegen_CalculateFinalFuncStack(
+                project->program, project->_tempglobalfakeinitfunc
+            );
+        }
+        if (project->_tempclassesfakeinitfunc_map) {
+            int iterresult = hash_BytesMapIterate(
+                project->_tempclassesfakeinitfunc_map,
+                &_codegen_calc_tempclassfakeinitfuncstack_cb,
+                &rinfo
+            );
+            if (!iterresult || rinfo.hadoutofmemory ||
+                    rinfo.hadunexpectederror) {
+                if (!result_AddMessage(
+                        project->resultmsg,
+                        H64MSG_ERROR, "unexpected _codegen_calc_"
+                        "tempclassfakeinitfuncstack_cb iteration "
+                        "failure",
+                        NULL, -1, -1
+                        )) {
+                    // Nothing we can do
+                }
+                return 0;
+            }
+        }
+    }
 
     // Transform jump instructions to final offsets:
     if (!codegen_FinalBytecodeTransform(
