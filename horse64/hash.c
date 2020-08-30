@@ -308,9 +308,9 @@ int hash_StringMapSet(
         ) {
     if (map->type != HASHTYPE_STRING)
         return 0;
-    _hash_MapUnset(map, s, strlen(s));
+    _hash_MapUnset(map, s, strlen(s) + 1);
     return _hash_MapSet(
-        map, s, strlen(s), number
+        map, s, strlen(s) + 1, number
     );
 }
 
@@ -360,7 +360,7 @@ int hash_StringMapGet(
     if (map->type != HASHTYPE_STRING)
         return 0;
     return _hash_MapGet(
-        map, s, strlen(s), number
+        map, s, strlen(s) + 1, number
     );
 }
 
@@ -368,7 +368,7 @@ int hash_StringMapGet(
 int hash_StringMapUnset(hashmap *map, const char *s) {
     if (map->type != HASHTYPE_STRING)
         return 0;
-    return _hash_MapUnset(map, s, strlen(s));
+    return _hash_MapUnset(map, s, strlen(s) + 1);
 }
 
 int hash_IntMapSet(
