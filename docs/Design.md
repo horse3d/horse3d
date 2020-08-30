@@ -77,10 +77,6 @@ This gives you:
 - no potential for bugs related to dynamic scope modification as
   is common in scripting languages.
 
-Read more on [the practical differences to scripting languages](
-    ./Specification/Horse64.md#overview
-), if you're interested.
-
 
 ## General Design Philosophy
 
