@@ -1037,12 +1037,12 @@ int _codegencallback_DoCodegen_visit_out(
                 }
                 i++;
             }
-            if (argsfloor - func->funcdef._storageinfo->
+            if ((argsfloor + 1) - func->funcdef._storageinfo->
                     lowest_guaranteed_free_temp >
                     func->funcdef._storageinfo->
                     codegen.max_extra_stack) {
                 func->funcdef._storageinfo->codegen.max_extra_stack = (
-                    argsfloor - func->funcdef._storageinfo->
+                    (argsfloor + 1) - func->funcdef._storageinfo->
                     lowest_guaranteed_free_temp
                 );
             }
