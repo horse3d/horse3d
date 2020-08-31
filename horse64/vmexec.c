@@ -2249,6 +2249,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         // Prepare target:
         valuecontent _tmpbuf;
+        assert(
+            stack != NULL && inst->slotto >= 0 &&
+            (int64_t)inst->slotto < stack->entry_count -
+            stack->current_func_floor &&
+            stack->alloc_count >= stack->entry_count
+        );
         valuecontent *target = (
             STACK_ENTRY(stack, inst->slotto)
         );
