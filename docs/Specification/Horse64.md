@@ -914,9 +914,9 @@ and need to be present in python's so-called "site-packages" at runtime.
 
 **Where can I get packages/libraries from?**
 
-To use any external library, install it via [hpm](../Misc%20Tooling/hpm.md)
-to your project-local `horse_modules` folder first.
-[Read about hpm](../Misc%20Tooling/hpm.md) for more details.
+To use external libraries, use [horp](../Misc%20Tooling/horp.md)
+to install them to your project-local `horse_modules` folder.
+[Read about horp](../Misc%20Tooling/horp.md) for more details.
 You can also place external source code manually [where external packages
 are searched](#modules-external-package-imports),
 but this is not recommended.

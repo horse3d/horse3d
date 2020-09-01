@@ -1,7 +1,7 @@
 
-# hpm
+# horp
 
-`hpm` is the short-hand name for the Horse64 Package Manager.
+`horp` is the **Hor**se64 **p**ackage management tool.
 
 ---
 This documentation is CC-BY-SA-4.0 licensed.
