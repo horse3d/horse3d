@@ -165,28 +165,6 @@ int disassembler_PrintInstruction(
         free(s);
         break;
     }
-    case H64INST_SETTOP: {
-        h64instruction_settop *inst_settop =
-            (h64instruction_settop *)inst;
-        if (!disassembler_Write(di,
-                "    %s %d",
-                bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_settop->topto)) {
-            return 0;
-        }
-        break;
-    }
-    case H64INST_CALLSETTOP: {
-        h64instruction_callsettop *inst_callsettop =
-            (h64instruction_callsettop *)inst;
-        if (!disassembler_Write(di,
-                "    %s %d",
-                bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_callsettop->topto)) {
-            return 0;
-        }
-        break;
-    }
     case H64INST_GETGLOBAL: {
         h64instruction_getglobal *inst_getglobal =
             (h64instruction_getglobal *)inst;
@@ -324,6 +302,43 @@ int disassembler_PrintInstruction(
                 (int)inst_call->posargs,
                 (int)inst_call->kwargs,
                 (int)inst_call->expandlastposarg)) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_CALLIGNOREIFNONE: {
+        h64instruction_callignoreifnone *inst_calliin =
+            (h64instruction_callignoreifnone *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d %d %d %d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_calliin->returnto,
+                (int)inst_calliin->slotcalledfrom,
+                (int)inst_calliin->posargs,
+                (int)inst_calliin->kwargs,
+                (int)inst_calliin->expandlastposarg)) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_SETTOP: {
+        h64instruction_settop *inst_settop =
+            (h64instruction_settop *)inst;
+        if (!disassembler_Write(di,
+                "    %s %d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_settop->topto)) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_CALLSETTOP: {
+        h64instruction_callsettop *inst_callsettop =
+            (h64instruction_callsettop *)inst;
+        if (!disassembler_Write(di,
+                "    %s %d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_callsettop->topto)) {
             return 0;
         }
         break;

@@ -245,12 +245,10 @@ static inline int pushfuncframe(
     assert(new_func_floor >= 0);
     if (!stack_ToSize(
             vt->stack,
-            new_func_floor +
-            (vt->funcframe_count == 0 ?
-             vmexec->program->
-                 func[func_id].input_stack_size : 0) +
-             vmexec->program->
-                 func[func_id].inner_stack_size, 0
+            (new_func_floor +
+             vmexec->program->func[func_id].input_stack_size +
+             vmexec->program->func[func_id].inner_stack_size),
+            0
             )) {
         return 0;
     }
@@ -1869,15 +1867,16 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             p += sizeof(h64instruction_call);
             goto *jumptable[((h64instructionany *)p)->type];
         } else {
-            int64_t offset = (ptrdiff_t)(
+            int64_t return_offset = (ptrdiff_t)(
                 p - pr->func[func_id].instructions
-            );
+            ) + sizeof(h64instruction_call);
             if (!pushfuncframe(vmthread, target_func_id,
-                    inst->returnto, func_id, offset,
+                    inst->returnto, func_id, return_offset,
                     new_func_floor
                     )) {
                 goto triggeroom;
             }
+            funcnestdepth++;
             #ifndef NDEBUG
             if (vmthread->vmexec_owner->moptions.vmexec_debug)
                 fprintf(
@@ -2004,21 +2003,26 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
         assert(vmthread->funcframe_count > 1);
         int returnslot = (
-            vmthread->funcframe[vmthread->funcframe_count].
+            vmthread->funcframe[vmthread->funcframe_count - 1].
             return_slot
         );
         int returnfuncid = (
-            vmthread->funcframe[vmthread->funcframe_count].
+            vmthread->funcframe[vmthread->funcframe_count - 1].
             return_to_func_id
         );
         ptrdiff_t returnoffset = (
-            vmthread->funcframe[vmthread->funcframe_count].
+            vmthread->funcframe[vmthread->funcframe_count - 1].
             return_to_execution_offset
         );
         if (!popfuncframe(vmthread, 0)) {
             // We cannot really recover from this.
             if (returneduncaughterror)
                 *returneduncaughterror = 0;
+            fprintf(
+                stderr,
+                "horsevm: error: unexpectedly failed to remove "
+                "function frame - out of memory?\n"
+            );
             return 0;
         }
 
@@ -2036,11 +2040,24 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
 
         // Return to old execution:
+        funcid_t oldfuncid = func_id;
         func_id = returnfuncid;
         p = pr->func[func_id].instructions + returnoffset;
         pend = pr->func[func_id].instructions + (
             (ptrdiff_t)pr->func[func_id].instructions_bytes
         );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug) {
+            fprintf(
+                stderr, "horsevm: debug: vmexec "
+                "leaving func %" PRId64
+                " -> to func %" PRId64 " (via "
+                "return)\n",
+                (int64_t)oldfuncid,
+                (int64_t)func_id
+            );
+        }
+        #endif
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_jumptarget: {
@@ -2698,7 +2715,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 assert(pr->func[varinit_func_id].kwarg_count == 0);
 
                 // Push function frame:
-                int64_t new_func_floor = STACK_TOTALSIZE(stack) + 1;
+                int64_t new_func_floor = (
+                    STACK_TOTALSIZE(stack) + 1
+                );
                 int64_t offset = (ptrdiff_t)(
                     p - pr->func[func_id].instructions
                 ) + skipbytes;
@@ -2708,8 +2727,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         )) {
                     goto triggeroom;
                 }
+                funcnestdepth++;
                 assert(STACK_TOTALSIZE(stack) >= new_func_floor +
-                       pr->func[varinit_func_id].input_stack_size);
+                       pr->func[varinit_func_id].input_stack_size +
+                       pr->func[varinit_func_id].inner_stack_size);
 
                 // Push self reference into closure argument:
                 valuecontent *closurearg = (
