@@ -23,8 +23,9 @@ typedef struct h64vmexec h64vmexec;
 
 
 typedef struct h64vmfunctionframe {
-    int64_t stack_bottom;
-    int64_t required_stack_top;
+    int64_t stack_func_floor;
+    int64_t stack_space_for_this_func;
+    int64_t restore_stack_size;
     int func_id;
     int return_slot;
     int return_to_func_id;
@@ -80,7 +81,7 @@ typedef struct h64vmexec {
 static inline int VMTHREAD_FUNCSTACKBOTTOM(h64vmthread *vmthread) {
     if (vmthread->funcframe_count > 0)
         return vmthread->funcframe[vmthread->funcframe_count - 1].
-            stack_bottom;
+            stack_func_floor;
     return 0;
 }
 

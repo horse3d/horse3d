@@ -156,16 +156,16 @@ static inline int popfuncframe(
     assert(vt->funcframe_count > 0);
     int64_t new_floor = (
         vt->funcframe_count > 1 ?
-        vt->funcframe[vt->funcframe_count - 2].stack_bottom :
+        vt->funcframe[vt->funcframe_count - 2].stack_func_floor :
         0
     );
     int64_t prev_floor = vt->stack->current_func_floor;
-    int64_t new_top = prev_floor;
+    int64_t new_top = vt->funcframe[vt->funcframe_count - 1].
+        restore_stack_size;
     if (new_top < vt->funcframe[vt->funcframe_count - 1].
-            required_stack_top) {
+            stack_space_for_this_func)
         new_top = vt->funcframe[vt->funcframe_count - 1].
-                  required_stack_top;
-    }
+                  stack_space_for_this_func;
     #ifndef NDEBUG
     if (!dontresizestack)
         assert(new_floor <= prev_floor);
@@ -242,6 +242,13 @@ static inline int pushfuncframe(
         func_id >= 0 &&
         func_id < vmexec->program->func_count
     );
+    vt->funcframe[vt->funcframe_count].restore_stack_size = (
+        vt->stack->entry_count
+    );
+    if (vt->call_settop_reverse >= 0)
+        vt->funcframe[vt->funcframe_count].restore_stack_size = (
+            vt->call_settop_reverse
+        );
     assert(new_func_floor >= 0);
     if (!stack_ToSize(
             vt->stack,
@@ -252,9 +259,9 @@ static inline int pushfuncframe(
             )) {
         return 0;
     }
-    vt->funcframe[vt->funcframe_count].stack_bottom = new_func_floor;
+    vt->funcframe[vt->funcframe_count].stack_func_floor = new_func_floor;
     vt->funcframe[vt->funcframe_count].func_id = func_id;
-    vt->funcframe[vt->funcframe_count].required_stack_top = (
+    vt->funcframe[vt->funcframe_count].stack_space_for_this_func = (
         vmexec->program->func[func_id].input_stack_size +
         vmexec->program->func[func_id].inner_stack_size
     );
@@ -265,7 +272,7 @@ static inline int pushfuncframe(
             return_to_execution_offset = return_to_execution_offset;
     vt->funcframe_count++;
     vt->stack->current_func_floor = (
-        vt->funcframe[vt->funcframe_count - 1].stack_bottom
+        vt->funcframe[vt->funcframe_count - 1].stack_func_floor
     );
     vt->call_settop_reverse = -1;
     return 1;
@@ -1962,10 +1969,16 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 stack->entry_count - current_stack_size != 0) {
             fprintf(
                 stderr, "horsevm: error: "
-                "stack total count %d, current func stack %d, "
+                "stack total count %" PRId64 " before return, "
+                "current func's input+inner stack %d+%d, "
                 "unwound last function should return this to 0 "
-                "and doesn't\n",
-                (int)stack->entry_count, (int)current_stack_size
+                "but instead unrolling stack would result "
+                "in size %" PRId64 "\n",
+                (int64_t)stack->entry_count,
+                (int)pr->func[func_id].input_stack_size,
+                (int)pr->func[func_id].inner_stack_size,
+                (int64_t)stack->entry_count -
+                    (int64_t)current_stack_size
             );
         }
         #endif
@@ -2050,11 +2063,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug) {
             fprintf(
                 stderr, "horsevm: debug: vmexec "
-                "leaving func %" PRId64
-                " -> to func %" PRId64 " (via "
-                "return)\n",
+                "left func %" PRId64
+                " -> to func %" PRId64 " with stack size %" PRId64 " "
+                "(via return)\n",
                 (int64_t)oldfuncid,
-                (int64_t)func_id
+                (int64_t)func_id,
+                (int64_t)STACK_TOTALSIZE(stack)
             );
         }
         #endif
@@ -2894,7 +2908,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     if (!pushfuncframe(vmthread, func_id, -1, -1, 0, 0)) {
         goto triggeroom;
     }
-    vmthread->funcframe[vmthread->funcframe_count - 1].stack_bottom = (
+    vmthread->funcframe[vmthread->funcframe_count - 1].stack_func_floor = (
         original_stack_size
     );
 
