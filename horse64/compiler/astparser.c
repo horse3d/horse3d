@@ -206,6 +206,7 @@ void ast_ParseRecover_FindNextStatement(
             }
         } else if ((tokens[i].type == H64TK_CONSTANT_INT ||
                 tokens[i].type == H64TK_CONSTANT_STRING ||
+                tokens[i].type == H64TK_CONSTANT_BYTES ||
                 tokens[i].type == H64TK_CONSTANT_FLOAT ||
                 tokens[i].type == H64TK_CONSTANT_BOOL ||
                 tokens[i].type == H64TK_CONSTANT_NONE ||
@@ -1616,7 +1617,8 @@ int ast_ParseExprInline(
                 tokens[0].type == H64TK_CONSTANT_FLOAT ||
                 tokens[0].type == H64TK_CONSTANT_BOOL ||
                 tokens[0].type == H64TK_CONSTANT_NONE ||
-                tokens[0].type == H64TK_CONSTANT_STRING) {
+                tokens[0].type == H64TK_CONSTANT_STRING ||
+                tokens[0].type == H64TK_CONSTANT_BYTES) {
             expr->type = H64EXPRTYPE_LITERAL;
             expr->literal.type = tokens[0].type;
             if (tokens[0].type == H64TK_CONSTANT_INT) {
@@ -1625,13 +1627,21 @@ int ast_ParseExprInline(
                 expr->literal.float_value = tokens[0].float_value;
             } else if (tokens[0].type == H64TK_CONSTANT_BOOL) {
                 expr->literal.int_value = tokens[0].int_value;
-            } else if (tokens[0].type == H64TK_CONSTANT_STRING) {
-                expr->literal.str_value = strdup(tokens[0].str_value);
+            } else if (tokens[0].type == H64TK_CONSTANT_STRING ||
+                    tokens[0].type == H64TK_CONSTANT_BYTES) {
+                expr->literal.str_value = malloc(
+                    tokens[0].str_value_len + 1
+                );
                 if (!expr->literal.str_value) {
                     ast_MarkExprDestroyed(expr);
                     if (outofmemory) *outofmemory = 1;
                     return 0;
                 }
+                memcpy(
+                    expr->literal.str_value, tokens[0].str_value,
+                    tokens[0].str_value_len
+                );
+                expr->literal.str_value[tokens[0].str_value_len] = '\0';
             } else if (tokens[0].type == H64TK_CONSTANT_NONE) {
                 // Nothing to copy over
             } else {

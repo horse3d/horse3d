@@ -1148,6 +1148,30 @@ int _codegencallback_DoCodegen_visit_out(
             inst.content.int_value = expr->literal.int_value;
         } else if (expr->literal.type == H64TK_CONSTANT_NONE) {
             inst.content.type = H64VALTYPE_NONE;
+        } else if (expr->literal.type == H64TK_CONSTANT_BYTES) {
+            inst.content.type = H64VALTYPE_SHORTBYTES;
+            uint64_t len = expr->literal.str_value_len;
+            if (strlen(expr->literal.str_value) <
+                    VALUECONTENT_SHORTBYTESLEN) {
+                memcpy(
+                    inst.content.shortbytes_value,
+                    expr->literal.str_value, len
+                );
+                inst.content.type = H64VALTYPE_SHORTBYTES;
+                inst.content.shortbytes_len = len;
+            } else {
+                inst.content.type = H64VALTYPE_CONSTPREALLOCBYTES;
+                inst.content.constpreallocbytes_value = malloc(len);
+                if (!inst.content.constpreallocbytes_value) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                inst.content.constpreallocbytes_len = len;
+                memcpy(
+                    inst.content.constpreallocbytes_value,
+                    expr->literal.str_value, len
+                );
+            }
         } else if (expr->literal.type == H64TK_CONSTANT_STRING) {
             inst.content.type = H64VALTYPE_SHORTSTR;
             assert(expr->literal.str_value != NULL);
@@ -1156,7 +1180,7 @@ int _codegencallback_DoCodegen_visit_out(
             int abortoom = 0;
             unicodechar *result = utf8_to_utf32_ex(
                 expr->literal.str_value,
-                strlen(expr->literal.str_value),
+                expr->literal.str_value_len,
                 NULL, NULL, &out_len, 1,
                 &abortinvalid, &abortoom
             );

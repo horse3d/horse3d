@@ -925,13 +925,38 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 gcval->str_val.s, inst->content.constpreallocstr_value,
                 inst->content.constpreallocstr_len * sizeof(unicodechar)
             );
+        } else if (inst->content.type == H64VALTYPE_CONSTPREALLOCBYTES) {
+            vc->type = H64VALTYPE_GCVAL;
+            vc->ptr_value = poolalloc_malloc(
+                heap, 0
+            );
+            if (!vc->ptr_value)
+                goto triggeroom;
+            h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+            gcval->type = H64GCVALUETYPE_BYTES;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            memset(&gcval->bytes_val, 0, sizeof(gcval->bytes_val));
+            if (!vmbytes_AllocBuffer(
+                    vmthread, &gcval->bytes_val,
+                    inst->content.constpreallocbytes_len)) {
+                poolalloc_free(heap, gcval);
+                vc->ptr_value = NULL;
+                goto triggeroom;
+            }
+            memcpy(
+                gcval->bytes_val.s,
+                inst->content.constpreallocbytes_value,
+                inst->content.constpreallocbytes_len
+            );
         } else {
             memcpy(vc, &inst->content, sizeof(*vc));
             if (vc->type == H64VALTYPE_GCVAL)
                 ((h64gcvalue *)vc->ptr_value)->
                     externalreferencecount = 1;
         }
-        assert(vc->type != H64VALTYPE_CONSTPREALLOCSTR);
+        assert(vc->type != H64VALTYPE_CONSTPREALLOCBYTES &&
+               vc->type != H64VALTYPE_CONSTPREALLOCSTR);
         p += sizeof(h64instruction_setconst);
         goto *jumptable[((h64instructionany *)p)->type];
     }
@@ -954,7 +979,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
         valuecontent *vcset = STACK_ENTRY(stack, inst->slotvaluefrom);
-        assert(vc->type != H64VALTYPE_CONSTPREALLOCSTR);
+        assert(vc->type != H64VALTYPE_CONSTPREALLOCSTR &&
+               vc->type != H64VALTYPE_CONSTPREALLOCBYTES);
         valuecontent *vcindex = STACK_ENTRY(stack, inst->slotindexto);
         if (unlikely(vcindex->type != H64VALTYPE_FLOAT64 &&
                 vcindex->type != H64VALTYPE_INT64)) {
@@ -993,7 +1019,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
-            assert(vcset->type != H64VALTYPE_CONSTPREALLOCSTR);
+            assert(vcset->type != H64VALTYPE_CONSTPREALLOCSTR &&
+                   vcset->type != H64VALTYPE_CONSTPREALLOCBYTES);
             // Note: vmlist_Set handles the appending case of
             // index_value == list_total_entry_count + 1 already.
             if (!vmlist_Set(
@@ -1190,7 +1217,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #endif
 
         assert(STACK_ENTRY(stack, inst->slotfrom)->type !=
-               H64VALTYPE_CONSTPREALLOCSTR);
+               H64VALTYPE_CONSTPREALLOCSTR &&
+               STACK_ENTRY(stack, inst->slotfrom)->type !=
+               H64VALTYPE_CONSTPREALLOCBYTES);
 
         if (inst->slotto != inst->slotfrom) {
             #ifndef NDEBUG

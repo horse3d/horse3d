@@ -24,6 +24,7 @@ typedef enum h64tokentype {
     H64TK_CONSTANT_BOOL,
     H64TK_CONSTANT_NONE,
     H64TK_CONSTANT_STRING,
+    H64TK_CONSTANT_BYTES,
     H64TK_BINOPSYMBOL,
     H64TK_UNOPSYMBOL,
     H64TK_INLINEFUNC,
@@ -38,6 +39,7 @@ typedef struct h64token {
         char *str_value;
         uint8_t char_value;
     };
+    int str_value_len;
     int64_t line, column;
 } h64token;
 

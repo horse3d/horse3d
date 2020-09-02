@@ -150,6 +150,7 @@ typedef struct h64expression {
                 double float_value;
                 char *str_value;
             };
+            int str_value_len;
         } literal;
         struct op {
             int optokenoffset, totaltokenlen;  // needed by parser

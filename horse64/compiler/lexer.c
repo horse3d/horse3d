@@ -63,119 +63,129 @@ char *lexer_ParseStringLiteral(
         const char *literal,
         const char *fileuri,
         int line, int column,
+        int isbinary,
         h64result *result,
-        h64compilewarnconfig *wconfig
+        h64compilewarnconfig *wconfig,
+        int *out_len
         ) {
-    char *p = strdup(literal + 1);
+    char *p = strdup(
+        literal + 1 + (isbinary ? 1 : 0)
+    );
     if (!p)
         return NULL;
     int k = 0;
     int i = 1;
     while (i < (int)strlen(literal) - 1) {
+        int charlen = 1;
+        if (!isbinary)
+            charlen = utf8_char_len((uint8_t*)&literal[i]);
+        assert(charlen > 0);
         if (literal[i] != '\\') {
-            p[k] = literal[i];
-            if (p[k] == '\n' || p[k] == '\r') {
+            if (literal[i] == '\n' || p[k] == '\r') {
                 line++;
                 column = 1;
             } else {
                 column++;
             }
-            k++;
-            i++;
-            continue;
-        } else {
-            if (i + 1 < (int)strlen(literal) - 1) {
-                column++;
+            int j = 0;
+            while (j < charlen) {
+                p[k] = literal[i];
+                k++;
                 i++;
-                if (literal[i] == 'n') {
-                    p[k] = '\n'; k++;
-                } else if (literal[i] == 'r') {
-                    p[k] = '\r'; k++;
-                } else if (literal[i] == 't') {
-                    p[k] = '\t'; k++;
-                } else if (literal[i] == '\\') {
-                    p[k] = '\\'; k++;
-                } else if (literal[i] == '"') {
-                    p[k] = '"'; k++;
-                } else if (literal[i] == '\'') {
-                    p[k] = '\''; k++;
-                } else if (literal[i] == 'x') {
-                    char hexnum[3] = "";
+                j++;
+            }
+            continue;
+        } else if (i + 1 < (int)strlen(literal) - 1) {
+            column++;
+            i++;
+            if (literal[i] == 'n') {
+                p[k] = '\n'; k++;
+            } else if (literal[i] == 'r') {
+                p[k] = '\r'; k++;
+            } else if (literal[i] == 't') {
+                p[k] = '\t'; k++;
+            } else if (literal[i] == '\\') {
+                p[k] = '\\'; k++;
+            } else if (literal[i] == '"') {
+                p[k] = '"'; k++;
+            } else if (literal[i] == '\'') {
+                p[k] = '\''; k++;
+            } else if (literal[i] == 'x') {
+                char hexnum[3] = "";
+                if (i + 1 < (int)strlen(literal) - 1 &&
+                        ((literal[i + 1] >= '0' &&
+                          literal[i + 1] <= '9') ||
+                         (literal[i + 1] >= 'a' &&
+                          literal[i + 1] <= 'f') ||
+                         (literal[i + 1] >= 'A' &&
+                          literal[i + 1] <= 'F'))) {
+                    hexnum[1] = '\0';
+                    hexnum[0] = literal[i + 1];
+                    i++;
                     if (i + 1 < (int)strlen(literal) - 1 &&
-                            ((literal[i + 1] >= '0' &&
-                              literal[i + 1] <= '9') ||
-                             (literal[i + 1] >= 'a' &&
-                              literal[i + 1] <= 'f') ||
-                             (literal[i + 1] >= 'A' &&
-                              literal[i + 1] <= 'F'))) {
-                        hexnum[1] = '\0';
-                        hexnum[0] = literal[i + 1];
-                        i++;
-                        if (i + 1 < (int)strlen(literal) - 1 &&
-                                 ((literal[i + 1] >= '0' &&
-                                   literal[i + 1] <= '9') ||
-                                  (literal[i + 1] >= 'a' &&
-                                   literal[i + 1] <= 'f') ||
-                                  (literal[i + 1] >= 'A' &&
-                                   literal[i + 1] <= 'F'))) {
-                             hexnum[2] = '\0';
-                             hexnum[1] = literal[i + 1];
-                             i++;
-                         }
-                    }
-                    if (strlen(hexnum) == 0) {
-                        char buf[512];
-                        snprintf(buf, sizeof(buf) - 1,
-                            "invalid escape \"\\x\" not followed "
-                            "by hex number was ignored "
-                            "[-Wunrecognized-escape-sequences]");
-                        if (!result_AddMessage(
-                                result,
-                                H64MSG_WARNING, buf,
-                                fileuri, line, column
-                                )) {
-                            free(p);
-                            return NULL;
-                        }
-                    } else {
-                        int number = (int)strtol(hexnum, 0, 16);
-                        assert(number >= 0 && number < 256);
-                        p[k] = number;
-                        k++;
+                             ((literal[i + 1] >= '0' &&
+                               literal[i + 1] <= '9') ||
+                              (literal[i + 1] >= 'a' &&
+                               literal[i + 1] <= 'f') ||
+                              (literal[i + 1] >= 'A' &&
+                               literal[i + 1] <= 'F'))) {
+                         hexnum[2] = '\0';
+                         hexnum[1] = literal[i + 1];
+                         i++;
+                     }
+                }
+                if (strlen(hexnum) == 0) {
+                    char buf[512];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "invalid escape \"\\x\" not followed "
+                        "by hex number was ignored "
+                        "[-Wunrecognized-escape-sequences]");
+                    if (!result_AddMessage(
+                            result,
+                            H64MSG_WARNING, buf,
+                            fileuri, line, column
+                            )) {
+                        free(p);
+                        return NULL;
                     }
                 } else {
-                    if (result && wconfig &&
-                            wconfig->warn_unrecognized_escape_sequences) {
-                        char s[16];
-                        snprintf(s, 15, "byte %d", literal[i]);
-                        s[15] = '\0';
-                        if (literal[i] >= 32 && literal[i] < 127 &&
-                                literal[i] != '\'') {
-                            snprintf(s, 15, "'%c'", literal[i]);
-                            s[15] = '\0';
-                        }
-                        char buf[512];
-                        snprintf(buf, sizeof(buf) - 1,
-                            "unrecognized escape sequence '\\' followed "
-                            "by %s was ignored "
-                            "[-Wunrecognized-escape-sequences]", s);
-                        if (!result_AddMessage(
-                                result,
-                                H64MSG_WARNING, buf,
-                                fileuri, line, column
-                                )) {
-                            free(p);
-                            return NULL;
-                        }
-                    }
-                    p[k] = '\\'; k++;
+                    int number = (int)strtol(hexnum, 0, 16);
+                    assert(number >= 0 && number < 256);
+                    p[k] = number;
+                    k++;
                 }
-                i++;
-                column++;
-                continue;
             } else {
+                if (result && wconfig &&
+                        wconfig->warn_unrecognized_escape_sequences) {
+                    char s[16];
+                    snprintf(s, 15, "byte %d", literal[i]);
+                    s[15] = '\0';
+                    if (literal[i] >= 32 && literal[i] < 127 &&
+                            literal[i] != '\'') {
+                        snprintf(s, 15, "'%c'", literal[i]);
+                        s[15] = '\0';
+                    }
+                    char buf[512];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unrecognized escape sequence '\\' followed "
+                        "by %s was ignored "
+                        "[-Wunrecognized-escape-sequences]", s);
+                    if (!result_AddMessage(
+                            result,
+                            H64MSG_WARNING, buf,
+                            fileuri, line, column
+                            )) {
+                        free(p);
+                        return NULL;
+                    }
+                }
                 p[k] = '\\'; k++;
             }
+            i++;
+            column++;
+            continue;
+        } else {
+            p[k] = '\\'; k++;
         }
         if (i >= (int)strlen(literal) || (
                 literal[i] != '\n' && literal[i] != '\r'
@@ -188,6 +198,7 @@ char *lexer_ParseStringLiteral(
         i++;
     }
     p[k] = '\0';
+    *out_len = k;
     return p;
 }
 
@@ -465,6 +476,7 @@ h64tokenizedfile lexer_ParseFromFile(
             strbuflen++;
             if (isbinary) {
                 strbuf[strbuflen] = buffer[i];
+                startc = buffer[i];
                 strbuflen++;
                 i++;
                 column++;
@@ -624,9 +636,11 @@ h64tokenizedfile lexer_ParseFromFile(
             strbuf[strbuflen] = '\0';
 
             if (!hadinvaliderror) {
+                int out_len = -1;
                 char *unescaped = lexer_ParseStringLiteral(
                     strbuf, fileuri, startline, startcolumn,
-                    &result.resultmsg, wconfig
+                    isbinary,
+                    &result.resultmsg, wconfig, &out_len
                 );
                 free(strbuf);
                 strbuf = NULL;
@@ -640,10 +654,18 @@ h64tokenizedfile lexer_ParseFromFile(
                     free(buffer);
                     return result;
                 }
-                result.token[result.token_count].type = (
-                    H64TK_CONSTANT_STRING
-                );
+                assert(out_len >= 0);
+                if (!isbinary) {
+                    result.token[result.token_count].type = (
+                        H64TK_CONSTANT_STRING
+                    );
+                } else {
+                    result.token[result.token_count].type = (
+                        H64TK_CONSTANT_BYTES
+                    );
+                }
                 result.token[result.token_count].str_value = unescaped;
+                result.token[result.token_count].str_value_len = out_len;
             } else {
                 if (strbuf) free(strbuf);
                 strbuf = NULL;
@@ -1387,6 +1409,7 @@ static char _h64tkname_constant_float[] = "H64TK_CONSTANT_FLOAT";
 static char _h64tkname_constant_bool[] = "H64TK_CONSTANT_BOOL";
 static char _h64tkname_constant_none[] = "H64TK_CONSTANT_NULL";
 static char _h64tkname_constant_string[] = "H64TK_CONSTANT_STRING";
+static char _h64tkname_constant_bytes[] = "H64TK_CONSTANT_BYTES";
 static char _h64tkname_binopsymbol[] = "H64TK_BINOPSYMBOL";
 static char _h64tkname_unopsymbol[] = "H64TK_UNOPSYMBOL";
 static char _h64tkname_inlinefunc[] = "H64TK_INLINEFUNC";
@@ -1415,6 +1438,8 @@ const char *lexer_TokenTypeToStr(h64tokentype type) {
         return _h64tkname_constant_none;
     } else if (type == H64TK_CONSTANT_STRING) {
         return _h64tkname_constant_string;
+    } else if (type == H64TK_CONSTANT_BYTES) {
+        return _h64tkname_constant_bytes;
     } else if (type == H64TK_BINOPSYMBOL) {
         return _h64tkname_binopsymbol;
     } else if (type == H64TK_UNOPSYMBOL) {

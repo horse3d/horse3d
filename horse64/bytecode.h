@@ -128,6 +128,10 @@ typedef struct valuecontent {
             int32_t constpreallocstr_len;
         } __attribute__((packed));
         struct {
+            unicodechar *constpreallocbytes_value;
+            int32_t constpreallocbytes_len;
+        } __attribute__((packed));
+        struct {
             classid_t error_class_id;
             h64errorinfo *einfo;
         } __attribute__((packed));

@@ -629,6 +629,9 @@ void ast_FreeExprNonpoolMembers(
         if (expr->literal.type == H64TK_CONSTANT_STRING) {
             free(expr->literal.str_value);
             expr->literal.str_value = NULL;
+        } else if (expr->literal.type == H64TK_CONSTANT_BYTES) {
+            free(expr->literal.str_value);
+            expr->literal.str_value = NULL;
         }
         break;
     }
@@ -1443,6 +1446,9 @@ jsonvalue *ast_ExpressionToJSON(
             if (!json_SetDictNull(v, "value"))
                 fail = 1;
         } else if (e->literal.type == H64TK_CONSTANT_STRING) {
+            if (!json_SetDictStr(v, "value", e->literal.str_value))
+                fail = 1;
+        } else if (e->literal.type == H64TK_CONSTANT_BYTES) {
             if (!json_SetDictStr(v, "value", e->literal.str_value))
                 fail = 1;
         }

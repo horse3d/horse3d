@@ -50,6 +50,9 @@ typedef struct h64gcvalue {
             h64stringval str_val;
         };
         struct {
+            h64bytesval bytes_val;
+        };
+        struct {
             genericset set_values;
         };
         struct {

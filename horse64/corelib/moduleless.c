@@ -156,7 +156,7 @@ static int _corelib_printvalue(
                     break;
                 }
                 default:
-                    printf("<unhandled refvalue type=%d>\n",
+                    printf("<unhandled refvalue type=%d>",
                            (int)gcval->type);
             }
             break;
@@ -185,7 +185,7 @@ static int _corelib_printvalue(
             break;
         }
         default: {
-            printf("<unhandled valuecontent type=%d>\n", (int)c->type);
+            printf("<unhandled valuecontent type=%d>", (int)c->type);
             break;
         }
     }
