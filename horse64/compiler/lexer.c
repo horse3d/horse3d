@@ -435,11 +435,14 @@ h64tokenizedfile lexer_ParseFromFile(
         }
 
         // Constants/literals:
-        if (c == '"' || c == '\'') {
+        if (c == '"' || c == '\'' ||
+                (c == 'b' && i < (int)size &&
+                 (buffer[i + 1] == '"' || buffer[i + 1] == '\''))) {
             post_identifier_is_likely_func = 0;
             unsigned char startc = c;
             int startcolumn = column;
             int startline = line;
+            int isbinary = (c == 'b');
             i++;
             column++;
 
@@ -460,6 +463,12 @@ h64tokenizedfile lexer_ParseFromFile(
 
             strbuf[strbuflen] = c;
             strbuflen++;
+            if (isbinary) {
+                strbuf[strbuflen] = buffer[i];
+                strbuflen++;
+                i++;
+                column++;
+            }
 
             int escaped = 0;
             while (1) {
@@ -467,9 +476,10 @@ h64tokenizedfile lexer_ParseFromFile(
                     char buf[512];
                     snprintf(buf, sizeof(buf) - 1,
                         "unexpected end of file, "
-                        "expected terminating \"%c\" for string literal "
+                        "expected terminating \"%c\" for %s literal "
                         "starting in line %d, column %d",
-                        startc, startline, startcolumn);
+                        startc, (isbinary ? "bytes" : "string"),
+                        startline, startcolumn);
                     result_AddMessage(
                         &result.resultmsg,
                         H64MSG_ERROR, buf,
@@ -521,7 +531,10 @@ h64tokenizedfile lexer_ParseFromFile(
                         return result;
                     }
                 }
-                if (!is_valid_utf8_char((uint8_t*)buffer + i, size - i)) {
+                if (!isbinary &&
+                        !is_valid_utf8_char(
+                        (uint8_t*)buffer + i, size - i)
+                        ) {
                     hadinvaliderror = 1;
                     char buf[256];
                     snprintf(buf, sizeof(buf) - 1,
@@ -544,6 +557,35 @@ h64tokenizedfile lexer_ParseFromFile(
                         free(buffer);
                         return result;
                     }
+                    escaped = 0;
+                    i++;
+                    continue;
+                } else if (isbinary && ((uint8_t*)buffer)[i] > 127) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "invalid character 0x%x, "
+                        "non-ASCII values in bytes literal must "
+                        "be escaped",
+                        (int)c
+                    );
+                    if (!result_AddMessage(
+                            &result.resultmsg,
+                            H64MSG_ERROR, buf,
+                            fileuri, line, column
+                            )) {
+                        if (strbuf) free(strbuf);
+                        result_ErrorNoLoc(
+                            &result.resultmsg,
+                            "failed to allocate error, "
+                            "out of memory?",
+                            fileuri
+                        );
+                        free(buffer);
+                        return result;
+                    }
+                    escaped = 0;
+                    i++;
+                    continue;
                 }
                 int charlen = utf8_char_len((uint8_t*)&buffer[i]);
                 int k = 0;

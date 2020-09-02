@@ -94,11 +94,14 @@ typedef enum valuetype {
     H64VALTYPE_GCVAL,
     H64VALTYPE_SHORTSTR,
     H64VALTYPE_CONSTPREALLOCSTR,
+    H64VALTYPE_SHORTBYTES,
+    H64VALTYPE_CONSTPREALLOCBYTES,
     H64VALTYPE_VECTOR,
     H64VALTYPE_UNSPECIFIED_KWARG,
 } valuetype;
 
 #define VALUECONTENT_SHORTSTRLEN 3
+#define VALUECONTENT_SHORTBYTESLEN 6
 
 typedef struct vectorentry vectorentry;
 
@@ -112,6 +115,12 @@ typedef struct valuecontent {
             uint8_t shortstr_len;
             unicodechar shortstr_value[
                 VALUECONTENT_SHORTSTRLEN
+            ];  // should be 2byte/16bit aligned
+        } __attribute__((packed));
+        struct {
+            uint8_t shortbytes_len;
+            unicodechar shortbytes_value[
+                VALUECONTENT_SHORTBYTESLEN
             ];  // should be 2byte/16bit aligned
         } __attribute__((packed));
         struct {
