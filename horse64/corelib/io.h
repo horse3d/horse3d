@@ -5,7 +5,6 @@
 #ifndef HORSE64_CORELIB_IO_H_
 #define HORSE64_CORELIB_IO_H_
 
-
 int iolib_RegisterFuncs(h64program *p);
 
 #endif  // HORSE64_CORELIB_IO_H_

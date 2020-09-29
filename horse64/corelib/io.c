@@ -68,9 +68,22 @@ int iolib_open(
         if (!utf8buf) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                "alloc failure printing list"
+                "alloc failure converting file path"
             );
         }
+    }
+    int64_t outlen = 0;
+    int result = utf32_to_utf8(
+        (unicodechar*)pathstr, pathlen,
+        utf8buf, utf8bufsize,
+        &outlen, 1
+    );
+    if (!result) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RUNTIMEERROR,
+            "internal unexpected error in unicode "
+            "conversion"
+        );
     }
     #endif
 
@@ -93,26 +106,71 @@ int iolib_fileread(
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
+    assert(gcvalue->classid ==
+           vmthread->vmexec_owner->program->_io_file_class_idx);
+
+    return 1;
+}
+
+int iolib_fileclose(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Read from the given file.
+     *
+     * @funcattr io.file close
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    assert(vc->type == H64VALTYPE_GCVAL);
+    h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
+    assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
+    assert(gcvalue->classid ==
+           vmthread->vmexec_owner->program->_io_file_class_idx);
 
     return 1;
 }
 
 int iolib_RegisterFuncs(h64program *p) {
-    /*int64_t idx;
+    // io.open:
+    const char *io_open_kw_arg_name[] = {
+        NULL, "read", "write", "append"
+    };
+    int64_t idx;
     idx = h64program_RegisterCFunction(
-        p, "print", &corelib_print,
-        NULL, 1, NULL, 1, NULL, NULL, 1, -1
+        p, "open", &iolib_open,
+        NULL, 4, io_open_kw_arg_name, 0,  // fileuri, args
+        "io", "core.horse64.org", 1, -1
     );
     if (idx < 0)
         return 0;
-    p->print_func_index = idx;
+
+    // file class:
+    p->_io_file_class_idx = h64program_AddClass(
+        p, "file", NULL, "io", "core.horse64.org"
+    );
+    if (p->_io_file_class_idx < 0)
+        return 0;
+
+    // file.read method:
+    const char *io_fileread_kw_arg_name[] = {"amount"};
     idx = h64program_RegisterCFunction(
-        p, "$$containeradd", &corelib_containeradd,
-        NULL, 1, NULL, 0, NULL, NULL, 1, -1
+        p, "read", &iolib_fileread,
+        NULL, 1, io_fileread_kw_arg_name, 0,  // fileuri, args
+        "io", "core.horse64.org", 1, -1
     );
     if (idx < 0)
         return 0;
-    p->func[idx].input_stack_size++;  // for 'self'
-    p->containeradd_func_index = idx;*/
+
+    // file.close method:
+    idx = h64program_RegisterCFunction(
+        p, "close", &iolib_fileclose,
+        NULL, 0, NULL, 0,  // fileuri, args
+        "io", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
     return 1;
 }

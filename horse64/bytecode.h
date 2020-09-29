@@ -422,6 +422,8 @@ typedef struct h64program {
     int64_t to_hash_name_index;
     int64_t add_name_index;
 
+    classid_t _io_file_class_idx;  // used by io module
+
     globalvarid_t globalvar_count;
     h64globalvar *globalvar;
 
@@ -467,7 +469,7 @@ funcid_t h64program_RegisterCFunction(
     int (*func)(h64vmthread *vmthread),
     const char *fileuri,
     int arg_count,
-    char **arg_kwarg_name,
+    const char **arg_kwarg_name,
     int last_is_multiarg,
     const char *module_path,
     const char *library_name,
@@ -480,7 +482,7 @@ funcid_t h64program_RegisterHorse64Function(
     const char *name,
     const char *fileuri,
     int arg_count,
-    char **arg_kwarg_name,
+    const char **arg_kwarg_name,
     int last_posarg_is_multiarg,
     const char *module_path,
     const char *library_name,
