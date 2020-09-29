@@ -23,10 +23,13 @@
 #include "unicode.h"
 #include "vmexec.h"
 
+#define FILEOBJ_FLAGS_APPEND 0x1
+#define FILEOBJ_FLAGS_LASTWASWRITE 0x2
 
 typedef struct _fileobj_cdata {
     FILE *file_handle;
-} _fileobj_cdata;
+    uint8_t flags;
+} __attribute__((packed)) _fileobj_cdata;
 
 int iolib_open(
         h64vmthread *vmthread
@@ -39,7 +42,7 @@ int iolib_open(
      * @param write=false
      * @param append=io.APPEND_DEFAULT
      */
-    assert(STACK_TOP(vmthread->stack) >= 3);
+    assert(STACK_TOP(vmthread->stack) >= 4);
 
     valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
     char *pathstr = NULL;
@@ -61,20 +64,71 @@ int iolib_open(
         );
     }
 
+    uint8_t flags = 0;
     int mode_read = 1;
     int mode_write = 0;
     int mode_append = 2;
+    {
+        valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 1);
+        if (vcarg->type != H64VALTYPE_BOOLEAN) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_TYPEERROR,
+                "read option must be a boolean"
+            );
+        }
+        mode_read = (vcarg->int_value != 0);
+    }
+    {
+        valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 2);
+        if (vcarg->type != H64VALTYPE_BOOLEAN) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_TYPEERROR,
+                "read option must be a boolean"
+            );
+        }
+        mode_write = (vcarg->int_value != 0);
+    }
+    {
+        valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 3);
+        if (vcarg->type != H64VALTYPE_BOOLEAN && (
+                vcarg->type != H64VALTYPE_INT64 ||
+                vcarg->int_val != 2)) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_TYPEERROR,
+                "append option must be a boolean or io.APPEND_DEFAULT"
+            );
+        }
+        if (vcarg->type == H64VALTYPE_BOOLEAN)
+            mode_append = (vcarg->int_value != 0);
+        else
+            mode_append = 2;
+    }
+    if (!mode_read && !mode_write) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_ARGUMENTERROR,
+            "must open for either reading or writing"
+        );
+    } else if (!mode_write && mode_append) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_ARGUMENTERROR,
+            "cannot append without writing"
+        );
+    }
     char modestr[5] = "rb";
     if (mode_write && mode_read) {
         if (mode_append)
             memcpy(modestr, "a+b", strlen("a+b"));
         else
             memcpy(modestr, "r+b", strlen("r+b"));
+        if (mode_append)
+            flags |= FILEOBJ_FLAGS_APPEND;
     } else if (mode_write) {
         if (mode_append)
             memcpy(modestr, "ab", strlen("ab"));
         else
             memcpy(modestr, "wb", strlen("wb"));
+        if (mode_append)
+            flags |= FILEOBJ_FLAGS_APPEND;
     }
 
     #if defined(_WIN32) || defined(_WIN64)
@@ -196,6 +250,7 @@ int iolib_open(
         );
     }
     ((_fileobj_cdata*)fileobj->cdata)->file_handle = f;
+    ((_fileobj_cdata*)fileobj->cdata)->flags = flags;
     assert(STACK_TOP(vmthread->stack) >= 1);
     valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vc);
