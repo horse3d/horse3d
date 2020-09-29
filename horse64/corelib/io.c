@@ -6,6 +6,7 @@
 #include <malloc.h>
 #else
 #include <alloca.h>
+#include <errno.h>
 #endif
 #include <assert.h>
 #include <inttypes.h>
@@ -17,10 +18,15 @@
 #include "corelib/errors.h"
 #include "corelib/io.h"
 #include "gcvalue.h"
+#include "poolalloc.h"
 #include "stack.h"
 #include "unicode.h"
 #include "vmexec.h"
 
+
+typedef struct _fileobj_cdata {
+    FILE *file_handle;
+} _fileobj_cdata;
 
 int iolib_open(
         h64vmthread *vmthread
@@ -55,8 +61,24 @@ int iolib_open(
         );
     }
 
-    #if defined(_WIN32) || defined(_WIN64)
+    int mode_read = 1;
+    int mode_write = 0;
+    int mode_append = 2;
+    char modestr[5] = "rb";
+    if (mode_write && mode_read) {
+        if (mode_append)
+            memcpy(modestr, "a+b", strlen("a+b"));
+        else
+            memcpy(modestr, "r+b", strlen("r+b"));
+    } else if (mode_write) {
+        if (mode_append)
+            memcpy(modestr, "ab", strlen("ab"));
+        else
+            memcpy(modestr, "wb", strlen("wb"));
+    }
 
+    #if defined(_WIN32) || defined(_WIN64)
+    FILE *f = NULL;
     #else
     char _utf8bufstack[1024];
     char *utf8buf = _utf8bufstack;
@@ -78,15 +100,109 @@ int iolib_open(
         utf8buf, utf8bufsize,
         &outlen, 1
     );
-    if (!result) {
+    if (!result || outlen >= utf8bufsize) {
+        if (freeutf8buf)
+            free(utf8buf);
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_RUNTIMEERROR,
             "internal unexpected error in unicode "
             "conversion"
         );
     }
+    utf8buf[outlen] = '\0';
+    int i = 0;
+    while (i < utf8bufsize) {
+        if (utf8buf[i] == '\0') {
+            if (freeutf8buf)
+                free(utf8buf);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no such file or directory"
+            );
+        }
+        i++;
+    }
+    errno = 0;
+    FILE *f = fopen(
+        utf8buf, modestr
+    );
+    if (!f) {
+        if (freeutf8buf)
+            free(utf8buf);
+        if (errno == EACCES)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_PERMISSIONERROR,
+                "permission denied"
+            );
+        else if (errno == EDQUOT || errno == ENOSPC)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no disk space left"
+            );
+        else if (errno == ENOENT || errno == ENOTDIR)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no such file or directory"
+            );
+        else if (errno == ENFILE)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OSERROR,
+                "no free file handles left"
+            );
+        else if (errno == ENAMETOOLONG)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "given path name too long"
+            );
+        else if (errno == ENOMEM)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory opening file"
+            );
+        else if (errno == ENXIO)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "special file that doesn't support i/o"
+            );
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            "unhandled general resource error"
+        );
+    }
+    if (freeutf8buf)
+        free(utf8buf);
     #endif
-
+    h64gcvalue *fileobj = poolalloc_malloc(
+        vmthread->heap, 0
+    );
+    if (!fileobj) {
+        fclose(f);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory allocating file object"
+        );
+    }
+    fileobj->type = H64GCVALUETYPE_OBJINSTANCE;
+    fileobj->heapreferencecount = 0;
+    fileobj->externalreferencecount = 1;
+    fileobj->classid = vmthread->vmexec_owner->program->_io_file_class_idx;
+    fileobj->cdata = malloc(sizeof(_fileobj_cdata));
+    if (!fileobj->cdata) {
+        fclose(f);
+        poolalloc_free(vmthread->heap, fileobj);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory allocating file object"
+        );
+    }
+    ((_fileobj_cdata*)fileobj->cdata)->file_handle = f;
+    assert(STACK_TOP(vmthread->stack) >= 1);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vc);
+    valuecontent_Free(vc);
+    memset(vc, 0, sizeof(*vc));
+    vc->type = H64VALTYPE_GCVAL;
+    vc->ptr_value = fileobj;
     return 1;
 }
 

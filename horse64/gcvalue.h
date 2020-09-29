@@ -44,7 +44,10 @@ typedef struct h64gcvalue {
     union {
         struct {
             classid_t classid;
-            valuecontent *membervars;
+            union {
+                valuecontent *membervars;
+                void *cdata;
+            };
         };
         struct {
             h64stringval str_val;
