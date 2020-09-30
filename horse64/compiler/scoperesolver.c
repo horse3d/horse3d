@@ -355,7 +355,7 @@ static int scoperesolver_ComputeItemStorage(
         if ((bytecode_func_id = h64program_RegisterHorse64Function(
                 program, name, ast->fileuri,
                 expr->funcdef.arguments.arg_count,
-                kwarg_names,
+                (const char**)kwarg_names,
                 expr->funcdef.arguments.last_posarg_is_multiarg,
                 ast->module_path,
                 ast->library_name,

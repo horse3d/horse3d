@@ -19,9 +19,9 @@
 #include "gcvalue.h"
 #include "hash.h"
 #include "stack.h"
-#include "unicode.h"
 #include "vmexec.h"
 #include "vmlist.h"
+#include "widechar.h"
 
 
 int corelib_containeradd(  // $$builtin.$$containeradd
@@ -165,7 +165,7 @@ static int _corelib_printvalue(
             assert(buflen >= 25);
             assert(c->shortstr_len >= 0 &&
                    c->shortstr_len < 5);
-            unicodechar shortstr_value[
+            h64wchar shortstr_value[
                 VALUECONTENT_SHORTSTRLEN + 1
             ];
             memcpy(&shortstr_value, c->shortstr_value,

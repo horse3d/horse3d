@@ -14,9 +14,10 @@
 #include "compiler/operator.h"
 #include "compiler/result.h"
 #include "json.h"
-#include "unicode.h"
 #include "uri.h"
 #include "vfs.h"
+#include "widechar.h"
+
 
 static int _tokenalloc(
         h64tokenizedfile *result,

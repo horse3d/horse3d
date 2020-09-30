@@ -5,11 +5,11 @@
 #ifndef HORSE64_STRINGHELPERS_H_
 #define HORSE64_STRINGHELPERS_H_
 
-// FIXME: abandon this header for our own unicode handling, eventually
+// FIXME: abandon this header for our own widechar handling, eventually
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
-static wchar_t *unicodestr(const char *s) {
+static wchar_t *widecharstr(const char *s) {
     int size = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
     wchar_t *result = malloc(
         sizeof(*result) * (size + 1)

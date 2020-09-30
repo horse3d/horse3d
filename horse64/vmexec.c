@@ -21,8 +21,8 @@
 #include "gcvalue.h"
 #include "poolalloc.h"
 #include "stack.h"
-#include "unicode.h"
 #include "vmexec.h"
+#include "widechar.h"
 
 #define DEBUGVMEXEC
 
@@ -464,11 +464,11 @@ static int vmthread_errors_Raise(
             va_start(args, msg);
             int len = va_arg(args, int);
             va_end(args);
-            e.msg = malloc(len * sizeof(unicodechar));
+            e.msg = malloc(len * sizeof(h64wchar));
             if (!e.msg) {
                 e.msglen = 0;
             } else {
-                memcpy(e.msg, msg, e.msglen * sizeof(unicodechar));
+                memcpy(e.msg, msg, e.msglen * sizeof(h64wchar));
             }
         }
     }
@@ -923,7 +923,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             }
             memcpy(
                 gcval->str_val.s, inst->content.constpreallocstr_value,
-                inst->content.constpreallocstr_len * sizeof(unicodechar)
+                inst->content.constpreallocstr_len * sizeof(h64wchar)
             );
         } else if (inst->content.type == H64VALTYPE_CONSTPREALLOCBYTES) {
             vc->type = H64VALTYPE_GCVAL;
@@ -1051,7 +1051,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 goto *jumptable[((h64instructionany *)p)->type];
             }
             assert(assignto_buf != NULL && assignto_len > 0);
-            unicodechar setchar;
+            h64wchar setchar;
             if (likely(vcset->type == H64VALTYPE_SHORTSTR &&
                     vcset->shortstr_len == 1)) {
                 setchar = vcset->shortstr_value[0];
@@ -1072,8 +1072,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             }
             assert(index_value - 1 >= 0 && index_value - 1 < assignto_len);
             memcpy(
-                assignto_buf + (index_value - 1) * sizeof(unicodechar),
-                &setchar, sizeof(unicodechar)
+                assignto_buf + (index_value - 1) * sizeof(h64wchar),
+                &setchar, sizeof(h64wchar)
             );
         } else {
             RAISE_ERROR(
@@ -1875,7 +1875,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 RAISE_ERROR_U32(
                     eobj->error_class_id,
                     (const char *)(
-                        eobj->einfo ? eobj->einfo->msg : (unicodechar *)NULL
+                        eobj->einfo ? eobj->einfo->msg : (h64wchar *)NULL
                     ),
                     (eobj->einfo ? (int)eobj->einfo->msglen : 0)
                 );  // FIXME: carry over inner stack trace
@@ -2335,7 +2335,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 nameidx == vmexec->program->as_str_name_index
                 ) {  // .as_str
             // See what this actually is as a string with .as_str:
-            unicodechar strvalue[128];
+            h64wchar strvalue[128];
             int64_t strvaluelen = -1;
             if (vc->type == H64VALTYPE_GCVAL) {
                 if (((h64gcvalue *)vc->ptr_value)->type ==
@@ -2365,7 +2365,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 int i = 0;
                 while (i < len) {
                     strvalue[i] = (
-                        (unicodechar)(uint8_t)intvalue[i]
+                        (h64wchar)(uint8_t)intvalue[i]
                     );
                     i++;
                 }
@@ -2404,31 +2404,31 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 i = 0;
                 while (i < len) {
                     strvalue[i] = (
-                        (unicodechar)(uint8_t)floatvalue[i]
+                        (h64wchar)(uint8_t)floatvalue[i]
                     );
                     i++;
                 }
                 strvaluelen = len;
             } else if (vc->type == H64VALTYPE_BOOL) {
                 if (vc->int_value != 0) {
-                    strvalue[0] = (unicodechar)'t';
-                    strvalue[1] = (unicodechar)'r';
-                    strvalue[2] = (unicodechar)'u';
-                    strvalue[3] = (unicodechar)'e';
+                    strvalue[0] = (h64wchar)'t';
+                    strvalue[1] = (h64wchar)'r';
+                    strvalue[2] = (h64wchar)'u';
+                    strvalue[3] = (h64wchar)'e';
                     strvaluelen = 4;
                 } else {
-                    strvalue[0] = (unicodechar)'f';
-                    strvalue[1] = (unicodechar)'a';
-                    strvalue[2] = (unicodechar)'l';
-                    strvalue[3] = (unicodechar)'s';
-                    strvalue[4] = (unicodechar)'e';
+                    strvalue[0] = (h64wchar)'f';
+                    strvalue[1] = (h64wchar)'a';
+                    strvalue[2] = (h64wchar)'l';
+                    strvalue[3] = (h64wchar)'s';
+                    strvalue[4] = (h64wchar)'e';
                     strvaluelen = 5;
                 }
             } else if (vc->type == H64VALTYPE_NONE) {
-                strvalue[0] = (unicodechar)'n';
-                strvalue[1] = (unicodechar)'o';
-                strvalue[2] = (unicodechar)'n';
-                strvalue[3] = (unicodechar)'e';
+                strvalue[0] = (h64wchar)'n';
+                strvalue[1] = (h64wchar)'o';
+                strvalue[2] = (h64wchar)'n';
+                strvalue[3] = (h64wchar)'e';
                 strvaluelen = 4;
             }
             // If .as_str failed to run, abort with an error:
@@ -2459,7 +2459,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             }
             memcpy(
                 gcval->str_val.s,
-                strvalue, strvaluelen * sizeof(unicodechar)
+                strvalue, strvaluelen * sizeof(h64wchar)
             );
             assert((unsigned int)gcval->str_val.len ==
                    (unsigned int)strvaluelen);

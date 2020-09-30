@@ -22,12 +22,12 @@ int vmstrings_AllocBuffer(
         if (!vthread->str_pile)
             return 0;
     }
-    if (len * sizeof(unicodechar) <= POOLEDSTRSIZE) {
+    if (len * sizeof(h64wchar) <= POOLEDSTRSIZE) {
         v->s = poolalloc_malloc(
             vthread->str_pile, 0
         );
     } else {
-        v->s = malloc(sizeof(unicodechar) * len);
+        v->s = malloc(sizeof(h64wchar) * len);
     }
     v->len = len;
     return (v->s != NULL);
@@ -36,7 +36,7 @@ int vmstrings_AllocBuffer(
 void vmstrings_Free(h64vmthread *vthread, h64stringval *v) {
     if (!vthread || !v)
         return;
-    if (v->len * sizeof(unicodechar) <= POOLEDSTRSIZE) {
+    if (v->len * sizeof(h64wchar) <= POOLEDSTRSIZE) {
         poolalloc_free(vthread->str_pile, v->s);
     } else {
         free(v->s);

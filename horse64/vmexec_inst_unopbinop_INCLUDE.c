@@ -132,14 +132,14 @@
                         if (len1 > 0) {
                             memcpy(
                                 tmpresult->shortstr_value,
-                                ptr1, len1 * sizeof(unicodechar)
+                                ptr1, len1 * sizeof(h64wchar)
                             );
                         }
                         if (len2 > 0) {
                             memcpy(
                                 tmpresult->shortstr_value +
-                                len1 * sizeof(unicodechar),
-                                ptr2, len2 * sizeof(unicodechar)
+                                len1 * sizeof(h64wchar),
+                                ptr2, len2 * sizeof(h64wchar)
                             );
                         }
                     } else {
@@ -167,14 +167,14 @@
                         if (len1 > 0) {
                             memcpy(
                                 gcval->str_val.s,
-                                ptr1, len1 * sizeof(unicodechar)
+                                ptr1, len1 * sizeof(h64wchar)
                             );
                         }
                         if (len2 > 0) {
                             memcpy(
                                 ((char*)gcval->str_val.s) +
-                                len1 * sizeof(unicodechar),
-                                ptr2, len2 * sizeof(unicodechar)
+                                len1 * sizeof(h64wchar),
+                                ptr2, len2 * sizeof(h64wchar)
                             );
                         }
                     }

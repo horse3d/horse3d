@@ -14,7 +14,7 @@
 #define MAX_ERROR_STACK_FRAMES 10
 
 typedef struct h64debugsymbols h64debugsymbols;
-typedef uint32_t unicodechar;
+typedef uint32_t h64wchar;
 typedef struct h64gcvalue h64gcvalue;
 typedef struct valuecontent valuecontent;
 
@@ -77,7 +77,7 @@ typedef struct storageref {
 typedef struct h64errorinfo {
     int64_t stack_frame_funcid[MAX_ERROR_STACK_FRAMES];
     int64_t stack_frame_byteoffset[MAX_ERROR_STACK_FRAMES];
-    unicodechar *msg;
+    h64wchar *msg;
     int64_t msglen;
     classid_t error_class_id;
     int refcount;
@@ -113,22 +113,22 @@ typedef struct valuecontent {
         void *ptr_value;
         struct {
             uint8_t shortstr_len;
-            unicodechar shortstr_value[
+            h64wchar shortstr_value[
                 VALUECONTENT_SHORTSTRLEN
             ];  // should be 2byte/16bit aligned
         } __attribute__((packed));
         struct {
             uint8_t shortbytes_len;
-            unicodechar shortbytes_value[
+            h64wchar shortbytes_value[
                 VALUECONTENT_SHORTBYTESLEN
             ];  // should be 2byte/16bit aligned
         } __attribute__((packed));
         struct {
-            unicodechar *constpreallocstr_value;
+            h64wchar *constpreallocstr_value;
             int32_t constpreallocstr_len;
         } __attribute__((packed));
         struct {
-            unicodechar *constpreallocbytes_value;
+            h64wchar *constpreallocbytes_value;
             int32_t constpreallocbytes_len;
         } __attribute__((packed));
         struct {

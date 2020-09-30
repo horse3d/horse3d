@@ -20,8 +20,8 @@
 #include "gcvalue.h"
 #include "poolalloc.h"
 #include "stack.h"
-#include "unicode.h"
 #include "vmexec.h"
+#include "widechar.h"
 
 #define FILEOBJ_FLAGS_APPEND 0x1
 #define FILEOBJ_FLAGS_LASTWASWRITE 0x2
@@ -150,7 +150,7 @@ int iolib_open(
     }
     int64_t outlen = 0;
     int result = utf32_to_utf8(
-        (unicodechar*)pathstr, pathlen,
+        (h64wchar*)pathstr, pathlen,
         utf8buf, utf8bufsize,
         &outlen, 1
     );
@@ -159,7 +159,7 @@ int iolib_open(
             free(utf8buf);
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_RUNTIMEERROR,
-            "internal unexpected error in unicode "
+            "internal unexpected error in widechar "
             "conversion"
         );
     }

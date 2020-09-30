@@ -17,7 +17,7 @@
 #include "compiler/disassembler.h"
 #include "compiler/globallimits.h"
 #include "compiler/operator.h"
-#include "unicode.h"
+#include "widechar.h"
 
 typedef struct dinfo dinfo;
 struct dinfo {

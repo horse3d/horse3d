@@ -7,11 +7,11 @@
 
 #include <stdint.h>
 
-typedef uint32_t unicodechar;
+typedef uint32_t h64wchar;
 typedef struct h64vmthread h64vmthread;
 
 typedef struct h64stringval {
-    unicodechar *s;
+    h64wchar *s;
     uint64_t len;
     int refcount;
 } h64stringval;

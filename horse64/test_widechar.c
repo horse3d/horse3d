@@ -6,13 +6,13 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "unicode.h"
+#include "widechar.h"
 
 #include "testmain.h"
 
-START_TEST (test_unicode)
+START_TEST (test_widechar)
 {
-    unicodechar *s = NULL;
+    h64wchar *s = NULL;
     int64_t out_len;
     int wasinvalid, wasoutofmem;
 
@@ -69,4 +69,4 @@ START_TEST (test_unicode)
 }
 END_TEST
 
-TESTS_MAIN (test_unicode)
+TESTS_MAIN (test_widechar)

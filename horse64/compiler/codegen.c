@@ -19,7 +19,7 @@
 #include "compiler/main.h"
 #include "compiler/varstorage.h"
 #include "hash.h"
-#include "unicode.h"
+#include "widechar.h"
 
 
 static void get_assign_lvalue_storage(
@@ -1178,7 +1178,7 @@ int _codegencallback_DoCodegen_visit_out(
             int64_t out_len = 0;
             int abortinvalid = 0;
             int abortoom = 0;
-            unicodechar *result = utf8_to_utf32_ex(
+            h64wchar *result = utf8_to_utf32_ex(
                 expr->literal.str_value,
                 expr->literal.str_value_len,
                 NULL, NULL, &out_len, 1,
