@@ -2,9 +2,9 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
-#ifndef WINDOWS
+#ifndef ISWIN
 #if defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(__WIN32__)
-#define WINDOWS
+#define ISWIN
 #define _WIN32_WINNT 0x0501
 #if defined __MINGW_H
 #define _WIN32_IE 0x0400
@@ -33,7 +33,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef WINDOWS
+#ifdef ISWIN
 #include <process.h>
 #include <windows.h>
 #else
@@ -47,7 +47,7 @@
 
 
 typedef struct mutex {
-#ifdef WINDOWS
+#ifdef ISWIN
     HANDLE m;
 #else
     pthread_mutex_t m;
@@ -56,7 +56,7 @@ typedef struct mutex {
 
 
 typedef struct semaphore {
-#ifdef WINDOWS
+#ifdef ISWIN
     HANDLE s;
 #else
 #if defined(__APPLE__) || defined(__OSX__)
@@ -70,7 +70,7 @@ typedef struct semaphore {
 
 
 typedef struct threadinfo {
-#ifdef WINDOWS
+#ifdef ISWIN
     HANDLE t;
 #else
     pthread_t t;
@@ -96,7 +96,7 @@ semaphore* semaphore_Create(int value) {
         return NULL;
     }
     memset(s, 0, sizeof(*s));
-#ifdef WINDOWS
+#ifdef ISWIN
     s->s = CreateSemaphore(NULL, value, INT_MAX, NULL);
     if (!s->s) {
         free(s);
@@ -135,7 +135,7 @@ semaphore* semaphore_Create(int value) {
 
 
 void semaphore_Wait(semaphore* s) {
-#ifdef WINDOWS
+#ifdef ISWIN
     WaitForSingleObject(s->s, INFINITE);
 #else
 #if defined(__APPLE__) || defined(__OSX__)
@@ -148,7 +148,7 @@ void semaphore_Wait(semaphore* s) {
 
 
 void semaphore_Post(semaphore* s) {
-#ifdef WINDOWS
+#ifdef ISWIN
     ReleaseSemaphore(s->s, 1, NULL);
 #else
 #if defined(__APPLE__) || defined(__OSX__)
@@ -164,7 +164,7 @@ void semaphore_Destroy(semaphore* s) {
     if (!s) {
         return;
     }
-#ifdef WINDOWS
+#ifdef ISWIN
     CloseHandle(s->s);
 #else
 #if defined(__APPLE__) || defined(__OSX__)
@@ -184,7 +184,7 @@ mutex* mutex_Create() {
         return NULL;
     }
     memset(m, 0, sizeof(*m));
-#ifdef WINDOWS
+#ifdef ISWIN
     m->m = CreateMutex(NULL, FALSE, NULL);
     if (!m->m) {
         free(m);
@@ -214,7 +214,7 @@ void mutex_Destroy(mutex* m) {
     if (!m) {
         return;
     }
-#ifdef WINDOWS
+#ifdef ISWIN
     CloseHandle(m->m);
 #else
     while (pthread_mutex_destroy(&m->m) != 0) {
@@ -228,7 +228,7 @@ void mutex_Destroy(mutex* m) {
 
 
 void mutex_Lock(mutex* m) {
-#ifdef WINDOWS
+#ifdef ISWIN
     WaitForSingleObject(m->m, INFINITE);
 #else
 #ifndef NDEBUG
@@ -240,7 +240,7 @@ void mutex_Lock(mutex* m) {
 }
 
 int mutex_TryLock(mutex* m) {
-#ifdef WINDOWS
+#ifdef ISWIN
     if (WaitForSingleObject(m->m, 0) == WAIT_OBJECT_0) {
         return 1;
     }
@@ -255,7 +255,7 @@ int mutex_TryLock(mutex* m) {
 
 
 void mutex_Release(mutex* m) {
-#ifdef WINDOWS
+#ifdef ISWIN
     ReleaseMutex(m->m);
 #else
 #ifndef NDEBUG
@@ -271,7 +271,7 @@ void mutex_Release(mutex* m) {
 
 
 void thread_Detach(thread* t) {
-#ifdef WINDOWS
+#ifdef ISWIN
     CloseHandle(t->t);
 #else
     pthread_detach(t->t);
@@ -286,7 +286,7 @@ struct spawninfo {
 };
 
 
-#ifdef WINDOWS
+#ifdef ISWIN
 static unsigned __stdcall spawnthread(void* data) {
 #else
 static void* spawnthread(void* data) {
@@ -294,7 +294,7 @@ static void* spawnthread(void* data) {
     struct spawninfo* sinfo = data;
     sinfo->func(sinfo->userdata);
     free(sinfo);
-#ifdef WINDOWS
+#ifdef ISWIN
     return 0;
 #else
     return NULL;
@@ -328,7 +328,7 @@ thread *thread_SpawnWithPriority(
         return NULL;
     }
     memset(t, 0, sizeof(*t));
-#ifdef WINDOWS
+#ifdef ISWIN
     HANDLE h = (HANDLE)_beginthreadex(NULL, 0, spawnthread, sinfo, 0, NULL);
     t->t = h;
 #else
@@ -355,7 +355,7 @@ thread *thread_SpawnWithPriority(
 }
 
 
-#ifndef WINDOWS
+#ifndef ISWIN
 static pthread_t mainThread;
 #else
 static DWORD mainThread;
@@ -364,7 +364,7 @@ static DWORD mainThread;
 
 __attribute__((constructor)) void thread_MarkAsMainThread(void) {
     // mark current thread as main thread
-#ifndef WINDOWS
+#ifndef ISWIN
     mainThread = pthread_self();
 #else
     mainThread = GetCurrentThreadId();
@@ -373,7 +373,7 @@ __attribute__((constructor)) void thread_MarkAsMainThread(void) {
 
 
 int thread_InMainThread() {
-#ifndef WINDOWS
+#ifndef ISWIN
     return (pthread_self() == mainThread);
 #else
     return (GetCurrentThreadId() == mainThread);
@@ -382,7 +382,7 @@ int thread_InMainThread() {
 
 
 void thread_Join(thread *t) {
-#ifdef WINDOWS
+#ifdef ISWIN
     WaitForMultipleObjects(1, &t->t, TRUE, INFINITE);
 #else
     pthread_join(t->t, NULL);

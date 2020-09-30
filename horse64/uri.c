@@ -122,7 +122,7 @@ uriinfo *uri_ParseEx(
             ((uri[0] >= 'a' && uri[0] <= 'z') ||
              (uri[0] >= 'A' && uri[0] <= 'Z')) &&
             (*(part + 1) == '/' || *(part + 1) == '\\')) {
-        // Looks like a Windows absolute path:
+        // Looks like a ms win absolute path:
         result->protocol = strdup("file");
         if (!result->protocol) {
             uri_Free(result);
@@ -135,7 +135,7 @@ uriinfo *uri_ParseEx(
         }
         return result;
     } else if (*part == '/' && (part - uri) == 0) {
-        // Looks like a Unix absolute path:
+        // Looks like a linuxish absolute path:
         result->protocol = strdup("file");
         if (!result->protocol) {
             uri_Free(result);

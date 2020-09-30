@@ -30,9 +30,9 @@
 #include <shlobj.h>
 #endif
 
-#define MACOS_APPDATA_SUFFIX "/Libraries/Application Support/"
+#define MACAPPDATA_SUFFIX "/Libraries/Application Support/"
 #define LINUX_APPDATA_SUFFIX "/.local/share/"
-#define WINDOWS_APPDATA_SUFFIX "\\"
+#define WINAPPDATA_SUFFIX "\\"
 
 
 #include "filesys.h"
@@ -475,11 +475,11 @@ const char *filesys_AppDataSubFolder(const char *appname) {
         if (_appdatapath) {
             memcpy(_appdatapath, dirp, strlen(dirp));
             memcpy(_appdatapath + strlen(dirp),
-                   MACOS_APPDATA_SUFFIX,
-                   strlen(MACOS_APPDATA_SUFFIX) + 1);
+                   MACAPPDATA_SUFFIX,
+                   strlen(MACAPPDATA_SUFFIX) + 1);
             memcpy(
                 _appdatapath + strlen(dirp) +
-                strlen(MACOS_APPDATA_SUFFIX) + 1,
+                strlen(MACAPPDATA_SUFFIX) + 1,
                 appname, strlen(appname) + 1
             );
         }
@@ -514,17 +514,17 @@ const char *filesys_AppDataSubFolder(const char *appname) {
         path[MAX_PATH] = '\0';
         _appdatapath = malloc(
             strlen(path) +
-            strlen(WINDOWS_APPDATA_SUFFIX) + 1 +
+            strlen(WINAPPDATA_SUFFIX) + 1 +
             strlen(appname) + 1
         );
         if (_appdatapath) {
             memcpy(_appdatapath, path, strlen(path));
             memcpy(_appdatapath + strlen(path),
-                   WINDOWS_APPDATA_SUFFIX,
-                   strlen(WINDOWS_APPDATA_SUFFIX) + 1);
+                   WINAPPDATA_SUFFIX,
+                   strlen(WINAPPDATA_SUFFIX) + 1);
             memcpy(
                 _appdatapath + strlen(path) +
-                strlen(WINDOWS_APPDATA_SUFFIX) + 1,
+                strlen(WINAPPDATA_SUFFIX) + 1,
                 appname, strlen(appname) + 1
             );
         }
