@@ -70,7 +70,7 @@ int iolib_open(
     int mode_append = 2;
     {
         valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 1);
-        if (vcarg->type != H64VALTYPE_BOOLEAN) {
+        if (vcarg->type != H64VALTYPE_BOOL) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
                 "read option must be a boolean"
@@ -80,7 +80,7 @@ int iolib_open(
     }
     {
         valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 2);
-        if (vcarg->type != H64VALTYPE_BOOLEAN) {
+        if (vcarg->type != H64VALTYPE_BOOL) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
                 "read option must be a boolean"
@@ -90,15 +90,15 @@ int iolib_open(
     }
     {
         valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 3);
-        if (vcarg->type != H64VALTYPE_BOOLEAN && (
+        if (vcarg->type != H64VALTYPE_BOOL&& (
                 vcarg->type != H64VALTYPE_INT64 ||
-                vcarg->int_val != 2)) {
+                vcarg->int_value != 2)) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
                 "append option must be a boolean or io.APPEND_DEFAULT"
             );
         }
-        if (vcarg->type == H64VALTYPE_BOOLEAN)
+        if (vcarg->type == H64VALTYPE_BOOL)
             mode_append = (vcarg->int_value != 0);
         else
             mode_append = 2;
