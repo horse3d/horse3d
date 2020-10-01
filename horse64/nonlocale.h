@@ -60,7 +60,7 @@ static uint64_t h64strtoull(
     return result;
 }
 
-int64_t h64strtoll(
+static int64_t h64strtoll(
         char const *str, char **end_ptr, int base
         ) {
     /// Parses a signed 64 bit integer, returns resulting int or 0.
