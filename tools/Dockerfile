@@ -2,10 +2,10 @@
 FROM ubuntu:20.04
 
 # Upgrade image in general:
-RUN apt update -y && apt upgrade -y
+RUN apt update -y && DEBIAN_FRONTEND=noninteractive apt upgrade -y
 
 # Install various tools like git, python3, and more:
-RUN apt update -y && apt install -y git zip valgrind bash python3 make sed vim gcc g++ g++-mingw-w64 gcc-mingw-w64 mingw-w64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+RUN apt update -y && DEBIAN_FRONTEND=noninteractive apt install -y git zip valgrind bash python3 make sed vim gcc g++ g++-mingw-w64 gcc-mingw-w64 mingw-w64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
 # Install needed base system libraries:
 RUN DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install -y check automake libtool autotools-dev libreadline-dev
