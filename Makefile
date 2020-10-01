@@ -33,7 +33,7 @@ BINEXT:=
 
 # -------- PLATFORM-SPECIFIC FLAGS --------
 ifneq (,$(findstring mingw,$(CC)))
-CFLAGS+= -mthreads -static-libgcc -static-libstdc++ -mwindows -DHORSE3D_DESKTOPGL
+CFLAGS+= -mthreads -static-libgcc -static-libstdc++ -mwindows
 BINEXT:=.exe
 PLATFORM:=windows
 CROSSCOMPILEHOST:=$(shell echo -e 'print("'$(CC)'".rpartition("-")[0])' | python3)
