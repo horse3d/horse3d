@@ -1,5 +1,5 @@
 
-FROM ubuntu:18.04
+FROM ubuntu:19.04
 
 # Upgrade image in general:
 RUN apt update -y && apt upgrade -y
