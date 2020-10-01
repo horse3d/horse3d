@@ -39,7 +39,7 @@ PLATFORM:=windows
 CROSSCOMPILEHOST:=$(shell echo -e 'print("'$(CC)'".rpartition("-")[0])' | python3)
 HOSTOPTION:= --host=$(CROSSCOMPILEHOST)
 LDFLAGS+= -lwininet -lole32 -lgdi32 -lshell32 -lwinmm -luser32 -luuid -lodbc32 -loleaut32 -limm32 -lhid -lversion -lsetupapi -Wl,-Bstatic -lstdc++ -lwinpthread -Wl,-Bdynamic
-STRIPTOOL:=$(shell echo -e 'print("'$(CC)'".rpartition("-")[0])' | python3)-strip
+STRIPTOOL:=$(CROSSCOMPILEHOST)-strip
 CXX:=$(CROSSCOMPILEHOST)-g++
 BULLETCXX:=$(CXX)
 else
