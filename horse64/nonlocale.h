@@ -20,7 +20,9 @@ extern double strtod_l(const char * __restrict, char **__restrict, locale_t);
 
 static inline long long int h64strtoll(const char *s, char **endptr, int base) {
     #if defined(_WIN32) || defined(_WIN64)
-    return _strtoll_l(s, endptr, base, h64locale);
+    // FIXME: MinGW currently lacks _strtoll_l
+    setlocale(LC_ALL, "C");
+    return strtoll(s, endptr, base);
     #else
     return strtoll_l(s, endptr, base, h64locale);
     #endif
@@ -36,7 +38,9 @@ static inline double h64atof(const char *s) {
 
 static inline long long int h64atoll(const char *s) {
     #if defined(_WIN32) || defined(_WIN64)
-    return _strtoll_l(s, NULL, 10, h64locale);
+    // FIXME: MinGW currently lacks _strtoll_l
+    setlocale(LC_ALL, "C");
+    return strtoll(s, NULL, 10);
     #else
     return strtoll_l(s, NULL, 10, h64locale);
     #endif
