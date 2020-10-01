@@ -2,9 +2,9 @@
 #ifndef HORSE64_NONLOCALE_H_
 #define HORSE64_NONLOCALE_H_
 
-#define WINVER 0x0600
-
 #include <locale.h>
+#include <stdint.h>
+#include <string.h>
 
 #if defined(_WIN32) || defined(_WIN64)
 #define locale_t _locale_t
@@ -13,91 +13,80 @@ extern locale_t h64locale;
 
 #if !defined(_WIN32) || !defined(_WIN64)
 // Work around glibc wanting _GNU_SOURCE to give us these:
-extern float strtof_l(const char * __restrict, char **__restrict, locale_t);
-extern long long int strtoll_l(const char * __restrict, char **__restrict, int, locale_t);
 extern double strtod_l(const char * __restrict, char **__restrict, locale_t);
 #endif
 
-//! Parses a single digit, returns either digit value or 0xFF if invalid
-static uint8_t parse_digit(char c)
-{
-    if(c >= 'A' && c <= 'Z')
+static inline uint8_t _parse_digit(char c) {
+    /// Parses a single digit,
+    /// returns either digit value or 0xFF if invalid.
+
+    if (c >= 'A' && c <= 'Z')
         return 10 + (uint8_t)(c - 'A');
-    else if(c >= 'a' && c <= 'z')
+    else if (c >= 'a' && c <= 'z')
         return 10 + (uint8_t)(c - 'a');
-    else if(c >= '0' && c <= '9')
-        return      (uint8_t)(c - '0');
+    else if (c >= '0' && c <= '9')
+        return (uint8_t)(c - '0');
     else
         return 0xFF;
 }
 
-//! Parses a unsigned 64 bit integer, returns `true` on success, else `false`.
-//! `out_result` must be non-NULL, `base` >= 2 and <= 36
-bool parse_uint64(char const * str, size_t len, uint8_t base, uint64_t * out_result)
-{
-    if(len == 0)
-        return false;
-    if(base < 2 || base > 36)
-        return false;
+static uint64_t h64strtoull(
+        char const *str, char **end_ptr, int base
+        ) {
+    /// Parses a unsigned 64 bit integer, return resulting int or 0.
+    /// Important: base must be >= 2 and <= 36,
+    /// and *end_ptr is always set to NULL.
+    if (end_ptr) *end_ptr = NULL;
+
+    if (base < 2 || base > 36)
+        return 0;
     
     uint64_t result = 0;
-    while(len > 0)
-    {
-        result *= base; // warning: can silently overflow!
+    while (*str) {
+        uint64_t prev_result = result;
+        result *= base;
+        if (result < prev_result)  // overflow
+            return UINT64_MAX;
 
-        uint8_t digit = parse_digit(*str);
-        if(digit >= base)
-            return false;
+        uint8_t digit = _parse_digit(*str);
+        if (digit >= base)
+            return result;
 
         result += digit;
 
-        len -= 1;
         str += 1;
     }
 
-    (*out_result) = result;
-
-    return true;
+    return result;
 }
 
-//! Parses a signed 64 bit integer, returns `true` on success, else `false`.
-//! `out_result` must be non-NULL, `base` >= 2 and <= 36
-bool parse_int64(char const * str, size_t len, uint8_t base, int64_t * out_result)
-{
+int64_t h64strtoll(
+        char const *str, char **end_ptr, int base
+        ) {
+    /// Parses a signed 64 bit integer, returns resulting int or 0.
+    /// Important: base must be >= 2 and <= 3,
+    /// and *end_ptr is always set to NULL.
+    if (end_ptr) *end_ptr = NULL;
+
+    size_t len = strlen(str);
     int64_t sresult;
-    if(len > 0 && str[0] == '-') {
-        uint64_t result;
-        bool success = parse_uint64(str + 1, len - 1, base, &result);
-        if(!success)
-            return false;
-        if(result > 0x8000000000000000ULL)
-            return false;
-        else if(result == 0x8000000000000000ULL)
-            sresult = -0x7FFFFFFFFFFFFFFFLL - 1;
+    if (str[0] == '-') {
+        uint64_t result = h64strtoull(
+            str + 1, NULL, base
+        );
+        if (result > 0x8000000000000000ULL)
+            return INT64_MAX;
+        else if (result == 0x8000000000000000ULL)
+            sresult = INT64_MIN;
         else
             sresult = -(int64_t)(result);
-    }
-    else {
-        uint64_t result;
-        bool success = parse_uint64(str, len, base, &result);
-        if(!success)
-            return false;
+    } else {
+        uint64_t result = h64strtoull(str, NULL, base);
         if(result >= 0x8000000000000000ULL)
-            return false;
+            return INT64_MAX;
         sresult = (int64_t)(result);
     }
-    *out_result = sresult;
-    return true;
-}
-
-static inline long long int h64strtoll(const char *s, char **endptr, int base) {
-    #if defined(_WIN32) || defined(_WIN64)
-    // FIXME: MinGW currently lacks _strtoll_l
-    setlocale(LC_ALL, "C");
-    return strtoll(s, endptr, base);
-    #else
-    return strtoll_l(s, endptr, base, h64locale);
-    #endif
+    return sresult;
 }
 
 static inline double h64atof(const char *s) {
@@ -109,13 +98,7 @@ static inline double h64atof(const char *s) {
 }
 
 static inline long long int h64atoll(const char *s) {
-    #if defined(_WIN32) || defined(_WIN64)
-    // FIXME: MinGW currently lacks _strtoll_l
-    setlocale(LC_ALL, "C");
-    return strtoll(s, NULL, 10);
-    #else
-    return strtoll_l(s, NULL, 10, h64locale);
-    #endif
+    return h64strtoll(s, NULL, 10); 
 }
 
 #endif  // HORSE64_NONLOCALE_H_
