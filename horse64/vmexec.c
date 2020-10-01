@@ -994,7 +994,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         if (likely(vcindex->type == H64VALTYPE_INT64)) {
             index_value = vcindex->int_value;
         } else {
-            assert(vcindex->type = H64VALTYPE_FLOAT64);
+            assert(vcindex->type == H64VALTYPE_FLOAT64);
             int64_t rounded_value = (
                 (int64_t)roundl(vcindex->float_value)
             );
