@@ -4,11 +4,17 @@
 
 #include <locale.h>
 
+#if defined(_WIN32) || defined(_WIN64)
+#define locale_t _locale_t
+#endif
 extern locale_t h64locale;
 
+#if !defined(_WIN32) || !defined(_WIN64)
+// Work around glibc wanting _GNU_SOURCE to give us these:
 extern float strtof_l(const char * __restrict, char **__restrict, locale_t);
 extern long long int strtoll_l(const char * __restrict, char **__restrict, int, locale_t);
 extern double strtod_l(const char * __restrict, char **__restrict, locale_t);
+#endif
 
 static inline long long int h64strtoll(const char *s, char **endptr, int base) {
     return strtoll_l(s, endptr, base, h64locale);

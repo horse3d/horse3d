@@ -1,5 +1,5 @@
 
-FROM ubuntu:20.04
+FROM ubuntu:18.04
 
 # Upgrade image in general:
 RUN apt update -y && DEBIAN_FRONTEND=noninteractive apt upgrade -y
