@@ -1,4 +1,6 @@
 
+#define WINVER 0x0600
+
 #define _GNU_SOURCE  // for _l functions
 #include <locale.h>
 #include <stdio.h>

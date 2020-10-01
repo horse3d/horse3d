@@ -2,6 +2,8 @@
 #ifndef HORSE64_NONLOCALE_H_
 #define HORSE64_NONLOCALE_H_
 
+#define WINVER 0x0600
+
 #include <locale.h>
 
 #if defined(_WIN32) || defined(_WIN64)
