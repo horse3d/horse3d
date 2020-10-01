@@ -51,6 +51,7 @@ STRIPTOOL:=strip
 ifneq (,$(findstring aarch64,$(CC)))
 CROSSCOMPILEHOST:=$(shell echo -e 'print("'$(CC)'".rpartition("-")[0])' | python3)
 CXX:=$(CROSSCOMPILEHOST)-g++
+STRIPTOOL:=$(CROSSCOMPILEHOST)-strip
 endif
 endif
 
