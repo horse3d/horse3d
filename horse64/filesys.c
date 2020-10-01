@@ -850,7 +850,7 @@ char *filesys_ParentdirOfItem(const char *path) {
             path[1] == ':' && (strlen(path) == 2 ||
             path[2] == '/' || path[2] == '\\') &&
             ((path[0] >= 'a' && path[0] <= 'z') ||
-              path[0] >= 'A' && path[0] <= 'Z'))
+              (path[0] >= 'A' && path[0] <= 'Z')))
         return p;
     #else
     if (strlen(path) == 1 && path[0] == '/')
