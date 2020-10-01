@@ -25,11 +25,19 @@ static inline long long int h64strtoll(const char *s, char **endptr, int base) {
 }
 
 static inline double h64atof(const char *s) {
+    #if defined(_WIN32) || defined(_WIN64)
+    return _strtod_l(s, NULL, h64locale);
+    #else
     return strtod_l(s, NULL, h64locale);
+    #endif
 }
 
-static inline long long int h64atoll(const char *s) {
+static inline long long int h64atoll(const char *s) {\
+    #if defined(_WIN32) || defined(_WIN64)
+    return _strtoll_l(s, NULL, 10, h64locale);
+    #else
     return strtoll_l(s, NULL, 10, h64locale);
+    #endif
 }
 
 #endif  // HORSE64_NONLOCALE_H_
