@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "nonlocale.h"
 #include "json.h"
 
 
@@ -81,10 +82,10 @@ int json_ParseEx(
                 buf[k + 1] = '\0';
                 if (dotsfound <= 0) {
                     jv->type = JSON_VALUE_INT;
-                    jv->value_int = atoll(buf);
+                    jv->value_int = h64atoll(buf);
                 } else {
                     jv->type = JSON_VALUE_FLOAT;
-                    jv->value_float = atof(buf);
+                    jv->value_float = h64atof(buf);
                 }
                 free(buf);
                 s += k + 1;
@@ -788,7 +789,7 @@ jsonvalue *_GoToNested(jsonvalue *jv, va_list vl) {
             }
             if (!valid)
                 goto failure;
-            int64_t index = atoll(val);
+            int64_t index = h64atoll(val);
             if (index < 0 || index >= jv->value_list.count)
                 goto failure;
             jv = jv->value_list.contents[index];

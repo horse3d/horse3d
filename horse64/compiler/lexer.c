@@ -13,6 +13,7 @@
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
 #include "compiler/result.h"
+#include "nonlocale.h"
 #include "json.h"
 #include "uri.h"
 #include "vfs.h"
@@ -811,7 +812,7 @@ h64tokenizedfile lexer_ParseFromFile(
             numbuf[numbuflen] = '\0';
             if (sawdot) {
                 assert(!sawxorb);
-                double value = atof(numbuf);
+                double value = h64atof(numbuf);
                 result.token[result.token_count].type = H64TK_CONSTANT_FLOAT;
                 result.token[result.token_count].float_value = value;
             } else if (sawxorb) {
@@ -820,14 +821,14 @@ h64tokenizedfile lexer_ParseFromFile(
                        numbuf[1] == 'x' || numbuf[1] == 'b'));
                 const char *p = (numbuf + 2);
                 assert(strlen(p) > 0);
-                int64_t value = strtoll(p, NULL, (
+                int64_t value = h64strtoll(p, NULL, (
                     numbuf[1] == 'x' ? 16 : 2
                 ));
                 result.token[result.token_count].type = H64TK_CONSTANT_INT;
                 result.token[result.token_count].int_value = value;
             } else {
                 assert(!isbinary && !ishex);
-                int64_t value = atoll(numbuf);
+                int64_t value = h64atoll(numbuf);
                 result.token[result.token_count].type = H64TK_CONSTANT_INT;
                 result.token[result.token_count].int_value = value;
             }

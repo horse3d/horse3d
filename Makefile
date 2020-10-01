@@ -19,7 +19,7 @@ endif
 ifeq ($(DEBUGGABLE),true)
 CFLAGS_OPTIMIZATION:=-O0 -g $(SSEFLAG) -fno-omit-frame-pointer
 else
-CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
+CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -fno-associative-math -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
 endif
 CXXFLAGS:=-fexceptions
 CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -Wl,-Bdynamic
