@@ -9,7 +9,7 @@
 #include "horse64/nonlocale.h"
 
 static int h64localeset = 0;
-static locale_t h64locale = (locale_t) 0;
+locale_t h64locale = (locale_t) 0;
 
 __attribute__((constructor)) static inline void _genlocale() {
     if (!h64localeset) {
@@ -22,19 +22,4 @@ __attribute__((constructor)) static inline void _genlocale() {
         }
         h64localeset = 1;
     }
-}
-
-int64_t h64strtoll(const char *s, char **endptr, int base) {
-    _genlocale();
-    return strtoll_l(s, endptr, base, h64locale);
-}
-
-double h64atof(const char *s) {
-    _genlocale();
-    return strtod_l(s, NULL, h64locale);
-}
-
-int64_t h64atoll(const char *s) {
-    _genlocale();
-    return strtold_l(s, NULL, h64locale);
 }
