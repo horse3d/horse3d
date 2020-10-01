@@ -17,7 +17,11 @@ extern double strtod_l(const char * __restrict, char **__restrict, locale_t);
 #endif
 
 static inline long long int h64strtoll(const char *s, char **endptr, int base) {
+    #if defined(_WIN32) || defined(_WIN64)
+    return _strtoll_l(s, endptr, base, h64locale);
+    #else
     return strtoll_l(s, endptr, base, h64locale);
+    #endif
 }
 
 static inline double h64atof(const char *s) {
