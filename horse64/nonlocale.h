@@ -32,7 +32,7 @@ static inline double h64atof(const char *s) {
     #endif
 }
 
-static inline long long int h64atoll(const char *s) {\
+static inline long long int h64atoll(const char *s) {
     #if defined(_WIN32) || defined(_WIN64)
     return _strtoll_l(s, NULL, 10, h64locale);
     #else
