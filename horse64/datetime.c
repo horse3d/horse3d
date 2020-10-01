@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #if defined(_WIN32) || defined(_WIN64)
+#define WINVER 0x0600
 #include <windows.h>
 #else
 #include <time.h>

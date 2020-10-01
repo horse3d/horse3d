@@ -14,7 +14,7 @@ locale_t h64locale = (locale_t) 0;
 __attribute__((constructor)) static inline void _genlocale() {
     if (!h64localeset) {
         h64locale = newlocale(
-            LC_ALL_MASK, "C", (locale_t) 0
+            LC_ALL, "C", (locale_t) 0
         );
         if (h64locale == (locale_t) 0) {
             fprintf(stderr, "failed to generate locale\n");
