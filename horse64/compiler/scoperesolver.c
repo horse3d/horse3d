@@ -1419,15 +1419,15 @@ int scoperesolver_BuildASTGlobalStorage(
                 return 0;
             } else {
                 char modpath[128] = "";
-                int i = 0;
-                while (i < expr->importstmt.import_elements_count) {
-                    if (i > 0 && strlen(modpath) < sizeof(modpath) - 1)
+                int i2 = 0;
+                while (i2 < expr->importstmt.import_elements_count) {
+                    if (i2 > 0 && strlen(modpath) < sizeof(modpath) - 1)
                         strncat(modpath, ".",
                                 sizeof(modpath) - strlen(modpath) - 1);
                     if (strlen(modpath) < sizeof(modpath) - 1)
-                        strncat(modpath, expr->importstmt.import_elements[i],
+                        strncat(modpath, expr->importstmt.import_elements[i2],
                                 sizeof(modpath) - strlen(modpath) - 1);
-                    i++;
+                    i2++;
                 }
                 if (strlen(modpath) >= sizeof(modpath) - 1) {
                     modpath[sizeof(modpath) - 4] = '.';
@@ -1453,6 +1453,8 @@ int scoperesolver_BuildASTGlobalStorage(
                     );
                     return 0;
                 }
+                i++;
+                continue;
             }
         }
         assert(expr->importstmt.referenced_ast == NULL);
