@@ -65,7 +65,14 @@ char *compileproject_GetFileSubProjectPath(
     char **subproject_name, int *outofmemory
 );
 
-char *compileproject_ResolveImport(
+int compileproject_DoesImportMapToCFuncs(
+    h64compileproject *pr,
+    const char **import_elements, int import_elements_count,
+    const char *library_source, int print_debug_info,
+    int *outofmemory
+);
+
+char *compileproject_ResolveImportToFile(
     h64compileproject *pr,
     const char *sourcefileuri,
     const char **import_elements, int import_elements_count,

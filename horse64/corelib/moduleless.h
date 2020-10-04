@@ -6,6 +6,6 @@
 #define HORSE64_CORELIB_MODULELESS_H_
 
 
-int corelib_RegisterFuncs(h64program *p);
+int corelib_RegisterFuncsAndModules(h64program *p);
 
 #endif  // HORSE64_CORELIB_MODULELESS_H_

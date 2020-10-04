@@ -173,6 +173,7 @@ typedef struct h64expression {
             char *source_library;
             char *import_as;
             h64ast *referenced_ast;
+            uint8_t references_c_module;
             h64scope *foundinscope;
         } importstmt;
         struct constructorvector {

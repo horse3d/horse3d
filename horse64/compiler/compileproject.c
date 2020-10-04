@@ -477,7 +477,86 @@ char *compileproject_GetFileSubProjectPath(
     return result;
 }
 
-char *compileproject_ResolveImport(
+int compileproject_DoesImportMapToCFuncs(
+        h64compileproject *pr,
+        const char **import_elements, int import_elements_count,
+        const char *library_source,
+        int print_debug_info, int *outofmemory
+        ) {
+    if (!pr || !pr->basefolder) {
+        if (outofmemory) *outofmemory = 0;
+        return 0;
+    }
+    char *import_modpath = NULL;
+    int import_modpath_len = 0;
+    int i = 0;
+    while (i < import_elements_count) {
+        if (i + 1 < import_elements_count)
+            import_modpath_len++; // dir separator
+        import_modpath_len += strlen(import_elements[i]);
+        i++;
+    }
+    import_modpath = malloc(import_modpath_len + 1);
+    if (!import_modpath) {
+        if (outofmemory) *outofmemory = 1;
+        return 0;
+    }
+    {
+        char *p = import_modpath;
+        i = 0;
+        while (i < import_elements_count) {
+            memcpy(p, import_elements[i], strlen(import_elements[i]));
+            p += strlen(import_elements[i]);
+            if (i + 1 < import_elements_count) {
+                *p = '.';
+                p++;
+            }
+            i++;
+        }
+        *p = '\0';
+    }
+    assert(import_modpath_len == (int)strlen(import_modpath));
+    if (print_debug_info)
+        h64printf(
+            "horsec: debug: cimport: finding module: %s ("
+            "library: %s) in C modules\n",
+            import_modpath, library_source
+        );
+    h64modulesymbols *msymbols = h64debugsymbols_GetModule(
+        pr->program->symbols, import_modpath,
+        library_source, 0
+    );
+    if (!msymbols) {
+        if (print_debug_info)
+            h64printf(
+                "horsec: debug: cimport: no such module found\n"
+            );
+        free(import_modpath);
+        if (outofmemory) *outofmemory = 0;
+        return 0;
+    } else {
+        if (msymbols->noncfunc_count < msymbols->func_count ||
+                msymbols->func_count == 0) {
+            if (print_debug_info)
+                h64printf(
+                    "horsec: debug: cimport: module found but "
+                    "contains non-C functions, or no functions\n"
+                );
+            free(import_modpath);
+            if (outofmemory) *outofmemory = 0;
+            return 0;
+        }
+    }
+    free(import_modpath);
+    if (print_debug_info)
+        h64printf(
+            "horsec: debug: cimport: success, module found "
+            "with just plain C functions\n"
+        );
+    return 1;
+}
+
+char *compileproject_ResolveImportToFile(
         h64compileproject *pr,
         const char *sourcefileuri,
         const char **import_elements, int import_elements_count,
@@ -485,8 +564,10 @@ char *compileproject_ResolveImport(
         int print_debug_info,
         int *outofmemory
         ) {
-    if (!pr || !pr->basefolder || !sourcefileuri)
+    if (!pr || !pr->basefolder || !sourcefileuri) {
+        if (outofmemory) *outofmemory = 0;
         return NULL;
+    }
     char *import_modpath = NULL;
     char *import_relpath = NULL;
     int import_relpath_len = 0;
@@ -536,9 +617,11 @@ char *compileproject_ResolveImport(
     if (print_debug_info)
         h64printf(
             "horsec: debug: import: finding module: %s (relpath: %s, "
-            "library: %s)\n",
+            "library: %s) on disk\n",
             import_modpath, import_relpath, library_source
         );
+    free(import_modpath);  // we just needed that for debug info output
+    import_modpath = NULL;
     if (library_source) {
         // Load module from horse_modules library folder.
         // We'll check the VFS-mounted horse_modules_builtin first
@@ -627,7 +710,8 @@ char *compileproject_ResolveImport(
             if (_vfs_exists_internal) {
                 if (print_debug_info)
                     h64printf(
-                        "horsec: debug: import: successful, found at %s\n",
+                        "horsec: debug: import: success, found at %s "
+                        "(VFS)\n",
                         library_sourced_path
                     );
                 free(fullpath);
@@ -676,7 +760,8 @@ char *compileproject_ResolveImport(
             // of cwd change race conditions):
             if (print_debug_info)
                 h64printf(
-                    "horsec: debug: import: successful, found at %s\n",
+                    "horsec: debug: import: success, found at %s "
+                    "(VFS)\n",
                     library_sourced_path_external
                 );
             free(fullpath);
@@ -686,7 +771,8 @@ char *compileproject_ResolveImport(
             // Return full disk path:
             if (print_debug_info)
                 h64printf(
-                    "horsec: debug: import: successful, found at %s\n",
+                    "horsec: debug: import: success, found at "
+                    "%s (disk path)\n",
                     fullpath
                 );
             free(library_sourced_path_external);
@@ -875,10 +961,22 @@ char *compileproject_ResolveImport(
                 if (_exists_result_nodisk) {
                     // Return relative VFS-style path (to reduce likeliness
                     // of cwd change race conditions):
+                    if (print_debug_info)
+                        h64printf(
+                            "horsec: debug: import: success, found "
+                            "at %s (VFS)\n",
+                            checkpath_rel
+                        );
                     free(checkpath_abs);
                     result = checkpath_rel;
                 } else {
                     // Return actual full disk path:
+                    if (print_debug_info)
+                        h64printf(
+                            "horsec: debug: import: success, found "
+                            "at %s (disk path)\n",
+                            checkpath_abs
+                        );
                     free(checkpath_rel);
                     result = checkpath_abs;
                 }

@@ -167,11 +167,7 @@ h64program *h64program_New() {
     }
     p->symbols->program = p;
 
-    if (!corelib_RegisterErrorClasses(p)) {
-        h64program_Free(p);
-        return NULL;
-    }
-    if (!corelib_RegisterFuncs(p)) {
+    if (!corelib_RegisterFuncsAndModules(p)) {
         h64program_Free(p);
         return NULL;
     }
@@ -730,13 +726,12 @@ globalvarid_t h64program_AddGlobalvar(
         msymbols = h64debugsymbols_GetModule(
             p->symbols, module_path, library_name, 1
         );
-        if (!msymbols)
-            return -1;
     } else {
         assert(library_name == NULL);
         msymbols = h64debugsymbols_GetBuiltinModule(p->symbols);
-        assert(msymbols != NULL);
     }
+    if (!msymbols)
+        return -1;
 
     // Add to the globalvar symbols table:
     h64globalvarsymbol *new_globalvar_symbols = realloc(
@@ -850,13 +845,12 @@ funcid_t h64program_RegisterCFunction(
         msymbols = h64debugsymbols_GetModule(
             p->symbols, module_path, library_name, 1
         );
-        if (!msymbols)
-            return -1;
     } else {
         assert(library_name == NULL);
         msymbols = h64debugsymbols_GetBuiltinModule(p->symbols);
-        assert(msymbols != NULL);
     }
+    if (!msymbols)
+        return -1;
 
     // Add to the func symbols table:
     h64funcsymbol *new_func_symbols = realloc(
@@ -959,10 +953,11 @@ funcid_t h64program_RegisterCFunction(
             // Find out where to insert it to maintain sorting:
             int insert_index = -1;
             int k = 0;
-            while (k <= kwarg_count) {
-                if ((k <= 0 || kwarg_indexes[k] <= nameid) &&
+            while (k < kwarg_count) {
+                if ((k <= 0 || kwarg_indexes[k - 1] <= nameid) &&
                         (k >= kwarg_count ||
-                         kwarg_indexes[k] > nameid)) {
+                         kwarg_indexes[k] > nameid ||
+                         kwarg_indexes[k] < 0)) {
                     insert_index = k;
                     break;
                 }
@@ -1043,6 +1038,7 @@ funcid_t h64program_RegisterCFunction(
     msymbols->func_symbols[msymbols->func_count].
         last_arg_is_multiarg = last_is_multiarg;
 
+    msymbols->noncfunc_count++;
     p->func_count++;
     msymbols->func_count++;
 
@@ -1067,6 +1063,17 @@ funcid_t h64program_RegisterHorse64Function(
     );
     if (idx >= 0) {
         p->func[idx].iscfunc = 0;
+        h64modulesymbols *msymbols = NULL;
+        if (module_path) {
+            msymbols = h64debugsymbols_GetModule(
+                p->symbols, module_path, library_name, 0
+            );
+        } else {
+            assert(library_name == NULL);
+            msymbols = h64debugsymbols_GetBuiltinModule(p->symbols);
+        }
+        assert(msymbols != NULL);
+        msymbols->noncfunc_count--;
     }
     return idx;
 }
@@ -1101,13 +1108,12 @@ classid_t h64program_AddClass(
         msymbols = h64debugsymbols_GetModule(
             p->symbols, module_path, library_name, 1
         );
-        if (!msymbols)
-            return -1;
     } else {
         assert(library_name == NULL);
         msymbols = h64debugsymbols_GetBuiltinModule(p->symbols);
-        assert(msymbols != NULL);
     }
+    if (!msymbols)
+        return -1;
 
     // Add to the class symbols table:
     h64classsymbol *new_classes_symbols = realloc(

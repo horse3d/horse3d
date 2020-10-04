@@ -1396,12 +1396,35 @@ int scoperesolver_BuildASTGlobalStorage(
         );
         if (expr->type != H64EXPRTYPE_IMPORT_STMT ||
                 (expr->importstmt.referenced_ast != NULL &&
-                 strlen(expr->importstmt.referenced_ast->fileuri) > 0)) {
+                 strlen(expr->importstmt.referenced_ast->fileuri) > 0) ||
+                expr->importstmt.references_c_module) {
             i++;
             continue;
         }
         int oom = 0;
-        char *file_path = compileproject_ResolveImport(
+        int iscmodule = compileproject_DoesImportMapToCFuncs(
+            pr, (const char **)expr->importstmt.import_elements,
+            expr->importstmt.import_elements_count,
+            expr->importstmt.source_library,
+            miscoptions->import_debug, &oom
+        );
+        if (iscmodule) {
+            expr->importstmt.references_c_module = 1;
+            i++;
+            continue;
+        }
+        if (!iscmodule && oom) {
+            result_AddMessage(
+                &unresolved_ast->resultmsg, H64MSG_ERROR,
+                "import failed, out of memory or other fatal "
+                "internal error",
+                unresolved_ast->fileuri,
+                expr->line, expr->column
+            );
+            return 0;
+        }
+        oom = 0;
+        char *file_path = compileproject_ResolveImportToFile(
             pr, unresolved_ast->fileuri,
             (const char **)expr->importstmt.import_elements,
             expr->importstmt.import_elements_count,

@@ -43,6 +43,7 @@ typedef struct h64globalvarsymbol {
 typedef struct h64modulesymbols {
     int index;
     char *module_path, *library_name;
+    int noncfunc_count;
 
     hashmap *func_name_to_entry;
     int func_count;

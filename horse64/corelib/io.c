@@ -491,7 +491,7 @@ int iolib_fileclose(
     return 1;
 }
 
-int iolib_RegisterFuncs(h64program *p) {
+int iolib_RegisterFuncsAndModules(h64program *p) {
     // io.open:
     const char *io_open_kw_arg_name[] = {
         NULL, "read", "write", "append", "binary"

@@ -15,6 +15,7 @@
 
 #include "bytecode.h"
 #include "corelib/errors.h"
+#include "corelib/io.h"
 #include "corelib/moduleless.h"
 #include "gcvalue.h"
 #include "hash.h"
@@ -226,8 +227,18 @@ int corelib_print(  // $$builtin.print
     return 1;
 }
 
-int corelib_RegisterFuncs(h64program *p) {
+int corelib_RegisterFuncsAndModules(h64program *p) {
     int64_t idx;
+
+    // Error types:
+    if (!corelib_RegisterErrorClasses(p))
+        return 0;
+
+    // 'io' module:
+    if (!iolib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'print' function:
     idx = h64program_RegisterCFunction(
         p, "print", &corelib_print,
         NULL, 1, NULL, 1, NULL, NULL, 1, -1
@@ -235,6 +246,8 @@ int corelib_RegisterFuncs(h64program *p) {
     if (idx < 0)
         return 0;
     p->print_func_index = idx;
+
+    // '$$container.add' function:
     idx = h64program_RegisterCFunction(
         p, "$$containeradd", &corelib_containeradd,
         NULL, 1, NULL, 0, NULL, NULL, 1, -1
@@ -243,5 +256,6 @@ int corelib_RegisterFuncs(h64program *p) {
         return 0;
     p->func[idx].input_stack_size++;  // for 'self'
     p->containeradd_func_index = idx;
+
     return 1;
 }
