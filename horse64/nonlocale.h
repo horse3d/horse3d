@@ -3,6 +3,7 @@
 #define HORSE64_NONLOCALE_H_
 
 #include <locale.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -99,6 +100,40 @@ static inline double h64atof(const char *s) {
 
 static inline long long int h64atoll(const char *s) {
     return h64strtoll(s, NULL, 10); 
+}
+
+static int h64snprintf(char *buf, size_t size, const char *format, ...) {
+    va_list vl;
+    va_start(vl, format);
+    #if defined(_WIN32) || defined(_WIN64)
+    return _vsnprintf_l(buf, size, format, vl, h64locale);
+    #else
+    #if defined(__LINUX__) || defined(__linux__)
+    locale_t old = uselocale(h64locale);
+    int result = vsnprintf(buf, size, format, vl);
+    uselocale(old);
+    return result;
+    #else
+    return vsnprintf_l(buf, size, format, vl, h64locale);
+    #endif
+    #endif
+}
+
+static int h64printf(const char *format, ...) {
+    va_list vl;
+    va_start(vl, format);
+    #if defined(_WIN32) || defined(_WIN64)
+    return _vprintf_l(format, vl, h64locale);
+    #else
+    #if defined(__LINUX__) || defined(__linux__)
+    locale_t old = uselocale(h64locale);
+    int result = vprintf(format, vl);
+    uselocale(old);
+    return result;
+    #else
+    return vprintf_l(format, vl, h64locale);
+    #endif
+    #endif
 }
 
 #endif  // HORSE64_NONLOCALE_H_

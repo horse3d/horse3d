@@ -25,6 +25,8 @@
 #include "corelib/errors.h"
 #include "filesys.h"
 #include "hash.h"
+#include "nonlocale.h"
+
 
 typedef struct resolveinfo {
     int extract_main;
@@ -940,7 +942,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 accessed_elements_count++;
                 if (accessed_elements_count >= accessed_elements_alloc) {
                     char buf[256];
-                    snprintf(buf, sizeof(buf) - 1,
+                    h64snprintf(buf, sizeof(buf) - 1,
                         "unexpected import chain "
                         "exceeding maximum nesting of %d",
                         (int)H64LIMIT_IMPORTCHAINLEN
@@ -1022,7 +1024,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             // Abort if we found no exact match for import:
             if (_mapto == NULL) {
                 char buf[256];
-                snprintf(buf, sizeof(buf) - 1,
+                h64snprintf(buf, sizeof(buf) - 1,
                     "unknown reference to module path \"%s\", "
                     "not found among this file's imports",
                     full_imp_path
@@ -1056,7 +1058,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     pexpr->parent->op.value2->type !=
                         H64EXPRTYPE_IDENTIFIERREF) {
                 char buf[256];
-                snprintf(buf, sizeof(buf) - 1,
+                h64snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s of module %s, "
                     "instead of accessing any element from "
                     "the module via \".\"",
@@ -1186,7 +1188,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             }
         } else {
             char buf[256];
-            snprintf(buf, sizeof(buf) - 1,
+            h64snprintf(buf, sizeof(buf) - 1,
                 "internal error: identifier ref '%s' points "
                 "to unhandled expr type %d at line %" PRId64 ", "
                 "column %" PRId64,
@@ -1317,7 +1319,7 @@ int scoperesolver_BuildASTGlobalStorage(
         } else {
             free(library_source);
             char buf[256];
-            snprintf(buf, sizeof(buf) - 1,
+            h64snprintf(buf, sizeof(buf) - 1,
                 "cannot import code from file not ending in "
                 ".h64: %s", unresolved_ast->fileuri
             );
@@ -1346,7 +1348,7 @@ int scoperesolver_BuildASTGlobalStorage(
             if (module_path[i] == '.') {
                 free(library_source);
                 char buf[256];
-                snprintf(buf, sizeof(buf) - 1,
+                h64snprintf(buf, sizeof(buf) - 1,
                     "cannot import code from file with dots in name: "
                     "\"%s\"", module_path);
                 free(module_path);
@@ -1404,7 +1406,7 @@ int scoperesolver_BuildASTGlobalStorage(
             (const char **)expr->importstmt.import_elements,
             expr->importstmt.import_elements_count,
             expr->importstmt.source_library,
-            &oom
+            miscoptions->import_debug, &oom
         );
         if (!file_path) {
             char buf[256];
@@ -1435,7 +1437,7 @@ int scoperesolver_BuildASTGlobalStorage(
                     modpath[sizeof(modpath) - 2] = '.';
                     modpath[sizeof(modpath) - 1] = '\0';
                 }
-                snprintf(buf, sizeof(buf) - 1,
+                h64snprintf(buf, sizeof(buf) - 1,
                     "couldn't resolve import, module \"%s\" not found",
                     modpath
                 );

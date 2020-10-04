@@ -70,6 +70,7 @@ char *compileproject_ResolveImport(
     const char *sourcefileuri,
     const char **import_elements, int import_elements_count,
     const char *library_source,
+    int print_debug_info,
     int *outofmemory
 );
 

@@ -19,6 +19,7 @@
 #include "compiler/scoperesolver.h"
 #include "filesys.h"
 #include "hash.h"
+#include "nonlocale.h"
 #include "secrandom.h"
 #include "uri.h"
 #include "vfs.h"
@@ -481,10 +482,12 @@ char *compileproject_ResolveImport(
         const char *sourcefileuri,
         const char **import_elements, int import_elements_count,
         const char *library_source,
+        int print_debug_info,
         int *outofmemory
         ) {
     if (!pr || !pr->basefolder || !sourcefileuri)
         return NULL;
+    char *import_modpath = NULL;
     char *import_relpath = NULL;
     int import_relpath_len = 0;
     int i = 0;
@@ -500,12 +503,20 @@ char *compileproject_ResolveImport(
         if (outofmemory) *outofmemory = 1;
         return NULL;
     }
+    import_modpath = malloc(import_relpath_len - strlen(".h64") + 1);
+    if (!import_modpath) {
+        if (outofmemory) *outofmemory = 1;
+        return NULL;
+    }
     {
         char *p = import_relpath;
+        char *p2 = import_modpath;
         i = 0;
         while (i < import_elements_count) {
             memcpy(p, import_elements[i], strlen(import_elements[i]));
             p += strlen(import_elements[i]);
+            memcpy(p2, import_elements[i], strlen(import_elements[i]));
+            p2 += strlen(import_elements[i]);
             if (i + 1 < import_elements_count) {
                 #if defined(_WIN32) || defined(_WIN64)
                 *p = '\\';
@@ -513,12 +524,21 @@ char *compileproject_ResolveImport(
                 *p = '/';
                 #endif
                 p++;
+                *p2 = '.';
+                p2++;
             }
             i++;
         }
+        *p2 = '\0';
         memcpy(p, ".h64", strlen(".h64") + 1);
     }
     assert(import_relpath_len == (int)strlen(import_relpath));
+    if (print_debug_info)
+        h64printf(
+            "horsec: debug: import: finding module: %s (relpath: %s, "
+            "library: %s)\n",
+            import_modpath, import_relpath, library_source
+        );
     if (library_source) {
         // Load module from horse_modules library folder.
         // We'll check the VFS-mounted horse_modules_builtin first
@@ -586,6 +606,12 @@ char *compileproject_ResolveImport(
             return NULL;
         }
 
+        if (print_debug_info)
+            h64printf(
+                "horsec: debug: import: checking library paths: %s, %s\n",
+                library_sourced_path, library_sourced_path_external
+            );
+
         // Check "horse_modules_builtin" first:
         {
             int _vfs_exists_internal = 0;
@@ -599,6 +625,11 @@ char *compileproject_ResolveImport(
                 return NULL;
             }
             if (_vfs_exists_internal) {
+                if (print_debug_info)
+                    h64printf(
+                        "horsec: debug: import: successful, found at %s\n",
+                        library_sourced_path
+                    );
                 free(fullpath);
                 free(library_sourced_path_external);
                 if (outofmemory) *outofmemory = 0;
@@ -620,6 +651,12 @@ char *compileproject_ResolveImport(
             return NULL;
         }
         if (!_vfs_exists) {
+            if (print_debug_info)
+                h64printf(
+                    "horsec: debug: import: module not found in "
+                    "library: %s\n",
+                    library_source
+                );
             free(fullpath);
             free(library_sourced_path_external);
             if (outofmemory) *outofmemory = 0;
@@ -637,11 +674,21 @@ char *compileproject_ResolveImport(
         if (_vfs_exists_nodisk) {
             // Return relative VFS-style path (to reduce likeliness
             // of cwd change race conditions):
+            if (print_debug_info)
+                h64printf(
+                    "horsec: debug: import: successful, found at %s\n",
+                    library_sourced_path_external
+                );
             free(fullpath);
             if (outofmemory) *outofmemory = 0;
             return library_sourced_path_external;
         } else {
             // Return full disk path:
+            if (print_debug_info)
+                h64printf(
+                    "horsec: debug: import: successful, found at %s\n",
+                    fullpath
+                );
             free(library_sourced_path_external);
             if (outofmemory) *outofmemory = 0;
             return fullpath;

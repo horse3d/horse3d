@@ -41,12 +41,21 @@ static int _compileargparse(
             printf("   with file-path referring to a .h64 file.\n");
             printf("\n");
             printf("Available options:\n");
+            if (strcmp(cmd, "get_tokens") != 0 &&
+                    strcmp(cmd, "get_ast") != 0) {
+                printf("  --import-debug:          Print details on import "
+                       "resolution\n");
+            }
+            printf(    "  --compiler-stage-debug:  Print compiler stages info\n");
             if (strcmp(cmd, "run") == 0) {
                 printf("  --vmexec-debug:          Print instructions "
                        "as they run\n");
             }
-            printf(    "  --compiler-stage-debug:  Print compiler stages info\n");
             return 0;
+        } else if (strcmp(cmd, "get_tokens") != 0 &&
+                   strcmp(cmd, "get_ast") != 0 &&
+                   strcmp(argv[i], "--import-debug") == 0) {
+            miscoptions->import_debug = 1;
         } else if (strcmp(cmd, "run") == 0 &&
                 strcmp(argv[i], "--vmexec-debug") == 0) {
             miscoptions->vmexec_debug = 1;
