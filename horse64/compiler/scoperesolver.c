@@ -380,6 +380,8 @@ static int scoperesolver_ComputeItemStorage(
         free(kwarg_names);
         assert(bytecode_func_id >= 0);
         if (scope->is_global || owningclassindex >= 0) {
+            // Not a closure. Set global func storage, and
+            // special handling for "main" func.
             assert(expr->funcdef.stmt_count == 0 ||
                    expr->funcdef.stmt != NULL);
             expr->storage.set = 1;
@@ -1073,8 +1075,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 if (!result_AddMessage(
                         &atinfo->ast->resultmsg,
                         H64MSG_ERROR,
-                        buf,
-                        atinfo->ast->fileuri,
+                        buf, atinfo->ast->fileuri,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -1097,57 +1098,125 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             }
             // Get the actual module item by name:
             assert(_mapto->type == H64EXPRTYPE_IMPORT_STMT &&
-                _mapto->importstmt.referenced_ast != NULL &&
-                _mapto->importstmt.referenced_ast->scope.
-                        name_to_declaration_map != NULL);
-            uint64_t number = 0;
-            if (!hash_StringMapGet(
-                    _mapto->importstmt.referenced_ast->scope.
-                    name_to_declaration_map,
-                    refitemname, &number) || number == 0) {
-                char buf[256];
-                snprintf(buf, sizeof(buf) - 1,
-                    "unknown identifier \"%s\" "
-                    "not found in module \"%s\"",
-                    refitemname,
-                    full_imp_path
+                ((_mapto->importstmt.referenced_ast != NULL &&
+                  _mapto->importstmt.referenced_ast->scope.
+                        name_to_declaration_map != NULL) ||
+                 _mapto->importstmt.references_c_module));
+            if (_mapto->importstmt.references_c_module) {
+                // There is no AST to check, since this is a
+                // C module.
+                // Instead, we need to find this from the registered
+                // C functions/classes/vars via the debug symbols:
+                h64modulesymbols *msymbols = (
+                    h64debugsymbols_GetModule(
+                        atinfo->pr->program->symbols, full_imp_path,
+                        _mapto->importstmt.source_library, 0
+                    )
                 );
+                assert(msymbols != NULL);
+                uint64_t number = 0;
+                if (hash_StringMapGet(
+                        msymbols->func_name_to_entry,
+                        refitemname, &number)) {
+                    expr->storage.set = 1;
+                    expr->storage.ref.type =
+                        H64STORETYPE_GLOBALFUNCSLOT;
+                    expr->storage.ref.id = (
+                        msymbols->func_symbols[number].global_id
+                    );
+                } else if (hash_StringMapGet(
+                        msymbols->class_name_to_entry,
+                        refitemname, &number)) {
+                    expr->storage.set = 1;
+                    expr->storage.ref.type =
+                        H64STORETYPE_GLOBALCLASSSLOT;
+                    expr->storage.ref.id = (
+                        msymbols->classes_symbols[number].global_id
+                    );
+                } else if (hash_StringMapGet(
+                        msymbols->globalvar_name_to_entry,
+                        refitemname, &number)) {
+                    expr->storage.set = 1;
+                    expr->storage.ref.type =
+                        H64STORETYPE_GLOBALVARSLOT;
+                    expr->storage.ref.id = (
+                        msymbols->globalvar_symbols[number].global_id
+                    );
+                } else {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unknown identifier \"%s\" "
+                        "not found in module \"%s\"",
+                        refitemname,
+                        full_imp_path
+                    );
+                    free(full_imp_path);
+                    full_imp_path = NULL;
+                    if (!result_AddMessage(
+                            &atinfo->ast->resultmsg,
+                            H64MSG_ERROR,
+                            buf,
+                            atinfo->ast->fileuri,
+                            expr->line, expr->column
+                            )) {
+                        atinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                    return 1;
+                }
                 free(full_imp_path);
                 full_imp_path = NULL;
-                if (!result_AddMessage(
-                        &atinfo->ast->resultmsg,
-                        H64MSG_ERROR,
-                        buf,
-                        atinfo->ast->fileuri,
-                        expr->line, expr->column
-                        )) {
-                    atinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-                return 1;
-            }
-
-            // We found the item. Mark as used & copy storage:
-            h64scopedef *targetitem = (
-                (h64scopedef*)(uintptr_t)number
-            );
-            assert(targetitem != NULL &&
-                targetitem->declarationexpr != NULL);
-            if (targetitem->declarationexpr->storage.set) {
-                memcpy(
-                    &expr->storage.ref,
-                    &targetitem->declarationexpr->storage.ref,
-                    sizeof(expr->storage.ref)
-                );
-                expr->storage.set = 1;
             } else {
-                assert(!expr->storage.set);
-                assert(!atinfo->ast->resultmsg.success ||
-                       !atinfo->pr->resultmsg->success);
+                // Access global scope of imported module:
+                uint64_t number = 0;
+                if (!hash_StringMapGet(
+                        _mapto->importstmt.referenced_ast->scope.
+                        name_to_declaration_map,
+                        refitemname, &number) || number == 0) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unknown identifier \"%s\" "
+                        "not found in module \"%s\"",
+                        refitemname,
+                        full_imp_path
+                    );
+                    free(full_imp_path);
+                    full_imp_path = NULL;
+                    if (!result_AddMessage(
+                            &atinfo->ast->resultmsg,
+                            H64MSG_ERROR,
+                            buf,
+                            atinfo->ast->fileuri,
+                            expr->line, expr->column
+                            )) {
+                        atinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                    return 1;
+                }
+
+                // We found the item. Mark as used & copy storage:
+                h64scopedef *targetitem = (
+                    (h64scopedef*)(uintptr_t)number
+                );
+                assert(targetitem != NULL &&
+                    targetitem->declarationexpr != NULL);
+                if (targetitem->declarationexpr->storage.set) {
+                    memcpy(
+                        &expr->storage.ref,
+                        &targetitem->declarationexpr->storage.ref,
+                        sizeof(expr->storage.ref)
+                    );
+                    expr->storage.set = 1;
+                } else {
+                    assert(!expr->storage.set);
+                    assert(!atinfo->ast->resultmsg.success ||
+                           !atinfo->pr->resultmsg->success);
+                }
+                free(full_imp_path);
+                full_imp_path = NULL;
+                targetitem->everused = 1;
             }
-            free(full_imp_path);
-            full_imp_path = NULL;
-            def->everused = 1;
 
             // Set storage on all import path items:
             int k = 0;
