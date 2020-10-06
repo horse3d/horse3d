@@ -1267,7 +1267,8 @@ int _codegencallback_DoCodegen_visit_out(
             expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
             (expr->parent == NULL ||
              expr->parent->type != H64EXPRTYPE_ASSIGN_STMT ||
-             expr->parent->assignstmt.lvalue != expr)
+             expr->parent->assignstmt.lvalue != expr) &&
+            !expr->op.value2->storage.set
             ) {
         if (is_in_extends_arg(expr)) {
             // Nothing to do if in 'extends' clause, since that
@@ -1275,7 +1276,6 @@ int _codegencallback_DoCodegen_visit_out(
             return 1;
         }
         // Regular get by member that needs to be evaluated at runtime:
-        assert(!expr->op.value2->storage.set);
         assert(expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF);
         int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
             rinfo->pr->program->symbols,
@@ -1307,6 +1307,15 @@ int _codegencallback_DoCodegen_visit_out(
         // Other binary op instances that aren't get by member,
         // unless it doesn't need to be handled anyway:
         if (expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER) {
+            if (expr->storage.set &&
+                    expr->storage.eval_temp_id < 0) {
+                // Might be a pre-resolved global module access,
+                // in which case operand 2 should have been processed.
+                assert(expr->op.value2->storage.eval_temp_id >= 0);
+                expr->storage.eval_temp_id = (
+                    expr->op.value2->storage.eval_temp_id
+                );
+            }
             assert(
                 (expr->storage.set &&
                  expr->storage.eval_temp_id >= 0) || (

@@ -907,6 +907,30 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             // Not a file-local, but instead an imported thing.
             // Figure out what we're referencing and from what module:
 
+            if (expr->parent == NULL ||
+                    expr->parent->type != H64EXPRTYPE_BINARYOP ||
+                    expr->parent->op.optype !=
+                        H64OP_ATTRIBUTEBYIDENTIFIER) {
+                // A module can only be used as <module>.<item>,
+                // and never in any other way.
+                char buf[256];
+                h64snprintf(buf, sizeof(buf) - 1,
+                    "unexpected import reference not used "
+                    "as attribute by identifier base, this is invalid"
+                );
+                if (!result_AddMessage(
+                        &atinfo->ast->resultmsg,
+                        H64MSG_ERROR,
+                        buf,
+                        atinfo->ast->fileuri,
+                        expr->line, expr->column
+                        )) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                return 1;
+            }
+
             // First, follow the tree to the full import path with dots:
             int accessed_elements_count = 1;
             int accessed_elements_alloc = H64LIMIT_IMPORTCHAINLEN + 1;
@@ -921,6 +945,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             accessed_elements_expr[0] = expr;
             accessed_elements_str[0] = expr->identifierref.value;
             h64expression *pexpr = expr;
+            // Find outer-most attribute by identifier:
             while (pexpr->parent &&
                     pexpr->parent->type == H64EXPRTYPE_BINARYOP &&
                     pexpr->parent->op.optype ==
@@ -1215,10 +1240,19 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 }
                 free(full_imp_path);
                 full_imp_path = NULL;
-                targetitem->everused = 1;
+                targetitem->everused = 1;  // item from target AST was used
+                def->everused = 1;  // import statement was used
             }
 
             // Set storage on all import path items:
+            if (pexpr != expr && expr->storage.set) {
+                memcpy(
+                    &pexpr->storage.ref,
+                    &expr->storage.ref,
+                    sizeof(expr->storage.ref)
+                );
+                pexpr->storage.set = 1;
+            }
             int k = 0;
             while (k < accessed_elements_count) {
                 if (accessed_elements_expr[k] == expr) {
@@ -1245,6 +1279,12 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     sizeof(expr->storage.ref)
                 );
                 pexpr->parent->op.value2->storage.set = 1;
+                memcpy(
+                    &pexpr->parent->storage.ref,
+                    &expr->storage.ref,
+                    sizeof(expr->storage.ref)
+                );
+                pexpr->parent->storage.set = 1;
             }
 
             // Evaluate the identifiers pointing to base classes,
