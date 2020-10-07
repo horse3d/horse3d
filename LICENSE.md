@@ -1,13 +1,31 @@
 
-Horse64 Code License
----------------------
+Horse64 Licensing
+-----------------
 
-All of Horse64 contents as found in this repository, excluding 1.
-the Horse64 Logo with files found in `misc/`
+Horse64 is largely made up of four parts, which are:
+**PART 1: project code,** and **PART 2: 3rd party code**
+that is statically linked, **PART 3: its documentation,** and
+**PART 4: its logo artwork.** All of it is to our knowledge (but
+please check for yourself!) free software, other than the logo.
+
+The logo and the documentation are **not** included when you
+build a program with `horsec`. However, they may be included in
+`horsec` itself in its prebuilt form as offered in the official SDK.
+
+The licenses, or where to read them, are listed below.
+
+
+Horse64 Code License (Part 1)
+-----------------------------
+
+*Note: the Horse64 code is all contents of this repository
+excluding 1. the Horse64 Logo with files found in `misc/`
 (`misc/logo.svg` and others starting with "logo") and the logo files
-possibly baked into the official binaries, and excluding 2. third-party
-code found in `vendor/`, and excluding 3. the documentation in `docs/` and
-in the `README.md`, is licensed under the following terms:
+possibly baked into the official binaries, and excluding 2.
+third-party code found in `vendor/`, and excluding 3. the
+documentation in `docs/` and in the `README.md`.*
+
+Horse64's code is licensed under the MIT license:
 
 ```
 Copyright (c) 2020,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
@@ -34,11 +52,18 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-**Please also observe `3RDPARTYCREDITS.md`, and license of code in `vendor/`.**
+Vendor / 3rd party licenses (Part 2)
+------------------------------------
+
+Please check [3RDPARTYCREDITS.md](3RDPARTYCREDITS.md), which attempts
+to collect the licenses for projects used from `vendor/` for your
+convenience. **The `3RDPARTYCREDITS.md` file may be incomplete or
+outdated, please always refer to the original files in `vendor/` for
+the full list.**
 
 
-Horse64 Documentation License
------------------------------
+Horse64 Documentation License (Part 3)
+--------------------------------------
 
 The documentation, as found in the `docs/` folder and in the `README.md` file
 in the repository root, is CC-BY-SA-4.0 licensed.
@@ -46,8 +71,8 @@ in the repository root, is CC-BY-SA-4.0 licensed.
 It should be credited as `Copyright (C) 2020 Horse64 Team (See AUTHORS.md)`.
 
 
-Horse64 Logo License
----------------------
+Horse64 Logo License (Part 4)
+-----------------------------
 
 Horse64 Logo is Copyright (C)  2020, ellie/@ell1e. All Rights Reserved.
 
