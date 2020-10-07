@@ -468,6 +468,7 @@ static int vmthread_errors_Raise(
             if (!e.msg) {
                 e.msglen = 0;
             } else {
+                e.msglen = len;
                 memcpy(e.msg, msg, e.msglen * sizeof(h64wchar));
             }
         }
@@ -477,8 +478,9 @@ static int vmthread_errors_Raise(
         fprintf(stderr,
             "horsevm: debug: vmexec vmthread_errors_Raise -> "
             "error class %" PRId64 " with msglen=%d "
-            "storemsg=%d\n",
-            (int64_t)class_id, (int)e.msglen, (int)storemsg
+            "storemsg=%d (u32str=%d)\n",
+            (int64_t)class_id, (int)e.msglen, (int)storemsg,
+            (int)utf32
         );
     }
     #endif
@@ -1845,13 +1847,22 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             int result = cfunc(vmthread);  // DO ACTUAL CALL
 
             // Extract return value:
-            int64_t return_value_gslot = new_func_floor + 1LL;
+            int64_t return_value_gslot = new_func_floor + 0LL;
             valuecontent retval = {0};
             if (return_value_gslot >= 0 &&
-                    return_value_gslot < STACK_TOTALSIZE(stack)) {
+                    return_value_gslot < STACK_TOTALSIZE(stack)
+                    ) {
                 memcpy(&retval, &stack->entry[return_value_gslot],
                        sizeof(retval));
                 ADDREF_NONHEAP(&retval);
+                assert(
+                    !result || (
+                    retval.type < H64VALTYPE_TOTAL &&
+                    retval.type != H64VALTYPE_UNSPECIFIED_KWARG &&
+                    retval.type != H64VALTYPE_CONSTPREALLOCSTR &&
+                    retval.type != H64VALTYPE_CONSTPREALLOCBYTES
+                    )
+                );
             }
             // Reset stack floor and size:
             vmthread->call_settop_reverse = oldtop;
