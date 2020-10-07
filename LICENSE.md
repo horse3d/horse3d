@@ -5,7 +5,7 @@ Horse64 Licensing
 Horse64's core (as found in this repo) is largely made up of
 **four parts**, which are:
 
-- Part 1: project code (MIT license),
+- Part 1: project code (BSD-2-clause license),
 - Part 2: 3rd party code (various, see below),
 - Part 3: its documentation (CC-BY-SA 4.0 license),
 - Part 4: its logo artwork (**proprietary**, see below).
@@ -27,7 +27,7 @@ possibly baked into the official binaries, and excluding 2.
 third-party code found in `vendor/`, and excluding 3. the
 documentation in `docs/` and in the `README.md`.*
 
-Horse64's code is licensed under the MIT license:
+Horse64's code is licensed under the BSD-2-clause license:
 
 ```
 Copyright (c) 2020,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).

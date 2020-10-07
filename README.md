@@ -26,14 +26,14 @@ func main {
 
 - **Solid to build on.** Helps keep your code orderly with static
   imports and compile-time identifier checks.
-  Ideal for maintainable large code bases, with the accessibility
-  full dynamic typing.
+  Ideal for maintainable large code bases, while keeping the
+  accessibility of full dynamic typing.
 
-- **Multimedia included.** Support for 3D via OpenGL, and
-  complex User Interfaces with the official `multimedia` library.
+- **Multimedia included.** Support for audio, accelerated graphics,
+  and GUI, provided via the official `multimedia` library.
 
 - **Open.** *Horse64* is, excluding its logo, all free software
-  under BSD-like licensing. [Check the license here.](LICENSE.md)
+  under BSD-2-clause licensing. [Check the license here.](LICENSE.md)
   We also have an open [specification](./docs/Specification/Horse64.md).
 
 
