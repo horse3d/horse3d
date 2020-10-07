@@ -121,7 +121,7 @@ func main {
 
 The default values for keyword arguments and their side effects
 are evaluated **at call time,** again for every call.
-Please note if you are familiar with the "Python" programming
+Please note if you are familiar with the Python programming
 language that this is different, since Python evaluates keyword
 argument default values at program start.
 
@@ -907,7 +907,7 @@ All `import`s in Horse64 are resolved at compile time and must be
 at the top level (not nested inside functions or other scopes),
 and they are all baked into the resulting output binary.
 
-Please note if you are familiar with the "Python"
+Please note if you are familiar with the Python
 programming language that is different, since there imports are
 resolved at runtime and can be done inside inner scopes and functions,
 and need to be present in python's so-called "site-packages" at runtime.
@@ -920,6 +920,11 @@ to install them to your project-local `horse_modules` folder.
 You can also place external source code manually [where external packages
 are searched](#modules-external-package-imports),
 but this is not recommended.
+
+**Troubleshooting**
+
+When compiling via [horsec](../horsec/horsec.md), use `--import-debug`
+to see details about how your imports are being processed.
 
 
 ### Modules: Local Project Imports
@@ -952,18 +957,19 @@ Then it will terminate with an error since neither of these exist.
 
 ### Modules: External Package Imports
 
-**External package imports** are always tested in the
-`horse_modules/` subfolder in your project root. They must match
-the full non-relative module path, e.g.
+**External package imports** are always searched for in the
+`horse_modules/` subfolder in your project root. The easiest way
+to organize your packages like that is by using
+[horp install](../Misc%20Tooling/horp.md], which installs to
+`horse_modules/` by default.
+
+Any external package import must match the full module path, e.g.
 
 ```
 import io from core.horse64.org
 ```
 
-must match to `horse_modules/core.horse64.org/io.h64`.
-
-Unlike local project imports, external imports don't support
-any alternate relative path interpretations.
+will be looked up at `horse_modules/core.horse64.org/io.h64`.
 
 
 ### Garbage Collection Details
