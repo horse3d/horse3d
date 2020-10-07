@@ -200,9 +200,9 @@ All rights reserved.
 
 OpenSSL is under the Apache License 2.0:
 
-                              Apache License
-                        Version 2.0, January 2004
-                     https://www.apache.org/licenses/
+Apache License
+Version 2.0, January 2004
+https://www.apache.org/licenses/
 
 TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
