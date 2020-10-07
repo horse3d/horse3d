@@ -2,11 +2,16 @@
 Horse64 Licensing
 -----------------
 
-Horse64 is largely made up of four parts, which are:
-**PART 1: project code,** and **PART 2: 3rd party code**
-that is statically linked, **PART 3: its documentation,** and
-**PART 4: its logo artwork.** All of it is to our knowledge (but
-please check for yourself!) free software, other than the logo.
+Horse64's core (as found in this repo) is largely made up of
+**four parts**, which are:
+
+- Part 1: project code,
+- Part 2: 3rd party code,
+- Part 3: its documentation,
+- Part 4: its logo artwork.
+
+**All these parts, other than the logo, are to our knowledge (but
+please check for yourself!) free software.**
 
 The logo and the documentation are **not** included when you
 build a program with `horsec`. However, they may be included in
