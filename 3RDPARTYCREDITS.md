@@ -4,7 +4,8 @@ Third-Party Licenses with no guarantee of completeness
 
 This file lists credits for software possibly used by Horse64 in its
 runtime form, and therefore possibly integrated into any binary
-produced by Horse64's `horsec` compiler.
+produced by Horse64's `horsec` compiler. It might be outdated or
+incomplete. (If it is, please let us know!)
 
 It might be a good idea to publish this file with your Horse64-based
 projects, either shipped as user-readable text file next to your
