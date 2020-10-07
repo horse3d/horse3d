@@ -20,3 +20,4 @@ RECOVERED_FILES
 /vendor/*
 /demo-assets/packaged-fonts/
 !/vendor/siphash.c
+!/vendor/openssl

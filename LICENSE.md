@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 **Please also observe `3RDPARTYCREDITS.md`, and license of code in `vendor/`.**
 
+
 Horse64 Documentation License
 -----------------------------
 
@@ -59,3 +60,11 @@ The Horse64 Logo and its files may only be used in the official, unmodified
 the Horse64 Logo and please don't use the official name "Horse64" either.**
 Temporary forks only made for the personal use of preparing
 pull requests for the official "Horse64" are fine, of course.
+
+
+Trademark Notice
+----------------
+
+This project refers to various trademarked names, like operating system
+names, out of necessity. No official endorsement meant to be implied.
+All trademarks belong to respective owners.
