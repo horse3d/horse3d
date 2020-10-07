@@ -1385,7 +1385,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     pr->func[target_func_id].kwarg_count;
                 memset(
                     &vmthread->kwarg_index_track_map[oldcount],
-                    0, sizeof(valuecontent) *
+                    0, sizeof(int64_t) *
                     (vmthread->kwarg_index_track_count - oldcount)
                 );
             }
