@@ -1373,7 +1373,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (vmthread->kwarg_index_track_count <
                     pr->func[target_func_id].kwarg_count) {
                 int oldcount = vmthread->kwarg_index_track_count;
-                int64_t *new_track_slots = realloc(
+                int32_t *new_track_slots = realloc(
                     vmthread->kwarg_index_track_map,
                     sizeof(*new_track_slots) *
                         pr->func[target_func_id].kwarg_count
@@ -1385,7 +1385,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     pr->func[target_func_id].kwarg_count;
                 memset(
                     &vmthread->kwarg_index_track_map[oldcount],
-                    0, sizeof(int64_t) *
+                    0, sizeof(int32_t) *
                     (vmthread->kwarg_index_track_count - oldcount)
                 );
             }
