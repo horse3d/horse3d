@@ -5,19 +5,16 @@ Horse64 Licensing
 Horse64's core (as found in this repo) is largely made up of
 **four parts**, which are:
 
-- Part 1: project code,
-- Part 2: 3rd party code,
-- Part 3: its documentation,
-- Part 4: its logo artwork.
+- Part 1: project code (MIT license),
+- Part 2: 3rd party code (various, see below),
+- Part 3: its documentation (CC-BY-SA 4.0 license),
+- Part 4: its logo artwork (**proprietary**, see below).
 
-**All these parts, other than the logo, are to our knowledge (but
-please check for yourself!) free software.**
+The full licenses, or where to read them, are listed below.
 
-The logo and the documentation are **not** included when you
-build a program with `horsec`. However, they may be included in
-`horsec` itself in its prebuilt form as offered in the official SDK.
-
-The licenses, or where to read them, are listed below.
+*Note: we believe all of Horse64 other than the logo qualifies as
+free software. However, to be certain, make sure to check this
+claim for yourself if necessary. Don't sue us if we got this wrong.*
 
 
 Horse64 Code License (Part 1)
