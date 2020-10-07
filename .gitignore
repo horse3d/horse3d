@@ -21,3 +21,4 @@ RECOVERED_FILES
 /demo-assets/packaged-fonts/
 !/vendor/siphash.c
 !/vendor/openssl
+!/vendor/unicode
