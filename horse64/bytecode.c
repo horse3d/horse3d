@@ -989,7 +989,7 @@ funcid_t h64program_RegisterCFunction(
     }
 
     // Add function to lookup-by-name hash table:
-    uint64_t setno = msymbols->func_count;
+    uint64_t setno = p->func_count;
     if (name && !hash_StringMapSet(
             msymbols->func_name_to_entry,
             name, setno)) {
