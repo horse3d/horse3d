@@ -7,6 +7,8 @@
 #else
 #include <alloca.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #endif
 #include <assert.h>
 #include <inttypes.h>
@@ -104,29 +106,38 @@ int iolib_open(
     int mode_append = 2;
     {
         valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 1);
-        if (vcarg->type != H64VALTYPE_BOOL) {
+        if (vcarg->type != H64VALTYPE_BOOL &&
+                vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
                 "read option must be a boolean"
             );
         }
-        mode_read = (vcarg->int_value != 0);
+        if (vcarg->type == H64VALTYPE_UNSPECIFIED_KWARG)
+            mode_read = 1;
+        else
+            mode_read = (vcarg->int_value != 0);
     }
     {
         valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 2);
-        if (vcarg->type != H64VALTYPE_BOOL) {
+        if (vcarg->type != H64VALTYPE_BOOL &&
+                vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
-                "read option must be a boolean"
+                "write option must be a boolean"
             );
         }
-        mode_write = (vcarg->int_value != 0);
+        if (vcarg->type == H64VALTYPE_UNSPECIFIED_KWARG)
+            mode_write = 0;
+        else
+            mode_write = (vcarg->int_value != 0);
     }
     {
         valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 3);
         if (vcarg->type != H64VALTYPE_BOOL && (
                 vcarg->type != H64VALTYPE_INT64 ||
-                vcarg->int_value != 2)) {
+                vcarg->int_value != 2) &&
+                vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
                 "append option must be a boolean or io.APPEND_DEFAULT"
@@ -135,17 +146,19 @@ int iolib_open(
         if (vcarg->type == H64VALTYPE_BOOL)
             mode_append = (vcarg->int_value != 0);
         else
-            mode_append = 2;
+            mode_append = (mode_write && mode_read);
     }
     {
         valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 4);
-        if (vcarg->type != H64VALTYPE_BOOL) {
+        if (vcarg->type != H64VALTYPE_BOOL &&
+                vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
                 "binary option must be a boolean"
             );
         }
-        if (vcarg->int_value != 0)
+        if (vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG &&
+                vcarg->int_value != 0)
             flags |= FILEOBJ_FLAGS_BINARY;
     }
     if (!mode_read && !mode_write) {
@@ -221,7 +234,7 @@ int iolib_open(
     }
     utf8buf[outlen] = '\0';
     int i = 0;
-    while (i < utf8bufsize) {
+    while (i < outlen) {
         if (utf8buf[i] == '\0') {
             if (freeutf8buf)
                 free(utf8buf);
@@ -231,6 +244,11 @@ int iolib_open(
             );
         }
         i++;
+    }
+    if (outlen == 0) {
+        assert(utf8bufsize >= 2);
+        utf8buf[0] = '.';
+        utf8buf[1] = '\0';
     }
     errno = 0;
     FILE *f = fopen(
@@ -249,7 +267,12 @@ int iolib_open(
                 vmthread, H64STDERROR_IOERROR,
                 "no disk space left"
             );
-        else if (errno == ENOENT || errno == ENOTDIR)
+        else if (errno == EISDIR)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "given path is a directory not a file"
+            );
+        else if (errno == ENOENT)
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
                 "no such file or directory"
@@ -281,7 +304,32 @@ int iolib_open(
     }
     if (freeutf8buf)
         free(utf8buf);
-    #endif
+
+    // Make sure we didn't open a directory:
+    errno = 0;
+    struct stat filestatinfo;
+    if (fstat(fileno(f), &filestatinfo) != 0) {
+        fclose(f);
+        if (errno == EACCES)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_PERMISSIONERROR,
+                "permission denied"
+            );
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            "fstat() failed on file for unknown reason"
+        );
+    }
+    if (S_ISDIR(filestatinfo.st_mode)) {
+        fclose(f);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            "path refers to a directory, not a file"
+        );
+    }
+    #endif  // end of unix/windows split
+
+    // Return as a new file object:
     h64gcvalue *fileobj = poolalloc_malloc(
         vmthread->heap, 0
     );
