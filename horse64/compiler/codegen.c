@@ -2346,7 +2346,7 @@ int _codegencallback_DoCodegen_visit_in(
             free1linetemps(func);
             i++;
         }
-        if (!(inst_pushframe.mode | CATCHMODE_JUMPONFINALLY) != 0) {
+        if ((inst_pushframe.mode & CATCHMODE_JUMPONFINALLY) == 0) {
             h64instruction_popcatchframe inst_popcatch = {0};
             inst_popcatch.type = H64INST_POPCATCHFRAME;
             if (!appendinst(
@@ -2355,7 +2355,7 @@ int _codegencallback_DoCodegen_visit_in(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-            if ((inst_pushframe.mode | CATCHMODE_JUMPONCATCH) != 0) {
+            if ((inst_pushframe.mode & CATCHMODE_JUMPONCATCH) != 0) {
                 h64instruction_jump inst_jump = {0};
                 inst_jump.type = H64INST_JUMP;
                 inst_jump.jumpbytesoffset = jumpid_end;
@@ -2377,7 +2377,7 @@ int _codegencallback_DoCodegen_visit_in(
             }
         }
 
-        if ((inst_pushframe.mode | CATCHMODE_JUMPONCATCH) != 0) {
+        if ((inst_pushframe.mode & CATCHMODE_JUMPONCATCH) != 0) {
             h64instruction_jumptarget inst_jumpcatch = {0};
             inst_jumpcatch.type = H64INST_JUMPTARGET;
             inst_jumpcatch.jumpid = jumpid_catch;
@@ -2404,7 +2404,7 @@ int _codegencallback_DoCodegen_visit_in(
                 free1linetemps(func);
                 i++;
             }
-            if ((inst_pushframe.mode | CATCHMODE_JUMPONFINALLY) != 0) {
+            if ((inst_pushframe.mode & CATCHMODE_JUMPONFINALLY) != 0) {
                 h64instruction_jumptofinally inst_jumptofinally = {0};
                 inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
                 if (!appendinst(
@@ -2425,7 +2425,7 @@ int _codegencallback_DoCodegen_visit_in(
             }
         }
 
-        if ((inst_pushframe.mode | CATCHMODE_JUMPONFINALLY) != 0) {
+        if ((inst_pushframe.mode & CATCHMODE_JUMPONFINALLY) != 0) {
             h64instruction_jumptarget inst_jumpfinally = {0};
             inst_jumpfinally.type = H64INST_JUMPTARGET;
             inst_jumpfinally.jumpid = jumpid_finally;
