@@ -317,6 +317,6 @@ int utf32_to_utf8(
         totallen += inneroutlen;
         i++;
     }
-    if (out_len) *out_len = totallen;
+    if (out_len) *out_len = (int64_t)totallen;
     return 1;
 }
