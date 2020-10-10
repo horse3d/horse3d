@@ -791,7 +791,7 @@ int codegen_FinalBytecodeTransform(
                 k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
                 continue;
             }
-            assert(jumpid >= 0 || jumpid2 >= 2);
+            assert(jumpid >= 0 || jumpid2 >= 0);
 
             // FIXME: use a faster algorithm here, maybe hash table?
             if (jumpid >= 0) {
