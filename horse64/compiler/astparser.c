@@ -678,7 +678,7 @@ int ast_ParseExprInlineOperator_Recurse(
 
     #ifdef H64AST_DEBUG
     char describebufy[64];
-    char *lhandside = ast_ExpressionToJSONStr(lefthandside, NULL); 
+    char *lhandside = ast_ExpressionToJSONStr(lefthandside, NULL);
     printf("horsec: debug: "
          "GOT LEFT HAND SIDE %s AND NOW AT %d %s - "
          "current handling level: %d\n", lhandside, i,
@@ -1132,7 +1132,7 @@ int ast_ParseExprInlineOperator(
         operator_precedences_total_count - 1,
         parsefail, outofmemory,
         out_expr, out_tokenlen, nestingdepth
-    ); 
+    );
 }
 
 int ast_ParseInlineFunc(
@@ -1242,7 +1242,7 @@ int ast_ParseInlineFunc(
             ast_MarkExprDestroyed(expr);
             return 0;
         }
-        i += tlen; 
+        i += tlen;
     } else if (tokens[0].type == H64TK_IDENTIFIER) {
         expr->funcdef.arguments.arg_name = malloc(
             sizeof(char*) * 1
@@ -1642,6 +1642,7 @@ int ast_ParseExprInline(
                     tokens[0].str_value_len
                 );
                 expr->literal.str_value[tokens[0].str_value_len] = '\0';
+                expr->literal.str_value_len = tokens[0].str_value_len;
             } else if (tokens[0].type == H64TK_CONSTANT_NONE) {
                 // Nothing to copy over
             } else {
