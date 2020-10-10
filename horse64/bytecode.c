@@ -45,8 +45,8 @@ static char _name_itype_pushcatchframe[] = "pushcatchframe";
 static char _name_itype_addcatchtypebyref[] = "addcatchtyperef";
 static char _name_itype_addcatchtype[] = "addcatchtype";
 static char _name_itype_popcatchframe[] = "popcatchframe";
-static char _name_itype_getattributebyname[] = "getattributebyname";
 static char _name_itype_jumptofinally[] = "jumptofinally";
+static char _name_itype_getattributebyname[] = "getattributebyname";
 static char _name_itype_newlist[] = "newlist";
 static char _name_itype_addtolist[] = "addtolist";
 static char _name_itype_newset[] = "newset";
@@ -114,10 +114,10 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_addcatchtype;
     case H64INST_POPCATCHFRAME:
         return _name_itype_popcatchframe;
-    case H64INST_GETATTRIBUTEBYNAME:
-        return _name_itype_getattributebyname;
     case H64INST_JUMPTOFINALLY:
         return _name_itype_jumptofinally;
+    case H64INST_GETATTRIBUTEBYNAME:
+        return _name_itype_getattributebyname;
     case H64INST_NEWLIST:
         return _name_itype_newlist;
     case H64INST_NEWSET:
@@ -574,10 +574,10 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_addcatchtype);
     case H64INST_POPCATCHFRAME:
         return sizeof(h64instruction_popcatchframe);
-    case H64INST_GETATTRIBUTEBYNAME:
-        return sizeof(h64instruction_getattributebyname);
     case H64INST_JUMPTOFINALLY:
         return sizeof(h64instruction_jumptofinally);
+    case H64INST_GETATTRIBUTEBYNAME:
+        return sizeof(h64instruction_getattributebyname);
     case H64INST_NEWLIST:
         return sizeof(h64instruction_newlist);
     case H64INST_NEWSET:

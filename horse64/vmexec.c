@@ -402,7 +402,7 @@ static int vmthread_errors_Raise(
                     vmthread->errorframe[
                         vmthread->errorframe_count - 1
                     ].catch_instruction_offset < 0) {
-                // Wait, we ran into 'catch' already.
+                // Wait, we ran into 'rescue' already.
                 // But what about finally?
                 if (!vmthread->errorframe[
                         vmthread->errorframe_count - 1
@@ -560,14 +560,13 @@ static int vmthread_errors_Raise(
     ].func_frame_no;
     assert(frameid >= 0 && frameid < vmthread->funcframe_count);
     *current_func_id = vmthread->funcframe[frameid].func_id;
-    int dontpop = 0;  // whether we need to keep the catch frame we used
     if (vmthread->errorframe[
             vmthread->errorframe_count - 1
             ].catch_instruction_offset >= 0 &&
             !vmthread->errorframe[
                 vmthread->errorframe_count - 1
             ].triggered_catch) {
-        // Go into catch clause.
+        // Go into rescue clause.
         assert(
             !vmthread->errorframe[
                 vmthread->errorframe_count - 1
@@ -579,11 +578,6 @@ static int vmthread_errors_Raise(
         vmthread->errorframe[
             vmthread->errorframe_count - 1
         ].triggered_catch = 1;
-        if (vmthread->errorframe[
-                vmthread->errorframe_count - 1
-                ].finally_instruction_offset >= 0) {
-            dontpop = 1;  // keep catch frame to run finally later
-        }
     } else {
         assert(
             !vmthread->errorframe[

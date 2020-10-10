@@ -2230,11 +2230,30 @@ int _codegencallback_DoCodegen_visit_in(
         );
         func->funcdef._storageinfo->jump_targets_used++;
 
+        if (func->funcdef._storageinfo->dostmt_used + 1 >= INT16_MAX - 1) {
+            rinfo->hadunexpectederror = 1;
+            if (!result_AddMessage(
+                    project->resultmsg,
+                    H64MSG_ERROR, "exceeded maximum of "
+                    "do statements in one function",
+                    NULL, -1, -1
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            return 0;
+        }
+        int16_t dostmtid = (
+            func->funcdef._storageinfo->dostmts_used
+        );
+        func->funcdef._storageinfo->dostmt_used++;
+
         h64instruction_pushcatchframe inst_pushframe = {0};
         inst_pushframe.type = H64INST_PUSHCATCHFRAME;
         inst_pushframe.sloterrorto = -1;
         inst_pushframe.jumponcatch = -1;
         inst_pushframe.jumponfinally = -1;
+        inst_pushframe.frameid = dostmtid;
         if (expr->dostmt.errors_count > 0) {
             assert(!expr->storage.set ||
                    expr->storage.ref.type ==
@@ -2280,6 +2299,7 @@ int _codegencallback_DoCodegen_visit_in(
                        H64STORETYPE_GLOBALCLASSSLOT) {
                 h64instruction_addcatchtype addctype = {0};
                 addctype.type = H64INST_ADDCATCHTYPE;
+                addctype.frameid = dostmtid;
                 addctype.classid = (
                     expr->dostmt.errors[i]->
                         storage.ref.id
@@ -2321,6 +2341,7 @@ int _codegencallback_DoCodegen_visit_in(
             h64instruction_addcatchtypebyref addctyperef = {0};
             addctyperef.type = H64INST_ADDCATCHTYPEBYREF;
             addctyperef.slotfrom = error_tmp;
+            addctyperef.frameid = dostmtid;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
                     &addctyperef, sizeof(addctyperef))) {
@@ -2349,6 +2370,7 @@ int _codegencallback_DoCodegen_visit_in(
         if ((inst_pushframe.mode & CATCHMODE_JUMPONFINALLY) == 0) {
             h64instruction_popcatchframe inst_popcatch = {0};
             inst_popcatch.type = H64INST_POPCATCHFRAME;
+            inst_popcatch.frameid = dostmtid;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
                     &inst_popcatch, sizeof(inst_popcatch))) {
@@ -2369,6 +2391,7 @@ int _codegencallback_DoCodegen_visit_in(
         } else {
             h64instruction_jumptofinally inst_jumptofinally = {0};
             inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
+            inst_jumptofinally.frameid = dostmtid;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
                     &inst_jumptofinally, sizeof(inst_jumptofinally))) {
@@ -2404,24 +2427,21 @@ int _codegencallback_DoCodegen_visit_in(
                 free1linetemps(func);
                 i++;
             }
-            if ((inst_pushframe.mode & CATCHMODE_JUMPONFINALLY) != 0) {
-                h64instruction_jumptofinally inst_jumptofinally = {0};
-                inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
-                if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_jumptofinally, sizeof(inst_jumptofinally))) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-            } else {
+            if ((inst_pushframe.mode & CATCHMODE_JUMPONFINALLY) == 0) {
+                // No finally follows, so we need to clean up the
+                // error frame here.
                 h64instruction_popcatchframe inst_popcatch = {0};
                 inst_popcatch.type = H64INST_POPCATCHFRAME;
+                inst_popcatch.frameid = dostmtid;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &inst_popcatch, sizeof(inst_popcatch))) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
+            } else {
+                // Just let execution continue since it'll roll into
+                // the finally block that is generated right below.
             }
         }
 
@@ -2454,6 +2474,7 @@ int _codegencallback_DoCodegen_visit_in(
             }
             h64instruction_popcatchframe inst_popcatch = {0};
             inst_popcatch.type = H64INST_POPCATCHFRAME;
+            inst_popcatch.frameid = dostmtid;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
                     &inst_popcatch, sizeof(inst_popcatch))) {

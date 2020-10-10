@@ -282,21 +282,30 @@ typedef struct h64instruction_pushcatchframe {
     uint8_t type;
     uint8_t mode;
     int16_t sloterrorto, jumponcatch, jumponfinally;
+    int16_t frameid;
 } __attribute__ ((packed)) h64instruction_pushcatchframe;
 
 typedef struct h64instruction_addcatchtypebyref {
     uint8_t type;
     int16_t slotfrom;
+    int16_t frameid;
 } __attribute__ ((packed)) h64instruction_addcatchtypebyref;
 
 typedef struct h64instruction_addcatchtype {
     uint8_t type;
     classid_t classid;
+    int16_t frameid;
 } __attribute__ ((packed)) h64instruction_addcatchtype;
 
 typedef struct h64instruction_popcatchframe {
     uint8_t type;
+    int16_t frameid;
 } __attribute__ ((packed)) h64instruction_popcatchframe;
+
+typedef struct h64instruction_jumptofinally {
+    uint8_t type;
+    int16_t frameid;
+} __attribute__ ((packed)) h64instruction_jumptofinally;
 
 typedef struct h64instruction_getattributebyname {
     uint8_t type;
@@ -304,10 +313,6 @@ typedef struct h64instruction_getattributebyname {
     int16_t objslotfrom;
     int64_t nameidx;
 } __attribute__ ((packed)) h64instruction_getattributebyname;
-
-typedef struct h64instruction_jumptofinally {
-    uint8_t type;
-} __attribute__ ((packed)) h64instruction_jumptofinally;
 
 typedef struct h64instruction_newlist {
     uint8_t type;
