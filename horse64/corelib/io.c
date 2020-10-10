@@ -85,9 +85,9 @@ int iolib_open(
     int64_t pathlen = 0;
     int pathu32 = 0;
     if (vcpath->type == H64VALTYPE_GCVAL &&
-            ((h64gcvalue *)vcpath)->type == H64GCVALUETYPE_STRING) {
-        pathstr = (char *)((h64gcvalue *)vcpath)->str_val.s;
-        pathlen = ((h64gcvalue *)vcpath)->str_val.len;
+            ((h64gcvalue *)vcpath->ptr_value)->type == H64GCVALUETYPE_STRING) {
+        pathstr = (char *)((h64gcvalue *)vcpath->ptr_value)->str_val.s;
+        pathlen = ((h64gcvalue *)vcpath->ptr_value)->str_val.len;
         pathu32 = 1;
     } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
         pathstr = (char *)vcpath->shortstr_value;
