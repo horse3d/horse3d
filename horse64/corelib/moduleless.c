@@ -170,7 +170,7 @@ static int _corelib_printvalue(
                 VALUECONTENT_SHORTSTRLEN + 1
             ];
             memcpy(&shortstr_value, c->shortstr_value,
-                   VALUECONTENT_SHORTSTRLEN + 1);
+                   sizeof(h64wchar) * (VALUECONTENT_SHORTSTRLEN + 1));
             int64_t outlen = 0;
             int result = utf32_to_utf8(
                 shortstr_value, c->shortstr_len,
