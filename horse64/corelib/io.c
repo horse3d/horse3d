@@ -565,7 +565,7 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "read", &iolib_fileread,
         NULL, 1, io_fileread_kw_arg_name, 0,  // fileuri, args
-        "io", "core.horse64.org", 1, -1
+        "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)
         return 0;
@@ -574,7 +574,7 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "close", &iolib_fileclose,
         NULL, 0, NULL, 0,  // fileuri, args
-        "io", "core.horse64.org", 1, -1
+        "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)
         return 0;
