@@ -40,6 +40,16 @@ int write_codepoint_as_utf8(
         uint64_t codepoint, int surrogateunescape,
         char *out, int outbuflen, int *outlen
         ) {
+    if (surrogateunescape &&
+            codepoint >= 0xDC80ULL + 0 &&
+            codepoint <= 0xDC80ULL + 255) {
+        if (outbuflen < 1) return 0;
+        out[0] = (int)(codepoint - 0xDC80ULL);
+        if (outbuflen >= 2)
+            out[1] = '\0';
+        if (outlen) *outlen = 1;
+        return 1;
+    }
     if (codepoint < 0x80ULL) {
         if (outbuflen < 1) return 0;
         out[0] = (int)codepoint;
@@ -204,18 +214,20 @@ h64wchar *utf8_to_utf32(
         int64_t *out_len
         ) {
     return utf8_to_utf32_ex(
-        input, input_len, out_alloc, out_alloc_ud,
-        out_len, 1, NULL, NULL
+        input, input_len, NULL, 0, out_alloc, out_alloc_ud,
+        out_len, 1, 0, NULL, NULL
     );
 }
 
 h64wchar *utf8_to_utf32_ex(
         const char *input,
         int64_t input_len,
+        char *short_out_buf, int short_out_buf_bytes,
         void *(*out_alloc)(uint64_t len, void *userdata),
         void *out_alloc_ud,
         int64_t *out_len,
         int surrogatereplaceinvalid,
+        int questionmarkinvalid,
         int *was_aborted_invalid,
         int *was_aborted_outofmemory
         ) {
@@ -243,7 +255,7 @@ h64wchar *utf8_to_utf32_ex(
         if (!get_utf8_codepoint(
                 (const unsigned char*)(input + i),
                 input_len - i, &c, &cbytes)) {
-            if (!surrogatereplaceinvalid) {
+            if (!surrogatereplaceinvalid && !questionmarkinvalid) {
                 if (free_temp_buf)
                     free(temp_buf);
                 if (was_aborted_invalid)
@@ -252,9 +264,12 @@ h64wchar *utf8_to_utf32_ex(
                     *was_aborted_outofmemory = 0;
                 return NULL;
             }
-            h64wchar invalidbyte = 0xDC80ULL + (
-                (h64wchar)(*(const unsigned char*)(input + i))
-            );
+            h64wchar invalidbyte = 0xFFFDULL;
+            if (!questionmarkinvalid) {
+                invalidbyte = 0xDC80ULL + (
+                    (h64wchar)(*(const unsigned char*)(input + i))
+                );
+            }
             memcpy((char*)temp_buf + k * sizeof(invalidbyte),
                    &invalidbyte, sizeof(invalidbyte));
             k++;
@@ -267,12 +282,17 @@ h64wchar *utf8_to_utf32_ex(
     }
     temp_buf[k * sizeof(h64wchar)] = '\0';
     char *result = NULL;
-    if (out_alloc) {
-        result = out_alloc(
-            (k + 1) * sizeof(h64wchar), out_alloc_ud
-        );
+    if (short_out_buf && (unsigned int)short_out_buf_bytes >=
+            (k + 1) * sizeof(h64wchar)) {
+        result = short_out_buf;
     } else {
-        result = malloc((k + 1) * sizeof(h64wchar));
+        if (out_alloc) {
+            result = out_alloc(
+                (k + 1) * sizeof(h64wchar), out_alloc_ud
+            );
+        } else {
+            result = malloc((k + 1) * sizeof(h64wchar));
+        }
     }
     assert((k + 1) * sizeof(h64wchar) <=
            (input_len + 1) * sizeof(h64wchar));

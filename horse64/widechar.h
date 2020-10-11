@@ -28,10 +28,12 @@ int utf8_char_len(const unsigned char *p);
 h64wchar *utf8_to_utf32_ex(
     const char *input,
     int64_t input_len,
+    char *short_out_buf, int short_out_buf_bytes,
     void *(*out_alloc)(uint64_t len, void *userdata),
     void *out_alloc_ud,
     int64_t *out_len,
     int surrogatereplaceinvalid,
+    int questionmarkinvalid,
     int *was_aborted_invalid,
     int *was_aborted_outofmemory
 );
