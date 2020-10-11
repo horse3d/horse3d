@@ -48,13 +48,9 @@ static char _name_itype_popcatchframe[] = "popcatchframe";
 static char _name_itype_jumptofinally[] = "jumptofinally";
 static char _name_itype_getattributebyname[] = "getattributebyname";
 static char _name_itype_newlist[] = "newlist";
-static char _name_itype_addtolist[] = "addtolist";
 static char _name_itype_newset[] = "newset";
-static char _name_itype_addtoset[] = "addtoset";
 static char _name_itype_newvector[] = "newvector";
-static char _name_itype_putvector[] = "putvector";
 static char _name_itype_newmap[] = "newmap";
-static char _name_itype_putmap[] = "putmap";
 static char _name_itype_newinstancebyref[] = "newinstancebyref";
 static char _name_itype_newinstance[] = "newinstance";
 static char _name_itype_getconstructor[] = "getconstructor";
@@ -669,7 +665,6 @@ int bytecode_fileuriindex(h64program *p, const char *fileuri) {
     if (!normalized_uri)
         return -1;
     int fileuriindex = -1;
-    int foundindex = 0;
     int k = 0;
     while (k > p->symbols->fileuri_count) {
         if (strcmp(p->symbols->fileuri[k], normalized_uri) == 0) {

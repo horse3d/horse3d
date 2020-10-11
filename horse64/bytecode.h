@@ -5,6 +5,8 @@
 #ifndef HORSE64_BYTECODE_H_
 #define HORSE64_BYTECODE_H_
 
+#include "compileconfig.h"
+
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -532,7 +534,7 @@ int bytecode_fileuriindex(h64program *p, const char *fileuri);
 
 #include "gcvalue.h"
 
-static inline void DELREF_NONHEAP(valuecontent *content) {
+ATTR_UNUSED static inline void DELREF_NONHEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->externalreferencecount--;
     } else if (content->type == H64VALTYPE_ERROR) {
@@ -541,7 +543,7 @@ static inline void DELREF_NONHEAP(valuecontent *content) {
     }
 }
 
-static inline void ADDREF_NONHEAP(valuecontent *content) {
+ATTR_UNUSED static inline void ADDREF_NONHEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->externalreferencecount++;
     } else if (content->type == H64VALTYPE_ERROR) {
@@ -550,7 +552,7 @@ static inline void ADDREF_NONHEAP(valuecontent *content) {
     }
 }
 
-static inline void DELREF_HEAP(valuecontent *content) {
+ATTR_UNUSED static inline void DELREF_HEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->heapreferencecount--;
     } else if (content->type == H64VALTYPE_ERROR) {
@@ -559,7 +561,7 @@ static inline void DELREF_HEAP(valuecontent *content) {
     }
 }
 
-static inline void ADDREF_HEAP(valuecontent *content) {
+ATTR_UNUSED static inline void ADDREF_HEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->heapreferencecount++;
     } else if (content->type == H64VALTYPE_ERROR) {
