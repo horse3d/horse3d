@@ -5,6 +5,8 @@
 #ifndef HORSE64_CORELIB_ERRORS_H_
 #define HORSE64_CORELIB_ERRORS_H_
 
+#include "compileconfig.h"
+
 #include <stdlib.h>  // NULL
 
 typedef struct h64vmthread h64vmthread;
@@ -30,10 +32,11 @@ typedef enum stderrorclassnum {
     H64STDERROR_MATHERROR,
     H64STDERROR_INVALIDDESTRUCTORERROR,
     H64STDERROR_INVALIDNOASYNCCALLERROR,
+    H64STDERROR_ENCODINGERROR,
     H64STDERROR_TOTAL_COUNT
 } stderrorclassnum;
 
-static const char *stderrorclassnames[] = {
+ATTR_UNUSED static const char *stderrorclassnames[] = {
     "Error",
     "RuntimeError",
     "OutOfMemoryError",
@@ -47,8 +50,11 @@ static const char *stderrorclassnames[] = {
     "MathError",
     "InvalidDestructorError",
     "InvalidNoasyncCallError",
+    "EncodingError",
     NULL
 };
+
+typedef struct h64program h64program;
 
 int corelib_RegisterErrorClasses(
     h64program *p
