@@ -487,6 +487,17 @@ static int _resolve_jumpid_to_jumpoffset(
     return 1;
 }
 
+static h64instruction_callsettop *_settop_inst(
+        asttransforminfo *rinfo, h64expression *func,
+        int64_t offset
+        ) {
+    return (h64instruction_callsettop *)(
+        rinfo->pr->program->func[
+            func->funcdef.bytecode_func_id
+        ].instructions + offset
+    );
+}
+
 static int _codegen_call_to(
         asttransforminfo *rinfo, h64expression *func,
         h64expression *callexpr,
@@ -508,16 +519,11 @@ static int _codegen_call_to(
         rinfo->hadoutofmemory = 1;
         return 0;
     }
-    h64instruction_callsettop *ref_settop = (
-        (h64instruction_callsettop *)(
-            rinfo->pr->program->func[
-                func->funcdef.bytecode_func_id
-            ].instructions +
-            rinfo->pr->program->func[
-                func->funcdef.bytecode_func_id
-            ].instructions_bytes -
-            sizeof(*ref_settop)
-        )
+    int64_t callsettop_offset = (
+        rinfo->pr->program->func[
+            func->funcdef.bytecode_func_id
+        ].instructions_bytes -
+        sizeof(h64instruction_callsettop)
     );
     int i = 0;
     while (i < callexpr->inlinecall.arguments.arg_count) {
@@ -580,7 +586,7 @@ static int _codegen_call_to(
                 return 0;
             }
             _argtemp++;
-            ref_settop->topto++;
+            _settop_inst(rinfo, func, callsettop_offset)->topto++;
             h64instruction_valuecopy inst_vc = {0};
             inst_vc.type = H64INST_VALUECOPY;
             inst_vc.slotto = _argtemp;
@@ -588,7 +594,7 @@ static int _codegen_call_to(
                 callexpr->inlinecall.arguments.arg_value[i]->
                     storage.eval_temp_id);
             _argtemp++;
-            ref_settop->topto++;
+            _settop_inst(rinfo, func, callsettop_offset)->topto++;
             if (!appendinst(
                     rinfo->pr->program, func, callexpr,
                     &inst_vc, sizeof(inst_vc))) {
@@ -608,7 +614,7 @@ static int _codegen_call_to(
                 callexpr->inlinecall.arguments.arg_value[i]->
                     storage.eval_temp_id);
             _argtemp++;
-            ref_settop->topto++;
+            _settop_inst(rinfo, func, callsettop_offset)->topto++;
             if (!appendinst(
                     rinfo->pr->program, func, callexpr,
                     &inst_vc, sizeof(inst_vc))) {

@@ -413,8 +413,9 @@ int iolib_fileread(
     }
 
     valuecontent *vcamount = STACK_ENTRY(vmthread->stack, 1);
-    if (vcamount->type != H64VALTYPE_INT64 ||
-           vcamount->type != H64VALTYPE_FLOAT64) {
+    if ((vcamount->type != H64VALTYPE_INT64 ||
+            vcamount->type != H64VALTYPE_FLOAT64) &&
+            vcamount->type != H64VALTYPE_UNSPECIFIED_KWARG) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
             "amount must be a number"
@@ -424,7 +425,7 @@ int iolib_fileread(
     int64_t amount = -1;
     if (vcamount->type == H64VALTYPE_INT64) {
         amount = vcamount->int_value;
-    } else {
+    } else if (vcamount->type == H64VALTYPE_FLOAT64) {
         amount = roundl(vcamount->float_value);
     }
     if (amount == 0 || feof(f)) {
@@ -479,6 +480,7 @@ int iolib_fileread(
                     "out of memory"
                 );
             }
+            readbufheap = 1;
             readbuf = newbuf;
             readbufsize = newreadbufsize;
         }
@@ -503,11 +505,56 @@ int iolib_fileread(
         readbuffill += _didread;
         if (readbinary) {
             readcount += _didread;
-        } else {
+        } else if (amount >= 0) {
             assert(0);  // FIXME, count utf8 chars here.
         }
     }
 
+    valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vresult);
+    valuecontent_Free(vresult);
+    memset(vresult, 0, sizeof(*vresult));
+
+    if (!readbinary) {
+        assert(0);  // FIXME, string conversion here
+    } else {
+        vresult->type = H64VALTYPE_GCVAL;
+        vresult->ptr_value = poolalloc_malloc(
+            vmthread->heap, 0
+        );
+        if (!vresult->ptr_value) {
+            if (readbufheap)
+                free(readbuf);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "result value alloc failure"
+            );
+        }
+        h64gcvalue *gcval = vresult->ptr_value;
+        memset(gcval, 0, sizeof(*gcval));
+        gcval->type = H64GCVALUETYPE_BYTES;
+        if (readbuffill > 0) {
+            if (!vmbytes_AllocBuffer(
+                    vmthread, &gcval->bytes_val,
+                    readbuffill
+                    )) {
+                poolalloc_free(vmthread->heap, gcval);
+                vresult->ptr_value = NULL;
+                vresult->type = H64VALTYPE_NONE;
+                if (readbufheap)
+                    free(readbuf);
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                    "result value alloc failure"
+                );
+            }
+            memcpy(gcval->bytes_val.s, readbuf, readbuffill);
+        }
+        if (readbufheap)
+            free(readbuf);
+        gcval->bytes_val.refcount = 1;
+        gcval->externalreferencecount = 1;
+    }
     return 1;
 }
 

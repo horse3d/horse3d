@@ -1576,13 +1576,17 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 int64_t target_slot = vmthread->kwarg_index_track_map[i];
                 assert(temp_slots_kwarg_start + target_slot <
                        reformat_argslots);
+                valuecontent *kwarg_value = (
+                     STACK_ENTRY(
+                        stack, (int64_t)i * 2 + // * 2 for nameidx, value pairs
+                        1 + // we want the value, not the nameidx
+                        (inst->posargs + stack_args_bottom) // base offset
+                    )
+                );
                 memcpy(
                     &vmthread->arg_reorder_space[
                         temp_slots_kwarg_start + target_slot
-                    ],
-                    STACK_ENTRY(stack, (int64_t)i * 2 + inst->posargs +
-                                       stack_args_bottom),
-                    sizeof(valuecontent)
+                    ], kwarg_value, sizeof(valuecontent)
                 );
                 memset(
                     STACK_ENTRY(stack, (int64_t)i * 2 + inst->posargs +
