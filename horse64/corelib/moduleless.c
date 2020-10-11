@@ -107,12 +107,12 @@ static int _corelib_printvalue(
                         char *newbuf = malloc(
                             gcval->str_val.len * 4 + 1
                         );
-                        buffree = 1;
                         if (newbuf) {
                             if (buffree)
                                 free(buf);
                             buf = newbuf;
                             buflen = gcval->str_val.len * 4 + 1;
+                            buffree = 1;
                         } else {
                             allocfail = 1;
                         }
@@ -249,9 +249,6 @@ int corelib_print(  // $$builtin.print
         ((h64gcvalue*)STACK_ENTRY(vmthread->stack, 0)->ptr_value)->
             list_values
     );
-    char *buf = alloca(256);
-    uint64_t buflen = 256;
-    int buffree = 0;
     int64_t i = 0;
     while (i < vmlist_Count(l)) {
         if (i > 0)

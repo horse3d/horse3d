@@ -233,7 +233,7 @@ h64wchar *utf8_to_utf32_ex(
         ) {
     int free_temp_buf = 0;
     char *temp_buf = NULL;
-    int64_t temp_buf_len = input_len * sizeof(h64wchar);
+    int64_t temp_buf_len = (input_len + 1) * sizeof(h64wchar);
     if (temp_buf_len < 1024 * 2) {
         temp_buf = alloca(temp_buf_len);
     } else {

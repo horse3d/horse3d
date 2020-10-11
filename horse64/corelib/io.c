@@ -681,7 +681,10 @@ int iolib_fileread(
                 "result value alloc failure"
             );
         }
-        memcpy(gcval->str_val.s, converted, convertedlen);
+        memcpy(
+            gcval->str_val.s, converted, convertedlen * sizeof(h64wchar)
+        );
+        assert(gcval->str_val.len == (uint64_t)convertedlen);
         if (convertedonheap)
             free(converted);
         gcval->str_val.refcount = 1;
