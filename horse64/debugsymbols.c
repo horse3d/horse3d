@@ -126,14 +126,14 @@ int64_t h64debugsymbols_AttributeNameToAttributeNameId(
                     symbols->program->init_name_index = new_id;
                 } else if (strcmp(name, "destroyed") == 0) {
                     symbols->program->destroyed_name_index = new_id;
-                } else if (strcmp(name, "cloned") == 0) {
-                    symbols->program->cloned_name_index = new_id;
                 } else if (strcmp(name, "equals") == 0) {
                     symbols->program->equals_name_index = new_id;
                 } else if (strcmp(name, "to_hash") == 0) {
                     symbols->program->to_hash_name_index = new_id;
                 } else if (strcmp(name, "add") == 0) {
                     symbols->program->add_name_index = new_id;
+                } else if (strcmp(name, "remove") == 0) {
+                    symbols->program->remove_name_index = new_id;
                 }
             }
             return new_id;

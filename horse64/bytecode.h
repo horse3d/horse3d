@@ -423,10 +423,10 @@ typedef struct h64program {
     int64_t length_name_index;
     int64_t init_name_index;
     int64_t destroyed_name_index;
-    int64_t cloned_name_index;
     int64_t equals_name_index;
     int64_t to_hash_name_index;
     int64_t add_name_index;
+    int64_t remove_name_index;
 
     classid_t _io_file_class_idx;  // used by io module
 

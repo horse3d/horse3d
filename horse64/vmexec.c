@@ -150,6 +150,8 @@ static int vmthread_PrintExec(
 }
 #endif
 
+static void poperrorframe(h64vmthread *vmthread);
+
 static inline int popfuncframe(
         h64vmthread *vt, int dontresizestack
         ) {
@@ -166,6 +168,10 @@ static inline int popfuncframe(
             stack_space_for_this_func)
         new_top = vt->funcframe[vt->funcframe_count - 1].
                   stack_space_for_this_func;
+    int new_catchframe_count = vt->funcframe[vt->funcframe_count - 1].
+        catchframe_count_on_enter;
+    while (vt->errorframe_count > new_catchframe_count)
+        poperrorframe(vt);
     #ifndef NDEBUG
     if (!dontresizestack)
         assert(new_floor <= prev_floor);
@@ -259,6 +265,9 @@ static inline int pushfuncframe(
             )) {
         return 0;
     }
+    vt->funcframe[vt->funcframe_count].catchframe_count_on_enter = (
+        vt->errorframe_count
+    );
     vt->funcframe[vt->funcframe_count].stack_func_floor = new_func_floor;
     vt->funcframe[vt->funcframe_count].func_id = func_id;
     vt->funcframe[vt->funcframe_count].stack_space_for_this_func = (
@@ -279,7 +288,7 @@ static inline int pushfuncframe(
 }
 
 static int pusherrorframe(
-        h64vmthread* vmthread,
+        h64vmthread* vmthread, int frameid,
         int64_t catch_instruction_offset,
         int64_t finally_instruction_offset,
         int error_obj_temporary_slot
@@ -304,6 +313,7 @@ static int pusherrorframe(
         &vmthread->errorframe[vmthread->errorframe_count]
     );
     memset(newframe, 0, sizeof(*newframe));
+    newframe->id = frameid;
     newframe->storeddelayederror.error_class_id = -1;
     newframe->catch_instruction_offset = catch_instruction_offset;
     newframe->finally_instruction_offset = finally_instruction_offset;
@@ -609,9 +619,6 @@ static int vmthread_errors_Raise(
         }
     }
     assert(*current_exec_offset > 0);
-
-    if (!dontpop)
-        poperrorframe(vmthread);
     return 1;
 }
 
@@ -627,71 +634,92 @@ int vmthread_ResetCallTempStack(h64vmthread *vmthread) {
     return 1;
 }
 
+static int _catchframefromid(
+        h64vmthread *vmthread, int catchframeid
+        ) {
+    assert(vmthread->funcframe_count > 0);
+    int i = vmthread->errorframe_count - 1;
+    while (i >= vmthread->funcframe[
+            vmthread->funcframe_count - 1
+            ].catchframe_count_on_enter) {
+        if (vmthread->errorframe[i].id == catchframeid)
+            return i;
+        i--;
+    }
+    return -1;
+}
+
 static void vmthread_errors_EndFinally(
-        h64vmthread *vmthread,
+        h64vmthread *vmthread, int catchframeid,
         int64_t *current_func_id, ptrdiff_t *current_exec_offset,
         int *returneduncaughterror,
         h64errorinfo *out_uncaughterror
         ) {
+    int endedframeslot = _catchframefromid(vmthread, catchframeid);
+    assert(endedframeslot >= 0);
     assert(vmthread->errorframe_count > 0);
-    assert(vmthread->errorframe[
-        vmthread->errorframe_count - 1
-    ].triggered_catch);
-    assert(vmthread->errorframe[
-        vmthread->errorframe_count - 1
-    ].triggered_finally);
     if (vmthread->errorframe[
-            vmthread->errorframe_count - 1
-            ].storeddelayederror.error_class_id >= 0) {
-        h64errorinfo e;
-        memcpy(
-            &e, &vmthread->errorframe[
-            vmthread->errorframe_count - 1
-            ].storeddelayederror, sizeof(e)
-        );
-        memset(
-            &vmthread->errorframe[
-            vmthread->errorframe_count - 1
-            ].storeddelayederror, 0, sizeof(e)
-        );
-        vmthread->errorframe[
-            vmthread->errorframe_count - 1
-        ].storeddelayederror.error_class_id = -1;
-        poperrorframe(vmthread);
-        assert(e.error_class_id >= 0);
-        int wasoom = (e.error_class_id == H64STDERROR_OUTOFMEMORYERROR);
-        int result = 0;
-        if (e.msg != NULL) {
-            result = vmthread_errors_Raise(
-                vmthread, e.error_class_id,
-                current_func_id, current_exec_offset,
-                !wasoom, returneduncaughterror,
-                out_uncaughterror,
-                1, (const char *)e.msg, (int)e.msglen
+            endedframeslot
+            ].finally_instruction_offset > 0) {
+        // This catch frame actually had a finally block.
+        assert(vmthread->errorframe[
+            endedframeslot
+        ].triggered_finally);
+        // See if we have a delayed error that needs bubbling up:
+        if (vmthread->errorframe[
+                endedframeslot
+                ].storeddelayederror.error_class_id >= 0) {
+            h64errorinfo e;
+            memcpy(
+                &e, &vmthread->errorframe[
+                endedframeslot
+                ].storeddelayederror, sizeof(e)
             );
-        } else {
-            result = vmthread_errors_Raise(
-                vmthread, e.error_class_id,
-                current_func_id, current_exec_offset,
-                !wasoom, returneduncaughterror,
-                out_uncaughterror,
-                1, NULL, (int)0
+            memset(
+                &vmthread->errorframe[
+                endedframeslot
+                ].storeddelayederror, 0, sizeof(e)
             );
+            vmthread->errorframe[
+                endedframeslot
+            ].storeddelayederror.error_class_id = -1;
+            while (vmthread->errorframe_count > endedframeslot)
+                poperrorframe(vmthread);
+            assert(e.error_class_id >= 0);
+            int wasoom = (e.error_class_id == H64STDERROR_OUTOFMEMORYERROR);
+            int result = 0;
+            if (e.msg != NULL) {
+                result = vmthread_errors_Raise(
+                    vmthread, e.error_class_id,
+                    current_func_id, current_exec_offset,
+                    !wasoom, returneduncaughterror,
+                    out_uncaughterror,
+                    1, (const char *)e.msg, (int)e.msglen
+                );
+            } else {
+                result = vmthread_errors_Raise(
+                    vmthread, e.error_class_id,
+                    current_func_id, current_exec_offset,
+                    !wasoom, returneduncaughterror,
+                    out_uncaughterror,
+                    1, NULL, (int)0
+                );
+            }
+            if (!result) {
+                assert(!wasoom);
+                result = vmthread_errors_Raise(
+                    vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                    current_func_id, current_exec_offset,
+                    0, returneduncaughterror,
+                    out_uncaughterror,
+                    1, NULL, (int)0
+                );
+                assert(result != 0);
+            }
         }
-        if (!result) {
-            assert(!wasoom);
-            result = vmthread_errors_Raise(
-                vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                current_func_id, current_exec_offset,
-                0, returneduncaughterror,
-                out_uncaughterror,
-                1, NULL, (int)0
-            );
-            assert(result != 0);
-        }
-    } else {
-        poperrorframe(vmthread);
     }
+    while (vmthread->errorframe_count > endedframeslot)
+        poperrorframe(vmthread);
 }
 
 #ifdef NDEBUG
@@ -2178,7 +2206,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         int previous_count = vmthread->errorframe_count;
         #endif
         if (!pusherrorframe(
-                vmthread,
+                vmthread, inst->frameid,
                 ((inst->mode & CATCHMODE_JUMPONCATCH) != 0 ?
                  (p - pr->func[func_id].instructions) +
                  (int64_t)inst->jumponcatch : -1),
@@ -2203,10 +2231,16 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             #endif
             int64_t class_id = -1;
             if (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE) {
+                assert(((h64instruction_addcatchtype *)p)->frameid ==
+                       inst->frameid);
                 class_id = ((h64instruction_addcatchtype *)p)->classid;
             } else {
                 int16_t slotfrom = (
                     ((h64instruction_addcatchtypebyref *)p)->slotfrom
+                );
+                assert(
+                    ((h64instruction_addcatchtypebyref *)p)->frameid ==
+                    inst->frameid
                 );
                 valuecontent *vc = STACK_ENTRY(stack, slotfrom);
                 if (vc->type == H64VALTYPE_CLASSREF) {
@@ -2270,18 +2304,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         // See if we got a finally block to terminate:
         assert(vmthread->errorframe_count > 0);
-        if (vmthread->errorframe[
-                vmthread->errorframe_count - 1
-                ].triggered_catch &&
-                vmthread->errorframe[
-                vmthread->errorframe_count - 1
-                ].triggered_finally) {
+        {
             int64_t offset = (p - pr->func[func_id].instructions);
             int64_t oldoffset = offset;
             int exitwitherror = 0;
             h64errorinfo e = {0};
             vmthread_errors_EndFinally(
-                vmthread, &func_id, &offset,
+                vmthread, inst->frameid,
+                &func_id, &offset,
                 &exitwitherror, &e
             );  // calls poperrorframe
             if (exitwitherror) {
@@ -2296,9 +2326,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 offset += sizeof(h64instruction_popcatchframe);
             }
             p = (pr->func[func_id].instructions + offset);
-        } else {
-            poperrorframe(vmthread);
-            p += sizeof(h64instruction_popcatchframe);
         }
 
         goto *jumptable[((h64instructionany *)p)->type];
@@ -2473,7 +2500,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 (nameidx == vmexec->program->init_name_index ||
                  nameidx == vmexec->program->to_str_name_index ||
                  nameidx == vmexec->program->destroyed_name_index ||
-                 nameidx == vmexec->program->cloned_name_index ||
                  nameidx == vmexec->program->equals_name_index ||
                  nameidx == vmexec->program->to_hash_name_index
                 ) &&

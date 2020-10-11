@@ -432,8 +432,9 @@ int disassembler_PrintInstruction(
             );
         }
         if (!disassembler_Write(di,
-                "    %s %d %s %s %s",
+                "    %s cf%d %d %s %s %s",
                 bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_pushcatchframe->frameid,
                 (int)inst_pushcatchframe->mode,
                 sloterrorbuf, catchjumpbuf, finallyjumpbuf
                 )) {
@@ -445,8 +446,9 @@ int disassembler_PrintInstruction(
         h64instruction_addcatchtypebyref *inst_addcatchtypebyref =
             (h64instruction_addcatchtypebyref *)inst;
         if (!disassembler_Write(di,
-                "    %s t%d",
+                "    %s cf%d t%d",
                 bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_addcatchtypebyref->frameid,
                 (int)inst_addcatchtypebyref->slotfrom
                 )) {
             return 0;
@@ -457,8 +459,9 @@ int disassembler_PrintInstruction(
         h64instruction_addcatchtype *inst_addcatchtype =
             (h64instruction_addcatchtype *)inst;
         if (!disassembler_Write(di,
-                "    %s c%" PRId64,
+                "    %s cf%d c%" PRId64,
                 bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_addcatchtype->frameid,
                 (int64_t)inst_addcatchtype->classid
                 )) {
             return 0;
@@ -466,18 +469,24 @@ int disassembler_PrintInstruction(
         break;
     }
     case H64INST_POPCATCHFRAME: {
+        h64instruction_popcatchframe *inst_popcatchframe =
+            (h64instruction_popcatchframe *)inst;
         if (!disassembler_Write(di,
-                "    %s",
-                bytecode_InstructionTypeToStr(inst->type)
+                "    %s cf%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_popcatchframe->frameid
                 )) {
             return 0;
         }
         break;
     }
     case H64INST_JUMPTOFINALLY: {
+        h64instruction_jumptofinally *inst_jumptofinally =
+            (h64instruction_jumptofinally *)inst;
         if (!disassembler_Write(di,
-                "    %s",
-                bytecode_InstructionTypeToStr(inst->type)
+                "    %s cf%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_jumptofinally->frameid
                 )) {
             return 0;
         }
@@ -710,12 +719,6 @@ int disassembler_Dump(
                 p->destroyed_name_index))
             return 0;
     }
-    if (p->cloned_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " cloned\n",
-                p->cloned_name_index))
-            return 0;
-    }
     if (p->equals_name_index >= 0) {
         if (!disassembler_Write(di,
                 "NAMEIDX n%" PRId64 " equals\n",
@@ -726,6 +729,18 @@ int disassembler_Dump(
         if (!disassembler_Write(di,
                 "NAMEIDX n%" PRId64 " to_hash\n",
                 p->to_hash_name_index))
+            return 0;
+    }
+    if (p->add_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX n%" PRId64 " to_hash\n",
+                p->add_name_index))
+            return 0;
+    }
+    if (p->remove_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX n%" PRId64 " to_hash\n",
+                p->remove_name_index))
             return 0;
     }
     int64_t i = 0;

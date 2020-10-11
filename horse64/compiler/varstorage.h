@@ -35,7 +35,7 @@ typedef struct h64funcstorageextrainfo {
     struct h64codegenstorageinfo codegen;
 
     int32_t jump_targets_used;
-    int16_t dostmt_used;
+    int16_t dostmts_used;
 
     int closure_with_self;
     int closureboundvars_count;

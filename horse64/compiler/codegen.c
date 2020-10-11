@@ -2230,10 +2230,10 @@ int _codegencallback_DoCodegen_visit_in(
         );
         func->funcdef._storageinfo->jump_targets_used++;
 
-        if (func->funcdef._storageinfo->dostmt_used + 1 >= INT16_MAX - 1) {
+        if (func->funcdef._storageinfo->dostmts_used + 1 >= INT16_MAX - 1) {
             rinfo->hadunexpectederror = 1;
             if (!result_AddMessage(
-                    project->resultmsg,
+                    rinfo->pr->resultmsg,
                     H64MSG_ERROR, "exceeded maximum of "
                     "do statements in one function",
                     NULL, -1, -1
@@ -2246,7 +2246,7 @@ int _codegencallback_DoCodegen_visit_in(
         int16_t dostmtid = (
             func->funcdef._storageinfo->dostmts_used
         );
-        func->funcdef._storageinfo->dostmt_used++;
+        func->funcdef._storageinfo->dostmts_used++;
 
         h64instruction_pushcatchframe inst_pushframe = {0};
         inst_pushframe.type = H64INST_PUSHCATCHFRAME;
@@ -2389,6 +2389,10 @@ int _codegencallback_DoCodegen_visit_in(
                 }
             }
         } else {
+            // NOTE: this is needed even when the finally block follows
+            // immediately, such that horsevm knows that the finally
+            // was already triggered. (Important if another error were
+            // to happen.)
             h64instruction_jumptofinally inst_jumptofinally = {0};
             inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
             inst_jumptofinally.frameid = dostmtid;

@@ -29,15 +29,16 @@ typedef struct h64vmfunctionframe {
     int func_id;
     int return_slot;
     int return_to_func_id;
+    int catchframe_count_on_enter;
     ptrdiff_t return_to_execution_offset;
 } h64vmfunctionframe;
 
 typedef struct h64vmerrorcatchframe {
-    int func_frame_no;
+    int32_t func_frame_no, id;
     int64_t catch_instruction_offset;
     int64_t finally_instruction_offset;
     int error_obj_temporary_id;
-    int triggered_catch, triggered_finally;
+    uint8_t triggered_catch, triggered_finally;
     h64errorinfo storeddelayederror;
 
     int caught_types_count;
