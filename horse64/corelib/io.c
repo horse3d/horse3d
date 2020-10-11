@@ -413,7 +413,7 @@ int iolib_fileread(
     }
 
     valuecontent *vcamount = STACK_ENTRY(vmthread->stack, 1);
-    if ((vcamount->type != H64VALTYPE_INT64 ||
+    if ((vcamount->type != H64VALTYPE_INT64 &&
             vcamount->type != H64VALTYPE_FLOAT64) &&
             vcamount->type != H64VALTYPE_UNSPECIFIED_KWARG) {
         return vmexec_ReturnFuncError(
@@ -457,13 +457,23 @@ int iolib_fileread(
             "unknown read error"
         );
     }
-    while (readcount < amount || amount < 0) {
-        int64_t readbytes = (amount - readcount);
-        if (amount < 0)
+    char partcharacter[16] = {0};
+    while (readcount < amount || amount < 0 ||
+            strlen(partcharacter) > 0) {
+        int64_t readbytes = 0;
+        if (strlen(partcharacter) > 0) {
+            readbytes = 1;
+        } else if (amount > 0) {
+            readbytes = (amount - readcount);
+        } else {
             readbytes = 512;
-        if (readbytes + readbuffill > readbufsize) {
+        }
+        if (readbytes + readbuffill + (int64_t)sizeof(partcharacter) + 1 >
+                readbufsize) {
             char *newbuf = NULL;
-            int64_t newreadbufsize = readbytes + readbuffill + 1024 * 5;
+            int64_t newreadbufsize = (
+                readbytes + readbuffill + 1024 * 5
+            );
             if (!readbufheap) {
                 newbuf = malloc(newreadbufsize);
                 if (newbuf) {
@@ -501,12 +511,67 @@ int iolib_fileread(
                 cdata->flags |= FILEOBJ_FLAGS_CACHEDUNSENTERROR;
                 break;
             }
+            continue;
         }
         readbuffill += _didread;
         if (readbinary) {
-            readcount += _didread;
+            if (_didread >= 0)
+                readcount += _didread;
         } else if (amount >= 0) {
-            assert(0);  // FIXME, count utf8 chars here.
+            if (_didread > 0 && strlen(partcharacter) > 0) {
+                // Got a partial UTF-8 character to complete still:
+                assert(_didread == 1 && readbuffill > 0);
+                char endcharacter[16];
+                memcpy(
+                    endcharacter, partcharacter, strlen(partcharacter)
+                );
+                endcharacter[strlen(partcharacter)] = (
+                    readbuf[readbuffill]
+                );
+                readbuffill--;
+                endcharacter[strlen(partcharacter) + 1] = '\0';
+                int charlen = utf8_char_len(
+                    (unsigned char*)endcharacter
+                );
+                if (charlen == (int)strlen(endcharacter)) {
+                    // Character is now fully completed!
+                    memcpy(
+                        readbuf + readbuffill, endcharacter,
+                        strlen(endcharacter)
+                    );
+                    partcharacter[0] = '\0';
+                    readbuffill += strlen(endcharacter);
+                    readcount++;
+                } else {
+                    // Character is incomplete, so continue reading:
+                    assert(strlen(endcharacter) + 1 <
+                            sizeof(partcharacter));
+                    memcpy(partcharacter, endcharacter,
+                            strlen(endcharacter) + 1);
+                }
+                continue;
+            } else if (_didread > 0) {
+                int64_t oldfill = readbuffill -= _didread;
+                while (oldfill < readbuffill) {
+                    int charlen = utf8_char_len(
+                        (unsigned char*)&readbuf[oldfill]
+                    );
+                    if (charlen + oldfill > readbuffill) {
+                        // Last character is incomplete. Need partial read:
+                        assert(charlen > 1);
+                        assert(charlen + 1 < (int)sizeof(partcharacter));
+                        memcpy(partcharacter, readbuf + oldfill,
+                               readbuffill - oldfill);
+                        partcharacter[readbuffill - oldfill] = '\0';
+                        readbuffill = oldfill;
+                        break;
+                    } else {
+                        oldfill += charlen;
+                        readcount++;
+                    }
+                }
+                continue;
+            }
         }
     }
 
