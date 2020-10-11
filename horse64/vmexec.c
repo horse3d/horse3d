@@ -448,8 +448,8 @@ static int vmthread_errors_Raise(
     h64errorinfo e = {0};
     e.error_class_id = class_id;
     int storemsg = (
-        (error_to_slot >= 0 || unroll_to_frame < 0) &&
-        !bubble_up_error_later && msg
+        (error_to_slot >= 0 || bubble_up_error_later) &&
+        msg
     );
     if (!utf32) {
         int buflen = 2048;
@@ -529,8 +529,8 @@ static int vmthread_errors_Raise(
     }
 
     // If this is a final, uncaught error, bail out here:
-    if (vmthread->errorframe_count <= 0 &&
-            !bubble_up_error_later) {
+    if (vmthread->errorframe_count <= 0) {
+        assert(!bubble_up_error_later);
         assert(e.error_class_id >= 0);
         if (returneduncaughterror) *returneduncaughterror = 1;
         if (out_uncaughterror) {
@@ -561,7 +561,7 @@ static int vmthread_errors_Raise(
         vc->einfo->refcount = 0;
         ADDREF_NONHEAP(vc);
     } else {
-        assert(e.msglen == 0 || !storemsg);
+        assert(e.msglen == 0 || storemsg);
     }
 
     // Set proper execution position:
