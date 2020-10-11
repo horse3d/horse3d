@@ -1,3 +1,5 @@
 # This is needed for clangd to find includes (e.g. in VS Code/Codium)
 -I./
 -I./horse64/
+-Wall
+-Wextra
