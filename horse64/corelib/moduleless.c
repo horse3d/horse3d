@@ -19,6 +19,7 @@
 #include "corelib/moduleless.h"
 #include "gcvalue.h"
 #include "hash.h"
+#include "nonlocale.h"
 #include "stack.h"
 #include "vmexec.h"
 #include "vmlist.h"
@@ -55,6 +56,39 @@ int corelib_containeradd(  // $$builtin.$$containeradd
 struct _printvalue_seeninfo {
     hashset *seen;
 };
+
+static void _corelib_printbytes(
+        char *bytesref, int64_t byteslen
+        ) {
+    h64printf("b\"");
+    int64_t i = 0;
+    while (i < byteslen) {
+        uint8_t byte = ((uint8_t*)bytesref)[i];
+        if ((byte >= 'a' && byte <= 'z') ||
+                (byte >= 'A' && byte <= 'Z') ||
+                byte == ' ' || (byte >= '!' && byte <= '~' &&
+                byte != '\\')) {
+            h64printf("%c", byte);
+        } else if (byte == '"') {
+            h64printf("\\\"");
+        } else if (byte == '\\') {
+            h64printf("\\\\");
+        } else if (byte == '\r') {
+            h64printf("\\r");
+        } else if (byte == '\n') {
+            h64printf("\\n");
+        } else {
+            char hexval[5] = {0};
+            h64snprintf(hexval, sizeof(hexval) - 1, "%x", (int)byte);
+            h64printf("\\x");
+            if (strlen(hexval) < 2)
+                h64printf("0");
+            h64printf("%s", hexval);
+        }
+        i++;
+    }
+    h64printf("\"");
+}
 
 static int _corelib_printvalue(
         h64vmthread *vmthread,
@@ -100,7 +134,13 @@ static int _corelib_printvalue(
                     if (outlen >= (int64_t)buflen)
                         outlen = buflen - 1;
                     buf[outlen] = '\0';
-                    printf("%s", buf);
+                    h64printf("%s", buf);
+                    break;
+                }
+                case H64GCVALUETYPE_BYTES: {
+                    _corelib_printbytes(
+                        gcval->bytes_val.s, gcval->bytes_val.len
+                    );
                     break;
                 }
                 case H64GCVALUETYPE_LIST: {
@@ -112,7 +152,7 @@ static int _corelib_printvalue(
                             sinfo->seen, &gcval->list_values,
                             sizeof(gcval->list_values)
                             )) {
-                        printf("...");
+                        h64printf("...");
                         break;
                     }
                     if (!hashset_Add(
@@ -126,7 +166,7 @@ static int _corelib_printvalue(
                             "alloc failure printing list"
                         );
                     }
-                    printf("[");
+                    h64printf("[");
                     int64_t entry_offset = -1;
                     int64_t total_entry_count = (
                         gcval->list_values->list_total_entry_count
@@ -153,12 +193,14 @@ static int _corelib_printvalue(
                         }
                         block = block->next_block;
                     }
-                    printf("]");
+                    h64printf("]");
                     break;
                 }
                 default:
-                    printf("<unhandled refvalue type=%d>",
-                           (int)gcval->type);
+                    h64printf(
+                        "<unhandled gc refvalue type=%d>",
+                        (int)gcval->type
+                    );
             }
             break;
         }
@@ -178,15 +220,15 @@ static int _corelib_printvalue(
             );
             assert(result != 0 && outlen > 0 && outlen + 1 < 25);
             buf[outlen] = '\0';
-            printf("%s", buf);
+            h64printf("%s", buf);
             break;
         }
         case H64VALTYPE_INT64: {
-            printf("%" PRId64, c->int_value);
+            h64printf("%" PRId64, c->int_value);
             break;
         }
         default: {
-            printf("<unhandled valuecontent type=%d>", (int)c->type);
+            h64printf("<unhandled valuecontent type=%d>", (int)c->type);
             break;
         }
     }
