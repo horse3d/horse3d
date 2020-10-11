@@ -20,8 +20,8 @@ START_TEST (test_widechar)
     wasoutofmem = 0;
     out_len = 0;
     ck_assert(utf8_to_utf32_ex(
-        "\xFF\xc3\xb6", 3, NULL, NULL, &out_len,
-        0, &wasinvalid, &wasoutofmem
+        "\xFF\xc3\xb6", 3, NULL, 0, NULL, NULL, &out_len,
+        0, 0, &wasinvalid, &wasoutofmem
     ) == NULL);
     ck_assert(wasinvalid == 1);
     ck_assert(wasoutofmem == 0);
@@ -32,8 +32,8 @@ START_TEST (test_widechar)
     wasoutofmem = 0;
     out_len = 0;
     ck_assert((s = utf8_to_utf32_ex(
-        "\xFF\xc3\xb6", 3, NULL, NULL, &out_len,
-        1, &wasinvalid, &wasoutofmem
+        "\xFF\xc3\xb6", 3, NULL, 0, NULL, NULL, &out_len,
+        1, 0, &wasinvalid, &wasoutofmem
     )) != NULL);
     ck_assert(wasinvalid == 0);
     ck_assert(wasoutofmem == 0);
@@ -46,8 +46,8 @@ START_TEST (test_widechar)
     wasoutofmem = 0;
     out_len = 0;
     ck_assert(utf8_to_utf32_ex(
-        "\xc3\xc3", 2, NULL, NULL, &out_len,
-        0, &wasinvalid, &wasoutofmem
+        "\xc3\xc3", 2, NULL, 0, NULL, NULL, &out_len,
+        0, 0, &wasinvalid, &wasoutofmem
     ) == NULL);
     ck_assert(wasinvalid == 1);
     ck_assert(wasoutofmem == 0);
