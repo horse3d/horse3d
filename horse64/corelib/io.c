@@ -6,10 +6,14 @@
 #define __USE_LARGEFILE64
 #define _LARGEFILE_SOURCE
 #define _LARGEFILE64_SOURCE
-#if !defined(_WIN32) && !defined(_WIN64)
+#if defined(_WIN32) || defined(_WIN64)
+#define fseek64 _fseeki64
+#define ftell64 _ftelli64
+#else
 #define fseek64 fseeko64
 #define ftell64 ftello64
 #endif
+
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
@@ -48,6 +52,7 @@
 typedef struct _fileobj_cdata {
     FILE *file_handle;
     uint8_t flags;
+    uint64_t text_offset;
 } __attribute__((packed)) _fileobj_cdata;
 
 int iolib_open(
@@ -90,7 +95,13 @@ int iolib_open(
               when reading invalid encoding (when this setting is false,
               the default), or whether garbage will be silently surrogate
               escaped and retained (when this setting is set to true).
-     * @return a @see{file object|io.file}
+     * @returns a @see{file object|io.file}
+     * @raises IOERROR raised when there is a failure that is NOT expected
+     *    to go away with retrying, like wrong file type, permission errors,
+     *    full disk, etc.
+     * @raises OSError raised when there is unexpected resource
+     *    exhaustion that MAY go away when retrying, like running out of
+     *    file handles, read timeout, and so on.
      */
     assert(STACK_TOP(vmthread->stack) >= 6);
 
@@ -405,7 +416,16 @@ int iolib_fileread(
      * Read from the given file.
      *
      * @funcattr file read
-     * @param amount=-1
+     * @param amount=-1 amount of bytes or characters to read.
+     * @returns the data read, which is a @see{bytes} value when the
+     *    file was opened with binary=false, otherwise a @see{string}
+     *    value.
+     * @raises IOERROR raised when there is a failure that is NOT expected
+     *    to go away with retrying, like wrong file type, permission errors,
+     *    full disk, etc.
+     * @raises OSError raised when there is unexpected resource
+     *    exhaustion that MAY go away when retrying, like running out of
+     *    file handles, read timeout, and so on.
      */
     assert(STACK_TOP(vmthread->stack) >= 2);
 
@@ -547,8 +567,8 @@ int iolib_fileread(
         if (readbinary) {
             if (_didread >= 0)
                 readcount += _didread;
-        } else if (amount >= 0) {
-            if (_didread > 0 && strlen(partcharacter) > 0) {
+        } else if (!readbinary && amount >= 0) {
+            if (_didread > 0 && haspartialchar > 0) {
                 // Got a partial UTF-8 character to complete still:
                 assert(_didread == 1 && readbuffill > 0);
                 char endcharacter[16];
@@ -572,6 +592,7 @@ int iolib_fileread(
                     haspartialchar = 0;
                     readbuffill += strlen(endcharacter);
                     readcount++;
+                    cdata->text_offset++;
                 } else {
                     // Character is incomplete, so continue reading:
                     assert(strlen(endcharacter) + 1 <
@@ -600,6 +621,7 @@ int iolib_fileread(
                     } else {
                         oldfill += charlen;
                         readcount++;
+                        cdata->text_offset++;
                     }
                 }
                 continue;
@@ -734,6 +756,65 @@ int iolib_fileread(
     return 1;
 }
 
+int iolib_fileoffset(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Get the seek offset in the given file. When binary mode is off,
+     * even though seeking will be unavailable this function will still work
+     * and return the characters read so far.
+     *
+     * @funcattr io.file offset
+     * @raises IOERROR raised when there is a failure that is NOT expected
+     *    to go away with retrying, like wrong file type, permission errors,
+     *    file was closed, etc.
+     * @raises OSError raised when there is unexpected resource
+     *    exhaustion that MAY go away when retrying, like running out of
+     *    file handles, read timeout, and so on.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    assert(vc->type == H64VALTYPE_GCVAL);
+    h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
+    assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
+    assert(gcvalue->classid ==
+           vmthread->vmexec_owner->program->_io_file_class_idx);
+    _fileobj_cdata *cdata = (gcvalue->cdata);
+
+    if (cdata->file_handle == NULL) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_IOERROR,
+            "file was closed"
+        );
+    } else if (ferror(cdata->file_handle) ||
+            (cdata->flags & FILEOBJ_FLAGS_CACHEDUNSENTERROR) != 0) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            "file has encountered read/write error"
+        );
+    }
+    int64_t result = -1;
+    if ((cdata->flags & FILEOBJ_FLAGS_BINARY) != 0) {
+        result = ftell64(cdata->file_handle);
+    } else {
+        result = cdata->text_offset;
+    }
+    if (result < 0) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            "unexpected ftell64() error"
+        );
+    }
+    valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vresult);
+    valuecontent_Free(vresult);
+    memset(vresult, 0, sizeof(*vresult));
+    vresult->type = H64VALTYPE_INT64;
+    vresult->int_value = result;
+    return 1;
+}
+
 int iolib_fileclose(
         h64vmthread *vmthread
         ) {
@@ -742,6 +823,12 @@ int iolib_fileclose(
      * so it is safe to close a file multiple times.
      *
      * @funcattr io.file close
+     * @raises IOERROR raised when there is a failure that is NOT expected
+     *    to go away with retrying, like wrong file type, permission errors,
+     *    full disk, etc.
+     * @raises OSError raised when there is unexpected resource
+     *    exhaustion that MAY go away when retrying, like running out of
+     *    file handles, read timeout, and so on.
      */
     assert(STACK_TOP(vmthread->stack) >= 1);
 
@@ -788,7 +875,17 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     const char *io_fileread_kw_arg_name[] = {"amount"};
     idx = h64program_RegisterCFunction(
         p, "read", &iolib_fileread,
-        NULL, 1, io_fileread_kw_arg_name, 0,  // fileuri, args
+        NULL, 2, io_fileread_kw_arg_name, 0,  // fileuri, args
+        "io", "core.horse64.org", 1, p->_io_file_class_idx
+    );
+    if (idx < 0)
+        return 0;
+
+    // file.offset method:
+    const char *io_fileoffset_kw_arg_name[] = {NULL};
+    idx = h64program_RegisterCFunction(
+        p, "offset", &iolib_fileoffset,
+        NULL, 1, io_fileoffset_kw_arg_name, 0,  // fileuri, args
         "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)
