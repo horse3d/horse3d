@@ -1187,7 +1187,8 @@ int _codegencallback_DoCodegen_visit_out(
             h64wchar *result = utf8_to_utf32_ex(
                 expr->literal.str_value,
                 expr->literal.str_value_len,
-                NULL, NULL, &out_len, 1,
+                NULL, 0,
+                NULL, NULL, &out_len, 1, 0,
                 &abortinvalid, &abortoom
             );
             if (!result) {
