@@ -2,7 +2,9 @@
 Horse64
 =======
 
-![GitHub Workflow Status Badge (branch master)](https://img.shields.io/github/workflow/status/horse64/horse64/Basic%20build%20and%20test/master?label=build%20and%20tests&style=flat-square)
+![GitHub Workflow Status Badge (branch master)](
+    https://img.shields.io/github/workflow/status/horse64/horse64/Basic%20build%20and%20test/master?label=build%20and%20tests&style=flat-square
+)
 
 Welcome to *Horse64*, a **simple & versatile programming
 language** for your applications.
