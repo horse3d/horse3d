@@ -2,6 +2,15 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#define _FILE_OFFSET_BITS 64
+#define __USE_LARGEFILE64
+#define _LARGEFILE_SOURCE
+#define _LARGEFILE64_SOURCE
+#if !defined(_WIN32) && !defined(_WIN64)
+#define fseek64 fseeko64
+#define ftell64 ftello64
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
 #else
@@ -31,8 +40,8 @@
 #define FILEOBJ_FLAGS_READ 0x4
 #define FILEOBJ_FLAGS_LASTWASWRITE 0x8
 #define FILEOBJ_FLAGS_BINARY 0x10
-#define FILEOBJ_FLAGS_ERROR 0x20
 #define FILEOBJ_FLAGS_CACHEDUNSENTERROR 0x20
+#define FILEOBJ_FLAGS_IGNOREENCODINGERROR 0x40
 
 /// @module io Disk access functions, reading and writing to files.
 
@@ -76,9 +85,14 @@ int iolib_open(
               otherwise it will be decoded from utf-8 and return a
               @see(string). When decoding to a string, invalid bytes
               will be replaced by code point U+FFFD which is lossy.
+     * @param allow_bad_encoding=false when reading in non-binary mode,
+              this setting determines whether to throw an EncodingError
+              when reading invalid encoding (when this setting is false,
+              the default), or whether garbage will be silently surrogate
+              escaped and retained (when this setting is set to true).
      * @return a @see{file object|io.file}
      */
-    assert(STACK_TOP(vmthread->stack) >= 5);
+    assert(STACK_TOP(vmthread->stack) >= 6);
 
     valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
     char *pathstr = NULL;
@@ -160,6 +174,19 @@ int iolib_open(
         if (vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG &&
                 vcarg->int_value != 0)
             flags |= FILEOBJ_FLAGS_BINARY;
+    }
+    {
+        valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 5);
+        if (vcarg->type != H64VALTYPE_BOOL &&
+                vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_TYPEERROR,
+                "allow_bad_encoding option must be a boolean"
+            );
+        }
+        if (vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG &&
+                vcarg->int_value != 0)
+            flags |= FILEOBJ_FLAGS_IGNOREENCODINGERROR;
     }
     if (!mode_read && !mode_write) {
         return vmexec_ReturnFuncError(
@@ -251,7 +278,7 @@ int iolib_open(
         utf8buf[1] = '\0';
     }
     errno = 0;
-    FILE *f = fopen(
+    FILE *f = fopen64(
         utf8buf, modestr
     );
     if (!f) {
@@ -457,11 +484,14 @@ int iolib_fileread(
             "unknown read error"
         );
     }
+
+    int haspartialchar = 0;
     char partcharacter[16] = {0};
-    while (readcount < amount || amount < 0 ||
-            strlen(partcharacter) > 0) {
+
+    // Read from file up to requested amount:
+    while (readcount < amount || amount < 0 || haspartialchar) {
         int64_t readbytes = 0;
-        if (strlen(partcharacter) > 0) {
+        if (haspartialchar) {
             readbytes = 1;
         } else if (amount > 0) {
             readbytes = (amount - readcount);
@@ -539,7 +569,7 @@ int iolib_fileread(
                         readbuf + readbuffill, endcharacter,
                         strlen(endcharacter)
                     );
-                    partcharacter[0] = '\0';
+                    haspartialchar = 0;
                     readbuffill += strlen(endcharacter);
                     readcount++;
                 } else {
@@ -548,6 +578,7 @@ int iolib_fileread(
                             sizeof(partcharacter));
                     memcpy(partcharacter, endcharacter,
                             strlen(endcharacter) + 1);
+                    haspartialchar = 1;
                 }
                 continue;
             } else if (_didread > 0) {
@@ -564,6 +595,7 @@ int iolib_fileread(
                                readbuffill - oldfill);
                         partcharacter[readbuffill - oldfill] = '\0';
                         readbuffill = oldfill;
+                        haspartialchar = 1;
                         break;
                     } else {
                         oldfill += charlen;
@@ -580,9 +612,85 @@ int iolib_fileread(
     valuecontent_Free(vresult);
     memset(vresult, 0, sizeof(*vresult));
 
-    if (!readbinary) {
-        assert(0);  // FIXME, string conversion here
+    if (!readbinary && readbuffill == 0) {
+        vresult->type = H64VALTYPE_SHORTSTR;
+        vresult->constpreallocstr_len = 0;
+    } else if (!readbinary) {
+        char _convertedbuf[1024];
+        h64wchar* converted = (h64wchar*)_convertedbuf;
+        int64_t convertedlen = 0;
+        int abortedinvalid = 0;
+        int abortedoom = 0;
+        converted = utf8_to_utf32_ex(
+            readbuf, readbuffill,
+            (char*)converted, sizeof(_convertedbuf),
+            NULL, NULL, &convertedlen,
+            ((cdata->flags & FILEOBJ_FLAGS_IGNOREENCODINGERROR) != 0),
+            0, &abortedinvalid, &abortedoom
+        );
+        if (abortedinvalid) {
+            assert(!converted);
+            if (readbufheap)
+                free(readbuf);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_ENCODINGERROR,
+                "invalid encoded character in file"
+            );
+        }
+        if (abortedoom) {
+            assert(!converted);
+            if (readbufheap)
+                free(readbuf);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "decode buffer alloc failure"
+            );
+        }
+        assert(converted != NULL);
+        if (readbufheap)
+            free(readbuf);
+        int convertedonheap = (
+            (char*)converted != _convertedbuf
+        );
+        vresult->type = H64VALTYPE_GCVAL;
+        vresult->ptr_value = poolalloc_malloc(
+            vmthread->heap, 0
+        );
+        if (!vresult->ptr_value) {
+            if (convertedonheap)
+                free(converted);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "result value alloc failure"
+            );
+        }
+        h64gcvalue *gcval = vresult->ptr_value;
+        memset(gcval, 0, sizeof(*gcval));
+        gcval->type = H64GCVALUETYPE_STRING;
+        if (!vmstrings_AllocBuffer(
+                vmthread, &gcval->str_val,
+                convertedlen
+                )) {
+            poolalloc_free(vmthread->heap, gcval);
+            vresult->ptr_value = NULL;
+            vresult->type = H64VALTYPE_NONE;
+            if (convertedonheap)
+                free(converted);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "result value alloc failure"
+            );
+        }
+        memcpy(gcval->str_val.s, converted, convertedlen);
+        if (convertedonheap)
+            free(converted);
+        gcval->str_val.refcount = 1;
+        gcval->externalreferencecount = 1;
+    } else if (readbinary && readbuffill == 0) {
+        vresult->type = H64VALTYPE_SHORTBYTES;
+        vresult->constpreallocbytes_len = 0;
     } else {
+        assert(readbinary);
         vresult->type = H64VALTYPE_GCVAL;
         vresult->ptr_value = poolalloc_malloc(
             vmthread->heap, 0
@@ -654,12 +762,13 @@ int iolib_fileclose(
 int iolib_RegisterFuncsAndModules(h64program *p) {
     // io.open:
     const char *io_open_kw_arg_name[] = {
-        NULL, "read", "write", "append", "binary"
+        NULL, "read", "write", "append", "binary",
+        "allow_bad_encoding"
     };
     int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "open", &iolib_open,
-        NULL, 5, io_open_kw_arg_name, 0,  // fileuri, args
+        NULL, 6, io_open_kw_arg_name, 0,  // fileuri, args
         "io", "core.horse64.org", 1, -1
     );
     if (idx < 0)
