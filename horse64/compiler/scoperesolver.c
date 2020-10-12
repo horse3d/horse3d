@@ -26,6 +26,7 @@
 #include "filesys.h"
 #include "hash.h"
 #include "nonlocale.h"
+#include "threadablechecker.h"
 
 
 typedef struct resolveinfo {
@@ -240,6 +241,10 @@ static int scoperesolver_ComputeItemStorage(
                 program->classes[
                     owningclassindex
                 ].varinitfuncidx = idx;
+                if (program->classes[owningclassindex].user_set_canasync)
+                    program->func[idx].user_set_canasync = 1;
+                else if (!program->classes[owningclassindex].is_threadable)
+                    program->func[idx].is_threadable = 0;
             }
             return 1;
         }
@@ -291,7 +296,6 @@ static int scoperesolver_ComputeItemStorage(
                     csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
                 );
                 char buf[128] = "";
-                char namebuf[64] = "";
                 snprintf(buf, sizeof(buf) - 1,
                     "exceeded maximum of %" PRId64 " func "
                     "attributes on this class",
@@ -371,6 +375,11 @@ static int scoperesolver_ComputeItemStorage(
             free(kwarg_names);
             if (outofmemory) *outofmemory = 1;
             return 0;
+        }
+        if (expr->funcdef.is_canasync) {
+            program->func[bytecode_func_id].user_set_canasync = 1;
+        } else if (expr->funcdef.is_noasync) {
+            program->func[bytecode_func_id].is_threadable = 0;
         }
         int k = 0;
         while (k < i) {
@@ -2085,6 +2094,17 @@ int scoperesolver_ResolveAST(
         if (!astobviousmistakes_CheckAST(pr, unresolved_ast))
             return 0;
     }
+
+    // If no error even now, register all functions with threadable
+    // checker:
+    if (pr->resultmsg->success &&
+            unresolved_ast->resultmsg.success) {
+        if (!threadablechecker_RegisterASTForCheck(
+                pr, unresolved_ast
+                ))
+            return 0;
+    }
+
     // Finally, make sure we copy all errors/warnngs/...:
     if (!result_TransferMessages(
             &unresolved_ast->resultmsg, pr->resultmsg

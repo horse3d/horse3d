@@ -402,6 +402,7 @@ h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
     );
     if (bytecode_id < 0)
         goto oom;
+    rinfo->pr->program->func[bytecode_id].is_threadable = 0;
     rinfo->pr->_tempglobalfakeinitfunc->
         funcdef.bytecode_func_id = bytecode_id;
     rinfo->pr->program->globalinit_func_index = bytecode_id;

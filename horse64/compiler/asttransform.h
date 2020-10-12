@@ -7,6 +7,7 @@
 
 typedef struct h64ast h64ast;
 typedef struct h64compileproject h64compileproject;
+typedef struct h64expression h64expression;
 
 typedef struct asttransforminfo {
     h64compileproject *pr;
