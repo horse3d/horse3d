@@ -756,6 +756,89 @@ int iolib_fileread(
     return 1;
 }
 
+int iolib_fileseek(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Seek to the given offset in the given file. This is only
+     * available in binary mode, in non-binary mode only linear reading and
+     * writing is possible.
+     *
+     * @funcattr io.file seek
+     * @param offset the offset to seek to. A negative number, like -1, will
+     *    seek to the end of the file.
+     * @raises TypeError raised when trying to seek on a file that doesn't
+     *    support seeking, like a file in non-binary mode
+     * @raises IOERROR raised when there is a failure that is NOT expected
+     *    to go away with retrying, like wrong file type, permission errors,
+     *    file was closed, etc.
+     * @raises OSError raised when there is unexpected resource
+     *    exhaustion that MAY go away when retrying, like running out of
+     *    file handles, read timeout, and so on.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    assert(vc->type == H64VALTYPE_GCVAL);
+    h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
+    assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
+    assert(gcvalue->classid ==
+           vmthread->vmexec_owner->program->_io_file_class_idx);
+    _fileobj_cdata *cdata = (gcvalue->cdata);
+
+    if (cdata->file_handle == NULL) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_IOERROR,
+            "file was closed"
+        );
+    } else if (ferror(cdata->file_handle) ||
+            (cdata->flags & FILEOBJ_FLAGS_CACHEDUNSENTERROR) != 0) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            "file has encountered read/write error"
+        );
+    } else if ((cdata->flags & FILEOBJ_FLAGS_BINARY) != 0) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "cannot seek on non-binary mode file"
+        );
+    }
+
+    valuecontent *vcoffset = STACK_ENTRY(vmthread->stack, 1);
+    if (vcoffset->type != H64VALTYPE_INT64 &&
+            vcoffset->type != H64VALTYPE_FLOAT64) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "offset must be a number"
+        );
+    }
+    int64_t offset = -1;
+    if (vcoffset->type != H64VALTYPE_INT64)
+        offset = vcoffset->int_value;
+    else
+        offset = roundl(vcoffset->float_value);
+
+    int result = -1;
+    if (offset < 0) {
+        result = fseek64(cdata->file_handle, 0, SEEK_SET);
+    } else {
+        result = fseek64(cdata->file_handle, offset, SEEK_CUR);
+    }
+    if (result != 0) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            "unexpected seek failure"
+        );
+    }
+
+    valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vresult);
+    valuecontent_Free(vresult);
+    memset(vresult, 0, sizeof(*vresult));
+    vresult->type = H64VALTYPE_NONE;
+    return 1;
+}
+
 int iolib_fileoffset(
         h64vmthread *vmthread
         ) {
@@ -886,6 +969,16 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "offset", &iolib_fileoffset,
         NULL, 1, io_fileoffset_kw_arg_name, 0,  // fileuri, args
+        "io", "core.horse64.org", 1, p->_io_file_class_idx
+    );
+    if (idx < 0)
+        return 0;
+
+    // file.seek method:
+    const char *io_fileseek_kw_arg_name[] = {NULL};
+    idx = h64program_RegisterCFunction(
+        p, "seek", &iolib_fileoffset,
+        NULL, 2, io_fileseek_kw_arg_name, 0,  // fileuri, args
         "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)
