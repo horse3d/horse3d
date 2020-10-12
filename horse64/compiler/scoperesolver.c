@@ -188,7 +188,6 @@ static int scoperesolver_ComputeItemStorage(
                     csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
                 );
                 char buf[128] = "";
-                char namebuf[64] = "";
                 snprintf(buf, sizeof(buf) - 1,
                     "exceeded maximum of %" PRId64 " variable "
                     "attributes on this class",
@@ -1461,7 +1460,6 @@ int scoperesolver_BuildASTGlobalStorage(
 
         // If path has dots in later elements, then abort with error:
         unsigned int i = 0;
-        int in_first_element = 0;
         while (i < strlen(module_path)) {
             if (module_path[i] == '.') {
                 free(library_source);
@@ -1905,7 +1903,6 @@ int scoperesolver_ResolveAST(
                     csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
                 );
                 char buf[128] = "";
-                char namebuf[64] = "";
                 snprintf(buf, sizeof(buf) - 1,
                     "exceeded maximum of %" PRId64 " variable "
                     "attributes on this class",
@@ -1993,7 +1990,6 @@ int scoperesolver_ResolveAST(
                     csymbol ? csymbol->_tmp_classdef_expr_ptr : NULL
                 );
                 char buf[128] = "";
-                char namebuf[64] = "";
                 snprintf(buf, sizeof(buf) - 1,
                     "exceeded maximum of %" PRId64 " func "
                     "attributes on this class",

@@ -8,6 +8,7 @@
 #include "bytecode.h"
 
 typedef struct h64ast h64ast;
+typedef struct h64compileproject h64compileproject;
 typedef struct h64program h64program;
 typedef struct hashmap hashmap;
 

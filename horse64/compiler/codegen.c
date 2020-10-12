@@ -2537,6 +2537,10 @@ int _codegencallback_DoCodegen_visit_in(
             _asttransform_cancel_visit_descend_callback,
             rinfo
         );
+        if (!result) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
         rinfo->dont_descend_visitation = 1;
         int containertemp = -1;
         assert(expr->forstmt.iterated_container->

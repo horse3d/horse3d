@@ -5,6 +5,8 @@
 #ifndef HORSE64_VMEXEC_H_
 #define HORSE64_VMEXEC_H_
 
+#include "compileconfig.h"
+
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -79,7 +81,9 @@ typedef struct h64vmexec {
     h64vmthread *active_thread;
 } h64vmexec;
 
-static inline int VMTHREAD_FUNCSTACKBOTTOM(h64vmthread *vmthread) {
+ATTR_UNUSED static inline int VMTHREAD_FUNCSTACKBOTTOM(
+        h64vmthread *vmthread
+        ) {
     if (vmthread->funcframe_count > 0)
         return vmthread->funcframe[vmthread->funcframe_count - 1].
             stack_func_floor;
