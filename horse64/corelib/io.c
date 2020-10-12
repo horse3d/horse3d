@@ -970,10 +970,10 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
         return 0;
 
     // file.offset method:
-    const char *io_fileoffset_kw_arg_name[] = {NULL};
+    const char *io_fileoffset_kw_arg_name[] = {};
     idx = h64program_RegisterCFunction(
         p, "offset", &iolib_fileoffset,
-        NULL, 1, io_fileoffset_kw_arg_name, 0,  // fileuri, args
+        NULL, 0, io_fileoffset_kw_arg_name, 0,  // fileuri, args
         "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)
@@ -982,7 +982,7 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     // file.seek method:
     const char *io_fileseek_kw_arg_name[] = {NULL};
     idx = h64program_RegisterCFunction(
-        p, "seek", &iolib_fileoffset,
+        p, "seek", &iolib_fileseek,
         NULL, 1, io_fileseek_kw_arg_name, 0,  // fileuri, args
         "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
