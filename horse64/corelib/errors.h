@@ -7,8 +7,9 @@
 
 #include "compileconfig.h"
 
-#include <stdlib.h>  // NULL
+#include <stdlib.h>  // for 'NULL'
 
+typedef struct h64program h64program;
 typedef struct h64vmthread h64vmthread;
 
 int stderror(
@@ -53,8 +54,6 @@ ATTR_UNUSED static const char *stderrorclassnames[] = {
     "EncodingError",
     NULL
 };
-
-typedef struct h64program h64program;
 
 int corelib_RegisterErrorClasses(
     h64program *p

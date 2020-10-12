@@ -5,6 +5,7 @@
 #ifndef HORSE64_CORELIB_MODULELESS_H_
 #define HORSE64_CORELIB_MODULELESS_H_
 
+typedef struct h64program h64program;
 
 int corelib_RegisterFuncsAndModules(h64program *p);
 

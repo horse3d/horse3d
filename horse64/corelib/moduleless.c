@@ -19,7 +19,9 @@
 #include "corelib/moduleless.h"
 #include "gcvalue.h"
 #include "hash.h"
+#include "net.h"
 #include "nonlocale.h"
+#include "process.h"
 #include "stack.h"
 #include "vmexec.h"
 #include "vmlist.h"
@@ -240,6 +242,11 @@ static int _corelib_printvalue(
 int corelib_print(  // $$builtin.print
         h64vmthread *vmthread
         ) {
+    /**
+     * Print out strings and other values to the terminal (stdout).
+     *
+     * @func print
+     */
     assert(STACK_TOP(vmthread->stack) == 1);
     assert(STACK_ENTRY(vmthread->stack, 0)->type == H64VALTYPE_GCVAL &&
         ((h64gcvalue*)STACK_ENTRY(vmthread->stack, 0)->ptr_value)->type ==
@@ -275,6 +282,14 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
 
     // 'io' module:
     if (!iolib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'process' module:
+    if (!processlib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'net' module:
+    if (!netlib_RegisterFuncsAndModules(p))
         return 0;
 
     // 'print' function:

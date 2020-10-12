@@ -2,11 +2,11 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
-#ifndef HORSE64_CORELIB_IO_H_
-#define HORSE64_CORELIB_IO_H_
+#ifndef HORSE64_CORELIB_NET_H_
+#define HORSE64_CORELIB_NET_H_
 
 typedef struct h64program h64program;
 
-int iolib_RegisterFuncsAndModules(h64program *p);
+int netlib_RegisterFuncsAndModules(h64program *p);
 
-#endif  // HORSE64_CORELIB_IO_H_
+#endif  // HORSE64_CORELIB_NET_H_
