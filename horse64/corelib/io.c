@@ -504,6 +504,11 @@ int iolib_fileread(
             "unknown read error"
         );
     }
+    if ((cdata->flags & FILEOBJ_FLAGS_LASTWASWRITE) != 0) {
+        cdata->flags &= ~((uint8_t)FILEOBJ_FLAGS_LASTWASWRITE);
+        fflush(f);
+        fseek(f, 0, SEEK_CUR);
+    }
 
     int haspartialchar = 0;
     char partcharacter[16] = {0};
