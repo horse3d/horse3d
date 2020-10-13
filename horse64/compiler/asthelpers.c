@@ -97,3 +97,46 @@ h64expression *get_containing_statement(
     }
     return NULL;
 }
+
+
+int _is_simple_constant_expr_inner(h64expression *expr) {
+    if (expr->type == H64EXPRTYPE_LITERAL) {
+        return 1;
+    } else if ((expr->type == H64EXPRTYPE_BINARYOP ||
+            expr->type == H64EXPRTYPE_UNARYOP) &&
+            expr->op.optype != H64OP_NEW &&
+            (expr->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER ||
+             (expr->type == H64EXPRTYPE_BINARYOP &&
+              expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF && (
+              strcmp(expr->op.value2->identifierref.value, "as_str") == 0 ||
+              strcmp(expr->op.value2->identifierref.value, "len") == 0)))) {
+        if (expr->type == H64EXPRTYPE_BINARYOP &&
+                expr->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER) {
+            return (
+                _is_simple_constant_expr_inner(expr->op.value1) &&
+                _is_simple_constant_expr_inner(expr->op.value2)
+            );
+        }
+        return _is_simple_constant_expr_inner(expr->op.value1);
+    }
+    return 0;
+}
+
+int is_simple_constant_expr(h64expression *expr) {
+    if (expr->type == H64EXPRTYPE_INLINEFUNCDEF)
+        return 1;
+    return _is_simple_constant_expr_inner(expr);
+}
+
+int func_has_param_with_name(h64expression *expr, const char *param) {
+    assert(expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+           expr->type == H64EXPRTYPE_INLINEFUNCDEF);
+    int i = 0;
+    while (i < expr->funcdef.arguments.arg_count) {
+        if (expr->funcdef.arguments.arg_name[i] &&
+                strcmp(expr->funcdef.arguments.arg_name[i], param) == 0)
+            return 1;
+        i++;
+    }
+    return 0;
+}

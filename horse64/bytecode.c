@@ -747,6 +747,17 @@ globalvarid_t h64program_AddGlobalvar(
         h64debugsymbols_ClearGlobalvarSymbol(
             &msymbols->globalvar_symbols[msymbols->globalvar_count]
         );
+        if (p->symbols) {
+            hash_IntMapUnset(
+                p->symbols->globalvar_id_to_module_symbols_index,
+                p->globalvar_count
+            );
+            hash_IntMapUnset(
+                p->symbols->
+                    globalvar_id_to_module_symbols_globalvar_subindex,
+                p->globalvar_count
+            );
+        }
         return -1;
     }
     msymbols->globalvar_symbols[msymbols->globalvar_count].
@@ -760,6 +771,18 @@ globalvarid_t h64program_AddGlobalvar(
     if (!hash_StringMapSet(
             msymbols->globalvar_name_to_entry,
             name, setno)) {
+        goto globalvarsymboloom;
+    }
+
+    // Add it to lookups from func id to debug symbols:
+    if (p->symbols && !hash_IntMapSet(
+            p->symbols->globalvar_id_to_module_symbols_index,
+            p->globalvar_count, (uint64_t)msymbols->index)) {
+        goto globalvarsymboloom;
+    }
+    if (p->symbols && !hash_IntMapSet(
+            p->symbols->globalvar_id_to_module_symbols_globalvar_subindex,
+            p->globalvar_count, (uint64_t)msymbols->globalvar_count)) {
         goto globalvarsymboloom;
     }
 

@@ -19,7 +19,7 @@ int threadablechecker_RegisterASTForCheck(
 typedef struct h64threadablecheck_nodeinfo {
     funcid_t associated_func_id;
     int called_func_count;
-    funcid_t called_func_id;
+    funcid_t *called_func_id;
 } h64threadablecheck_nodeinfo;
 
 typedef struct h64threadablecheck_graph {

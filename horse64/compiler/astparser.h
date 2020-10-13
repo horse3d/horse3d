@@ -17,7 +17,7 @@ typedef struct h64compileproject h64compileproject;
 typedef struct poolalloc poolalloc;
 
 typedef struct h64ast {
-    int global_storage_built, identifiers_resolved;
+    int global_storage_built, identifiers_resolved, threadable_map_done;
     char *fileuri, *module_path, *library_name;
     h64result resultmsg;
     h64scope scope;

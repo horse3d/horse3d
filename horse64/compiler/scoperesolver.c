@@ -127,6 +127,18 @@ static int scoperesolver_ComputeItemStorage(
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_GLOBALVARSLOT;
             expr->storage.ref.id = global_id;
+            h64globalvarsymbol *gvsymbol = (
+                h64debugsymbols_GetGlobalvarSymbolById(
+                    program->symbols, global_id
+                ));
+            assert(gvsymbol != NULL);
+            if (expr->vardef.is_const) {
+                gvsymbol->is_const = 1;
+                gvsymbol->is_simple_const = (
+                    expr->vardef.value != NULL ?
+                    is_simple_constant_expr(expr->vardef.value) : 1
+                );
+            }
         } else if (expr->type == H64EXPRTYPE_CLASSDEF_STMT) {
             name = expr->classdef.name;
             int64_t global_id = -1;
@@ -574,19 +586,6 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
     return 1;
 }
 
-static int funchasparamwithname(h64expression *expr, const char *param) {
-    assert(expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
-           expr->type == H64EXPRTYPE_INLINEFUNCDEF);
-    int i = 0;
-    while (i < expr->funcdef.arguments.arg_count) {
-        if (expr->funcdef.arguments.arg_name[i] &&
-                strcmp(expr->funcdef.arguments.arg_name[i], param) == 0)
-            return 1;
-        i++;
-    }
-    return 0;
-}
-
 int scoperesolver_EvaluateDerivedClassParent(
         asttransforminfo *atinfo, h64expression *expr
         ) {
@@ -833,7 +832,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                   H64EXPRTYPE_FUNCDEF_STMT ||
                   def->declarationexpr->type ==
                   H64EXPRTYPE_INLINEFUNCDEF) &&
-                funchasparamwithname(def->declarationexpr,
+                func_has_param_with_name(def->declarationexpr,
                     expr->identifierref.value
                 ))) {  // A known file-local thing
             if (!isexprchildof(expr, def->declarationexpr) ||

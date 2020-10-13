@@ -39,7 +39,6 @@ int asttransform_Apply(
     atinfo.ast = ast;
     atinfo.userdata = ud;
     atinfo.dont_descend_visitation = 0;
-    int msgcount = ast->resultmsg.message_count;
     int k = 0;
     while (k < ast->stmt_count) {
         assert(ast->stmt != NULL &&

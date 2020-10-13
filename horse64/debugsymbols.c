@@ -48,6 +48,12 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
         hash_FreeMap(symbols->modulelibpath_to_modulesymbol_id);
     if (symbols->attribute_name_to_global_attribute_id)
         hash_FreeMap(symbols->attribute_name_to_global_attribute_id);
+    if (symbols->globalvar_id_to_module_symbols_index)
+        hash_FreeMap(symbols->globalvar_id_to_module_symbols_index);
+    if (symbols->globalvar_id_to_module_symbols_globalvar_subindex)
+        hash_FreeMap(
+            symbols->globalvar_id_to_module_symbols_globalvar_subindex
+        );
     free(symbols);
 }
 
@@ -364,6 +370,21 @@ h64debugsymbols *h64debugsymbols_New() {
         return NULL;
     }
 
+    symbols->globalvar_id_to_module_symbols_index = hash_NewIntMap(
+        1024 * 5
+    );
+    if (!symbols->globalvar_id_to_module_symbols_index) {
+        h64debugsymbols_Free(symbols);
+        return NULL;
+    }
+    symbols->globalvar_id_to_module_symbols_globalvar_subindex = (
+        hash_NewIntMap(1024 * 5)
+        );
+    if (!symbols->globalvar_id_to_module_symbols_globalvar_subindex) {
+        h64debugsymbols_Free(symbols);
+        return NULL;
+    }
+
     return symbols;
 }
 
@@ -447,4 +468,30 @@ h64funcsymbol *h64debugsymbols_GetFuncSymbolById(
     return &symbols->module_symbols[
         msymbols_index
     ]->func_symbols[msymbols_funcindex];
+}
+
+h64globalvarsymbol *h64debugsymbols_GetGlobalvarSymbolById(
+        h64debugsymbols *symbols, int64_t globalid
+        ) {
+    uint64_t msymbols_index = 0;
+    if (!hash_IntMapGet(
+            symbols->globalvar_id_to_module_symbols_index,
+            globalid, &msymbols_index)) {
+        return NULL;
+    }
+    assert((int)msymbols_index < symbols->module_count);
+    uint64_t msymbols_gvarindex = 0;
+    if (!hash_IntMapGet(
+            symbols->globalvar_id_to_module_symbols_globalvar_subindex,
+            globalid, &msymbols_gvarindex)) {
+        return NULL;
+    }
+    assert(
+        (int)msymbols_gvarindex < symbols->module_symbols[
+            msymbols_index
+        ]->globalvar_count
+    );
+    return &symbols->module_symbols[
+        msymbols_index
+    ]->globalvar_symbols[msymbols_gvarindex];
 }

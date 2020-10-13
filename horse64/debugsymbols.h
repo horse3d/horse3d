@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 typedef struct hashmap hashmap;
+typedef struct h64program h64program;
 
 typedef struct h64funcsymbol {
     char *name;
@@ -36,6 +37,7 @@ typedef struct h64globalvarsymbol {
     char *name;
     int is_const;
     int fileuri_index;
+    int is_simple_const;
 
     int global_id;
 } h64globalvarsymbol;
@@ -79,6 +81,8 @@ typedef struct h64debugsymbols {
     hashmap *func_id_to_module_symbols_func_subindex;
     hashmap *class_id_to_module_symbols_index;
     hashmap *class_id_to_module_symbols_class_subindex;
+    hashmap *globalvar_id_to_module_symbols_index;
+    hashmap *globalvar_id_to_module_symbols_globalvar_subindex;
 } h64debugsymbols;
 
 int64_t h64debugsymbols_AttributeNameToAttributeNameId(
@@ -128,6 +132,10 @@ h64funcsymbol *h64debugsymbols_GetFuncSymbolById(
 
 h64classsymbol *h64debugsymbols_GetClassSymbolById(
     h64debugsymbols *symbols, int64_t classid
+);
+
+h64globalvarsymbol *h64debugsymbols_GetGlobalvarSymbolById(
+    h64debugsymbols *symbols, int64_t globalid
 );
 
 #endif  // HORSE64_DEBUGSYMBOLS_H_

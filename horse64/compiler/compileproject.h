@@ -12,7 +12,8 @@ typedef struct hashmap hashmap;
 typedef struct h64program h64program;
 typedef struct h64result h64result;
 typedef struct h64misccompileroptions h64misccompileroptions;
-
+typedef struct h64expression h64expression;
+typedef struct h64threadablecheck_graph h64threadablecheck_graph;
 
 typedef struct h64compileproject {
     h64compilewarnconfig warnconfig;
@@ -28,6 +29,9 @@ typedef struct h64compileproject {
 
     // Temporarily used by scoperesolver:
     int *_class_was_propagated;
+
+    // Temporarily used by threadablechecker:
+    h64threadablecheck_graph *threadable_graph;
 
     h64result *resultmsg;
 } h64compileproject;
