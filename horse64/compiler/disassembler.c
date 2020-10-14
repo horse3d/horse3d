@@ -701,10 +701,10 @@ int disassembler_Dump(
                 p->to_str_name_index))
             return 0;
     }
-    if (p->length_name_index >= 0) {
+    if (p->len_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " length\n",
-                p->length_name_index))
+                "NAMEIDX n%" PRId64 " len\n",
+                p->len_name_index))
             return 0;
     }
     if (p->init_name_index >= 0) {
@@ -713,10 +713,10 @@ int disassembler_Dump(
                 p->init_name_index))
             return 0;
     }
-    if (p->destroyed_name_index >= 0) {
+    if (p->on_destroy_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " destroyed\n",
-                p->destroyed_name_index))
+                "NAMEIDX n%" PRId64 " on_destroy\n",
+                p->on_destroy_name_index))
             return 0;
     }
     if (p->equals_name_index >= 0) {
@@ -737,10 +737,10 @@ int disassembler_Dump(
                 p->add_name_index))
             return 0;
     }
-    if (p->remove_name_index >= 0) {
+    if (p->del_name_index >= 0) {
         if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " to_hash\n",
-                p->remove_name_index))
+                "NAMEIDX n%" PRId64 " del\n",
+                p->del_name_index))
             return 0;
     }
     int64_t i = 0;

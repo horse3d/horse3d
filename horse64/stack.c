@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "bytecode.h"
+#include "vmlist.h"
 #include "stack.h"
 
 

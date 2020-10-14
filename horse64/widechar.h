@@ -51,4 +51,12 @@ int utf32_to_utf8(
     int64_t *out_len, int surrogateunescape
 );
 
+int64_t utf16_letter_len(
+    h64wchar *sdata, int64_t sdata_len
+);
+
+int64_t utf16_letters_count(
+    h64wchar *sdata, int64_t sdata_len
+);
+
 #endif  // HORSE64_WIDECHAR_H_

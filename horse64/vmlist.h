@@ -5,61 +5,21 @@
 #ifndef HORSE64_VMLIST_H_
 #define HORSE64_VMLIST_H_
 
-#include "bytecode.h"
+#include "compileconfig.h"
 
 #include <assert.h>
 #include <stdio.h>
 
-#define LISTBLOCK_SIZE 64
-
-typedef struct listblock listblock;
-
-typedef struct vectorentry {
-    int64_t int_value;
-    double float_value;
-    uint8_t is_float;
-} vectorentry;
-
-typedef struct listblock {
-    int entry_count;
-    valuecontent entry_values[LISTBLOCK_SIZE];
-    listblock *next_block;
-} listblock;
-
-typedef struct genericlist {
-    int64_t last_accessed_block_offset;
-    listblock *last_accessed_block;
-
-    uint64_t contentrevisionid;
-
-    int64_t list_total_entry_count;
-    int64_t list_block_count;
-    listblock *first_block, *last_block;
-} genericlist;
-
-typedef struct hashmap hashmap;
-
-typedef struct genericset {
-    hashmap *values;
-} genericset;
-
-typedef struct genericmap {
-    hashmap *values;
-} genericmap;
-
-typedef struct genericvector {
-    int entries_count;
-    vectorentry *values;
-} genericvector;
-
+#include "bytecode.h"
+#include "vmliststruct.h"
 
 genericlist *vmlist_New();
 
-static inline int64_t vmlist_Count(genericlist *l) {
+ATTR_UNUSED static inline int64_t vmlist_Count(genericlist *l) {
     return l->list_total_entry_count;
 }
 
-static inline void vmlist_GetEntryBlock(
+ATTR_UNUSED static inline void vmlist_GetEntryBlock(
         genericlist *l, int64_t entry_no,
         listblock **out_block, int64_t *out_block_offset
         ) {
@@ -108,7 +68,7 @@ typedef struct h64gcvalue2 {
     uint8_t type;
 } h64gcvalue2;
 
-static valuecontent *vmlist_Get(genericlist *l, int64_t i) {
+ATTR_UNUSED static valuecontent *vmlist_Get(genericlist *l, int64_t i) {
     if (i < 1 || i > l->list_total_entry_count)
         return NULL;
     int64_t blockoffset = -1;

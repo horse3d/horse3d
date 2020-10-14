@@ -148,13 +148,13 @@ h64program *h64program_New() {
 
     p->as_str_name_index = -1;
     p->to_str_name_index = -1;
-    p->length_name_index = -1;
+    p->len_name_index = -1;
     p->init_name_index = -1;
-    p->destroyed_name_index = -1;
+    p->on_destroy_name_index = -1;
     p->equals_name_index = -1;
     p->to_hash_name_index = -1;
     p->add_name_index = -1;
-    p->remove_name_index = -1;
+    p->del_name_index = -1;
 
     p->symbols = h64debugsymbols_New();
     if (!p->symbols) {

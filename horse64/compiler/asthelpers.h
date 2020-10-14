@@ -5,11 +5,13 @@
 #ifndef HORSE64_COMPILER_ASTHELPERS_H_
 #define HORSE64_COMPILER_ASTHELPERS_H_
 
+#include "compileconfig.h"
+
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 
 
-static h64expression *surroundingfunc(h64expression *expr) {
+ATTR_UNUSED static h64expression *surroundingfunc(h64expression *expr) {
     while (expr->parent) {
         expr = expr->parent;
         if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
@@ -19,7 +21,7 @@ static h64expression *surroundingfunc(h64expression *expr) {
     return NULL;
 }
 
-static h64expression *surroundingclass(
+ATTR_UNUSED static h64expression *surroundingclass(
         h64expression *expr, int allowfuncnesting
         ) {
     while (expr->parent) {
@@ -34,11 +36,11 @@ static h64expression *surroundingclass(
     return NULL;
 }
 
-static int isinsideanyfunction(h64expression *expr) {
+ATTR_UNUSED static int isinsideanyfunction(h64expression *expr) {
     return (surroundingfunc(expr) != NULL);
 }
 
-static int isinsideclosure(h64expression *expr) {
+ATTR_UNUSED static int isinsideclosure(h64expression *expr) {
     int surroundingfuncscount = 0;
     while (expr->parent) {
         expr = expr->parent;
@@ -50,7 +52,7 @@ static int isinsideclosure(h64expression *expr) {
     return (surroundingfuncscount > 1);
 }
 
-static int isexprchildof(
+ATTR_UNUSED static int isexprchildof(
         h64expression *expr, h64expression *checkparent
         ) {
     while (expr->parent) {
@@ -61,7 +63,7 @@ static int isexprchildof(
     return 0;
 }
 
-static int funcdef_has_parameter_with_name(
+ATTR_UNUSED static int funcdef_has_parameter_with_name(
         h64expression *expr, const char *name) {
     if (expr->type == H64EXPRTYPE_FUNCDEF_STMT
             || expr->type == H64EXPRTYPE_INLINEFUNCDEF) {

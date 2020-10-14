@@ -22,3 +22,4 @@ RECOVERED_FILES
 !/vendor/siphash.c
 !/vendor/openssl
 !/vendor/unicode
+/vendor/unicode/unicode_data_header.h

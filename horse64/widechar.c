@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "widechar.h"
+#include "vendor/unicode/unicode_data_header.h"
 
 static int is_utf8_start(uint8_t c) {
     if ((int)(c & 0xE0) == (int)0xC0) {  // 110xxxxx
@@ -34,6 +35,62 @@ int utf8_char_len(const unsigned char *p) {
     if ((int)((*p) & 0xF8) == (int)0xF0)
         return 4;
     return 1;
+}
+
+int64_t utf16_letters_count(
+        h64wchar *sdata, int64_t sdata_len
+        ) {
+    int64_t len = 0;
+    while (sdata_len > 0) {
+        int64_t letterlen = utf16_letter_len(sdata, sdata_len);
+        assert(letterlen > 0);
+        len += letterlen;
+        sdata += letterlen;
+        sdata_len -= letterlen;
+    }
+    return len;
+}
+
+int64_t utf16_letter_len(
+        h64wchar *sdata, int64_t sdata_len
+        ) {
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wtype-limits"
+    if (sdata_len <= 0)
+        return 0;
+    int64_t len = 1;
+    // Count modifiers in front as same letter:
+    while (sdata_len > 1 && *sdata > 0 &&
+            *sdata <= _widechartbl_highest_cp &&
+            _widechartbl_ismodifier[*sdata]) {
+        sdata++;
+        len++;
+        sdata_len--;
+    }
+    // Count follow-up tags as same letter:
+    if (sdata_len > 1 && sdata[1] >= 0 &&
+            sdata[1] <= _widechartbl_highest_cp &&
+            _widechartbl_istag[sdata[1]]) {
+        sdata += 2;
+        sdata_len -= 2;
+        len++;
+        while (sdata_len > 0 &&
+                *sdata >= 0 &&
+                *sdata <= _widechartbl_highest_cp &&
+                _widechartbl_istag[sdata[1]]) {
+            sdata++;
+            sdata_len--;
+            len++;
+        }
+        if (sdata_len > 0 &&
+                *sdata == 0xE007FLL) {  // cancel tag
+            sdata++;
+            sdata_len--;
+            len++;
+        }
+    }
+    return len;
+    #pragma GCC diagnostic pop
 }
 
 int write_codepoint_as_utf8(

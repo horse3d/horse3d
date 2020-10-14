@@ -14,7 +14,6 @@
 #define ftell64 ftello64
 #endif
 
-
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
 #else
@@ -37,6 +36,8 @@
 #include "poolalloc.h"
 #include "stack.h"
 #include "vmexec.h"
+#include "vmlist.h"
+#include "vmstrings.h"
 #include "widechar.h"
 
 #define FILEOBJ_FLAGS_APPEND 0x1
@@ -416,7 +417,16 @@ int iolib_fileread(
      * Read from the given file.
      *
      * @funcattr file read
-     * @param amount=-1 amount of bytes or characters to read.
+     * @param amount=-1 amount of bytes/letters to read. When
+     *    the file was opened with binary=true then amount will be
+     *    interpreted as bytes, otherwise with binary=false as full
+     *    decoded letters.
+     *
+     *    Important: reading an exact amount of letters is slow,
+     *    because it requires decoding the code point of each part read
+     *    multple times to determine the letter boundaries. Therefore,
+     *    if reading performance is a concern you should read a file
+     *    either in one go with amount=-1, or with binary=true.
      * @returns the data read, which is a @see{bytes} value when the
      *    file was opened with binary=false, otherwise a @see{string}
      *    value.
@@ -510,128 +520,71 @@ int iolib_fileread(
         fseek(f, 0, SEEK_CUR);
     }
 
-    int haspartialchar = 0;
-    char partcharacter[16] = {0};
-
     // Read from file up to requested amount:
-    while (readcount < amount || amount < 0 || haspartialchar) {
-        int64_t readbytes = 0;
-        if (haspartialchar) {
-            readbytes = 1;
-        } else if (amount > 0) {
-            readbytes = (amount - readcount);
-        } else {
-            readbytes = 512;
-        }
-        if (readbytes + readbuffill + (int64_t)sizeof(partcharacter) + 1 >
-                readbufsize) {
-            char *newbuf = NULL;
-            int64_t newreadbufsize = (
-                readbytes + readbuffill + 1024 * 5
-            );
-            if (!readbufheap) {
-                newbuf = malloc(newreadbufsize);
-                if (newbuf) {
-                    memcpy(newbuf, readbuf, readbuffill);
-                }
+    if (!readbinary || amount < 0) {
+        while (readcount < amount || amount < 0) {
+            int64_t readbytes = 0;
+            if (amount > 0) {
+                readbytes = (amount - readcount);
             } else {
-                newbuf = realloc(readbuf, newreadbufsize);
+                readbytes = 512;
             }
-            if (!newbuf) {
-                if (readbufheap)
-                    free(readbuf);
-                return vmexec_ReturnFuncError(
-                    vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                    "out of memory"
+            if (readbytes + readbuffill + 1 >
+                    readbufsize) {
+                char *newbuf = NULL;
+                int64_t newreadbufsize = (
+                    readbytes + readbuffill + 1024 * 5
                 );
-            }
-            readbufheap = 1;
-            readbuf = newbuf;
-            readbufsize = newreadbufsize;
-        }
-        int64_t _didread = fread(readbuf + readbuffill, 1, readbytes, f);
-        if (_didread <= 0) {
-            if (feof(f)) {
-                break;
-            } else if (ferror(f)) {
-                clearerr(f);
-                if (readbuffill <= 0) {
+                if (!readbufheap) {
+                    newbuf = malloc(newreadbufsize);
+                    if (newbuf) {
+                        memcpy(newbuf, readbuf, readbuffill);
+                    }
+                } else {
+                    newbuf = realloc(readbuf, newreadbufsize);
+                }
+                if (!newbuf) {
                     if (readbufheap)
                         free(readbuf);
                     return vmexec_ReturnFuncError(
-                        vmthread, H64STDERROR_OSERROR,
-                        "unknown read error"
+                        vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                        "out of memory"
                     );
                 }
-                cdata->flags |= FILEOBJ_FLAGS_CACHEDUNSENTERROR;
-                break;
+                readbufheap = 1;
+                readbuf = newbuf;
+                readbufsize = newreadbufsize;
             }
-            continue;
-        }
-        readbuffill += _didread;
-        if (readbinary) {
-            if (_didread >= 0)
-                readcount += _didread;
-        } else if (!readbinary && amount >= 0) {
-            if (_didread > 0 && haspartialchar > 0) {
-                // Got a partial UTF-8 character to complete still:
-                assert(_didread == 1 && readbuffill > 0);
-                char endcharacter[16];
-                memcpy(
-                    endcharacter, partcharacter, strlen(partcharacter)
-                );
-                endcharacter[strlen(partcharacter)] = (
-                    readbuf[readbuffill]
-                );
-                readbuffill--;
-                endcharacter[strlen(partcharacter) + 1] = '\0';
-                int charlen = utf8_char_len(
-                    (unsigned char*)endcharacter
-                );
-                if (charlen == (int)strlen(endcharacter)) {
-                    // Character is now fully completed!
-                    memcpy(
-                        readbuf + readbuffill, endcharacter,
-                        strlen(endcharacter)
-                    );
-                    haspartialchar = 0;
-                    readbuffill += strlen(endcharacter);
-                    readcount++;
-                    cdata->text_offset++;
-                } else {
-                    // Character is incomplete, so continue reading:
-                    assert(strlen(endcharacter) + 1 <
-                            sizeof(partcharacter));
-                    memcpy(partcharacter, endcharacter,
-                            strlen(endcharacter) + 1);
-                    haspartialchar = 1;
-                }
-                continue;
-            } else if (_didread > 0) {
-                int64_t oldfill = readbuffill -= _didread;
-                while (oldfill < readbuffill) {
-                    int charlen = utf8_char_len(
-                        (unsigned char*)&readbuf[oldfill]
-                    );
-                    if (charlen + oldfill > readbuffill) {
-                        // Last character is incomplete. Need partial read:
-                        assert(charlen > 1);
-                        assert(charlen + 1 < (int)sizeof(partcharacter));
-                        memcpy(partcharacter, readbuf + oldfill,
-                               readbuffill - oldfill);
-                        partcharacter[readbuffill - oldfill] = '\0';
-                        readbuffill = oldfill;
-                        haspartialchar = 1;
-                        break;
-                    } else {
-                        oldfill += charlen;
-                        readcount++;
-                        cdata->text_offset++;
+            int64_t _didread = fread(readbuf + readbuffill, 1, readbytes, f);
+            if (_didread <= 0) {
+                if (feof(f)) {
+                    break;
+                } else if (ferror(f)) {
+                    clearerr(f);
+                    if (readbuffill <= 0) {
+                        if (readbufheap)
+                            free(readbuf);
+                        return vmexec_ReturnFuncError(
+                            vmthread, H64STDERROR_OSERROR,
+                            "unknown read error"
+                        );
                     }
+                    cdata->flags |= FILEOBJ_FLAGS_CACHEDUNSENTERROR;
+                    break;
                 }
                 continue;
             }
+            readbuffill += _didread;
+            if (readbinary) {
+                if (_didread >= 0)
+                    readcount += _didread;
+            }
         }
+        #ifndef NDEBUG
+        if (!readbinary) {
+            assert(readcount == 0 && amount < 0);
+        }
+        #endif
     }
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);

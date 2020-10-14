@@ -5,23 +5,29 @@
 #ifndef HORSE64_VMSTRINGS_H_
 #define HORSE64_VMSTRINGS_H_
 
+#include "compileconfig.h"
+
+#include <assert.h>
 #include <stdint.h>
+
+#include "widechar.h"
 
 typedef uint32_t h64wchar;
 typedef struct h64vmthread h64vmthread;
 
-typedef struct h64stringval {
-    h64wchar *s;
-    uint64_t len;
-    int refcount;
-} h64stringval;
+#include "vmstringsstruct.h"
 
-typedef struct h64bytesval {
-    char *s;
-    uint64_t len;
-    int refcount;
-} h64bytesval;
 
+ATTR_UNUSED static inline void vmstrings_RequireLetterLen(
+        h64stringval *v
+        ) {
+    if (v->len != 0 && v->letterlen == 0) {
+        v->letterlen = utf16_letters_count(
+            v->s, v->len
+        );
+        assert(v->letterlen > 0);
+    }
+}
 
 int vmstrings_AllocBuffer(
     h64vmthread *vthread, h64stringval *v, uint64_t len

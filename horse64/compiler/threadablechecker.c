@@ -4,6 +4,9 @@
 
 #include "compileconfig.h"
 
+#include <assert.h>
+#include <stdint.h>
+
 #include "bytecode.h"
 #include "compiler/ast.h"
 #include "compiler/asthelpers.h"

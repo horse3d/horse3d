@@ -23,7 +23,6 @@ START_TEST (test_scope_import_complex)
     vfs_Init(NULL);
 
     h64misccompileroptions moptions = {0};
-    h64compilewarnconfig wconfig = {0};
 
     char *cwd = filesys_GetCurrentDirectory();
     assert(cwd != NULL);

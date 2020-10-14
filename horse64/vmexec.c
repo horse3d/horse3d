@@ -22,6 +22,8 @@
 #include "poolalloc.h"
 #include "stack.h"
 #include "vmexec.h"
+#include "vmlist.h"
+#include "vmstrings.h"
 #include "widechar.h"
 
 #define DEBUGVMEXEC
@@ -2501,9 +2503,34 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                    (unsigned int)strvaluelen);
             ADDREF_NONHEAP(target);
         } else if (nameidx >= 0 &&
+                nameidx == vmexec->program->len_name_index
+                ) {  // .len
+            int64_t len = -1;
+            if (vc->type == H64VALTYPE_GCVAL) {
+                if (((h64gcvalue *)vc->ptr_value)->type ==
+                        H64GCVALUETYPE_STRING) {
+                    vmstrings_RequireLetterLen(
+                        &((h64gcvalue *)vc->ptr_value)->str_val
+                    );
+                    len = ((h64gcvalue *)vc->ptr_value)->str_val.
+                        letterlen;
+                } else if (((h64gcvalue *)vc->ptr_value)->type ==
+                        H64GCVALUETYPE_BYTES) {
+                    len = ((h64gcvalue *)vc->ptr_value)->
+                        bytes_val.len;
+                }
+            }
+            if (len < 0) {
+                RAISE_ERROR(
+                    H64STDERROR_ATTRIBUTEERROR,
+                    "given attribute not present on this value"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+        } else if (nameidx >= 0 &&
                 (nameidx == vmexec->program->init_name_index ||
                  nameidx == vmexec->program->to_str_name_index ||
-                 nameidx == vmexec->program->destroyed_name_index ||
+                 nameidx == vmexec->program->on_destroy_name_index ||
                  nameidx == vmexec->program->equals_name_index ||
                  nameidx == vmexec->program->to_hash_name_index
                 ) &&

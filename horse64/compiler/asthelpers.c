@@ -108,8 +108,10 @@ int _is_simple_constant_expr_inner(h64expression *expr) {
             (expr->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER ||
              (expr->type == H64EXPRTYPE_BINARYOP &&
               expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF && (
-              strcmp(expr->op.value2->identifierref.value, "as_str") == 0 ||
-              strcmp(expr->op.value2->identifierref.value, "len") == 0)))) {
+              strcmp(expr->op.value2->identifierref.value,
+                     "as_str") == 0 ||
+              strcmp(expr->op.value2->identifierref.value,
+                     "length") == 0)))) {
         if (expr->type == H64EXPRTYPE_BINARYOP &&
                 expr->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER) {
             return (

@@ -55,7 +55,7 @@ STRIPTOOL:=$(CROSSCOMPILEHOST)-strip
 endif
 endif
 
-.PHONY: test remove-main-o check-submodules datapak release debug
+.PHONY: test remove-main-o check-submodules datapak release debug wchar_data
 
 debug: all
 showvariables:
@@ -66,8 +66,10 @@ showvariables:
 	@echo "Test objects: $(TEST_OBJECTS)"
 	@echo "Program objects: $(PROGRAM_OBJECTS)"
 	@echo "Cross-compile host: $(CROSSCOMPILEHOST)"
-all: remove-main-o check-submodules datapak $(PROGRAM_OBJECTS)
+all: wchar_data remove-main-o check-submodules datapak $(PROGRAM_OBJECTS)
 	$(CXX) $(CFLAGS) -o ./"$(BINNAME)$(BINEXT)" $(PROGRAM_OBJECTS) $(LDFLAGS)
+wchar_data:
+	tools/generate-unicode-headers.py
 ifneq ($(DEBUGGABLE),true)
 	$(STRIPTOOL) ./"$(BINNAME)$(BINEXT)"
 endif

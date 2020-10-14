@@ -85,70 +85,7 @@ typedef struct h64errorinfo {
     int refcount;
 } h64errorinfo;
 
-typedef enum valuetype {
-    H64VALTYPE_NONE = 0,
-    H64VALTYPE_INT64 = 1,
-    H64VALTYPE_FLOAT64,
-    H64VALTYPE_BOOL,
-    H64VALTYPE_FUNCREF,
-    H64VALTYPE_CLASSREF,
-    H64VALTYPE_ERROR,
-    H64VALTYPE_GCVAL,
-    H64VALTYPE_SHORTSTR,
-    H64VALTYPE_CONSTPREALLOCSTR,
-    H64VALTYPE_SHORTBYTES,
-    H64VALTYPE_CONSTPREALLOCBYTES,
-    H64VALTYPE_VECTOR,
-    H64VALTYPE_UNSPECIFIED_KWARG,
-    H64VALTYPE_TOTAL
-} valuetype;
-
-#define VALUECONTENT_SHORTSTRLEN 3
-#define VALUECONTENT_SHORTBYTESLEN 6
-
-typedef struct vectorentry vectorentry;
-
-typedef struct valuecontent {
-    uint8_t type;
-    union {
-        int64_t int_value;
-        double float_value;
-        void *ptr_value;
-        struct {
-            uint8_t shortstr_len;
-            h64wchar shortstr_value[
-                VALUECONTENT_SHORTSTRLEN
-            ];  // should be 2byte/16bit aligned
-        } __attribute__((packed));
-        struct {
-            uint8_t shortbytes_len;
-            h64wchar shortbytes_value[
-                VALUECONTENT_SHORTBYTESLEN
-            ];  // should be 2byte/16bit aligned
-        } __attribute__((packed));
-        struct {
-            h64wchar *constpreallocstr_value;
-            int32_t constpreallocstr_len;
-        } __attribute__((packed));
-        struct {
-            h64wchar *constpreallocbytes_value;
-            int32_t constpreallocbytes_len;
-        } __attribute__((packed));
-        struct {
-            classid_t error_class_id;
-            h64errorinfo *einfo;
-        } __attribute__((packed));
-        struct {
-            classid_t class_id;
-            int16_t varattr_count;
-            valuecontent *varattr;
-        } __attribute__((packed));
-        struct {
-            int32_t vector_len;
-            vectorentry *vector_values;
-        } __attribute__((packed));
-    } __attribute__((packed));
-} __attribute__((packed)) valuecontent;
+#include "valuecontentstruct.h"
 
 typedef struct h64instructionany {
     uint8_t type;
@@ -422,13 +359,13 @@ typedef struct h64program {
 
     int64_t as_str_name_index;
     int64_t to_str_name_index;
-    int64_t length_name_index;
+    int64_t len_name_index;
     int64_t init_name_index;
-    int64_t destroyed_name_index;
+    int64_t on_destroy_name_index;
     int64_t equals_name_index;
     int64_t to_hash_name_index;
     int64_t add_name_index;
-    int64_t remove_name_index;
+    int64_t del_name_index;
 
     classid_t _io_file_class_idx;  // used by io module
 

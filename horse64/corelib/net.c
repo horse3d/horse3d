@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include <assert.h>
+
 #include "process.h"
 #include "stack.h"
 #include "vmexec.h"

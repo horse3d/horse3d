@@ -126,20 +126,20 @@ int64_t h64debugsymbols_AttributeNameToAttributeNameId(
                     symbols->program->as_str_name_index = new_id;
                 } else if (strcmp(name, "to_str") == 0) {
                     symbols->program->to_str_name_index = new_id;
-                } else if (strcmp(name, "length") == 0) {
-                    symbols->program->length_name_index = new_id;
+                } else if (strcmp(name, "len") == 0) {
+                    symbols->program->len_name_index = new_id;
                 } else if (strcmp(name, "init") == 0) {
                     symbols->program->init_name_index = new_id;
-                } else if (strcmp(name, "destroyed") == 0) {
-                    symbols->program->destroyed_name_index = new_id;
+                } else if (strcmp(name, "on_destroy") == 0) {
+                    symbols->program->on_destroy_name_index = new_id;
                 } else if (strcmp(name, "equals") == 0) {
                     symbols->program->equals_name_index = new_id;
                 } else if (strcmp(name, "to_hash") == 0) {
                     symbols->program->to_hash_name_index = new_id;
                 } else if (strcmp(name, "add") == 0) {
                     symbols->program->add_name_index = new_id;
-                } else if (strcmp(name, "remove") == 0) {
-                    symbols->program->remove_name_index = new_id;
+                } else if (strcmp(name, "del") == 0) {
+                    symbols->program->del_name_index = new_id;
                 }
             }
             return new_id;

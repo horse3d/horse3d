@@ -8,10 +8,11 @@
 #include <stdint.h>
 
 #include "compiler/globallimits.h"
-#include "vmlist.h"
-#include "vmstrings.h"
+#include "vmliststruct.h"
+#include "vmstringsstruct.h"
 
 typedef struct valuecontent valuecontent;
+typedef struct h64gcvalue h64gcvalue;
 
 typedef struct hashmap hashmap;
 
