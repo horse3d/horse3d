@@ -585,6 +585,8 @@ int iolib_fileread(
             assert(readcount == 0 && amount < 0);
         }
         #endif
+    } else {
+        assert(0);  // FIXME: implement this code path
     }
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
