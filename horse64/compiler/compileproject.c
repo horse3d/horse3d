@@ -21,6 +21,7 @@
 #include "hash.h"
 #include "nonlocale.h"
 #include "secrandom.h"
+#include "threadablechecker.h"
 #include "uri.h"
 #include "vfs.h"
 
@@ -271,6 +272,8 @@ int _free_fakevarinitexpr_cb(
 
 void compileproject_Free(h64compileproject *pr) {
     if (!pr) return;
+
+    threadablechecker_FreeGraphInfoFromProject(pr);
 
     free(pr->basefolder);
 
@@ -1253,6 +1256,11 @@ int compileproject_CompileAllToBytecode(
                             "out of memory?");
         return 0;
     }
+
+    // Do the final checks with more complicated graph analyses:
+    if (!threadablechecker_IterateFinalGraph(cinfo.pr))
+        return 0;
+    assert(cinfo.pr->resultmsg->success);
 
     // Now, do actual codegen:
     if (!hash_StringMapIterate(

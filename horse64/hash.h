@@ -70,7 +70,12 @@ int hash_IntMapGet(
     hashmap *map, int64_t key, uint64_t *number
 );
 int hash_IntMapUnset(hashmap *map, int64_t key);
-
+int hash_IntMapIterate(
+    hashmap *map,
+    int (*cb)(hashmap *map, int64_t key,
+              uint64_t value, void *ud),
+    void *ud
+);
 
 hashmap *hash_NewStringToStringMap(int buckets);
 int hash_STSMapSet(

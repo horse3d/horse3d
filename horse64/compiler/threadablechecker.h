@@ -16,10 +16,25 @@ int threadablechecker_RegisterASTForCheck(
     h64compileproject *project, h64ast *ast
 );
 
+int threadablechecker_IterateFinalGraph(
+    h64compileproject *project
+);
+
+
+void threadablechecker_FreeGraphInfoFromProject(
+    h64compileproject *project
+);
+
+
+typedef struct h64threadablecheck_calledfuncinfo {
+    funcid_t func_id;
+    int64_t line, column;
+} h64threadablecheck_calledfuncinfo;
+
 typedef struct h64threadablecheck_nodeinfo {
     funcid_t associated_func_id;
     int called_func_count;
-    funcid_t *called_func_id;
+    h64threadablecheck_calledfuncinfo *called_func_info;
 } h64threadablecheck_nodeinfo;
 
 typedef struct h64threadablecheck_graph {

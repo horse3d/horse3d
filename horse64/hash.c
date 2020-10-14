@@ -397,6 +397,48 @@ int hash_IntMapUnset(hashmap *map, int64_t key) {
     return _hash_MapUnset(map, (char*)&key, sizeof(key));
 }
 
+struct intmapiterateinfo {
+    void *ud;
+    int (*cb)(hashmap *map, int64_t key, uint64_t number,
+              void *ud);
+};
+
+static int _hashintmap_iterate(
+        hashmap *map, const char *bytes,
+        __attribute__((unused)) uint64_t byteslen,
+        uint64_t number, void *ud
+        ) {
+    struct intmapiterateinfo *iterinfo = (
+        (struct intmapiterateinfo*)ud
+    );
+    int64_t n;
+    assert(sizeof(n) == byteslen);
+    memcpy(&n, bytes, sizeof(n));
+    return iterinfo->cb(map, n, number, iterinfo->ud);
+}
+
+int hash_IntMapIterate(
+        hashmap *map,
+        int (*callback)(
+            hashmap *map, int64_t key, uint64_t number,
+            void *userdata
+        ),
+        void *userdata
+        ) {
+    if (!map || map->type != HASHTYPE_NUMBER)
+        return 0;
+
+    struct intmapiterateinfo iinfo;
+    memset(&iinfo, 0, sizeof(iinfo));
+    iinfo.ud = userdata;
+    iinfo.cb = callback;
+
+    return _hash_MapIterateEx(
+        map, &_hashintmap_iterate, &iinfo
+    );
+}
+
+
 int siphash(const uint8_t *in, const size_t inlen, const uint8_t *k,
             uint8_t *out, const size_t outlen);
 
