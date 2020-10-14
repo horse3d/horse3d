@@ -68,11 +68,11 @@ showvariables:
 	@echo "Cross-compile host: $(CROSSCOMPILEHOST)"
 all: wchar_data remove-main-o check-submodules datapak $(PROGRAM_OBJECTS)
 	$(CXX) $(CFLAGS) -o ./"$(BINNAME)$(BINEXT)" $(PROGRAM_OBJECTS) $(LDFLAGS)
-wchar_data:
-	tools/generate-unicode-headers.py
 ifneq ($(DEBUGGABLE),true)
 	$(STRIPTOOL) ./"$(BINNAME)$(BINEXT)"
 endif
+wchar_data:
+	tools/generate-unicode-headers.py
 remove-main-o:
 	rm -f horse64/main.o
 %.o: %.c $.h
