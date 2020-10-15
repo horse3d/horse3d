@@ -2,6 +2,13 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+/// This module checks a few programmer mistakes that would not per se
+/// prevent a program from compiling and running, but cause a runtime error
+/// in a likely unintended way.
+/// For example, it enforces that using "new" on a value identified by
+/// horsec as clearly not a class at compile time is always wrapped by
+/// an .is_instance_of() check to make sure it was intentional.
+
 #include "compileconfig.h"
 
 #include <assert.h>
@@ -15,6 +22,7 @@
 #include "compiler/astparser.h"
 #include "compiler/asttransform.h"
 #include "compiler/compileproject.h"
+#include "nonlocale.h"
 
 static int _expr_visit_find_is_instance_of_guard(
         h64expression *expr, h64expression *parent, void *ud
@@ -69,7 +77,7 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
                     H64STORETYPE_GLOBALCLASSSLOT &&
                     !_resolver_IsPossiblyGuardedInvalidType(expr)) {
                 char buf[512];
-                snprintf(
+                h64snprintf(
                     buf, sizeof(buf) - 1,
                     "calling a class type will cause TypeError, "
                     "use \"new\" or wrap in conditional with "
