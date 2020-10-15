@@ -5,6 +5,8 @@
 #ifndef HORSE64_COMPILER_ASTPARSER_H_
 #define HORSE64_COMPILER_ASTPARSER_H_
 
+#include "compileconfig.h"
+
 #include <string.h>
 
 #include "compiler/ast.h"
@@ -48,7 +50,7 @@ typedef struct h64parsethis {
     int max_tokens_touse;
 } h64parsethis;
 
-static h64parsethis *newparsethis(
+ATTR_UNUSED static h64parsethis *newparsethis(
         h64parsethis *_buf, h64parsethis *previous,
         h64token *tokens, int max_tokens_touse
         ) {
@@ -58,7 +60,7 @@ static h64parsethis *newparsethis(
     return _buf;
 }
 
-static h64parsethis *newparsethis_newscope(
+ATTR_UNUSED static h64parsethis *newparsethis_newscope(
         h64parsethis *_buf, h64parsethis *previous,
         h64scope *scope,
         h64token *tokens, int max_tokens_touse

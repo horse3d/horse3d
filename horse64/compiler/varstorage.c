@@ -241,7 +241,9 @@ int _resolver_EnsureLocalDefStorage(
 }
 
 static int _expr_visit_find_is_instance_of_guard(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr,
+        ATTR_UNUSED h64expression *parent,
+        ATTR_UNUSED void *ud
         ) {
     int *result = (int *)ud;
     if (expr->type == H64EXPRTYPE_BINARYOP &&
@@ -254,7 +256,9 @@ static int _expr_visit_find_is_instance_of_guard(
 }
 
 static int _expr_visit_find_hasattr_guard(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr,
+        ATTR_UNUSED h64expression *parent,
+        ATTR_UNUSED void *ud
         ) {
     int *result = (int *)ud;
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&

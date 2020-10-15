@@ -487,7 +487,9 @@ int ast_VisitExpression(
 }
 
 static int _mark_destroyed_cb(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr,
+        ATTR_UNUSED h64expression *parent,
+        ATTR_UNUSED void *ud
         ) {
     expr->destroyed = 1;
     ast_FreeExprNonpoolMembers(expr);
@@ -709,7 +711,8 @@ struct _collectfreelist {
 };
 
 static int _collect_free_expr_cb(
-        h64expression *expr, h64expression *parent, void *ud
+        h64expression *expr,
+        ATTR_UNUSED h64expression *parent, void *ud
         ) {
     struct _collectfreelist *list = (
         (struct _collectfreelist *)ud

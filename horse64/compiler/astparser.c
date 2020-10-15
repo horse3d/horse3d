@@ -2659,7 +2659,6 @@ int ast_CanAddNameToScopeCheck(
         h64scopedef **appends_to_sdef,
         int *outofmemory
         ) {
-    h64scope *scope = parsethis->scope;
     int i = identifiertokenindex;
     const char *exprname = NULL;
     if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
@@ -2690,7 +2689,6 @@ int ast_CanAddNameToScopeCheck(
     if ((duplicateuse = _getSameScopeShadowedDefinition(
             parsethis, exprname
             )) != NULL) {
-        h64expression *conflictingexpr = duplicateuse->declarationexpr;
         int validimportstacking = 0;
         if (duplicateuse->declarationexpr->type ==
                 H64EXPRTYPE_IMPORT_STMT &&
@@ -3064,13 +3062,12 @@ int ast_ParseExprStmt(
             break;
         }
 
-        char describebuf[64];
         if (i < max_tokens_touse &&
                 tokens[i].type == H64TK_BINOPSYMBOL &&
                 IS_ASSIGN_OP(tokens[i].int_value)) {
             if (tokens[i].int_value != H64OP_ASSIGN) {
                 if (outofmemory) *outofmemory = 0;
-                char buf[512]; char describebuf[64];
+                char buf[512];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected '%s', "
                     "expected '=' instead to assign variable "
@@ -4722,9 +4719,11 @@ int ast_ParseExprStmt(
                     expr->ifstmt.scope.parentscope = parsethis->scope;
                 } else if (strcmp(tokens[i].str_value, "elseif") == 0) {
                     in_elseif = 1;
+                    stmt_name = __nm_elseif;
                 } else {
                     assert(strcmp(tokens[i].str_value, "else") == 0);
                     in_else = 1;
+                    stmt_name = __nm_else;
                 }
             }
             i++;
