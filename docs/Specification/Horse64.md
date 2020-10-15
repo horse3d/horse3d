@@ -674,43 +674,60 @@ Please note there are more hidden differentiations in the
 **Code blocks and Scopes:**
 
 Any use of `{` and `}` with code statements inside, as seen
-with constructs like `if`, `while`, etc., is called a code block.
-Each code block has its own scope, which is a defined range where
-variables defined via `var` are valid.
+with constructs like `if`, `while`, etc., is called a **code block**.
+Please note this excludes use of `{` and `}` for sets and maps.
+Each code block has its own **scope**, which is a construct that keeps
+track of the variables that exist and under which name.
 
 **Lifetime of local variables:**
 
-A `var` statement inside a code block adds a variable to its block's
-scope, and may only be used from inside that code block from
-statements *after* the declaration, as well as nested inner blocks
-after the declaration (since they inherit the contents of their
-parent blocks' scopes at that point in the file).
+A `var` statement inside a code block *declares* a variable in its block's
+scope. This means it will now be known under that name.
+Declaring a variable therefore makes it available for any follow-up
+statements or nested blocks inside that same block, via identifiers that
+refer to the variable's name.
 
-A variable can be re-declared with the same name inside a nested
-block's scope. This is allowed, but not recommended since it can
-make it less obvious what an identifier refers to.
+Generally, inner code blocks *inherit their parent block's scope contents*
+as present at their point in the file. This is why variables can be accessed
+from nested inner blocks, but no longer after the block where they were
+declared ends.
 
-**When a variable's data is freed from memory:**
+A variable can be re-declared, so-called **shadowing**, with the same name
+inside a nested block's scope. This is allowed, but not recommended since
+it can make it less obvious to the programmer what an identifier refers to.
+Shadowing inside the same scope, however, is forbidden.
 
-As soon as a variable with a data type that is always passed by
-value (see [section above on data types](#datatypes)) goes out
-of scope, that is execution leaves the code block where it was
-defined, it will cease to exist immediately.
+A variable can be declared outside of any function or code block at
+the top level, making it a **global variable**. It is then available
+to all functions and scopes in the file, no matter if they come before
+or after. It is recommended to use these sparingly.
 
-As soon as a variable with a data type passed by reference goes
-out of scope, the reference to the underlying data object is removed.
-However, the underlying data object may continue to exist if it
-was passed by reference to other places that still hold a reference.
-Such a reference might also be stored inside a class object instance's
-var attribute, as long as that object instance is still held in a
-variable itself.
+**When a variable's value is freed from memory / Garbage Collection:**
 
-**Implementation detail:** Variable types passed by reference
-might generally linger in memory for a while longer, because e.g.
-object instances might refer each other in a cycle. Therefore,
-identifying abandoned cyclic clusters can be a non-trivial task
-done by the garbage collector. However, all such clusters will
-be freed from memory *eventually*.
+**By-value values:** As soon as a variable with a data type that
+is always passed by value (see [section above on data types](#datatypes))
+goes out of scope, that is execution leaves the code block where it was
+defined, it may cease to exist immediately and at the latest when
+the function returns or the variable's value is explicitly overridden.
+
+**By-reference values:** As soon as a variable with a data type passed by
+reference goes out of scope, the reference to the underlying value
+may be decreased immediately, and will be decreased at the latest
+once the function returns or the variable's value is explicitly overridden.
+However, the underlying referenced value will continue to exist as long
+as other references are still being held. Once it is finally being fully
+disposed of, if the value is a class object instance with an `on_destroy`
+function attribute then that function will be run right before final
+destruction.
+
+**Cyclic references:** As a special case, value types passed by reference
+may linger in memory for longer even when no longer referenced if
+they were part of a reference cycle, or a longer chain of references.
+For performance reasons, cyclic clusters and longer chains are handled
+by the garbage collector which only runs occasionally. However, all such
+cyclic references will be freed from memory *eventually*, but with no
+guarantees regarding the time frame. Many realtime minutes of lingering
+are not considered unusual.
 
 **Global variables:**
 
