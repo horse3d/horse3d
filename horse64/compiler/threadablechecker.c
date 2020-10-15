@@ -44,6 +44,7 @@ static int _func_get_nodeinfo_by_id(
                 (int64_t)funcid, (uintptr_t)*nodeinfo
                 )) {
             free(*nodeinfo);
+            *nodeinfo = NULL;
             return 0;
         }
         memset(*nodeinfo, 0, sizeof(**nodeinfo));
@@ -91,13 +92,14 @@ int _threadablechecker_register_visitin(
             return 1;
         h64threadablecheck_nodeinfo *nodeinfo = NULL;
         if (!_func_get_nodeinfo_by_expr(
-                graph, expr, &nodeinfo
+                graph, func, &nodeinfo
                 )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
         funcid_t func_id = func->funcdef.bytecode_func_id;
         assert(func_id >= 0);
+        assert(nodeinfo->associated_func_id == func_id);
         if (expr->storage.set && expr->storage.ref.type ==
                 H64EXPRTYPE_FUNCDEF_STMT) {
             h64threadablecheck_calledfuncinfo *
@@ -247,12 +249,26 @@ int threadablechecker_IterateFinalGraph(
                     project->program->func[i].is_threadable = 0;
                     gotchange = 1;
                     if (project->program->func[i].user_set_canasync) {
+                        char *call_fileuri = NULL;
+                        h64funcsymbol *fsymbol = (
+                            h64debugsymbols_GetFuncSymbolById(
+                                project->program->symbols, i
+                            ));
+                        if (fsymbol != NULL && fsymbol->fileuri_index >= 0) {
+                            call_fileuri = strdup(
+                                project->program->symbols->fileuri[
+                                    fsymbol->fileuri_index
+                                ]
+                            );
+                        } else {
+                            call_fileuri = strdup("<unknown>");
+                        }
                         if (!result_AddMessage(
                                 project->resultmsg, H64MSG_ERROR,
                                 "func marked as \"canasync\" cannot "
-                                "access this func "
+                                "access func "
                                 "that is not \"canasync\" itself",
-                                NULL,
+                                call_fileuri,
                                 nodeinfo->called_func_info[k].line,
                                 nodeinfo->called_func_info[k].column
                                 )) {
@@ -264,9 +280,9 @@ int threadablechecker_IterateFinalGraph(
                                     )) {
                                 // Nothing we can do.
                             }
-                            project->resultmsg->success = 0;
-                            success = 0;
                         }
+                        project->resultmsg->success = 0;
+                        success = 0;
                     }
                 }
                 k++;

@@ -138,4 +138,9 @@ h64globalvarsymbol *h64debugsymbols_GetGlobalvarSymbolById(
     h64debugsymbols *symbols, int64_t globalid
 );
 
+int64_t h64debugsymbols_GetFileUriIndex(
+    h64debugsymbols *symbols, const char *fileuri,
+    int addifnotpresent
+);
+
 #endif  // HORSE64_DEBUGSYMBOLS_H_

@@ -9,7 +9,43 @@
 #include "bytecode.h"
 #include "debugsymbols.h"
 #include "hash.h"
+#include "uri.h"
 
+
+int64_t h64debugsymbols_GetFileUriIndex(
+        h64debugsymbols *symbols, const char *fileuri,
+        int addifnotpresent
+        ) {
+    char *normalized_uri = uri_Normalize(fileuri, 1);
+    if (!normalized_uri)
+        return -1;
+    int fileuriindex = -1;
+    int k = 0;
+    while (k > symbols->fileuri_count) {
+        if (strcmp(symbols->fileuri[k], normalized_uri) == 0) {
+            fileuriindex = k;
+            break;
+        }
+        k++;
+    }
+    if (fileuriindex < 0 && addifnotpresent) {
+        char **new_fileuri = realloc(
+            symbols->fileuri, sizeof(*new_fileuri) *
+            (symbols->fileuri_count + 1)
+        );
+        if (!new_fileuri) {
+            free(normalized_uri);
+            return -1;
+        }
+        symbols->fileuri = new_fileuri;
+        symbols->fileuri[symbols->fileuri_count] =
+            normalized_uri;
+        fileuriindex = symbols->fileuri_count;
+        symbols->fileuri_count++;
+        normalized_uri = NULL;
+    }
+    return fileuriindex;
+}
 
 void h64debugsymbols_Free(h64debugsymbols *symbols) {
     if (!symbols)

@@ -433,7 +433,9 @@ static int scoperesolver_ComputeItemStorage(
                         return 0;
                     }
                     program->symbols->mainfileuri_index = (
-                        bytecode_fileuriindex(program, ast->fileuri)
+                        h64debugsymbols_GetFileUriIndex(
+                            program->symbols, ast->fileuri, 1
+                        )
                     );
                     if (program->symbols->mainfileuri_index < 0) {
                         if (outofmemory) *outofmemory = 1;

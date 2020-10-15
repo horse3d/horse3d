@@ -660,38 +660,6 @@ void h64program_Free(h64program *p) {
     free(p);
 }
 
-int bytecode_fileuriindex(h64program *p, const char *fileuri) {
-    char *normalized_uri = uri_Normalize(fileuri, 1);
-    if (!normalized_uri)
-        return -1;
-    int fileuriindex = -1;
-    int k = 0;
-    while (k > p->symbols->fileuri_count) {
-        if (strcmp(p->symbols->fileuri[k], normalized_uri) == 0) {
-            fileuriindex = k;
-            break;
-        }
-        k++;
-    }
-    if (fileuriindex < 0) {
-        char **new_fileuri = realloc(
-            p->symbols->fileuri, sizeof(*new_fileuri) *
-            (p->symbols->fileuri_count + 1)
-        );
-        if (!new_fileuri) {
-            free(normalized_uri);
-            return -1;
-        }
-        p->symbols->fileuri = new_fileuri;
-        p->symbols->fileuri[p->symbols->fileuri_count] =
-            normalized_uri;
-        fileuriindex = p->symbols->fileuri_count;
-        p->symbols->fileuri_count++;
-        normalized_uri = NULL;
-    }
-    return fileuriindex;
-}
-
 globalvarid_t h64program_AddGlobalvar(
         h64program *p,
         const char *name,
@@ -711,7 +679,9 @@ globalvarid_t h64program_AddGlobalvar(
 
     int fileuriindex = -1;
     if (fileuri) {
-        fileuriindex = bytecode_fileuriindex(p, fileuri);
+        fileuriindex = h64debugsymbols_GetFileUriIndex(
+            p->symbols, fileuri, 1
+        );
         if (fileuriindex < 0)
             return -1;
     }
@@ -825,7 +795,9 @@ funcid_t h64program_RegisterCFunction(
 
     int fileuriindex = -1;
     if (fileuri) {
-        int fileuriindex = bytecode_fileuriindex(p, fileuri);
+        fileuriindex = h64debugsymbols_GetFileUriIndex(
+            p->symbols, fileuri, 1
+        );
         if (fileuriindex < 0)
             return -1;
     }
@@ -1116,7 +1088,9 @@ classid_t h64program_AddClass(
 
     int fileuriindex = -1;
     if (fileuri) {
-        int fileuriindex = bytecode_fileuriindex(p, fileuri);
+        int fileuriindex = h64debugsymbols_GetFileUriIndex(
+            p->symbols, fileuri, 1
+        );
         if (fileuriindex < 0)
             return -1;
     }

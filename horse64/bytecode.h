@@ -467,8 +467,6 @@ void h64program_Free(h64program *p);
 
 void h64program_PrintBytecodeStats(h64program *p);
 
-int bytecode_fileuriindex(h64program *p, const char *fileuri);
-
 #include "gcvalue.h"
 
 ATTR_UNUSED static inline void DELREF_NONHEAP(valuecontent *content) {

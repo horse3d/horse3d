@@ -5,6 +5,7 @@
 #include "compileconfig.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,7 @@
 #include "compiler/codemodule.h"
 #include "compiler/compileproject.h"
 #include "compiler/main.h"
+#include "compiler/result.h"
 #include "compiler/scoperesolver.h"
 #include "filesys.h"
 #include "hash.h"
@@ -1258,8 +1260,35 @@ int compileproject_CompileAllToBytecode(
     }
 
     // Do the final checks with more complicated graph analyses:
-    if (!threadablechecker_IterateFinalGraph(cinfo.pr))
+    if (!threadablechecker_IterateFinalGraph(cinfo.pr)) {
+        if (error) {
+            int errorfound = 0;
+            int i = 0;
+            while (i < cinfo.pr->resultmsg->message_count) {
+                if (cinfo.pr->resultmsg->message[i].type ==
+                        H64MSG_ERROR) {
+                    char errorbuf[1024];
+                    h64snprintf(
+                        errorbuf, sizeof(errorbuf) - 1,
+                        "final sanity check error at "
+                        "%s:%" PRId64 ":%" PRId64 ": %s",
+                        cinfo.pr->resultmsg->message[i].fileuri,
+                        cinfo.pr->resultmsg->message[i].line,
+                        cinfo.pr->resultmsg->message[i].column,
+                        cinfo.pr->resultmsg->message[i].message
+                    );
+                    errorfound = 1;
+                    *error = strdup(errorbuf);
+                    break;
+                }
+                i++;
+            }
+            if (!errorfound)
+                *error = strdup("final sanity check failed with "
+                    "unknown error, out of memory?");
+        }
         return 0;
+    }
     assert(cinfo.pr->resultmsg->success);
 
     // Now, do actual codegen:
