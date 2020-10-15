@@ -71,8 +71,8 @@ func main {  # '{' bracket separate (block bracket!)
 
 ### Identifier naming
 
-Identifiers that refer to **variables** or **functions** should be
-spelled in **snake case:**
+Identifiers that refer to **variables**, **constants**, or **functions**
+should be spelled in **snake case:**
 
 ```Horse64
 func process_entries {
