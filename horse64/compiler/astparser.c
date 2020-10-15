@@ -4229,6 +4229,150 @@ int ast_ParseExprStmt(
         return 1;
     }
 
+    // await and async statements:
+    if (tokens[0].type == H64TK_KEYWORD &&
+            (strcmp(tokens[0].str_value, "await") == 0 ||
+             strcmp(tokens[0].str_value, "async") == 0)) {
+        int isawait = (strcmp(tokens[0].str_value, "await") == 0);
+        int i = 0;
+        if (statementmode != STATEMENTMODE_INFUNC &&
+                statementmode != STATEMENTMODE_INCLASSFUNC) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected \"%s\" statement, "
+                "this is not valid outside of functions",
+                (isawait ? "await" : "async")
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 1;
+            ast_MarkExprDestroyed(expr);
+            return 0;
+        }
+        expr->type = H64EXPRTYPE_RETURN_STMT;
+        i++;
+
+        int tlen = 0;
+        int innerparsefail = 0;
+        int inneroutofmemory = 0;
+        h64expression *innerexpr = NULL;
+        h64parsethis _buf;
+        if (!ast_ParseExprInline(
+                context, newparsethis(
+                    &_buf, parsethis,
+                    &tokens[i], max_tokens_touse - i
+                ),
+                INLINEMODE_GREEDY,
+                &innerparsefail,
+                &inneroutofmemory, &innerexpr,
+                &tlen, nestingdepth
+                )) {
+            if (inneroutofmemory) {
+                if (parsefail) *parsefail = 0;
+                if (outofmemory) *outofmemory = 1;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            if (innerparsefail) {
+                if (parsefail) *parsefail = 1;
+                if (outofmemory) *outofmemory = 0;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            innerexpr = NULL;
+            char buf[256]; char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected %s, "
+                "expected inline expression as argument to "
+                "%s statement",
+                _describetoken(describebuf, context->tokenstreaminfo,
+                    tokens, i),
+                (isawait ? "await" : "async")
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 1;
+            ast_MarkExprDestroyed(expr);
+            return 0;
+        }
+        i += tlen;
+
+        if (isawait) {
+            if (innerexpr->type != H64EXPRTYPE_IDENTIFIERREF &&
+                    (innerexpr->type != H64EXPRTYPE_BINARYOP ||
+                    innerexpr->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER ||
+                    innerexpr->op.optype != H64OP_INDEXBYEXPR) &&
+                    innerexpr->type != H64EXPRTYPE_CALL) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "needs to be awaitable value or return one",
+                    _describetoken(describebuf, context->tokenstreaminfo,
+                        tokens, i)
+                );
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 1;
+                ast_MarkExprDestroyed(innerexpr);
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            expr->returnstmt.returned_expression = innerexpr;
+            *out_expr = expr;
+            if (outofmemory) *outofmemory = 0;
+            if (parsefail) *parsefail = 0;
+            if (out_tokenlen) *out_tokenlen = i;
+            return 1;
+        } else {
+            if (innerexpr->type != H64EXPRTYPE_CALL) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "needs to be a call expression",
+                    _describetoken(describebuf, context->tokenstreaminfo,
+                        tokens, i)
+                );
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 1;
+                ast_MarkExprDestroyed(innerexpr);
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            ast_MarkExprDestroyed(expr);
+            expr = innerexpr;
+            if (expr->callstmt.call != NULL &&
+                    expr->callstmt.call->type == H64EXPRTYPE_CALL) {
+                expr->callstmt.call->inlinecall.is_async = 1;
+            }
+            *out_expr = expr;
+            if (outofmemory) *outofmemory = 0;
+            if (parsefail) *parsefail = 0;
+            if (out_tokenlen) *out_tokenlen = i;
+            return 1;
+        }
+    }
+
     // return statements:
     if (tokens[0].type == H64TK_KEYWORD &&
             strcmp(tokens[0].str_value, "return") == 0) {
@@ -4247,6 +4391,7 @@ int ast_ParseExprStmt(
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
                 if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 1;
             ast_MarkExprDestroyed(expr);
             return 0;
         }

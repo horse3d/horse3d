@@ -24,6 +24,7 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_RETURN_STMT,
     H64EXPRTYPE_DO_STMT,
     H64EXPRTYPE_WITH_STMT,
+    H64EXPRTYPE_AWAIT_STMT,
     H64EXPRTYPE_ASSIGN_STMT,
     H64EXPRTYPE_LITERAL,
     H64EXPRTYPE_IDENTIFIERREF,
@@ -135,6 +136,9 @@ typedef struct h64expression {
             h64expression *withitem_value;
             char *withitem_identifier;
         } withclause;
+        struct awaitstmt {
+            h64expression *awaitedvalue;
+        } awaitstmt;
         struct assignstmt {
             h64expression *lvalue;
             h64expression *rvalue;
@@ -160,6 +164,7 @@ typedef struct h64expression {
         struct inlinecall {
             h64expression *value;
             h64funcargs arguments;
+            uint8_t is_async;
         } inlinecall;
         struct identifierref {
             h64scopedef *resolved_to_def;

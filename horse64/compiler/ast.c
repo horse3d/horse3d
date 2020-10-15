@@ -353,6 +353,13 @@ int ast_VisitExpression(
             i++;
         }
         break;
+    case H64EXPRTYPE_AWAIT_STMT:
+        if (!ast_VisitExpression(
+                expr->awaitstmt.awaitedvalue, expr, visit_in, visit_out,
+                cancel_visit_descend_callback, ud
+                ))
+            return 0;
+        break;
     case H64EXPRTYPE_ASSIGN_STMT:
         if (!ast_VisitExpression(
                 expr->assignstmt.lvalue, expr, visit_in, visit_out,
@@ -622,6 +629,9 @@ void ast_FreeExprNonpoolMembers(
         expr->dostmt.finallystmt_count = 0;
         break;
     }
+    case H64EXPRTYPE_AWAIT_STMT: {
+        break;
+    };
     case H64EXPRTYPE_ASSIGN_STMT: {
         break;
     }
@@ -771,6 +781,7 @@ static char _h64exprname_import_stmt[] = "H64EXPRTYPE_IMPORT_STMT";
 static char _h64exprname_return_stmt[] = "H64EXPRTYPE_RETURN_STMT";
 static char _h64exprname_do_stmt[] = "H64EXPRTYPE_DO_STMT";
 static char _h64exprname_with_stmt[] = "H64EXPRTYPE_WITH_STMT";
+static char _h64exprname_await_stmt[] = "H64EXPRTYPE_AWAIT_STMT";
 static char _h64exprname_assign_stmt[] = "H64EXPRTYPE_ASSIGN_STMT";
 static char _h64exprname_literal[] = "H64EXPRTYPE_LITERAL";
 static char _h64exprname_identifierref[] = "H64EXPRTYPE_IDENTIFIERREF";
@@ -810,6 +821,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_do_stmt;
     case H64EXPRTYPE_WITH_STMT:
         return _h64exprname_with_stmt;
+    case H64EXPRTYPE_AWAIT_STMT:
+        return _h64exprname_await_stmt;
     case H64EXPRTYPE_ASSIGN_STMT:
         return _h64exprname_assign_stmt;
     case H64EXPRTYPE_LITERAL:
@@ -1292,6 +1305,14 @@ jsonvalue *ast_ExpressionToJSON(
         if (!json_SetDict(v, "values", values)) {
             fail = 1;
             json_Free(values);
+        }
+    } else if (e->type == H64EXPRTYPE_AWAIT_STMT) {
+        jsonvalue *awaitedjson = ast_ExpressionToJSON(
+            e->awaitstmt.awaitedvalue, fileuri
+        );
+        if (!json_SetDict(v, "awaited", awaitedjson)) {
+            fail = 1;
+            json_Free(awaitedjson);
         }
     } else if (e->type == H64EXPRTYPE_ASSIGN_STMT) {
         jsonvalue *lvaluejson = ast_ExpressionToJSON(
