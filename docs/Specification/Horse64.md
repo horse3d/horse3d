@@ -996,57 +996,10 @@ will be looked up at `horse_modules/core.horse64.org/io.h64`.
 
 ### Garbage Collection Details
 
-Garbage collection is a background mechanism managed autonomously
-by [horsevm](../Misc%20Tooling/horsevm.md) to free more complicated
-memory structures.
-
-See the [section on data lifetime](#data-lifetime-and-scopes) for when
-a value is freed in general: anything passed by value, or only referenced
-by one trivial reference, will be freed immediately once possible.
-
-Only for longer reference chains or cycles, the garbage collector comes
-into play. Basically, the "immediate" memory handling will usually
-not detect that these chains or cycles are no longer referenced and in
-use from anywhere, and leave them linger in memory. To deal with this,
-the garbage collector runs occasionally to find these remains and clean
-them up.
-
-#### How does the Garbage Collector impact me?
-
-The garbage collector is fully self-managed. You don't need to care
-about when, or if it runs, since *horsevm* does all this for you.
-Sadly, nothing is free, so you might experience the following downsides:
-
-1. If a lot of such lingering constructs need to be cleaned up, micro
-   stutter can happen caused by the garbage collector runs.
-
-2. Memory usage of your program will be unnecessarily higher if you
-   create a constant stream of lingering objects, since the garbage
-   collector will "lag behind" with cleaning them up. The amount of
-   this unnecessary use depends on how much lingering references you
-   create.
-
-3. If you rely on `on_destroy` of object instances to run additional
-   clean up affecting external resources (like files), if the object
-   is part of a lingering group then your `on_destroy` clean up run
-   will also be delayed.
-
-4. In general, the garbage collector's mere existence will cause an
-   additional memory overhead, as well as CPU overhead when it runs.
-
-The garbage collector is an integral part of Horse64 which makes
-handling objects a lot easier, but sadly comes with above downsides.
-Since the language was designed around this mechanism, there is no
-way to avoid these downides: they are just listed here for
-transparency's sake.
-
-#### How does the Garbage Collector work in detail?
-
-FIXME WRITE THIS - likely will be a simple mark and sweep at first.
-might do generational with nurseries later, we'll see. GC runs
-with one instance per interpreter hardware thread (which is not
-the same as `async` execution thread, multiple of these can exist
-in one hardware therad).
+See [horsevm section on Garbage Collection](
+    ../Misc%20Tooling/horsevm.md#garbage-collection-implementation
+)
+for more practical details about garbage collection.
 
 ---
 This documentation is CC-BY-SA-4.0 licensed.
