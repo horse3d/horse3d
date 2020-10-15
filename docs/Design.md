@@ -33,10 +33,10 @@ Here is an overview how it roughly compares:
 |Runtime eval()                 |No      |Yes, trivial  |No, or non-trivial|
 |Runtime module load            |No      |Yes, common   |Yes, used rarely  |
 |Produces standalone binary     |Yes     |No, or tricky |Some              |
-|Beginner-friendly              |Yes     |Yes           |No, or less so    |
+|Beginner-friendly syntax[3]    |Yes     |Yes           |No, or less so    |
 |Dynamic REPL mode              |No      |Yes           |Some              |
-|Compiler easy to include[3]    |Yes     |Yes           |No, or less so    |
-|Embeddable scripting engine[4] |No      |Yes, trivially|Often non-trivial |
+|Compiler easy to include[4]    |Yes     |Yes           |No, or less so    |
+|Embeddable scripting engine[5] |No      |Yes, trivially|Often non-trivial |
 |Runs via compiled machine code |No      |No            |Some              |
 
 - Footnote [1]: AOT as in "Ahead of Time", so not one-shot running of
@@ -48,11 +48,15 @@ Here is an overview how it roughly compares:
   / attribute on a class object instance will occasionally invoke a slow
   string hash name lookup at runtime.
 
-- Footnote [3]: Easy to include compiler refers to using the compiler
+- Footnote [3]: Beginner-friendly syntax here refers mostly to favoring
+  fully spelled out words and simple constructs over more compressed,
+  arcane special character syntaxes (which often can be harder to learn).
+
+- Footnote [4]: Easy to include compiler refers to using the compiler
   of a language from a program inside the same language as a library,
   without the need of separately installing an entire SDK.
 
-- Footnote [4]: Embeddable scripting engine refers to using the compiler
+- Footnote [5]: Embeddable scripting engine refers to using the compiler
   from inside a *different* lowlevel language, e.g. to embed it for user
   scripts in a video game written in C/C++. Horse64 is not easily suitable
   for this right now.
