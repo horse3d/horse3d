@@ -623,7 +623,7 @@ functions can either just be specified by identifier, or
 as an inline lambda with the `=>` syntax.
 Lists can be created via `[<expr1>, <expr2>, ...]`, and
 vectors via `[1: <number1>, 2: <number2>, ...]`, and
-maps via `[<key1> -> <value1>, <key2> -> <value2>, ...]`, and
+maps via `{<key1> -> <value1>, <key2> -> <value2>, ...}`, and
 sets via `{<expr1>, <expr2>, ...}`, again [see grammar for
 details](./Horse64%20Grammar.md#grammar). Object instances
 can only be created via the `new` operator, or otherwise
