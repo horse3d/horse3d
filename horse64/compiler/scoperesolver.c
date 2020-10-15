@@ -252,8 +252,8 @@ static int scoperesolver_ComputeItemStorage(
                 program->classes[
                     owningclassindex
                 ].varinitfuncidx = idx;
-                if (program->classes[owningclassindex].user_set_canasync)
-                    program->func[idx].user_set_canasync = 1;
+                if (program->classes[owningclassindex].user_set_async)
+                    program->func[idx].user_set_async = 1;
                 else if (program->classes[owningclassindex].is_threadable == 0)
                     program->func[idx].is_threadable = 0;
             }
@@ -387,8 +387,8 @@ static int scoperesolver_ComputeItemStorage(
             if (outofmemory) *outofmemory = 1;
             return 0;
         }
-        if (expr->funcdef.is_canasync) {
-            program->func[bytecode_func_id].user_set_canasync = 1;
+        if (expr->funcdef.is_async) {
+            program->func[bytecode_func_id].user_set_async = 1;
         } else if (expr->funcdef.is_noasync) {
             program->func[bytecode_func_id].is_threadable = 0;
         }

@@ -133,10 +133,10 @@ int _threadablechecker_register_visitin(
             if ((!gvsymbol->is_const ||
                     !gvsymbol->is_simple_const) &&
                     rinfo->pr->program->func[func_id].
-                        user_set_canasync) {
+                        user_set_async) {
                 if (!result_AddMessage(
                         rinfo->pr->resultmsg, H64MSG_ERROR,
-                        "func marked as \"canasync\" cannot access "
+                        "func marked as \"async\" cannot access "
                         "global variable that isn't a simple "
                         "constant", NULL,
                         (expr->identifierref.
@@ -248,7 +248,7 @@ int threadablechecker_IterateFinalGraph(
                         project->program->func[f2].is_threadable == 0) {
                     project->program->func[i].is_threadable = 0;
                     gotchange = 1;
-                    if (project->program->func[i].user_set_canasync) {
+                    if (project->program->func[i].user_set_async) {
                         char *call_fileuri = NULL;
                         h64funcsymbol *fsymbol = (
                             h64debugsymbols_GetFuncSymbolById(
@@ -265,9 +265,9 @@ int threadablechecker_IterateFinalGraph(
                         }
                         if (!result_AddMessage(
                                 project->resultmsg, H64MSG_ERROR,
-                                "func marked as \"canasync\" cannot "
+                                "func marked as \"async\" cannot "
                                 "access func "
-                                "that is not \"canasync\" itself",
+                                "that is not \"async\" itself",
                                 call_fileuri,
                                 nodeinfo->called_func_info[k].line,
                                 nodeinfo->called_func_info[k].column

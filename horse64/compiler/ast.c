@@ -1212,8 +1212,8 @@ jsonvalue *ast_ExpressionToJSON(
         jsonvalue *storagejson = varstorage_StorageAsJSON(e);
         json_SetDict(v, "storage", storagejson);
         jsonvalue *attributes = json_List();
-        if (e->classdef.is_canasync) {
-            if (!json_AddToListStr(attributes, "canasync"))
+        if (e->classdef.is_async) {
+            if (!json_AddToListStr(attributes, "async"))
                 fail = 1;
         }
         if (e->classdef.is_noasync) {
@@ -1375,8 +1375,8 @@ jsonvalue *ast_ExpressionToJSON(
         jsonvalue *storagejson = varstorage_StorageAsJSON(e);
         json_SetDict(v, "storage", storagejson);
         jsonvalue *attributes = json_List();
-        if (e->funcdef.is_canasync) {
-            if (!json_AddToListStr(attributes, "canasync"))
+        if (e->funcdef.is_async) {
+            if (!json_AddToListStr(attributes, "async"))
                 fail = 1;
         }
         if (e->funcdef.is_noasync) {

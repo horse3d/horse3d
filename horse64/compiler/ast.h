@@ -110,7 +110,7 @@ typedef struct h64expression {
         struct funcdef {
             char *name;
             uint8_t is_deprecated;
-            uint8_t is_canasync, is_noasync;
+            uint8_t is_async, is_noasync;
             uint8_t is_getter;
             uint8_t is_setter;
             int stmt_count;
@@ -197,7 +197,7 @@ typedef struct h64expression {
             h64expression *returned_expression;
         } returnstmt;
         struct classdef {
-            uint8_t is_canasync, is_noasync;
+            uint8_t is_async, is_noasync;
             uint8_t is_deprecated;
             h64scope scope;
             char *name;

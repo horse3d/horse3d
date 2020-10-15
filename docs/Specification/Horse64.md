@@ -546,15 +546,15 @@ have a `.close()` function.
 ## async/await
 
 Horse64 allows parallelism and concurrency via async/await.
-A function with the [canasync property](
-./Horse64%20Concurrency.md#canasync-property) can be called
-via these two statement types:
+A function with the [async property](
+./Horse64%20Concurrency.md#async-property-for-functions) can
+be called via these two statement types:
 
 ```
 func main {
-    async my_canasync_func()
-    let return_value = async my_other_canasync_func()
-    return_value = async my_third_canasync_func()
+    async my_asynccompatible_func()
+    let return_value = async my_other_asynccompatible_func()
+    return_value = async my_third_asynccompatible_func()
 }
 ```
 Please note `async` is **not** a universal inline operator,

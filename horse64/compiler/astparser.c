@@ -3295,14 +3295,14 @@ int ast_ParseExprStmt(
         while (1) {
             if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->funcdef.is_canasync &&
-                    strcmp(tokens[i].str_value, "canasync") == 0) {
+                    !expr->funcdef.is_async &&
+                    strcmp(tokens[i].str_value, "async") == 0) {
                 i++;
-                expr->funcdef.is_canasync = 1;
+                expr->funcdef.is_async = 1;
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->funcdef.is_canasync &&
+                    !expr->funcdef.is_async &&
                     strcmp(tokens[i].str_value, "noasync") == 0) {
                 i++;
                 expr->funcdef.is_noasync = 1;
@@ -3546,14 +3546,14 @@ int ast_ParseExprStmt(
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->classdef.is_canasync &&
-                    strcmp(tokens[i].str_value, "canasync") == 0) {
+                    !expr->classdef.is_async &&
+                    strcmp(tokens[i].str_value, "async") == 0) {
                 i++;
-                expr->classdef.is_canasync = 1;
+                expr->classdef.is_async = 1;
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->classdef.is_canasync &&
+                    !expr->classdef.is_async &&
                     strcmp(tokens[i].str_value, "noasync") == 0) {
                 i++;
                 expr->classdef.is_noasync = 1;

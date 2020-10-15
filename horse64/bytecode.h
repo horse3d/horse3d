@@ -302,7 +302,7 @@ typedef struct h64classattributeinfo {
 
 typedef struct h64class {
     classid_t base_class_global_id;
-    int is_error, is_threadable, user_set_canasync;
+    int is_error, is_threadable, user_set_async;
 
     attridx_t funcattr_count;
     int64_t *funcattr_global_name_idx;
@@ -318,7 +318,7 @@ typedef struct h64class {
 
 typedef struct h64func {
     int input_stack_size, inner_stack_size;
-    int iscfunc, is_threadable, user_set_canasync;
+    int iscfunc, is_threadable, user_set_async;
     int last_posarg_is_multiarg;
     int kwarg_count;
     int64_t *kwargnameindexes;

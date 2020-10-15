@@ -5,6 +5,8 @@
 #ifndef HORSE64_COMPILER_LEXER_H_
 #define HORSE64_COMPILER_LEXER_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 #include <stdlib.h>  // for NULL
 
@@ -49,8 +51,8 @@ typedef struct h64tokenizedfile {
     h64token *token;
 } h64tokenizedfile;
 
-static char *h64keywords[] = {
-    "async", "noasync", "canasync", "const",
+ATTR_UNUSED static char *h64keywords[] = {
+    "async", "noasync", "async", "const",
     "if", "while", "func",
     "for", "from", "with",
     "var", "class", "extends",

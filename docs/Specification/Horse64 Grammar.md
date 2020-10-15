@@ -99,8 +99,8 @@ classattrstmt ::= vardefnoasyncstmt | funcdefstmt
 
 extendinfo ::= "extends" expr
 
-classprop ::= "canasync" | "noasync" | "deprecated"
-funcprop ::= "canasync" | "noasync" | "getter" | "setter" |
+classprop ::= "async" | "noasync" | "deprecated"
+funcprop ::= "async" | "noasync" | "getter" | "setter" |
              "deprecated"
 
 
