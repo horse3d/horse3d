@@ -26,7 +26,7 @@ An overview over horsevm's runtime behavior:
 | Memory model                        | GC + ref-counting       |
 | Local variable management           | register stack based    |
 | Numbers optimized with faster type  | yes                     |
-| String objects cause GC load [1]    | no                      |
+| String objects cause GC load [1]    | partial                 |
 | Object instances cause GC load      | yes                     |
 | List/arrays cause GC load           | yes                     |
 | Threaded Garbage Collection         | no                      |
@@ -40,7 +40,8 @@ An overview over horsevm's runtime behavior:
 
 - Footnote [1]: strings are always reference counted, hence will
   not pile up work for the garbage collector later. However,
-  reference counting itself also isn't necessarily cheap.
+  reference counting itself also isn't necessarily cheap, and
+  they will increase the graph of discoverable elements.
 
 
 ### Garbage Collection Implementation

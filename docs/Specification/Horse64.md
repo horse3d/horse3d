@@ -613,7 +613,9 @@ to the same underlying data object:
 
 - **GC'ed** *column: A "yes" entry means any new
   instance of the given data type will cause garbage
-  collector load, with the according performance implications.*
+  collector load, with the according performance implications.
+  A "no" means it doesn't, or not to the extent of other collected
+  objects.*
 
 **Literal constructors** are shown above as regexes for the
 simple cases, although check the
@@ -665,8 +667,9 @@ Please note there are more hidden differentiations in the
   down on allocations and indirections. Longer strings,
   even if semantically passed by value, actually are kept
   as a reference type internally to save on memory and copies.
-  But since they cannot reference each other in cycles, this
-  will not increase GC load.
+  But since they cannot reference each other in cycles, they
+  will not increase garbage to be collected - although they will
+  increase the memory graph the GC traverses.
 
 - Numbers internally can be either a 64bit integer, or
   a 64bit floating point value. Conversions happen
