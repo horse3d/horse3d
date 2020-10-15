@@ -597,7 +597,7 @@ to the same underlying data object:
 |none         |Yes     |No    |`none`                       |
 |boolean      |Yes     |No    |`true` or `false`            |
 |number       |Yes     |No    |`-?[0-9]+(\.[0-9]+)?`        |
-|string       |Yes     |No    |`"` then any utf-8 then `"`  |
+|string       |Yes     |No    |`"`, then any utf-8, then `"`|
 |function     |No      |No    | see below                   |
 |list         |No      |Yes   | see below, or `[]` (empty)  |
 |vector       |Yes     |No    | see below                   |
@@ -662,7 +662,11 @@ Please note there are more hidden differentiations in the
   of bugs.
 
 - Short strings internally have a different type to cut
-  down on allocations and indirections.
+  down on allocations and indirections. Longer strings,
+  even if semantically passed by value, actually are kept
+  as a reference type internally to save on memory and copies.
+  But since they cannot reference each other in cycles, this
+  will not increase GC load.
 
 - Numbers internally can be either a 64bit integer, or
   a 64bit floating point value. Conversions happen
@@ -833,8 +837,9 @@ the given data type doesn't have this attribute. All
 data types have the `.as_str` attribute that returns a
 string representation. For object instances of classes, the
 according attributes as defined by the class are returned.
-Containers and strings have the `.length` attribute which
-returns the number of entries or characters respectively.
+Containers and strings have the `.len` attribute which
+returns the number of entries or letters in the string
+respectively.
 
 **Call operator:**
 
@@ -977,7 +982,7 @@ Then it will terminate with an error since neither of these exist.
 **External package imports** are always searched for in the
 `horse_modules/` subfolder in your project root. The easiest way
 to organize your packages like that is by using
-[horp install](../Misc%20Tooling/horp.md], which installs to
+[horp install](../Misc%20Tooling/horp.md), which installs to
 `horse_modules/` by default.
 
 Any external package import must match the full module path, e.g.
@@ -991,7 +996,57 @@ will be looked up at `horse_modules/core.horse64.org/io.h64`.
 
 ### Garbage Collection Details
 
-FIXME: write this
+Garbage collection is a background mechanism managed autonomously
+by [horsevm](../Misc%20Tooling/horsevm.md) to free more complicated
+memory structures.
+
+See the [section on data lifetime](#data-lifetime-and-scopes) for when
+a value is freed in general: anything passed by value, or only referenced
+by one trivial reference, will be freed immediately once possible.
+
+Only for longer reference chains or cycles, the garbage collector comes
+into play. Basically, the "immediate" memory handling will usually
+not detect that these chains or cycles are no longer referenced and in
+use from anywhere, and leave them linger in memory. To deal with this,
+the garbage collector runs occasionally to find these remains and clean
+them up.
+
+#### How does the Garbage Collector impact me?
+
+The garbage collector is fully self-managed. You don't need to care
+about when, or if it runs, since *horsevm* does all this for you.
+Sadly, nothing is free, so you might experience the following downsides:
+
+1. If a lot of such lingering constructs need to be cleaned up, micro
+   stutter can happen caused by the garbage collector runs.
+
+2. Memory usage of your program will be unnecessarily higher if you
+   create a constant stream of lingering objects, since the garbage
+   collector will "lag behind" with cleaning them up. The amount of
+   this unnecessary use depends on how much lingering references you
+   create.
+
+3. If you rely on `on_destroy` of object instances to run additional
+   clean up affecting external resources (like files), if the object
+   is part of a lingering group then your `on_destroy` clean up run
+   will also be delayed.
+
+4. In general, the garbage collector's mere existence will cause an
+   additional memory overhead, as well as CPU overhead when it runs.
+
+The garbage collector is an integral part of Horse64 which makes
+handling objects a lot easier, but sadly comes with above downsides.
+Since the language was designed around this mechanism, there is no
+way to avoid these downides: they are just listed here for
+transparency's sake.
+
+#### How does the Garbage Collector work in detail?
+
+FIXME WRITE THIS - likely will be a simple mark and sweep at first.
+might do generational with nurseries later, we'll see. GC runs
+with one instance per interpreter hardware thread (which is not
+the same as `async` execution thread, multiple of these can exist
+in one hardware therad).
 
 ---
 This documentation is CC-BY-SA-4.0 licensed.
