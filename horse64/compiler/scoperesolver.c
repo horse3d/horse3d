@@ -254,7 +254,7 @@ static int scoperesolver_ComputeItemStorage(
                 ].varinitfuncidx = idx;
                 if (program->classes[owningclassindex].user_set_canasync)
                     program->func[idx].user_set_canasync = 1;
-                else if (!program->classes[owningclassindex].is_threadable)
+                else if (program->classes[owningclassindex].is_threadable == 0)
                     program->func[idx].is_threadable = 0;
             }
             return 1;
