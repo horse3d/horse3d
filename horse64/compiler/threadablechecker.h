@@ -31,10 +31,18 @@ typedef struct h64threadablecheck_calledfuncinfo {
     int64_t line, column;
 } h64threadablecheck_calledfuncinfo;
 
+typedef struct h64threadablecheck_calledclassinfo {
+    classid_t class_id;
+    int64_t line, column;
+} h64threadablecheck_calledclassinfo;
+
+
 typedef struct h64threadablecheck_nodeinfo {
     funcid_t associated_func_id;
     int called_func_count;
     h64threadablecheck_calledfuncinfo *called_func_info;
+    int called_class_count;
+    h64threadablecheck_calledclassinfo *called_class_info;
 } h64threadablecheck_nodeinfo;
 
 typedef struct h64threadablecheck_graph {

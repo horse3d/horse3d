@@ -17,8 +17,10 @@
 #include "compiler/operator.h"
 #include "compiler/threadablechecker.h"
 #include "hash.h"
+#include "nonlocale.h"
 
-static int _func_get_nodeinfo_by_id(
+
+static int _func_get_nodeinfo_by_func_id(
         h64threadablecheck_graph *graph,
         funcid_t funcid,
         h64threadablecheck_nodeinfo **nodeinfo
@@ -62,7 +64,7 @@ static int _func_get_nodeinfo_by_expr(
         expr->funcdef.bytecode_func_id
     );
     assert(bytecode_id >= 0);
-    return _func_get_nodeinfo_by_id(
+    return _func_get_nodeinfo_by_func_id(
         graph, bytecode_id, nodeinfo
     );
 }
@@ -124,6 +126,29 @@ int _threadablechecker_register_visitin(
             nodeinfo->called_func_count++;
         } else if (expr->storage.set &&
                 expr->storage.ref.type ==
+                    H64STORETYPE_GLOBALCLASSSLOT) {
+             h64threadablecheck_calledclassinfo *
+                called_class_info_new = realloc(
+                    nodeinfo->called_class_info,
+                    sizeof(*called_class_info_new) *
+                    (nodeinfo->called_class_count + 1)
+                );
+            if (!called_class_info_new) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            nodeinfo->called_class_info = called_class_info_new;
+            h64threadablecheck_calledclassinfo *ninfo = (
+                &nodeinfo->called_class_info[
+                    nodeinfo->called_class_count
+                ]);
+            memset(ninfo, 0, sizeof(*ninfo));
+            ninfo->class_id = expr->storage.ref.id;
+            ninfo->line = expr->line;
+            ninfo->column = expr->column;
+            nodeinfo->called_class_count++;
+        } else if (expr->storage.set &&
+                expr->storage.ref.type ==
                     H64STORETYPE_GLOBALVARSLOT) {
             h64globalvarsymbol *gvsymbol = (
                 h64debugsymbols_GetGlobalvarSymbolById(
@@ -163,6 +188,8 @@ int _threadablechecker_register_visitin(
                 (expr->identifierref.resolved_to_expr->type !=
                  H64EXPRTYPE_FUNCDEF_STMT &&
                  expr->identifierref.resolved_to_expr->type !=
+                 H64EXPRTYPE_CLASSDEF_STMT &&
+                 expr->identifierref.resolved_to_expr->type !=
                  H64EXPRTYPE_INLINEFUNCDEF) ||
                 (func_has_param_with_name(
                     expr->identifierref.resolved_to_expr,
@@ -186,6 +213,13 @@ int threadablechecker_RegisterASTForCheck(
         );
         if (!project->threadable_graph) {
             oom:
+            if (project->threadable_graph) {
+                if (project->threadable_graph->func_id_to_nodeinfo)
+                    hash_FreeMap(
+                        project->threadable_graph->func_id_to_nodeinfo
+                    );
+                free(project->threadable_graph);
+            }
             if (!result_AddMessage(
                     project->resultmsg, H64MSG_ERROR,
                     "out of memory during threadable check",
@@ -231,12 +265,135 @@ int threadablechecker_IterateFinalGraph(
         gotchange = 0;
         funcid_t i = 0;
         while (i < project->program->func_count) {
+            // If func is "noasync" and on a class, the class might also need
+            // to be "noasync" if the func is an operator overrider:
+            if (project->program->func[i].is_threadable == 0 &&
+                    project->program->func[i].associated_class_index >= 0) {
+                classid_t cid = (
+                    project->program->func[i].associated_class_index
+                );
+                h64funcsymbol *fsymbol = (
+                    h64debugsymbols_GetFuncSymbolById(
+                        project->program->symbols, i
+                    ));
+                assert(fsymbol != NULL);
+                int essentialfunc = 1;
+                if (fsymbol->name == NULL || (
+                        strcmp(fsymbol->name, "init") != 0 &&
+                        strcmp(fsymbol->name, "on_destroy") != 0 &&
+                        strcmp(fsymbol->name, "to_str") != 0 &&
+                        strcmp(fsymbol->name, "to_hash") != 0 &&
+                        strcmp(fsymbol->name, "equals") != 0)) {
+                    // Not an operator overriding function, these can
+                    // be "noasync" if desired.
+                    essentialfunc = 0;
+                }
+                if (project->program->classes[cid].is_threadable != 0 &&
+                        essentialfunc) {
+                    project->program->classes[cid].is_threadable = 0;
+                    gotchange = 1;
+                    if (project->program->classes[cid].user_set_async) {
+                        char *def_fileuri = NULL;
+                        if (fsymbol->fileuri_index >= 0) {
+                            def_fileuri = strdup(
+                                project->program->symbols->fileuri[
+                                    fsymbol->fileuri_index
+                                ]
+                            );
+                        } else {
+                            def_fileuri = strdup("<unknown>");
+                        }
+                        char buf[1024];
+                        h64snprintf(buf, sizeof(buf) - 1,
+                            "class marked as \"async\" cannot "
+                            "have \"%s\" func attribute "
+                            "that is not \"async\" itself",
+                            fsymbol->name
+                        );
+                        if (!result_AddMessage(
+                                project->resultmsg, H64MSG_ERROR,
+                                buf,
+                                def_fileuri,
+                                (fsymbol ? fsymbol->header_symbol_line :
+                                    -1LL),
+                                (fsymbol ? fsymbol->header_symbol_column :
+                                    -1LL)
+                                )) {
+                            if (!result_AddMessage(
+                                    project->resultmsg, H64MSG_ERROR,
+                                    "out of memory during threadable "
+                                    "check",
+                                    NULL, -1, -1
+                                    )) {
+                                // Nothing we can do.
+                            }
+                        }
+                        project->resultmsg->success = 0;
+                        success = 0;
+                        i++;
+                        continue;
+                    }
+                }
+            }
+            // If function is already noasync, we're done looking at it:
             if (project->program->func[i].is_threadable == 0) {
                 i++;
                 continue;
             }
+            // Ok, func is NOT noasync yet.
+            // Check if parent class is noasync:
+            if (project->program->func[i].associated_class_index >= 0) {
+                classid_t cid = (
+                    project->program->func[i].associated_class_index
+                );
+                if (project->program->classes[cid].is_threadable == 0) {
+                    project->program->func[i].is_threadable = 0;
+                    gotchange = 1;
+                    if (project->program->func[i].user_set_async) {
+                        char *func_fileuri = NULL;
+                        h64funcsymbol *fsymbol = (
+                            h64debugsymbols_GetFuncSymbolById(
+                                project->program->symbols, i
+                            ));
+                        if (fsymbol != NULL && fsymbol->fileuri_index >= 0) {
+                            func_fileuri = strdup(
+                                project->program->symbols->fileuri[
+                                    fsymbol->fileuri_index
+                                ]
+                            );
+                        } else {
+                            func_fileuri = strdup("<unknown>");
+                        }
+                        if (!result_AddMessage(
+                                project->resultmsg, H64MSG_ERROR,
+                                "func marked as \"async\" cannot "
+                                "be func attr of class "
+                                "that is not \"async\"",
+                                func_fileuri,
+                                (fsymbol ? fsymbol->header_symbol_line :
+                                    -1LL),
+                                (fsymbol ? fsymbol->header_symbol_column :
+                                    -1LL)
+                                )) {
+                            if (!result_AddMessage(
+                                    project->resultmsg, H64MSG_ERROR,
+                                    "out of memory during threadable "
+                                    "check",
+                                    NULL, -1, -1
+                                    )) {
+                                // Nothing we can do.
+                            }
+                        }
+                        project->resultmsg->success = 0;
+                        success = 0;
+                    }
+                    i++;
+                    continue;
+                }
+            }
+            // Check if anyt func this function possibly calls is noasync:
             h64threadablecheck_nodeinfo *nodeinfo = NULL;
-            if (!_func_get_nodeinfo_by_id(
+            if (!_func_get_nodeinfo_by_func_id(
                     graph, i, &nodeinfo
                     ))
                 return 0;
@@ -284,6 +441,58 @@ int threadablechecker_IterateFinalGraph(
                         project->resultmsg->success = 0;
                         success = 0;
                     }
+                    i++;
+                    continue;
+                }
+                k++;
+            }
+            // Check if any class this function possibly uses is noasync:
+            assert(nodeinfo != NULL);
+            k = 0;
+            while (k < nodeinfo->called_class_count) {
+                classid_t f2 = nodeinfo->called_class_info[k].class_id;
+                if (f2 != i &&
+                        project->program->classes[f2].is_threadable == 0) {
+                    project->program->func[i].is_threadable = 0;
+                    gotchange = 1;
+                    if (project->program->func[i].user_set_async) {
+                        char *call_fileuri = NULL;
+                        h64funcsymbol *fsymbol = (
+                            h64debugsymbols_GetFuncSymbolById(
+                                project->program->symbols, i
+                            ));
+                        if (fsymbol != NULL && fsymbol->fileuri_index >= 0) {
+                            call_fileuri = strdup(
+                                project->program->symbols->fileuri[
+                                    fsymbol->fileuri_index
+                                ]
+                            );
+                        } else {
+                            call_fileuri = strdup("<unknown>");
+                        }
+                        if (!result_AddMessage(
+                                project->resultmsg, H64MSG_ERROR,
+                                "func marked as \"async\" cannot "
+                                "access class "
+                                "that is not \"async\" itself",
+                                call_fileuri,
+                                nodeinfo->called_class_info[k].line,
+                                nodeinfo->called_class_info[k].column
+                                )) {
+                            if (!result_AddMessage(
+                                    project->resultmsg, H64MSG_ERROR,
+                                    "out of memory during threadable "
+                                    "check",
+                                    NULL, -1, -1
+                                    )) {
+                                // Nothing we can do.
+                            }
+                        }
+                        project->resultmsg->success = 0;
+                        success = 0;
+                    }
+                    i++;
+                    continue;
                 }
                 k++;
             }
@@ -317,13 +526,15 @@ void threadablechecker_FreeGraphInfoFromProject(
     );
     if (!graph)
         return;
-    int iterate_result = hash_IntMapIterate(
-        graph->func_id_to_nodeinfo, &_graphfreecb, NULL
-    );
-    if (!iterate_result) {
-        // Ran out of memory in iteration handling.
-        // That will cause a leak, but not much we can do about it.
+    if (graph->func_id_to_nodeinfo) {
+        int iterate_result = hash_IntMapIterate(
+            graph->func_id_to_nodeinfo, &_graphfreecb, NULL
+        );
+        if (!iterate_result) {
+            // Ran out of memory in iteration handling.
+            // That will cause a leak, but not much we can do about it.
+        }
+        hash_FreeMap(graph->func_id_to_nodeinfo);
     }
-    hash_FreeMap(graph->func_id_to_nodeinfo);
     free(graph);
 }

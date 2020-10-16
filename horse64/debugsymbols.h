@@ -16,6 +16,7 @@ typedef struct h64funcsymbol {
         stack_temporaries_count, closure_bound_count;
     char **arg_kwarg_name;
     int fileuri_index;
+    int64_t header_symbol_line, header_symbol_column;
     int instruction_count;
     int64_t *instruction_to_line;
     int64_t *instruction_to_column;

@@ -853,6 +853,8 @@ funcid_t h64program_RegisterCFunction(
     msymbols->func_symbols = new_func_symbols;
     memset(&msymbols->func_symbols[msymbols->func_count],
         0, sizeof(*msymbols->func_symbols));
+    msymbols->func_symbols[msymbols->func_count].header_symbol_column = -1;
+    msymbols->func_symbols[msymbols->func_count].header_symbol_line = -1;
     if (name) {
         msymbols->func_symbols[msymbols->func_count].name = (
             strdup(name)
@@ -1085,6 +1087,7 @@ classid_t h64program_AddClass(
     memset(&p->classes[p->classes_count], 0, sizeof(*p->classes));
     p->classes[p->classes_count].base_class_global_id = -1;
     p->classes[p->classes_count].varinitfuncidx = -1;
+    p->classes[p->classes_count].is_threadable = -1;
 
     int fileuriindex = -1;
     if (fileuri) {

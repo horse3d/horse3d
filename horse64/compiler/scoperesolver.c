@@ -246,6 +246,18 @@ static int scoperesolver_ComputeItemStorage(
                     if (outofmemory) *outofmemory = 1;
                     return 0;
                 }
+                {
+                    h64funcsymbol *fsymbol = (
+                        h64debugsymbols_GetFuncSymbolById(
+                            program->symbols, idx
+                        ));
+                    if (!fsymbol) {
+                        if (outofmemory) *outofmemory = 1;
+                        return 0;
+                    }
+                    fsymbol->header_symbol_line = owningclass->line;
+                    fsymbol->header_symbol_column = owningclass->column;
+                }
                 program->classes[
                     owningclassindex
                 ].hasvarinitfunc = 1;
@@ -386,6 +398,18 @@ static int scoperesolver_ComputeItemStorage(
             free(kwarg_names);
             if (outofmemory) *outofmemory = 1;
             return 0;
+        }
+        {
+            h64funcsymbol *fsymbol = (
+                h64debugsymbols_GetFuncSymbolById(
+                    program->symbols, bytecode_func_id
+                ));
+            if (!fsymbol) {
+                if (outofmemory) *outofmemory = 1;
+                return 0;
+            }
+            fsymbol->header_symbol_line = expr->line;
+            fsymbol->header_symbol_column = expr->column;
         }
         if (expr->funcdef.is_async) {
             program->func[bytecode_func_id].user_set_async = 1;
