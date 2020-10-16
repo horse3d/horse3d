@@ -16,6 +16,10 @@
                 !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
         #endif
 
+        // Silence false positive warnings:
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+
         int copyatend = 0;
         valuecontent _tmpresultbuf = {0};
         valuecontent *tmpresult = STACK_ENTRY(stack, inst->slotto);
@@ -565,6 +569,7 @@
             valuecontent_Free(target);
             memcpy(target, tmpresult, sizeof(*tmpresult));
         }
+        #pragma GCC diagnostic pop
         p += sizeof(h64instruction_binop);
         goto *jumptable[((h64instructionany *)p)->type];
     }

@@ -99,14 +99,14 @@ static inline double h64atof(const char *s) {
 }
 
 static inline long long int h64atoll(const char *s) {
-    return h64strtoll(s, NULL, 10); 
+    return h64strtoll(s, NULL, 10);
 }
 
 static int h64snprintf(char *buf, size_t size, const char *format, ...) {
     va_list vl;
     va_start(vl, format);
     #if defined(_WIN32) || defined(_WIN64)
-    return _vsnprintf_l(buf, size, format, vl, h64locale);
+    return _vsnprintf_l(buf, size, format, h64locale, vl);
     #else
     #if defined(__LINUX__) || defined(__linux__)
     locale_t old = uselocale(h64locale);
@@ -123,7 +123,7 @@ static int h64printf(const char *format, ...) {
     va_list vl;
     va_start(vl, format);
     #if defined(_WIN32) || defined(_WIN64)
-    return _vprintf_l(format, vl, h64locale);
+    return _vprintf_l(format, h64locale, vl);
     #else
     #if defined(__LINUX__) || defined(__linux__)
     locale_t old = uselocale(h64locale);
@@ -131,7 +131,7 @@ static int h64printf(const char *format, ...) {
     uselocale(old);
     return result;
     #else
-    return vprintf_l(format, vl, h64locale);
+    return vprintf_l(h64locale, format, vl);
     #endif
     #endif
 }

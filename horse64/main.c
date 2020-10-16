@@ -225,7 +225,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev,
         i++;
     }
     free(argline);
-    int result = _actualmain(argc, argv);
+    int result = _actualmain(argc, (const char**) argv);
     int k = 0;
     while (k < argc) {
         free(argv[k]);

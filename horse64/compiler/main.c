@@ -61,7 +61,7 @@ static int _compileargparse(
             miscoptions->vmexec_debug = 1;
             #ifdef NDEBUG
             fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
-                "output for --vmexec-debug not compiled in\n");
+                "output for --vmexec-debug not compiled in\n", cmd);
             #endif
         } else if (strcmp(argv[i], "--compiler-stage-debug") == 0) {
             miscoptions->compiler_stage_debug = 1;

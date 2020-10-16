@@ -4306,9 +4306,9 @@ int ast_ParseExprStmt(
 
         if (isawait) {
             if (innerexpr->type != H64EXPRTYPE_IDENTIFIERREF &&
-                    (innerexpr->type != H64EXPRTYPE_BINARYOP ||
-                    innerexpr->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER ||
-                    innerexpr->op.optype != H64OP_INDEXBYEXPR) &&
+                    (innerexpr->type != H64EXPRTYPE_BINARYOP || (
+                    innerexpr->op.optype != H64OP_ATTRIBUTEBYIDENTIFIER &&
+                    innerexpr->op.optype != H64OP_INDEXBYEXPR)) &&
                     innerexpr->type != H64EXPRTYPE_CALL) {
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,

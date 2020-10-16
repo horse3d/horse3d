@@ -2,11 +2,15 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#if defined(_WIN32) || defined(_WIN64)
+#define WINVER 0x0600
+#define _WIN32_WINNT 0x0600
+#endif
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #if defined(_WIN32) || defined(_WIN64)
-#define WINVER 0x0600
 #include <windows.h>
 #else
 #include <time.h>

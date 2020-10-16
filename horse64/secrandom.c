@@ -80,7 +80,7 @@ static void _secrandom_initProvider() {
         &hProvider, NULL, NULL, PROV_RSA_FULL, 0
     );
     if (result == FALSE) {
-        if (GetLastError() == NTE_BAD_KEYSET) {
+        if ((int64_t)GetLastError() == (int64_t)NTE_BAD_KEYSET) {
             result = CryptAcquireContext(
                 &hProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET
             );
