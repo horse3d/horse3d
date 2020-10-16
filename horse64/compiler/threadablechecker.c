@@ -391,7 +391,7 @@ int threadablechecker_IterateFinalGraph(
                     continue;
                 }
             }
-            // Check if anyt func this function possibly calls is noasync:
+            // Check if any func this function possibly calls is noasync:
             h64threadablecheck_nodeinfo *nodeinfo = NULL;
             if (!_func_get_nodeinfo_by_func_id(
                     graph, i, &nodeinfo
@@ -441,10 +441,13 @@ int threadablechecker_IterateFinalGraph(
                         project->resultmsg->success = 0;
                         success = 0;
                     }
-                    i++;
-                    continue;
+                    break;
                 }
                 k++;
+            }
+            if (project->program->func[i].is_threadable == 0) {
+                i++;
+                continue;
             }
             // Check if any class this function possibly uses is noasync:
             assert(nodeinfo != NULL);
@@ -491,8 +494,7 @@ int threadablechecker_IterateFinalGraph(
                         project->resultmsg->success = 0;
                         success = 0;
                     }
-                    i++;
-                    continue;
+                    break;
                 }
                 k++;
             }
