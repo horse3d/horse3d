@@ -240,33 +240,6 @@ int _resolver_EnsureLocalDefStorage(
     return 1;
 }
 
-static int _expr_visit_find_is_instance_of_guard(
-        h64expression *expr,
-        ATTR_UNUSED h64expression *parent,
-        ATTR_UNUSED void *ud
-        ) {
-    int *result = (int *)ud;
-    if (expr->type == H64EXPRTYPE_BINARYOP &&
-            expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
-            expr->op.value1->type == H64EXPRTYPE_IDENTIFIERREF &&
-            expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF &&
-            strcmp(expr->op.value2->identifierref.value, "is_instance_of"))
-        *result = 1;
-    return 1;
-}
-
-static int _expr_visit_find_hasattr_guard(
-        h64expression *expr,
-        ATTR_UNUSED h64expression *parent,
-        ATTR_UNUSED void *ud
-        ) {
-    int *result = (int *)ud;
-    if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
-            strcmp(expr->identifierref.value, "has_attr"))
-        *result = 1;
-    return 1;
-}
-
 int _resolver_IsPossiblyGuardedInvalidMember(
         h64expression *expr
         ) {
@@ -274,18 +247,9 @@ int _resolver_IsPossiblyGuardedInvalidMember(
     while (expr) {
         if (child != NULL &&
                 expr->type == H64EXPRTYPE_IF_STMT) {
-            int got_is_instance_of = 0;
-            int got_hasattr = 0;
-            int visit_result = ast_VisitExpression(
-                expr, NULL, &_expr_visit_find_is_instance_of_guard,
-                NULL, NULL, &got_is_instance_of
-            );
-            assert(visit_result);
-            visit_result = ast_VisitExpression(
-                expr, NULL, &_expr_visit_find_hasattr_guard,
-                NULL, NULL, &got_hasattr
-            );
-            if (got_is_instance_of || got_hasattr)
+            int got_is_a = guarded_by_is_a(expr);
+            int got_has_attr = guarded_by_has_attr(expr);
+            if (got_is_a || got_has_attr)
                 return 1;
         }
         if (expr->type == H64EXPRTYPE_FUNCDEF_STMT)
@@ -466,7 +430,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 snprintf(buf, sizeof(buf) - 1,
                     "unknown identifier \"%s\" on self "
                     "will cause AttributeError, wrap in conditional with "
-                    "has_attr() or .is_instance_of() if intended for API "
+                    "has_attr() or .is_a() if intended for API "
                     "compat",
                     namebuf
                 );

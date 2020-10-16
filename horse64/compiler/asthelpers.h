@@ -98,4 +98,8 @@ int is_simple_constant_expr(h64expression *expr);
 
 int func_has_param_with_name(h64expression *expr, const char *param);
 
+int guarded_by_is_a(h64expression *expr);
+
+int guarded_by_has_attr(h64expression *expr);
+
 #endif  // HORSE64_COMPILER_ASTHELPERS_H_

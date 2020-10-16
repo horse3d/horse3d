@@ -7,7 +7,7 @@
 /// in a likely unintended way.
 /// For example, it enforces that using "new" on a value identified by
 /// horsec as clearly not a class at compile time is always wrapped by
-/// an .is_instance_of() check to make sure it was intentional.
+/// an .is_a() check to make sure it was intentional.
 
 #include "compileconfig.h"
 
@@ -24,19 +24,6 @@
 #include "compiler/compileproject.h"
 #include "nonlocale.h"
 
-static int _expr_visit_find_is_instance_of_guard(
-        h64expression *expr,
-        ATTR_UNUSED h64expression *parent, void *ud
-        ) {
-    int *result = (int *)ud;
-    if (expr->type == H64EXPRTYPE_BINARYOP &&
-            expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
-            expr->op.value1->type == H64EXPRTYPE_IDENTIFIERREF &&
-            expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF &&
-            strcmp(expr->op.value2->identifierref.value, "is_instance_of"))
-        *result = 1;
-    return 1;
-}
 
 int _resolver_IsPossiblyGuardedInvalidType(
         h64expression *expr
@@ -45,13 +32,8 @@ int _resolver_IsPossiblyGuardedInvalidType(
     while (expr) {
         if (child != NULL &&
                 expr->type == H64EXPRTYPE_IF_STMT) {
-            int got_is_instance_of = 0;
-            int visit_result = ast_VisitExpression(
-                expr, NULL, &_expr_visit_find_is_instance_of_guard,
-                NULL, NULL, &got_is_instance_of
-            );
-            assert(visit_result);
-            if (got_is_instance_of)
+            int got_is_a = guarded_by_is_a(expr);
+            if (got_is_a)
                 return 1;
         }
         if (expr->type == H64EXPRTYPE_FUNCDEF_STMT)
@@ -82,7 +64,7 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
                     buf, sizeof(buf) - 1,
                     "calling a class type will cause TypeError, "
                     "use \"new\" or wrap in conditional with "
-                    ".is_instance_of() if intended for API compat"
+                    ".is_a() if intended for API compat"
                 );
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,

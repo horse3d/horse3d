@@ -142,3 +142,53 @@ int func_has_param_with_name(h64expression *expr, const char *param) {
     }
     return 0;
 }
+
+static int _expr_visit_find_is_a_guard(
+        h64expression *expr,
+        ATTR_UNUSED h64expression *parent,
+        ATTR_UNUSED void *ud
+        ) {
+    int *result = (int *)ud;
+    if (expr->type == H64EXPRTYPE_BINARYOP &&
+            expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
+            expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF &&
+            strcmp(expr->op.value2->identifierref.value, "is_a"
+            ))
+        *result = 1;
+    return 1;
+}
+
+int guarded_by_is_a(h64expression *expr) {
+    int got_is_a = 0;
+    int visit_result = ast_VisitExpression(
+        expr, NULL, &_expr_visit_find_is_a_guard,
+        NULL, NULL, &got_is_a
+    );
+    assert(visit_result != 0);
+    return (got_is_a != 0);
+}
+
+static int _expr_visit_find_has_attr_guard(
+        h64expression *expr,
+        ATTR_UNUSED h64expression *parent,
+        ATTR_UNUSED void *ud
+        ) {
+    int *result = (int *)ud;
+    if (expr->type == H64EXPRTYPE_BINARYOP &&
+            expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
+            expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF &&
+            strcmp(expr->op.value2->identifierref.value, "has_attr"
+            ))
+        *result = 1;
+    return 1;
+}
+
+int guarded_by_has_attr(h64expression *expr) {
+    int got_has_attr = 0;
+    int visit_result = ast_VisitExpression(
+        expr, NULL, &_expr_visit_find_has_attr_guard,
+        NULL, NULL, &got_has_attr
+    );
+    assert(visit_result);
+    return (got_has_attr != 0);
+}
