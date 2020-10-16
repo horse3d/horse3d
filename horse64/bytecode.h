@@ -56,6 +56,8 @@ typedef enum instructiontype {
     H64INST_NEWINSTANCEBYREF,
     H64INST_NEWINSTANCE,
     H64INST_GETCONSTRUCTOR,
+    H64INST_AWAITITEM,
+    H64INST_CREATEPIPE,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -162,14 +164,14 @@ typedef struct h64instruction_unop {
 typedef struct h64instruction_call {
     uint8_t type;
     int16_t returnto, slotcalledfrom;
-    uint8_t expandlastposarg;
+    uint8_t expandlastposarg, async;
     int16_t posargs, kwargs;
 } __attribute__((packed)) h64instruction_call;
 
 typedef struct h64instruction_callignoreifnone {
     uint8_t type;
     int16_t returnto, slotcalledfrom;
-    uint8_t expandlastposarg;
+    uint8_t expandlastposarg, async;
     int16_t posargs, kwargs;
 } __attribute__((packed)) h64instruction_callignoreifnone;
 
@@ -290,6 +292,16 @@ typedef struct h64instruction_getconstructor {
     int16_t slotto;
     int16_t objslotfrom;
 } __attribute__ ((packed)) h64instruction_getconstructor;
+
+typedef struct h64instruction_awaititem {
+    uint8_t type;
+    int16_t objslotawait;
+} __attribute__ ((packed)) h64instruction_awaititem;
+
+typedef struct h64instruction_createpipe {
+    uint8_t type;
+    int16_t objpipeto;
+} __attribute__ ((packed)) h64instruction_createpipe;
 
 
 #define H64CLASS_HASH_SIZE 32
