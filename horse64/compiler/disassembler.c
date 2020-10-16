@@ -120,7 +120,7 @@ char *disassembler_DumpValueContent(valuecontent *vs) {
                 memcpy(outbuf + outfill, numesc, strlen(numesc));
                 outfill += strlen(numesc);
             } else if (c >= 127) {
-                char numesc[6];
+                char numesc[15];
                 snprintf(numesc, sizeof(numesc) - 1,
                     "\\u" "%" PRId64, (int64_t)c);
                 memcpy(outbuf + outfill, numesc, strlen(numesc));

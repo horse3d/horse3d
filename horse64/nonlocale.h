@@ -108,7 +108,7 @@ static int h64snprintf(char *buf, size_t size, const char *format, ...) {
     #if defined(_WIN32) || defined(_WIN64)
     return _vsnprintf_l(buf, size, format, h64locale, vl);
     #else
-    #if defined(__LINUX__) || defined(__linux__)
+    #if (defined(__LINUX__) || defined(__linux__))
     locale_t old = uselocale(h64locale);
     int result = vsnprintf(buf, size, format, vl);
     uselocale(old);

@@ -101,10 +101,10 @@ static void _secrandom_initProvider() {
         if (s)
             LocalFree(s);
         fprintf(
-            stderr, "horse3d/secrandom.c: error: %s\n", buf
+            stderr, "horse64/secrandom.c: error: %s\n", buf
         );
         int msgboxID = MessageBox(
-            NULL, buf, "horse3d/secrandom.c ERROR",
+            NULL, buf, "horse64/secrandom.c ERROR",
             MB_OK|MB_ICONSTOP
         );
         exit(1);
