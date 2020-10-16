@@ -229,6 +229,35 @@ static int _corelib_printvalue(
             h64printf("%" PRId64, c->int_value);
             break;
         }
+        case H64VALTYPE_FLOAT64: {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1, "%f", c->float_value);
+            // Cut off trailing zeroes if we got a fractional part:
+            int gotdot = 0;
+            size_t len = strlen(buf);
+            size_t i = 0;
+            while (i < len) {
+                if (buf[i] == '.') {
+                    gotdot = 1;
+                    break;
+                }
+                i++;
+            }
+            while (gotdot && len > 0 && buf[len - 1] == '0') {
+                buf[len - 1] = '\0';
+                len--;
+            }
+            if (len > 0 && buf[len - 1] == '.') {
+                buf[len - 1] = '\0';
+                len--;
+            }
+            h64printf("%s", buf);
+            break;
+        }
+        case H64VALTYPE_BOOL: {
+            h64printf("%s", (c->int_value != 0 ? "true" : "false"));
+            break;
+        }
         default: {
             h64printf("<unhandled valuecontent type=%d>", (int)c->type);
             break;
