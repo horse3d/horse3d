@@ -13,7 +13,8 @@
         h64instruction_binop *inst = (h64instruction_binop *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         // Silence false positive warnings:

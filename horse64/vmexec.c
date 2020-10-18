@@ -141,12 +141,21 @@ static const char *_classnamelookup(h64program *pr, int64_t classid) {
 
 #if defined(DEBUGVMEXEC)
 static int vmthread_PrintExec(
-        funcid_t fid, h64instructionany *inst
+        h64vmthread *vt, funcid_t fid, h64instructionany *inst
         ) {
     char *_s = disassembler_InstructionToStr(inst);
     if (!_s) return 0;
-    fprintf(stderr, "horsevm: debug: vmexec f%" PRId64 " %s\n",
-            (int64_t)fid, _s);
+    fprintf(
+        stderr, "horsevm: debug: vmexec f:%" PRId64 " "
+        "o:%" PRId64 " st:%" PRId64 "/%" PRId64 " %s\n",
+        (int64_t)fid,
+        (int64_t)((char*)inst - (char*)vt->vmexec_owner->
+                  program->func[fid].instructions),
+        (int64_t)vt->stack->current_func_floor,
+        (int64_t)vt->stack->entry_count -
+                 vt->stack->current_func_floor,
+        _s
+    );
     free(_s);
     return 1;
 }
@@ -898,7 +907,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_setconst *inst = (h64instruction_setconst *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         #ifndef NDEBUG
@@ -1000,7 +1010,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
@@ -1117,7 +1128,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
@@ -1168,7 +1180,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
@@ -1207,7 +1220,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_getfunc *inst = (h64instruction_getfunc *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
@@ -1223,7 +1237,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_getclass *inst = (h64instruction_getclass *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
@@ -1239,7 +1254,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_valuecopy *inst = (h64instruction_valuecopy *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         assert(STACK_ENTRY(stack, inst->slotfrom)->type !=
@@ -1280,7 +1296,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                sizeof(h64instruction_callignoreifnone));
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug) {
-            if (!vmthread_PrintExec(func_id, (void*)inst)) {
+            if (!vmthread_PrintExec(vmthread, func_id, (void*)inst)) {
                 if (!vmthread_ResetCallTempStack(vmthread)) {
                     if (returneduncaughterror)
                         *returneduncaughterror = 0;
@@ -1970,7 +1986,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_settop *inst = (h64instruction_settop *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         assert(inst->topto >= 0);
@@ -1990,7 +2007,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_callsettop *inst = (h64instruction_callsettop *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         if (!vmthread_ResetCallTempStack(vmthread)) {
@@ -2018,7 +2036,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_returnvalue *inst = (h64instruction_returnvalue *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         // Get return value:
@@ -2151,7 +2170,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_condjump *inst = (h64instruction_condjump *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         int jumpevalvalue = 1;
@@ -2181,7 +2201,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64instruction_jump *inst = (h64instruction_jump *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         p += (
@@ -2205,7 +2226,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         #ifndef NDEBUG
@@ -2233,7 +2255,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 ) {
             #ifndef NDEBUG
             if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                    !vmthread_PrintExec(func_id, (void*)p)) goto triggeroom;
+                    !vmthread_PrintExec(vmthread, func_id, (void*)p))
+                goto triggeroom;
             #endif
             int64_t class_id = -1;
             if (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE) {
@@ -2305,7 +2328,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         // See if we got a finally block to terminate:
@@ -2342,7 +2366,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         // Prepare target:
@@ -2668,7 +2693,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         int64_t offset = (p - pr->func[func_id].instructions);
@@ -2684,7 +2710,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
@@ -2737,7 +2764,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
             #ifndef NDEBUG
             if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                    !vmthread_PrintExec(func_id, (void*)inst))
+                    !vmthread_PrintExec(vmthread, func_id, (void*)inst))
                 goto triggeroom;
             #endif
 
@@ -2765,7 +2792,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
             #ifndef NDEBUG
             if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                    !vmthread_PrintExec(func_id, (void*)inst))
+                    !vmthread_PrintExec(vmthread, func_id, (void*)inst))
                  goto triggeroom;
             #endif
 
@@ -2874,7 +2901,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+                goto triggeroom;
         #endif
 
         // Prepare target:
@@ -2960,7 +2988,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
-                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+                goto triggeroom;
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotvaluecheck);
