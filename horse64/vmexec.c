@@ -1307,6 +1307,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
         #endif
 
+        // IMPORTANT: if no callsettop was used, we must return to
+        // current stack size post call:
+        if (vmthread->call_settop_reverse < 0) {
+            vmthread->call_settop_reverse = (
+                STACK_TOP(stack)
+            );
+        }
+
         int64_t stacktop = STACK_TOP(stack);
         valuecontent *vc = STACK_ENTRY(stack, inst->slotcalledfrom);
         if (vc->type != H64VALTYPE_FUNCREF && (
