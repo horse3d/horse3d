@@ -4470,6 +4470,7 @@ int ast_ParseExprStmt(
                 return 0;
             }
             memset(withclause, 0, sizeof(*withclause));
+            withclause->storage.eval_temp_id = -1;
             withclause->type = H64EXPRTYPE_WITH_CLAUSE;
             expr->withstmt.withclause[
                 expr->withstmt.withclause_count
