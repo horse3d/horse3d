@@ -842,12 +842,14 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         expr->identifierref.resolved_to_expr = def->declarationexpr;
         // Check if it's a file-local thing referenced in a way we know:
         // (we know of file-local funcs by name, surrounding funcs'
-        // parameters, file-local variables and classes, and
-        // surrounding for loops' iterators)
+        // parameters, file-local variables and classes, surrounding "with"
+        // clauses' bound params, and surrounding for loops' iterators)
         if (def->declarationexpr->type ==
                 H64EXPRTYPE_VARDEF_STMT ||
                 def->declarationexpr->type ==
                 H64EXPRTYPE_FOR_STMT ||
+                def->declarationexpr->type ==
+                H64EXPRTYPE_WITH_CLAUSE ||
                 (def->declarationexpr->type ==
                  H64EXPRTYPE_FUNCDEF_STMT &&
                  strcmp(def->declarationexpr->funcdef.name,
@@ -863,7 +865,9 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 ))) {  // A known file-local thing
             if (!isexprchildof(expr, def->declarationexpr) ||
                     def->declarationexpr->type ==
-                    H64EXPRTYPE_FOR_STMT) {
+                    H64EXPRTYPE_FOR_STMT ||
+                    def->declarationexpr->type ==
+                    H64EXPRTYPE_WITH_CLAUSE) {
                 // Not our direct parent, so we're an external use.
                 // -> let's mark it as used from somewhere external:
                 def->everused = 1;
