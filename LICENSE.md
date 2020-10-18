@@ -20,12 +20,12 @@ claim for yourself if necessary. Don't sue us if we got this wrong.*
 Horse64 Code License (Part 1)
 -----------------------------
 
-*Note: the Horse64 code is all contents of this repository
+*Note: the Horse64 code is all subfolders of this repository
 excluding 1. the Horse64 Logo with files found in `misc/`
 (`misc/logo.svg` and others starting with "logo") and the logo files
 possibly baked into the official binaries, and excluding 2.
 third-party code found in `vendor/`, and excluding 3. the
-documentation in `docs/` and in the `README.md`.*
+documentation in `docs/`.*
 
 Horse64's code is licensed under the BSD-2-clause license:
 
