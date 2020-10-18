@@ -357,7 +357,8 @@ char *compileproject_GetFileSubProjectPath(
         memcpy(buf, relfilepath, strlen(hmodules_path));
         buf[strlen(hmodules_path)] = '\0';
         if (
-                #if defined(__linux__) || defined(__LINUX__) || defined(__ANDROID__)
+                #if defined(__linux__) || defined(__LINUX__) || \
+                    defined(__ANDROID__)
                 strcmp(buf, hmodules_path) == 0
                 #else
                 strcasecmp(buf, hmodules_path) == 0
