@@ -513,6 +513,7 @@ static int _graphfreecb(
     );
     if (nodeinfo) {
         free(nodeinfo->called_func_info);
+        free(nodeinfo->called_class_info);
         free(nodeinfo);
     }
     return 1;
