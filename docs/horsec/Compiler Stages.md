@@ -11,7 +11,7 @@ compiler for horse64, are as follows:
 - Stage 3: Scope Resolution (horse64/compiler/scoperesolver.c)
   
   This stage also applies storage (horse64/compiler/varstorage.c)
-  to assign memory storage and collects info for the final graph
+  to assign memory storage, and collects info for the final graph
   checks (horse64/compiler/threadablechecker.c).
 
 - Stage 4: Code Generation (horse64/compiler/codegen.c)
