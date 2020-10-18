@@ -4524,14 +4524,14 @@ int ast_ParseExprStmt(
                 ast_MarkExprDestroyed(expr);
                 return 0;
             }
-            i++;
+            i += tlen;
             withclause->withclause.foundinscope = &expr->withstmt.scope;
             withclause->withclause.withitem_value = innerexpr;
 
             // Make sure there is an 'as':
             if (i > max_tokens_touse ||
                     tokens[i].type != H64TK_KEYWORD ||
-                    strcmp(tokens[i].str_value, "as") == 0) {
+                    strcmp(tokens[i].str_value, "as") != 0) {
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "

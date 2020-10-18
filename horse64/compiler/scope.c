@@ -171,6 +171,8 @@ int scope_AddItem(
             expr->classdef.foundinscope = scope;
         } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
             expr->funcdef.foundinscope = scope;
+        } else if (expr->type == H64EXPRTYPE_WITH_CLAUSE) {
+            expr->withclause.foundinscope = scope;
         } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
             expr->importstmt.foundinscope = scope;
         } else {
