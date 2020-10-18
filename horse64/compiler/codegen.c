@@ -786,6 +786,13 @@ int codegen_FinalBytecodeTransform(
                 jumpid = jump->jumpbytesoffset;
                 break;
             }
+            case H64INST_HASATTRJUMP: {
+                h64instruction_hasattrjump *hajump = (
+                    (h64instruction_hasattrjump *)inst
+                );
+                jumpid = hajump->jumpbytesoffset;
+                break;
+            }
             case H64INST_PUSHCATCHFRAME: {
                 h64instruction_pushcatchframe *catchjump = (
                     (h64instruction_pushcatchframe *)inst
@@ -830,6 +837,13 @@ int codegen_FinalBytecodeTransform(
                         (h64instruction_jump *)inst
                     );
                     jump->jumpbytesoffset = offset;
+                    break;
+                }
+                case H64INST_HASATTRJUMP: {
+                    h64instruction_hasattrjump *hajump = (
+                        (h64instruction_hasattrjump *)inst
+                    );
+                    hajump->jumpbytesoffset = offset;
                     break;
                 }
                 case H64INST_PUSHCATCHFRAME: {
@@ -2584,6 +2598,14 @@ int _codegencallback_DoCodegen_visit_in(
             h64instruction_jumptarget pastchecktarget = {0};
             pastchecktarget.type = H64INST_JUMPTARGET;
             pastchecktarget.jumpid = jump_past_hasattr_id;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &pastchecktarget, sizeof(pastchecktarget))) {
+                free(_withclause_catchframeid);
+                free(_withclause_jumpfinallyid);
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
             if (gotfinally) {
                 h64instruction_jumptofinally nowtofinally = {0};
                 nowtofinally.type = H64INST_JUMPTOFINALLY;
@@ -2603,6 +2625,14 @@ int _codegencallback_DoCodegen_visit_in(
                 finallytarget.jumpid = (
                     _withclause_jumpfinallyid[i]
                 );
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &finallytarget, sizeof(finallytarget))) {
+                    free(_withclause_catchframeid);
+                    free(_withclause_jumpfinallyid);
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
             i++;
         }

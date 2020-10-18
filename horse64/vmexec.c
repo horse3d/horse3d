@@ -2946,6 +2946,79 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         p += sizeof(*inst);
         goto *jumptable[((h64instructionany *)p)->type];
     }
+    inst_awaititem: {
+        fprintf(stderr, "awaititem not implemented\n");
+        return 0;
+    }
+    inst_createpipe: {
+        fprintf(stderr, "createpipe not implemented\n");
+        return 0;
+    }
+    inst_hasattrjump: {
+        h64instruction_hasattrjump *inst = (
+            (h64instruction_hasattrjump *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(func_id, (void*)inst)) goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotvaluecheck);
+        int64_t nameidx = inst->nameidxcheck;
+        int found = 0;
+        if (nameidx >= 0 &&
+                vc->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE &&
+                (h64program_LookupClassAttribute(
+                    pr, ((h64gcvalue *)vc->ptr_value)->class_id,
+                    nameidx
+                    ) >= 0)) {
+            found = 1;
+        } else if (nameidx >= 0 &&
+                vc->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE &&
+                (nameidx == vmexec->program->is_a_name_index
+                )) {
+            found = 1;
+        } else if (nameidx >= 0 &&
+                nameidx == vmexec->program->as_str_name_index) {
+            found = 1;
+        } else if (nameidx >= 0 &&
+                nameidx == vmexec->program->add_name_index &&
+                vc->type == H64VALTYPE_GCVAL && (
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_SET ||
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_LIST)) {
+            found = 1;
+        } else if (nameidx >= 0 &&
+                nameidx == vmexec->program->len_name_index &&
+                (vc->type == H64VALTYPE_SHORTSTR ||
+                 vc->type == H64VALTYPE_SHORTBYTES ||
+                 (vc->type == H64VALTYPE_GCVAL && (
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                 H64GCVALUETYPE_SET ||
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                 H64GCVALUETYPE_LIST ||
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                 H64GCVALUETYPE_MAP ||
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                 H64GCVALUETYPE_STRING ||
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                 H64GCVALUETYPE_BYTES
+                )))) {
+            found = 1;
+        }
+
+        if (!found) {
+            p += (int64_t)inst->jumpbytesoffset;
+        } else {
+            p += sizeof(*inst);
+        }
+        goto *jumptable[((h64instructionany *)p)->type];
+    }
 
     setupinterpreter:
     jumptable[H64INST_INVALID] = &&inst_invalid;
@@ -2983,6 +3056,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_NEWINSTANCEBYREF] = &&inst_newinstancebyref;
     jumptable[H64INST_NEWINSTANCE] = &&inst_newinstance;
     jumptable[H64INST_GETCONSTRUCTOR] = &&inst_getconstructor;
+    jumptable[H64INST_AWAITITEM] = &&inst_awaititem;
+    jumptable[H64INST_CREATEPIPE] = &&inst_createpipe;
+    jumptable[H64INST_HASATTRJUMP] = &&inst_hasattrjump;
     op_jumptable[H64OP_MATH_DIVIDE] = &&binop_divide;
     op_jumptable[H64OP_MATH_ADD] = &&binop_add;
     op_jumptable[H64OP_MATH_SUBSTRACT] = &&binop_substract;

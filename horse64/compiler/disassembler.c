@@ -579,6 +579,45 @@ int disassembler_PrintInstruction(
         }
         break;
     }
+    case H64INST_AWAITITEM: {
+         h64instruction_awaititem *inst_awi =
+            (h64instruction_awaititem *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_awi->objslotawait
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_CREATEPIPE: {
+         h64instruction_createpipe *inst_createpipe =
+            (h64instruction_createpipe *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int)inst_createpipe->objpipeto
+                )) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_HASATTRJUMP: {
+         h64instruction_hasattrjump *inst_hattrj =
+            (h64instruction_hasattrjump *)inst;
+        if (!disassembler_Write(di,
+                "    %s %s%d t%d n%" PRId64,
+                bytecode_InstructionTypeToStr(inst->type),
+                (inst_hattrj->jumpbytesoffset >= 0 ? "+" : ""),
+                (int)inst_hattrj->jumpbytesoffset,
+                (int)inst_hattrj->slotvaluecheck,
+                (int64_t)inst_hattrj->nameidxcheck
+                )) {
+            return 0;
+        }
+        break;
+    }
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>",
@@ -741,6 +780,12 @@ int disassembler_Dump(
         if (!disassembler_Write(di,
                 "NAMEIDX n%" PRId64 " del\n",
                 p->del_name_index))
+            return 0;
+    }
+    if (p->is_a_name_index >= 0) {
+        if (!disassembler_Write(di,
+                "NAMEIDX n%" PRId64 " is_a\n",
+                p->is_a_name_index))
             return 0;
     }
     int64_t i = 0;

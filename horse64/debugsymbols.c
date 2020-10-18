@@ -176,6 +176,8 @@ int64_t h64debugsymbols_AttributeNameToAttributeNameId(
                     symbols->program->add_name_index = new_id;
                 } else if (strcmp(name, "del") == 0) {
                     symbols->program->del_name_index = new_id;
+                } else if (strcmp(name, "is_a") == 0) {
+                    symbols->program->is_a_name_index = new_id;
                 }
             }
             return new_id;

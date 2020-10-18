@@ -310,9 +310,9 @@ typedef struct h64instruction_createpipe {
 
 typedef struct h64instruction_hasattrjump {
     uint8_t type;
+    jumpoffset_t jumpbytesoffset;
     int16_t slotvaluecheck;
     int64_t nameidxcheck;
-    jumpoffset_t jumpbytesoffset;
 } __attribute__ ((packed)) h64instruction_hasattrjump;
 
 
@@ -390,6 +390,7 @@ typedef struct h64program {
     int64_t to_hash_name_index;
     int64_t add_name_index;
     int64_t del_name_index;
+    int64_t is_a_name_index;
 
     classid_t _io_file_class_idx;  // used by io module
 

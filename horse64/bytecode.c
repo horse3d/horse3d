@@ -164,6 +164,7 @@ h64program *h64program_New() {
     p->to_hash_name_index = -1;
     p->add_name_index = -1;
     p->del_name_index = -1;
+    p->is_a_name_index = -1;
 
     p->symbols = h64debugsymbols_New();
     if (!p->symbols) {
