@@ -2275,6 +2275,17 @@ int _codegencallback_DoCodegen_visit_in(
         assert(expr->withstmt.withclause_count >= 1);
         int32_t i = 0;
         while (i < expr->withstmt.withclause_count) {
+            rinfo->dont_descend_visitation = 0;
+            int result = ast_VisitExpression(
+                expr->withstmt.withclause[i], expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            rinfo->dont_descend_visitation = 1;
+            if (!result)
+                return 0;
             assert(expr->withstmt.withclause[i]->
                    storage.eval_temp_id >= 0);
             h64instruction_setconst inst_setconst = {0};

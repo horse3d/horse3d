@@ -142,6 +142,7 @@ int _resolver_EnsureLocalDefStorage(
     if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_FOR_STMT ||
+            expr->type == H64EXPRTYPE_WITH_CLAUSE ||
             (expr->type == H64EXPRTYPE_DO_STMT &&
              expr->dostmt.error_name != NULL)) {
         h64expression *func = surroundingfunc(expr);
@@ -162,8 +163,10 @@ int _resolver_EnsureLocalDefStorage(
              expr->vardef.foundinscope :
              (expr->type == H64EXPRTYPE_DO_STMT ?
               &expr->dostmt.rescuescope :
-              (expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
-               expr->funcdef.foundinscope : &expr->forstmt.scope)))
+              (expr->type == H64EXPRTYPE_WITH_CLAUSE ?
+               expr->withclause.foundinscope :
+               (expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
+                expr->funcdef.foundinscope : &expr->forstmt.scope))))
         );
         #ifndef NDEBUG
         assert(expr->type != H64EXPRTYPE_VARDEF_STMT ||
@@ -174,6 +177,8 @@ int _resolver_EnsureLocalDefStorage(
                expr->dostmt.error_name != NULL);
         assert(expr->type != H64EXPRTYPE_FOR_STMT ||
                expr->forstmt.iterator_identifier != NULL);
+        assert(expr->type != H64EXPRTYPE_WITH_CLAUSE ||
+               expr->withclause.withitem_identifier != NULL);
         #endif
         h64scopedef *scopedef = scope_QueryItem(
             scope,
@@ -181,9 +186,11 @@ int _resolver_EnsureLocalDefStorage(
              expr->vardef.identifier : (
              expr->type == H64EXPRTYPE_FUNCDEF_STMT ?
              expr->funcdef.name : (
+             expr->type == H64EXPRTYPE_WITH_CLAUSE ?
+             expr->withclause.withitem_identifier : (
              (expr->type == H64EXPRTYPE_DO_STMT ?
               expr->dostmt.error_name :
-              expr->forstmt.iterator_identifier)))),
+              expr->forstmt.iterator_identifier))))),
             0
         );
         assert(scopedef != NULL);
