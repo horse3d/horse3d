@@ -92,11 +92,8 @@ transparency's sake.
 
 #### How does the Garbage Collector work in detail?
 
-FIXME WRITE THIS - likely will be a simple mark and sweep at first.
-might do generational with nurseries later, we'll see. GC runs
-with one instance per interpreter hardware thread (which is not
-the same as `async` execution thread, multiple of these can exist
-in one hardware thread).
+This will likely be outdated soon at any point where it is written
+down, so we recommend you check the source code for details.
 
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
