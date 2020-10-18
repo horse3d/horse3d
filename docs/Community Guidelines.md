@@ -5,7 +5,8 @@ When you participate in the Horse64 Community, please keep these
 guidelines in mind:
 
 - Please try to remain friendly, even when you perceive others to
-  be wrong, since everyone is human.
+  be wrong, since everyone is human. Don't shy away from an apology
+  if this occasionally doesn't work out.
 
 - Don't discriminate based on race, gender, age, disabilities,
   appearance, ethnicity, financial means, or similar. Don't single
