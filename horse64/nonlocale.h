@@ -2,9 +2,12 @@
 #ifndef HORSE64_NONLOCALE_H_
 #define HORSE64_NONLOCALE_H_
 
+#include "compileconfig.h"
+
 #include <locale.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -17,7 +20,7 @@ extern locale_t h64locale;
 extern double strtod_l(const char * __restrict, char **__restrict, locale_t);
 #endif
 
-static inline uint8_t _parse_digit(char c) {
+ATTR_UNUSED static inline uint8_t _parse_digit(char c) {
     /// Parses a single digit,
     /// returns either digit value or 0xFF if invalid.
 
@@ -31,7 +34,7 @@ static inline uint8_t _parse_digit(char c) {
         return 0xFF;
 }
 
-static uint64_t h64strtoull(
+ATTR_UNUSED static inline uint64_t h64strtoull(
         char const *str, char **end_ptr, int base
         ) {
     /// Parses a unsigned 64 bit integer, return resulting int or 0.
@@ -61,7 +64,7 @@ static uint64_t h64strtoull(
     return result;
 }
 
-static int64_t h64strtoll(
+ATTR_UNUSED static inline int64_t h64strtoll(
         char const *str, char **end_ptr, int base
         ) {
     /// Parses a signed 64 bit integer, returns resulting int or 0.
@@ -69,7 +72,6 @@ static int64_t h64strtoll(
     /// and *end_ptr is always set to NULL.
     if (end_ptr) *end_ptr = NULL;
 
-    size_t len = strlen(str);
     int64_t sresult;
     if (str[0] == '-') {
         uint64_t result = h64strtoull(
@@ -90,7 +92,7 @@ static int64_t h64strtoll(
     return sresult;
 }
 
-static inline double h64atof(const char *s) {
+ATTR_UNUSED static inline double h64atof(const char *s) {
     #if defined(_WIN32) || defined(_WIN64)
     return _strtod_l(s, NULL, h64locale);
     #else
@@ -98,11 +100,15 @@ static inline double h64atof(const char *s) {
     #endif
 }
 
-static inline long long int h64atoll(const char *s) {
+ATTR_UNUSED static inline long long int h64atoll(const char *s) {
     return h64strtoll(s, NULL, 10);
 }
 
-static int h64snprintf(char *buf, size_t size, const char *format, ...) {
+ATTR_UNUSED static inline int h64snprintf(
+        char *buf,
+        size_t size,
+        const char *format, ...
+        ) {
     va_list vl;
     va_start(vl, format);
     #if defined(_WIN32) || defined(_WIN64)
@@ -119,7 +125,7 @@ static int h64snprintf(char *buf, size_t size, const char *format, ...) {
     #endif
 }
 
-static int h64printf(const char *format, ...) {
+ATTR_UNUSED static inline int h64printf(const char *format, ...) {
     va_list vl;
     va_start(vl, format);
     #if defined(_WIN32) || defined(_WIN64)
