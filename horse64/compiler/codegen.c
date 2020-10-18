@@ -652,6 +652,7 @@ static int _codegen_call_to(
         inst_call.expandlastposarg = expandlastposarg;
         inst_call.posargs = posargcount;
         inst_call.kwargs = kwargcount;
+        inst_call.async = (callexpr->inlinecall.is_async);
         if (!appendinst(
                 rinfo->pr->program, func, callexpr,
                 &inst_call, sizeof(inst_call))) {
@@ -666,6 +667,7 @@ static int _codegen_call_to(
         inst_call.expandlastposarg = expandlastposarg;
         inst_call.posargs = posargcount;
         inst_call.kwargs = kwargcount;
+        inst_call.async = (callexpr->inlinecall.is_async);
         if (!appendinst(
                 rinfo->pr->program, func, callexpr,
                 &inst_call, sizeof(inst_call))) {
@@ -1039,6 +1041,7 @@ int _codegencallback_DoCodegen_visit_out(
                 instcall.slotcalledfrom = addfunctemp;
                 instcall.posargs = 1;
                 instcall.kwargs = 0;
+                instcall.async = 0;
                 if (!appendinst(rinfo->pr->program, func, expr,
                                 &instcall, sizeof(instcall))) {
                     rinfo->hadoutofmemory = 1;
