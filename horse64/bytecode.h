@@ -58,6 +58,7 @@ typedef enum instructiontype {
     H64INST_GETCONSTRUCTOR,
     H64INST_AWAITITEM,
     H64INST_CREATEPIPE,
+    H64INST_HASATTRJUMP,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -88,6 +89,9 @@ typedef struct h64errorinfo {
 } h64errorinfo;
 
 #include "valuecontentstruct.h"
+
+
+typedef int16_t jumpoffset_t;
 
 typedef struct h64instructionany {
     uint8_t type;
@@ -192,18 +196,18 @@ typedef struct h64instruction_returnvalue {
 
 typedef struct h64instruction_jumptarget {
     uint8_t type;
-    int32_t jumpid;
+    jumpoffset_t jumpid;
 } __attribute__ ((packed)) h64instruction_jumptarget;
 
 typedef struct h64instruction_condjump {
     uint8_t type;
-    int32_t jumpbytesoffset;
+    jumpoffset_t jumpbytesoffset;
     int16_t conditionalslot;
 } __attribute__ ((packed)) h64instruction_condjump;
 
 typedef struct h64instruction_jump {
     uint8_t type;
-    int32_t jumpbytesoffset;
+    jumpoffset_t jumpbytesoffset;
 } __attribute__ ((packed)) h64instruction_jump;
 
 typedef struct h64instruction_newiterator {
@@ -222,7 +226,8 @@ typedef struct h64instruction_iterate {
 typedef struct h64instruction_pushcatchframe {
     uint8_t type;
     uint8_t mode;
-    int16_t sloterrorto, jumponcatch, jumponfinally;
+    int16_t sloterrorto;
+    jumpoffset_t jumponcatch, jumponfinally;
     int16_t frameid;
 } __attribute__ ((packed)) h64instruction_pushcatchframe;
 
@@ -302,6 +307,13 @@ typedef struct h64instruction_createpipe {
     uint8_t type;
     int16_t objpipeto;
 } __attribute__ ((packed)) h64instruction_createpipe;
+
+typedef struct h64instruction_hasattrjump {
+    uint8_t type;
+    int16_t slotvaluecheck;
+    int64_t nameidxcheck;
+    jumpoffset_t jumpbytesoffset;
+} __attribute__ ((packed)) h64instruction_hasattrjump;
 
 
 #define H64CLASS_HASH_SIZE 32

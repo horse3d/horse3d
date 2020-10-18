@@ -2,6 +2,7 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "bytecode.h"
 #include "compileconfig.h"
 
 #include <assert.h>
@@ -18,6 +19,7 @@
 #include "compiler/compileproject.h"
 #include "compiler/main.h"
 #include "compiler/varstorage.h"
+#include "corelib/errors.h"
 #include "hash.h"
 #include "widechar.h"
 
@@ -470,7 +472,7 @@ static int _resolve_jumpid_to_jumpoffset(
         snprintf(buf, sizeof(buf) - 1,
             "found jump instruction in func at "
             "instruction pos %" PRId64 " "
-            "that exceeds 16bit int range, this is not spuported",
+            "that exceeds 16bit int range, this is not supported",
             (int64_t)offset
         );
         if (!result_AddMessage(
@@ -1055,6 +1057,16 @@ int _codegencallback_DoCodegen_visit_out(
             }
         }
         expr->storage.eval_temp_id = listtmp;
+    } else if (expr->type == H64EXPRTYPE_AWAIT_STMT) {
+        assert(expr->awaitstmt.awaitedvalue->storage.eval_temp_id >= 0);
+        h64instruction_awaititem inst = {0};
+        inst.type = H64INST_AWAITITEM;
+        inst.objslotawait = expr->awaitstmt.awaitedvalue->storage.eval_temp_id;
+        if (!appendinst(rinfo->pr->program, func, expr,
+                        &inst, sizeof(inst))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
     } else if (expr->type == H64EXPRTYPE_VECTOR ||
                expr->type == H64EXPRTYPE_MAP) {
         int ismap = (expr->type == H64EXPRTYPE_MAP);
@@ -1849,6 +1861,26 @@ int _codegencallback_DoCodegen_visit_out(
     return 1;
 }
 
+static int _enforce_dostmt_limit_in_func(
+        asttransforminfo *rinfo, h64expression *func
+        ) {
+    if (func->funcdef._storageinfo->dostmts_used + 1 >=
+            INT16_MAX - 1) {
+        rinfo->hadunexpectederror = 1;
+        if (!result_AddMessage(
+                rinfo->pr->resultmsg,
+                H64MSG_ERROR, "exceeded maximum of "
+                "do or with statements in one function",
+                NULL, -1, -1
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        return 0;
+    }
+    return 1;
+}
+
 int _codegencallback_DoCodegen_visit_in(
         h64expression *expr, ATTR_UNUSED h64expression *parent, void *ud
         ) {
@@ -2228,6 +2260,326 @@ int _codegencallback_DoCodegen_visit_in(
         rinfo->dont_descend_visitation = 1;
         expr->storage.eval_temp_id = resulttemp;
         return 1;
+    } else if (expr->type == H64EXPRTYPE_WITH_STMT) {
+        rinfo->dont_descend_visitation = 1;
+
+        int32_t jumpid_finally = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+
+        // First, set all the temporaries of the "with'ed" values to none:
+        assert(expr->withstmt.withclause_count >= 1);
+        int32_t i = 0;
+        while (i < expr->withstmt.withclause_count) {
+            assert(expr->withstmt.withclause[i]->
+                   storage.eval_temp_id >= 0);
+            h64instruction_setconst inst_setconst = {0};
+            inst_setconst.type = H64INST_SETCONST;
+            inst_setconst.slot = (
+                expr->withstmt.withclause[i]->storage.eval_temp_id
+            );
+            memset(
+                &inst_setconst.content, 0, sizeof(inst_setconst.content)
+            );
+            inst_setconst.content.type = H64VALTYPE_NONE;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_setconst, sizeof(inst_setconst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            i++;
+        }
+
+        // Ok, before setting any of the true values,
+        // set up the error catch frame in case the init already errors:
+        if (!_enforce_dostmt_limit_in_func(rinfo, func))
+            return 0;
+        int16_t dostmtid = (
+            func->funcdef._storageinfo->dostmts_used
+        );
+        func->funcdef._storageinfo->dostmts_used++;
+        h64instruction_pushcatchframe inst_pushframe = {0};
+        inst_pushframe.type = H64INST_PUSHCATCHFRAME;
+        inst_pushframe.sloterrorto = -1;
+        inst_pushframe.jumponcatch = -1;
+        inst_pushframe.jumponfinally = jumpid_finally;
+        inst_pushframe.frameid = dostmtid;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_pushframe, sizeof(inst_pushframe))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        h64instruction_addcatchtype addctype = {0};
+        addctype.type = H64INST_ADDCATCHTYPE;
+        addctype.frameid = dostmtid;
+        addctype.classid = (classid_t)H64STDERROR_ERROR;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &addctype, sizeof(addctype))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        i = 0;
+        while (i < expr->withstmt.stmt_count) {
+            rinfo->dont_descend_visitation = 0;
+            int result = ast_VisitExpression(
+                expr->withstmt.stmt[i], expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            rinfo->dont_descend_visitation = 1;
+            if (!result)
+                return 0;
+            free1linetemps(func);
+            i++;
+        }
+
+        // NOTE: jumptofinally is needed even if finally block follows
+        // immediately, such that horsevm knows that the finally
+        // was already triggered. (Important if another error were
+        // to happen.)
+        h64instruction_jumptofinally inst_jumptofinally = {0};
+        inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
+        inst_jumptofinally.frameid = dostmtid;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jumptofinally, sizeof(inst_jumptofinally))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        // Start of finally block:
+        h64instruction_jumptarget inst_jumpfinally = {0};
+        inst_jumpfinally.type = H64INST_JUMPTARGET;
+        inst_jumpfinally.jumpid = jumpid_finally;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_jumpfinally, sizeof(inst_jumpfinally))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        // Call .close() on all objects that have that property.
+        // However, we need to wrap them all with tiny do/finally clauses
+        // such that even when one of them fails, the others still
+        // attempt to run afterwards.
+        int16_t *_withclause_catchframeid = (
+            malloc(sizeof(*_withclause_catchframeid) *
+                   expr->withstmt.withclause_count)
+        );
+        if (!_withclause_catchframeid) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        int32_t *_withclause_jumpfinallyid = (
+            malloc(sizeof(*_withclause_jumpfinallyid) *
+                   expr->withstmt.withclause_count)
+        );
+        if (!_withclause_jumpfinallyid) {
+            free(_withclause_catchframeid);
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        memset(
+            _withclause_catchframeid, 0,
+            sizeof(*_withclause_catchframeid) *
+                expr->withstmt.withclause_count
+        );
+        memset(
+            _withclause_jumpfinallyid, 0,
+            sizeof(*_withclause_jumpfinallyid) *
+                expr->withstmt.withclause_count
+        );
+        // Add nested do {first.close()} finally {second.close() ...}
+        i = 0;
+        while (i < expr->withstmt.withclause_count) {
+            int gotfinally = 0;
+            if (i + 1 < expr->withstmt.withclause_count) {
+                if (!_enforce_dostmt_limit_in_func(rinfo, func)) {
+                    free(_withclause_catchframeid);
+                    free(_withclause_jumpfinallyid);
+                    return 0;
+                }
+                gotfinally = 1;
+                _withclause_catchframeid[i] = (
+                    func->funcdef._storageinfo->dostmts_used
+                );
+                func->funcdef._storageinfo->dostmts_used++;
+                _withclause_jumpfinallyid[i] = (
+                    func->funcdef._storageinfo->jump_targets_used
+                );
+                func->funcdef._storageinfo->jump_targets_used++;
+                 h64instruction_pushcatchframe inst_pushframe2 = {0};
+                inst_pushframe2.type = H64INST_PUSHCATCHFRAME;
+                inst_pushframe2.sloterrorto = -1;
+                inst_pushframe2.jumponcatch = -1;
+                inst_pushframe2.jumponfinally = (
+                    _withclause_jumpfinallyid[i]
+                );
+                inst_pushframe2.frameid = (
+                    _withclause_catchframeid[i]
+                );
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_pushframe2, sizeof(inst_pushframe2))) {
+                    free(_withclause_catchframeid);
+                    free(_withclause_jumpfinallyid);
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                h64instruction_addcatchtype addctype2 = {0};
+                addctype2.type = H64INST_ADDCATCHTYPE;
+                addctype2.frameid = (
+                    _withclause_catchframeid[i]
+                );
+                addctype2.classid = (classid_t)H64STDERROR_ERROR;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &addctype2, sizeof(addctype2))) {
+                    free(_withclause_catchframeid);
+                    free(_withclause_jumpfinallyid);
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+            int32_t jump_past_hasattr_id = (
+                func->funcdef._storageinfo->jump_targets_used
+            );
+            func->funcdef._storageinfo->jump_targets_used++;
+            // Check if value has .close() attribute, and call it:
+            int64_t closeidx = (
+                h64debugsymbols_AttributeNameToAttributeNameId(
+                    rinfo->pr->program->symbols, "close", 0
+                )
+            );
+            if (closeidx >= 0) {
+                h64instruction_hasattrjump hasattrcheck = {0};
+                hasattrcheck.type = H64INST_HASATTRJUMP;
+                hasattrcheck.jumpbytesoffset = (
+                    jump_past_hasattr_id
+                );
+                hasattrcheck.nameidxcheck = closeidx;
+                hasattrcheck.slotvaluecheck = (
+                    expr->withstmt.withclause[i]->storage.eval_temp_id
+                );
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &hasattrcheck, sizeof(hasattrcheck))) {
+                    free(_withclause_catchframeid);
+                    free(_withclause_jumpfinallyid);
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                // It has .close() attribute, so get & call it:
+                int16_t slotid = new1linetemp(
+                    func, NULL, 0
+                );
+                h64instruction_getattributebyname abyname = {0};
+                abyname.type = H64INST_GETATTRIBUTEBYNAME;
+                abyname.objslotfrom = (
+                    expr->withstmt.withclause[i]->storage.eval_temp_id
+                );
+                abyname.slotto = slotid;
+                abyname.nameidx = closeidx;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &abyname, sizeof(abyname))) {
+                    free(_withclause_catchframeid);
+                    free(_withclause_jumpfinallyid);
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                h64instruction_call callclose = {0};
+                callclose.type = H64INST_CALL;
+                callclose.slotcalledfrom = slotid;
+                callclose.async = 0;
+                callclose.expandlastposarg = 0;
+                callclose.kwargs = 0;
+                callclose.posargs = 0;
+                callclose.returnto = slotid;
+                free1linetemps(func);
+            } else {
+                h64instruction_jump skipattrcheck = {0};
+                skipattrcheck.type = H64INST_JUMP;
+                skipattrcheck.jumpbytesoffset = (
+                    jump_past_hasattr_id
+                );
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &skipattrcheck, sizeof(skipattrcheck))) {
+                    free(_withclause_catchframeid);
+                    free(_withclause_jumpfinallyid);
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+            h64instruction_jumptarget pastchecktarget = {0};
+            pastchecktarget.type = H64INST_JUMPTARGET;
+            pastchecktarget.jumpid = jump_past_hasattr_id;
+            if (gotfinally) {
+                h64instruction_jumptofinally nowtofinally = {0};
+                nowtofinally.type = H64INST_JUMPTOFINALLY;
+                nowtofinally.frameid = (
+                    _withclause_catchframeid[i]
+                );
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &nowtofinally, sizeof(nowtofinally))) {
+                    free(_withclause_catchframeid);
+                    free(_withclause_jumpfinallyid);
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                h64instruction_jumptarget finallytarget = {0};
+                finallytarget.type = H64INST_JUMPTARGET;
+                finallytarget.jumpid = (
+                    _withclause_jumpfinallyid[i]
+                );
+            }
+            i++;
+        }
+        // Pop all the catch frames again in reverse, at the end:
+        i = expr->withstmt.withclause_count - 1;
+        while (i >= 0) {
+            int gotfinally = 0;
+            if (i + 1 < expr->withstmt.withclause_count)
+                gotfinally = 1;
+            if (gotfinally) {
+                 h64instruction_popcatchframe inst_popcatch = {0};
+                inst_popcatch.type = H64INST_POPCATCHFRAME;
+                inst_popcatch.frameid = (
+                    _withclause_catchframeid[i]
+                );
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_popcatch, sizeof(inst_popcatch))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+            i--;
+        }
+
+        // End of entire block here.
+        h64instruction_popcatchframe inst_popcatch = {0};
+        inst_popcatch.type = H64INST_POPCATCHFRAME;
+        inst_popcatch.frameid = dostmtid;
+        if (!appendinst(
+                rinfo->pr->program, func, expr,
+                &inst_popcatch, sizeof(inst_popcatch))) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        free1linetemps(func);
+        rinfo->dont_descend_visitation = 0;
+        return 1;
     } else if (expr->type == H64EXPRTYPE_DO_STMT) {
         rinfo->dont_descend_visitation = 1;
 
@@ -2238,19 +2590,8 @@ int _codegencallback_DoCodegen_visit_in(
         );
         func->funcdef._storageinfo->jump_targets_used++;
 
-        if (func->funcdef._storageinfo->dostmts_used + 1 >= INT16_MAX - 1) {
-            rinfo->hadunexpectederror = 1;
-            if (!result_AddMessage(
-                    rinfo->pr->resultmsg,
-                    H64MSG_ERROR, "exceeded maximum of "
-                    "do statements in one function",
-                    NULL, -1, -1
-                    )) {
-                rinfo->hadoutofmemory = 1;
-                return 0;
-            }
+        if (!_enforce_dostmt_limit_in_func(rinfo, func))
             return 0;
-        }
         int16_t dostmtid = (
             func->funcdef._storageinfo->dostmts_used
         );
