@@ -1,1 +1,1 @@
-See (our Community Guidelines.)[docs/Community%20Guidelines.md]
+See [our Community Guidelines.](docs/Community%20Guidelines.md)
