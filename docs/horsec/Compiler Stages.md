@@ -31,17 +31,25 @@ all the stages to all such discovered files.
 
 To get the output of each respective stages, use:
 
-- `horsec get_tokens` for the raw lexer tokens
+- `horsec get_tokens` for the raw lexer tokens (stage 1)
 
-- `horsec get_ast` for the raw AST parser tree
+- `horsec get_ast` for the raw AST parser tree (stage 2)
 
-- `horsec get_resolved_ast` for a scope resolved AST tree
+- `horsec get_resolved_ast` for a scope resolved AST tree (stage 3)
+
+   **Important:** *if any file passes stage 3 without errors then
+   it may still cause compilation to fail for a combined program!
+   Some of the advanced checks, e.g. for `async` and `noasync`, are
+   only applied in stage 4 and when processing the full project.*
 
 - `horsec get_asm` to print the [bytecode](../Specification/hasm.md) from
-   code generation. **Important:** *if any file passes this command without
-   errors it may still cause compilation to fail for a combined program!
-   Some of the advanced checks, e.g. for `async` and `noasync`, are
-   only applied when processing the full project rather than a single file.*
+   code generation. (stage 4)
+
+   Please note the bytecode printed is for the entire program, not just
+   one file. Therefore, this does all the checks a final compilation
+   also goes through, and a program passing this with no errors should
+   also produce a binary with no errors. (If it doesn't, please report it
+   as a bug.)
 
 - `horsec compile` to get an actual binary
 
