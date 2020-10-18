@@ -12,6 +12,7 @@
 
 
 ATTR_UNUSED static h64expression *surroundingfunc(h64expression *expr) {
+    assert(expr != NULL);
     while (expr->parent) {
         expr = expr->parent;
         if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||

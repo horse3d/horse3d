@@ -1283,6 +1283,7 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
             expr->type == H64EXPRTYPE_IF_STMT ||
             expr->type == H64EXPRTYPE_FOR_STMT ||
+            expr->type == H64EXPRTYPE_WITH_STMT ||
             (expr->type == H64EXPRTYPE_UNARYOP &&
              expr->op.optype == H64OP_NEW)) {
         // Already handled in visit_in
@@ -1414,37 +1415,41 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_CALL_STMT ||
             expr->type == H64EXPRTYPE_IMPORT_STMT) {
         // Nothing to do with those!
-    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
-        if (is_in_extends_arg(expr)) {
-            // Nothing to do if in 'extends' clause, since that
-            // has all been resolved already by varstorage handling.
-            return 1;
+    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF ||
+            expr->type == H64EXPRTYPE_WITH_CLAUSE) {
+        if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
+            // Special cases where we'll not handle it here:
+            if (is_in_extends_arg(expr)) {
+                // Nothing to do if in 'extends' clause, since that
+                // has all been resolved already by varstorage handling.
+                return 1;
+            }
+            if (expr->parent != NULL && (
+                    (expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+                    expr->parent->assignstmt.lvalue == expr) ||
+                    (expr->parent->type == H64EXPRTYPE_BINARYOP &&
+                    expr->parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
+                    expr->parent->op.value2 == expr &&
+                    !expr->storage.set &&
+                    expr->parent->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+                    expr->parent == expr->parent->parent->assignstmt.lvalue)
+                    )) {
+                // This identifier is assigned to, will be handled elsewhere
+                return 1;
+            } else if (expr->parent != NULL &&
+                    expr->parent->type == H64EXPRTYPE_BINARYOP &&
+                    expr->parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
+                    expr->parent->op.value2 == expr &&
+                    !expr->storage.set
+                    ) {
+                // A runtime-resolved get by identifier, handled elsewhere
+                return 1;
+            }
+            if (expr->identifierref.resolved_to_expr &&
+                    expr->identifierref.resolved_to_expr->type ==
+                    H64EXPRTYPE_IMPORT_STMT)
+                return 1;  // nothing to do with those
         }
-        if (expr->parent != NULL && (
-                (expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
-                 expr->parent->assignstmt.lvalue == expr) ||
-                (expr->parent->type == H64EXPRTYPE_BINARYOP &&
-                 expr->parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
-                 expr->parent->op.value2 == expr &&
-                 !expr->storage.set &&
-                 expr->parent->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
-                 expr->parent == expr->parent->parent->assignstmt.lvalue)
-                )) {
-            // This identifier is assigned to, will be handled elsewhere
-            return 1;
-        } else if (expr->parent != NULL &&
-                expr->parent->type == H64EXPRTYPE_BINARYOP &&
-                expr->parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
-                expr->parent->op.value2 == expr &&
-                !expr->storage.set
-                ) {
-            // A runtime-resolved get by identifier, handled elsewhere
-            return 1;
-        }
-        if (expr->identifierref.resolved_to_expr &&
-                expr->identifierref.resolved_to_expr->type ==
-                H64EXPRTYPE_IMPORT_STMT)
-            return 1;  // nothing to do with those
         assert(expr->storage.set);
         if (expr->storage.ref.type == H64STORETYPE_STACKSLOT) {
             expr->storage.eval_temp_id = expr->storage.ref.id;
@@ -1506,6 +1511,25 @@ int _codegencallback_DoCodegen_visit_out(
                     return 0;
                 }
                 return 1;
+            }
+        }
+        if (expr->type == H64EXPRTYPE_WITH_CLAUSE) {
+            assert(expr->withclause.withitem_value != NULL);
+            if (expr->withclause.withitem_value->storage.
+                    eval_temp_id != expr->storage.eval_temp_id) {
+                h64instruction_valuecopy vcopy = {0};
+                vcopy.type = H64INST_VALUECOPY;
+                vcopy.slotfrom = (
+                    expr->withclause.withitem_value->storage.
+                    eval_temp_id
+                );
+                vcopy.slotto = expr->storage.eval_temp_id;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &vcopy, sizeof(vcopy))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
         }
     } else if (expr->type == H64EXPRTYPE_VARDEF_STMT &&
@@ -2275,23 +2299,19 @@ int _codegencallback_DoCodegen_visit_in(
         assert(expr->withstmt.withclause_count >= 1);
         int32_t i = 0;
         while (i < expr->withstmt.withclause_count) {
-            rinfo->dont_descend_visitation = 0;
-            int result = ast_VisitExpression(
-                expr->withstmt.withclause[i], expr,
-                &_codegencallback_DoCodegen_visit_in,
-                &_codegencallback_DoCodegen_visit_out,
-                _asttransform_cancel_visit_descend_callback,
-                rinfo
+            assert(
+                expr->withstmt.withclause[i]->
+                storage.eval_temp_id >= 0 || (
+                expr->withstmt.withclause[i]->storage.set &&
+                expr->withstmt.withclause[i]->storage.ref.type ==
+                    H64STORETYPE_STACKSLOT)
             );
-            rinfo->dont_descend_visitation = 1;
-            if (!result)
-                return 0;
-            assert(expr->withstmt.withclause[i]->
-                   storage.eval_temp_id >= 0);
             h64instruction_setconst inst_setconst = {0};
             inst_setconst.type = H64INST_SETCONST;
             inst_setconst.slot = (
-                expr->withstmt.withclause[i]->storage.eval_temp_id
+                expr->withstmt.withclause[i]->storage.eval_temp_id >= 0 ?
+                expr->withstmt.withclause[i]->storage.eval_temp_id :
+                expr->withstmt.withclause[i]->storage.ref.id
             );
             memset(
                 &inst_setconst.content, 0, sizeof(inst_setconst.content)
@@ -2319,6 +2339,7 @@ int _codegencallback_DoCodegen_visit_in(
         inst_pushframe.sloterrorto = -1;
         inst_pushframe.jumponcatch = -1;
         inst_pushframe.jumponfinally = jumpid_finally;
+        inst_pushframe.mode = CATCHMODE_JUMPONFINALLY;
         inst_pushframe.frameid = dostmtid;
         if (!appendinst(
                 rinfo->pr->program, func, expr,
@@ -2337,6 +2358,24 @@ int _codegencallback_DoCodegen_visit_in(
             return 0;
         }
 
+        // Visit with'ed values to generate their code:
+        i = 0;
+        while (i < expr->withstmt.withclause_count) {
+            rinfo->dont_descend_visitation = 0;
+            int result = ast_VisitExpression(
+                expr->withstmt.withclause[i], expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            rinfo->dont_descend_visitation = 1;
+            if (!result)
+                return 0;
+            i++;
+        }
+
+        // Inner code contents:
         i = 0;
         while (i < expr->withstmt.stmt_count) {
             rinfo->dont_descend_visitation = 0;
@@ -2429,7 +2468,7 @@ int _codegencallback_DoCodegen_visit_in(
                     func->funcdef._storageinfo->jump_targets_used
                 );
                 func->funcdef._storageinfo->jump_targets_used++;
-                 h64instruction_pushcatchframe inst_pushframe2 = {0};
+                h64instruction_pushcatchframe inst_pushframe2 = {0};
                 inst_pushframe2.type = H64INST_PUSHCATCHFRAME;
                 inst_pushframe2.sloterrorto = -1;
                 inst_pushframe2.jumponcatch = -1;
@@ -2439,6 +2478,7 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_pushframe2.frameid = (
                     _withclause_catchframeid[i]
                 );
+                inst_pushframe2.mode = CATCHMODE_JUMPONFINALLY;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &inst_pushframe2, sizeof(inst_pushframe2))) {
@@ -2517,6 +2557,14 @@ int _codegencallback_DoCodegen_visit_in(
                 callclose.kwargs = 0;
                 callclose.posargs = 0;
                 callclose.returnto = slotid;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &callclose, sizeof(callclose))) {
+                    free(_withclause_catchframeid);
+                    free(_withclause_jumpfinallyid);
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
                 free1linetemps(func);
             } else {
                 h64instruction_jump skipattrcheck = {0};
@@ -2565,7 +2613,7 @@ int _codegencallback_DoCodegen_visit_in(
             if (i + 1 < expr->withstmt.withclause_count)
                 gotfinally = 1;
             if (gotfinally) {
-                 h64instruction_popcatchframe inst_popcatch = {0};
+                h64instruction_popcatchframe inst_popcatch = {0};
                 inst_popcatch.type = H64INST_POPCATCHFRAME;
                 inst_popcatch.frameid = (
                     _withclause_catchframeid[i]
@@ -2592,7 +2640,7 @@ int _codegencallback_DoCodegen_visit_in(
         }
 
         free1linetemps(func);
-        rinfo->dont_descend_visitation = 0;
+        rinfo->dont_descend_visitation = 1;
         return 1;
     } else if (expr->type == H64EXPRTYPE_DO_STMT) {
         rinfo->dont_descend_visitation = 1;
