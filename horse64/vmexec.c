@@ -1353,7 +1353,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         // Validate that the positional argument count fits:
         int effective_posarg_count = inst->posargs;
-        if (inst->expandlastposarg) {
+        if (inst->flags & CALLFLAG_EXPANDLASTPOSARG) {
             effective_posarg_count--;
             valuecontent *lastposarg = (
                 STACK_ENTRY(stack, stacktop - 1 - inst->kwargs)
@@ -1477,9 +1477,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
 
         // Evaluate fast-track:
+        const int _expandlastposarg = (
+            inst->flags & CALLFLAG_EXPANDLASTPOSARG
+        );
         const int noargreorder = (
             likely(!func_lastposargismultiarg &&
-                   !inst->expandlastposarg &&
+                   !_expandlastposarg &&
                    inst->posargs == func_posargs &&
                    inst->kwargs ==
                        pr->func[target_func_id].kwarg_count));
@@ -1494,10 +1497,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             // Compute what slots exactly we need to shift around:
             leftalone_args = func_posargs -
                              (func_lastposargismultiarg ? 1 : 0);
-            if (inst->posargs - (inst->expandlastposarg ? 1 : 0) <
+            if (inst->posargs - (
+                    _expandlastposarg ? 1 : 0) <
                     leftalone_args)
                 leftalone_args = inst->posargs -
-                                 (inst->expandlastposarg ? 1 : 0);
+                                 (_expandlastposarg ? 1 : 0);
             if (leftalone_args < 0)
                 leftalone_args = 0;
             reformat_argslots = (
@@ -1527,7 +1531,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             int i = leftalone_args;
             assert(i >= 0);
             while (i < inst->posargs) {
-                if (i == inst->posargs - 1 && inst->expandlastposarg) {
+                if (i == inst->posargs - 1 && _expandlastposarg) {
                     // Remaining args are squished into a list, extract:
                     valuecontent *vlist = STACK_ENTRY(
                         stack, (int64_t)i + stack_args_bottom

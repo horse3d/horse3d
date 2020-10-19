@@ -649,10 +649,11 @@ static int _codegen_call_to(
         inst_call.type = H64INST_CALLIGNOREIFNONE;
         inst_call.returnto = temp;
         inst_call.slotcalledfrom = calledexprstoragetemp;
-        inst_call.expandlastposarg = expandlastposarg;
+        inst_call.flags = 0 | (
+            expandlastposarg ? CALLFLAG_EXPANDLASTPOSARG : 0
+        ) | (callexpr->inlinecall.is_async ? CALLFLAG_ASYNC : 0);
         inst_call.posargs = posargcount;
         inst_call.kwargs = kwargcount;
-        inst_call.async = (callexpr->inlinecall.is_async);
         if (!appendinst(
                 rinfo->pr->program, func, callexpr,
                 &inst_call, sizeof(inst_call))) {
@@ -664,10 +665,11 @@ static int _codegen_call_to(
         inst_call.type = H64INST_CALL;
         inst_call.returnto = temp;
         inst_call.slotcalledfrom = calledexprstoragetemp;
-        inst_call.expandlastposarg = expandlastposarg;
         inst_call.posargs = posargcount;
         inst_call.kwargs = kwargcount;
-        inst_call.async = (callexpr->inlinecall.is_async);
+        inst_call.flags = 0 | (
+            expandlastposarg ? CALLFLAG_EXPANDLASTPOSARG : 0
+        ) | (callexpr->inlinecall.is_async ? CALLFLAG_ASYNC : 0);
         if (!appendinst(
                 rinfo->pr->program, func, callexpr,
                 &inst_call, sizeof(inst_call))) {
@@ -1055,7 +1057,7 @@ int _codegencallback_DoCodegen_visit_out(
                 instcall.slotcalledfrom = addfunctemp;
                 instcall.posargs = 1;
                 instcall.kwargs = 0;
-                instcall.async = 0;
+                instcall.flags = 0;
                 if (!appendinst(rinfo->pr->program, func, expr,
                                 &instcall, sizeof(instcall))) {
                     rinfo->hadoutofmemory = 1;
@@ -2566,8 +2568,7 @@ int _codegencallback_DoCodegen_visit_in(
                 h64instruction_call callclose = {0};
                 callclose.type = H64INST_CALL;
                 callclose.slotcalledfrom = slotid;
-                callclose.async = 0;
-                callclose.expandlastposarg = 0;
+                callclose.flags = 0;
                 callclose.kwargs = 0;
                 callclose.posargs = 0;
                 callclose.returnto = slotid;

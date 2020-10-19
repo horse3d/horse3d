@@ -301,7 +301,7 @@ int disassembler_PrintInstruction(
                 (int)inst_call->slotcalledfrom,
                 (int)inst_call->posargs,
                 (int)inst_call->kwargs,
-                (int)inst_call->expandlastposarg)) {
+                (int)inst_call->flags)) {
             return 0;
         }
         break;
@@ -316,7 +316,7 @@ int disassembler_PrintInstruction(
                 (int)inst_calliin->slotcalledfrom,
                 (int)inst_calliin->posargs,
                 (int)inst_calliin->kwargs,
-                (int)inst_calliin->expandlastposarg)) {
+                (int)inst_calliin->flags)) {
             return 0;
         }
         break;

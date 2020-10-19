@@ -165,17 +165,20 @@ typedef struct h64instruction_unop {
     int16_t slotto, argslotfrom;
 } __attribute__((packed)) h64instruction_unop;
 
+#define CALLFLAG_EXPANDLASTPOSARG 1
+#define CALLFLAG_ASYNC 2
+
 typedef struct h64instruction_call {
     uint8_t type;
     int16_t returnto, slotcalledfrom;
-    uint8_t expandlastposarg, async;
+    uint8_t flags;
     int16_t posargs, kwargs;
 } __attribute__((packed)) h64instruction_call;
 
 typedef struct h64instruction_callignoreifnone {
     uint8_t type;
     int16_t returnto, slotcalledfrom;
-    uint8_t expandlastposarg, async;
+    uint8_t flags;
     int16_t posargs, kwargs;
 } __attribute__((packed)) h64instruction_callignoreifnone;
 
