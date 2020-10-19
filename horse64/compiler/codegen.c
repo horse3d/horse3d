@@ -739,7 +739,7 @@ int codegen_FinalBytecodeTransform(
                     sizeof(*jump_info)
                 );
                 jump_info[jump_table_fill].offset = k;
-                assert(k > 0);
+                assert(k >= 0);
                 jump_info[jump_table_fill].jumpid = (
                     ((h64instruction_jumptarget *)inst)->jumpid
                 );
