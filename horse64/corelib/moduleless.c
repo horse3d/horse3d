@@ -17,6 +17,7 @@
 #include "corelib/errors.h"
 #include "corelib/io.h"
 #include "corelib/moduleless.h"
+#include "corelib/time.h"
 #include "gcvalue.h"
 #include "hash.h"
 #include "net.h"
@@ -319,6 +320,10 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
 
     // 'net' module:
     if (!netlib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'time' module:
+    if (!timelib_RegisterFuncsAndModules(p))
         return 0;
 
     // 'print' function:
