@@ -4358,10 +4358,8 @@ int ast_ParseExprStmt(
             }
             ast_MarkExprDestroyed(expr);
             expr = innerexpr;
-            if (expr->callstmt.call != NULL &&
-                    expr->callstmt.call->type == H64EXPRTYPE_CALL) {
-                expr->callstmt.call->inlinecall.is_async = 1;
-            }
+            assert(expr->type == H64EXPRTYPE_CALL);
+            expr->inlinecall.is_async = 1;
             *out_expr = expr;
             if (outofmemory) *outofmemory = 0;
             if (parsefail) *parsefail = 0;
