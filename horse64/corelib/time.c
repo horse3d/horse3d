@@ -5,7 +5,14 @@
 #include "compileconfig.h"
 
 #include <assert.h>
+#include <math.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+#include <time.h>
 
 #include "corelib/errors.h"
 #include "process.h"
@@ -25,6 +32,53 @@ int timelib_sleep(
      * @param amount the amount of seconds to sleep
      */
     assert(STACK_TOP(vmthread->stack) >= 1);
+
+    valuecontent *vcamount = STACK_ENTRY(vmthread->stack, 0);
+    if (vcamount->type != H64VALTYPE_INT64 &&
+            vcamount->type != H64VALTYPE_FLOAT64) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "amount must be a number"
+        );
+    }
+    int64_t sleepms = 0;
+    if (vcamount->type == H64VALTYPE_INT64) {
+        if (unlikely(vcamount->int_value < 0)) {
+            sleepms = 0;
+        } else if (vcamount->int_value < INT64_MAX / 1000000LL) {
+            sleepms = vcamount->int_value * 1000LL;
+        } else {
+            sleepms = INT64_MAX / 1000LL;
+        }
+    } else {
+        assert(vcamount->type == H64VALTYPE_FLOAT64);
+        long double val = vcamount->float_value * 1000.0;
+        if (val <= 0) {
+            sleepms = 0;
+        } else if (val < (long double)(INT64_MAX / 1000LL) - 5.0f) {
+            // (-5.0f for some rounding margin)
+            sleepms = roundl(val);
+        } else {
+            sleepms = INT64_MAX / 1000LL;
+        }
+    }
+
+    #if defined(_WIN32) || defined(_WIN64)
+    Sleep(sleepms);
+    #else
+    #if _POSIX_C_SOURCE >= 199309L
+    struct timespec ts;
+    ts.tv_sec = sleepms / 1000LL;
+    ts.tv_nsec = (sleepms % 1000LL) * 1000LL;
+    nanosleep(&ts, NULL);
+    #else
+    if (sleepms >= 1000LL) {
+        sleep(sleepms / 1000LL);
+        sleepms = sleepms % 1000LL;
+    }
+    usleep(1000LL * sleepms);
+    #endif
+    #endif
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);
