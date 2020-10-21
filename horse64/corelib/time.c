@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <string.h>
 
+#include "corelib/errors.h"
 #include "process.h"
 #include "stack.h"
 #include "vmexec.h"
@@ -48,7 +49,18 @@ int timelib_ticks(
      * @returns seconds passed as a @see{number} starting from some
      *   arbitrary value at program start.
      */
-    assert(STACK_TOP(vmthread->stack) >= 1);
+    assert(STACK_TOP(vmthread->stack) >= 0);
+
+    if (STACK_TOP(vmthread->stack) == 0) {
+        int result = stack_ToSize(
+            vmthread->stack, vmthread->stack->entry_count + 1, 0
+        );
+        if (!result)
+            return vmexec_ReturnFuncError(vmthread,
+                H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory when returning value"
+            );
+    }
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);

@@ -752,11 +752,10 @@ globalvarid_t h64program_AddGlobalvar(
         is_const = is_const;
 
     // Add globals to lookup-by-name hash table:
-    uint64_t setno = p->globalvar_count;
     assert(msymbols->globalvar_name_to_entry != NULL);
     if (!hash_StringMapSet(
             msymbols->globalvar_name_to_entry,
-            name, setno)) {
+            name, (uint64_t)msymbols->globalvar_count)) {
         goto globalvarsymboloom;
     }
 
@@ -997,10 +996,9 @@ funcid_t h64program_RegisterCFunction(
     }
 
     // Add function to lookup-by-name hash table:
-    uint64_t setno = p->func_count;
     if (name && !hash_StringMapSet(
             msymbols->func_name_to_entry,
-            name, setno)) {
+            name, (uint64_t)msymbols->func_count)) {
         goto funcsymboloom;
     }
 
@@ -1166,10 +1164,9 @@ classid_t h64program_AddClass(
         fileuri_index = fileuriindex;
 
     // Add class to lookup-by-name hash table:
-    uint64_t setno = p->classes_count;
     if (!hash_StringMapSet(
             msymbols->class_name_to_entry,
-            name, setno)) {
+            name, (uint64_t)msymbols->classes_count)) {
         goto classsymboloom;
     }
 

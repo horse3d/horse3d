@@ -61,7 +61,7 @@ static int identifierisbuiltin(
             )) {
         if (storageref) {
             storageref->type = H64STORETYPE_GLOBALFUNCSLOT;
-            storageref->id = number;
+            storageref->id = msymbols->func_symbols[number].global_id;
         }
         return 1;
     }
@@ -72,7 +72,7 @@ static int identifierisbuiltin(
             )) {
         if (storageref) {
             storageref->type = H64STORETYPE_GLOBALCLASSSLOT;
-            storageref->id = number;
+            storageref->id = msymbols->classes_symbols[number].global_id;
         }
         return 1;
     }
@@ -83,7 +83,7 @@ static int identifierisbuiltin(
             )) {
         if (storageref) {
             storageref->type = H64STORETYPE_GLOBALVARSLOT;
-            storageref->id = number;
+            storageref->id = msymbols->globalvar_symbols[number].global_id;
         }
         return 1;
     }
@@ -1180,12 +1180,14 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 if (hash_StringMapGet(
                         msymbols->func_name_to_entry,
                         refitemname, &number)) {
+                    assert(number < (uint64_t)msymbols->func_count);
                     expr->storage.set = 1;
                     expr->storage.ref.type =
                         H64STORETYPE_GLOBALFUNCSLOT;
                     expr->storage.ref.id = (
                         msymbols->func_symbols[number].global_id
                     );
+                    assert(expr->storage.ref.id >= 0);
                 } else if (hash_StringMapGet(
                         msymbols->class_name_to_entry,
                         refitemname, &number)) {

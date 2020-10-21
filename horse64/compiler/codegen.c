@@ -1489,6 +1489,21 @@ int _codegencallback_DoCodegen_visit_out(
                 }
             } else if (expr->storage.ref.type ==
                     H64STORETYPE_GLOBALFUNCSLOT) {
+                #ifndef NDEBUG
+                if (expr->storage.ref.id < 0) {
+                    char *s = ast_ExpressionToJSONStr(
+                        expr, rinfo->ast->fileuri
+                    );
+                    fprintf(
+                        stderr, "horsec: error: invalid expr "
+                        "with func storage with negative id: "
+                        "%s -> id %" PRId64 "\n",
+                        s, (int64_t)expr->storage.ref.id
+                    );
+                    free(s);
+                }
+                #endif
+                assert(expr->storage.ref.id >= 0);
                 h64instruction_getfunc inst_getfunc = {0};
                 inst_getfunc.type = H64INST_GETFUNC;
                 inst_getfunc.slotto = temp;
