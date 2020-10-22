@@ -28,7 +28,7 @@ To compile `horsec` manually, do the following:
 
 3. Change directory in your terminal into the repository folder
 
-4. Run: `git submodule init --update` (fetches dependencies)
+4. Run: `git submodule update --init` (fetches dependencies)
 
 5. Run: `make` (does actual build)
 
