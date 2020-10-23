@@ -65,7 +65,7 @@ int timelib_sleep(
         }
     }
 
-    return vmexec_SuspendFunc(
+    return vmschedule_SuspendFunc(
         vmthread, SUSPENDTYPE_FIXEDTIME,
         datetime_TicksNoSuspendJump() + sleepms
     );

@@ -12,7 +12,7 @@
 #include "vmschedule.h"
 
 
-int vmexec_SuspendFunc(
+int vmschedule_SuspendFunc(
         h64vmthread *vmthread, suspendtype suspend_type,
         int64_t suspend_intarg
         ) {

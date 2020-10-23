@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,9 +13,12 @@
 #include "threading.h"
 
 
+typedef int64_t h64pid_t;
+
 typedef struct processrun {
     h64wchar *path; int64_t path_len;
     int arg_count; h64wchar **arg_s; int64_t *arg_len;
+    h64pid_t pid;
  } processrun;
 
 mutex *_processrun_mutex = NULL;
@@ -40,12 +44,15 @@ processrun *processrun_Launch(
         ) {
     assert(_processrun_mutex != NULL);
     int mutexheld = 1;
+
+    // Get mutex, and ensure the pool allocator exists:
     mutex_Lock(_processrun_mutex);
     processrun *result = NULL;
     if (!processrun_struct_alloc) {
         processrun_struct_alloc = poolalloc_New(sizeof(processrun));
         if (!processrun_struct_alloc) {
             oom:
+            // Out of memory exit branch.
             if (!mutexheld)
                 mutex_Lock(_processrun_mutex);
             if (result)
@@ -54,6 +61,8 @@ processrun *processrun_Launch(
             return NULL;
         }
     }
+
+    // Make struct and copy all arguments to it:
     result = poolalloc_malloc(processrun_struct_alloc, 0);
     if (!result)
         goto oom;
@@ -80,5 +89,8 @@ processrun *processrun_Launch(
         memcpy(result->arg_s[i], arg_s[i], arg_len[i] * sizeof(h64wchar));
         i++;
     }
+
+
+
     return result;
 }
