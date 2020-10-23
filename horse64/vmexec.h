@@ -117,4 +117,9 @@ int vmexec_ReturnFuncError(
     const char *msg, ...
 );
 
+int vmexec_SuspendFunc(
+    h64vmthread *vmthread, suspendtype suspend_type,
+    int64_t suspend_intarg
+);
+
 #endif  // HORSE64_VMEXEC_H_

@@ -17,26 +17,63 @@
 #include <unistd.h>
 #endif
 
+#include "threading.h"
+
 
 uint64_t datetime_Ticks() {
     #if defined(_WIN32) || defined(_WIN64)
     return GetTickCount64();
     #else
     struct timespec spec;
-
-    clock_gettime(CLOCK_MONOTONIC, &spec);
-
+    clock_gettime(CLOCK_BOOTTIME, &spec);
     uint64_t ms1 = ((uint64_t)spec.tv_sec) * 1000ULL;
     uint64_t ms2 = ((uint64_t)spec.tv_nsec) / 1000000ULL;
     return ms1 + ms2;
     #endif
 }
 
+mutex *_nosuspendticksmutex = NULL;
+int64_t _nosuspendlastticks = 0;
+int64_t _nosuspendoffset = 0;
 
-void datetime_Sleep(uint64_t ms) {
+uint64_t datetime_TicksNoSuspendJump() {
+    if (!_nosuspendticksmutex) {
+        _nosuspendticksmutex = mutex_Create();
+    if (!_nosuspendticksmutex)
+        return 0;
+    }
+    int64_t ticks = datetime_Ticks();
+    mutex_Lock(_nosuspendticksmutex);
+    ticks += _nosuspendoffset;
+    if (ticks > _nosuspendlastticks + 500L) {
+        _nosuspendoffset -= (ticks - _nosuspendlastticks - 10L);
+        ticks = _nosuspendlastticks + 10L;
+    }
+    mutex_Release(_nosuspendticksmutex);
+    return ticks;
+}
+
+__attribute__((constructor)) void datetime_NoSuspendJumpMutex() {
+    if (!_nosuspendticksmutex)
+        _nosuspendticksmutex = mutex_Create();
+}
+
+
+void datetime_Sleep(uint64_t sleepms) {
     #if defined(_WIN32) || defined(_WIN64)
-    Sleep(ms);
+    Sleep(sleepms);
     #else
-    usleep(ms * 1000UL);
+    #if _POSIX_C_SOURCE >= 199309L
+    struct timespec ts;
+    ts.tv_sec = sleepms / 1000LL;
+    ts.tv_nsec = (sleepms % 1000LL) * 1000LL;
+    nanosleep(&ts, NULL);
+    #else
+    if (sleepms >= 1000LL) {
+        sleep(sleepms / 1000LL);
+        sleepms = sleepms % 1000LL;
+    }
+    usleep(1000LL * sleepms);
+    #endif
     #endif
 }

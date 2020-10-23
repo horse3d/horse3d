@@ -10,6 +10,8 @@
 
 uint64_t datetime_Ticks();
 
+uint64_t datetime_TicksNoSuspendJump();
+
 void datetime_Sleep(uint64_t ms);
 
 #endif  // HORSE64_DATIME_H_

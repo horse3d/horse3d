@@ -15,11 +15,13 @@
 #include <time.h>
 
 #include "corelib/errors.h"
+#include "datetime.h"
 #include "process.h"
 #include "stack.h"
 #include "vmexec.h"
 
 /// @module process Run or interact with other processes on the same machine.
+
 
 int timelib_sleep(
         h64vmthread *vmthread
@@ -63,29 +65,10 @@ int timelib_sleep(
         }
     }
 
-    #if defined(_WIN32) || defined(_WIN64)
-    Sleep(sleepms);
-    #else
-    #if _POSIX_C_SOURCE >= 199309L
-    struct timespec ts;
-    ts.tv_sec = sleepms / 1000LL;
-    ts.tv_nsec = (sleepms % 1000LL) * 1000LL;
-    nanosleep(&ts, NULL);
-    #else
-    if (sleepms >= 1000LL) {
-        sleep(sleepms / 1000LL);
-        sleepms = sleepms % 1000LL;
-    }
-    usleep(1000LL * sleepms);
-    #endif
-    #endif
-
-    valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
-    DELREF_NONHEAP(vresult);
-    valuecontent_Free(vresult);
-    memset(vresult, 0, sizeof(*vresult));
-    vresult->type = H64VALTYPE_NONE;
-    return 1;
+    return vmexec_SuspendFunc(
+        vmthread, SUSPENDTYPE_FIXEDTIME,
+        datetime_TicksNoSuspendJump() + sleepms
+    );
 }
 
 int timelib_ticks(
@@ -94,13 +77,13 @@ int timelib_ticks(
     /**
      * Returns a monotonic time value, which starts at some arbitrary value
      * at program start and then increases linearly with passing time in
-     * seconds. Most notably, it will also increase linearly and not jump
-     * around when e.g. the system time is changed. However, it will reflect
-     * actual real time gaps, e.g. when the system was suspended/hibernated
-     * in between two calls.
+     * seconds. Most notably, it will be independent of changes to system
+     * time (e.g. when system time is adjusted forward or backward by the
+     * user), but it will reflect time spent in suspend or hibernate after
+     * wake-up.
      *
-     * @func sleep
-     * @returns seconds passed as a @see{number} starting from some
+     * @func ticks
+     * @returns seconds passed as a @see{number}, starting from some
      *   arbitrary value at program start.
      */
     assert(STACK_TOP(vmthread->stack) >= 0);
@@ -116,11 +99,16 @@ int timelib_ticks(
             );
     }
 
+    int64_t tickms = datetime_Ticks();
+    double seconds = (double)((int64_t)tickms / 1000LL);
+    double fraction = ((double)((int64_t)tickms % 1000LL)) / 1000.0;
+
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);
     valuecontent_Free(vresult);
     memset(vresult, 0, sizeof(*vresult));
-    vresult->type = H64VALTYPE_NONE;
+    vresult->type = H64VALTYPE_FLOAT64;
+    vresult->float_value = seconds + fraction;
     return 1;
 }
 

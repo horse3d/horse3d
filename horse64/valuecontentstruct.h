@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "compiler/globallimits.h"
+#include "vmschedule.h"
 #include "widechar.h"
 
 
@@ -26,6 +27,7 @@ typedef enum valuetype {
     H64VALTYPE_CONSTPREALLOCBYTES,
     H64VALTYPE_VECTOR,
     H64VALTYPE_UNSPECIFIED_KWARG,
+    H64VALTYPE_THREADSUSPENDINFO,
     H64VALTYPE_TOTAL
 } valuetype;
 
@@ -75,6 +77,10 @@ typedef struct valuecontent {
         struct {
             int32_t vector_len;
             vectorentry *vector_values;
+        } __attribute__((packed));
+        struct {
+            int suspend_type;
+            int64_t suspend_intarg;
         } __attribute__((packed));
     } __attribute__((packed));
 } __attribute__((packed)) valuecontent;
