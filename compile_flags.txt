@@ -3,3 +3,4 @@
 -I./horse64/
 -Wall
 -Wextra
+-DBUILD_TIME="clangd_placeholder"
