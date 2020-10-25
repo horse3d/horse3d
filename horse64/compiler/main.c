@@ -20,6 +20,7 @@
 #include "json.h"
 #include "uri.h"
 #include "vmexec.h"
+#include "vmschedule.h"
 
 static int _compileargparse(
         const char *cmd,
@@ -219,7 +220,7 @@ int compiler_command_CompileEx(
             disassembler_DumpToStdout(project->program);
     } else if (mode == COMPILEEX_MODE_RUN) {
         if (!nosuccess) {
-            int resultcode = vmexec_ExecuteProgram(
+            int resultcode = vmschedule_ExecuteProgram(
                 project->program, &moptions
             );
             compileproject_Free(project);

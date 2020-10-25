@@ -21,7 +21,6 @@ int main(int argc, const char **argv) {
     int doubledash_seen = 0;
     const char *action = NULL;
     int action_offset = -1;
-    const char *action_file = NULL;
     int i = 1;
     while (i < argc) {
         if (strcmp(argv[i], "--") == 0) {

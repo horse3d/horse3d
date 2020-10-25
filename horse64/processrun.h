@@ -13,7 +13,12 @@ typedef struct processrun processrun;
 
 processrun *processrun_Launch(
     const h64wchar *path, int64_t path_len,
-    int arg_count, const h64wchar **arg_s, const int64_t *arg_len
+    int arg_count, const h64wchar **arg_s, const int64_t *arg_len,
+    int search_in_path
 );
+
+void processrun_Deref(processrun *run);
+
+void processrun_AddRef(processrun *run);
 
 #endif  // HORSE64_PROCESSRUN_H_

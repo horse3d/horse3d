@@ -4,8 +4,11 @@
 
 #include <assert.h>
 
+#include "corelib/errors.h"
+#include "gcvalue.h"
 #include "process.h"
 #include "stack.h"
+#include "valuecontentstruct.h"
 #include "vmexec.h"
 
 /// @module process Run or interact with other processes on the same machine.
@@ -22,18 +25,57 @@ int processlib_run(
      * @param background=false whether to run the process in the background
      *    (true), or whether to wait until it terminates before resuming
      *    (the default, false).
+     * @param system_commands=true whether to search for command names in
+     *    system-wide folders, other than just the local folder and/or the
+     *    exact binary path
      * @returns a @see{process object|process.process} if background=true,
      *     otherwise returns the exit code of the process as @see{number}.
      */
     assert(STACK_TOP(vmthread->stack) >= 3);
 
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type != H64VALTYPE_SHORTSTR &&
+            (vcpath->type != H64VALTYPE_GCVAL ||
+            ((h64gcvalue*)(vcpath->ptr_value))->type !=
+                H64GCVALUETYPE_STRING)) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path must be a string"
+        );
+    }
+    valuecontent *vcargs = STACK_ENTRY(vmthread->stack, 0);
+    if ((vcargs->type != H64VALTYPE_GCVAL ||
+            ((h64gcvalue*)(vcargs->ptr_value))->type !=
+                H64GCVALUETYPE_LIST) &&
+            vcargs->type != H64VALTYPE_UNSPECIFIED_KWARG) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "arguments must be a list"
+        );
+    }
+    valuecontent *vcbackground = STACK_ENTRY(vmthread->stack, 0);
+    if (vcbackground->type != H64VALTYPE_BOOL &&
+            vcbackground->type != H64VALTYPE_UNSPECIFIED_KWARG) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "background must be a boolean"
+        );
+    }
+    valuecontent *vcsystemcmds = STACK_ENTRY(vmthread->stack, 0);
+    if (vcsystemcmds->type != H64VALTYPE_BOOL &&
+            vcsystemcmds->type != H64VALTYPE_UNSPECIFIED_KWARG) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "system_commands must be a boolean"
+        );
+    }
     return 1;
 }
 
 int processlib_RegisterFuncsAndModules(h64program *p) {
     // process.run:
     const char *process_run_kw_arg_name[] = {
-        NULL, "arguments", "background"
+        NULL, "arguments", "background", "system_commands"
     };
     int64_t idx;
     idx = h64program_RegisterCFunction(

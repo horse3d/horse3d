@@ -15,7 +15,12 @@
 #endif
 
 #if defined(_WIN32) || defined(_WIN64)
+int _close(
+   int fd
+);
+#define _O_RDONLY 0x0000
 #include <malloc.h>
+#include <windows.h>
 #else
 #include <alloca.h>
 #include <errno.h>
@@ -239,8 +244,120 @@ int iolib_open(
     }
 
     #if defined(_WIN32) || defined(_WIN64)
-    FILE *f = NULL;
-    // FIXME: windows implementation
+    uint16_t *wpath = malloc(
+        sizeof(uint16_t) * (pathlen * 2 + 3)
+    );
+    if (!wpath) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "alloc failure converting file path"
+        );
+    }
+    int64_t out_len = 0;
+    int result = utf32_to_utf16(
+        (h64wchar*) pathstr, pathlen, (char*)wpath,
+        sizeof(uint16_t) * (pathlen * 2 + 3),
+        &out_len, 1
+    );
+    if (!result || out_len >= (pathlen * 2 + 3)) {
+        free(wpath);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RUNTIMEERROR,
+            "internal unexpected error in widechar "
+            "conversion"
+        );
+    }
+    int i = 0;
+    while (i < out_len) {  // make sure nullbytes -> no such file
+        if (wpath[i] == '\0') {
+            free(wpath);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no such file or directory"
+            );
+        }
+        i++;
+    }
+    HANDLE f2 = CreateFileW(
+        (LPCWSTR)wpath,
+        0 | (mode_read ? GENERIC_READ : 0)
+        | (mode_write ? GENERIC_WRITE : 0),
+        (mode_read ? 0 : FILE_SHARE_READ),
+        NULL,
+        OPEN_EXISTING | (
+            (mode_write && !mode_append) ? CREATE_NEW : 0
+        ),
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+    free(wpath); wpath = NULL;
+    if (f2 == INVALID_HANDLE_VALUE) {
+        uint32_t err = (int)GetLastError();
+        if (err == ERROR_FILE_NOT_FOUND) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no such file or directory"
+            );
+        } else if (err == ERROR_TOO_MANY_OPEN_FILES) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OSERROR,
+                "too many open files"
+            );
+        } else if (err == ERROR_ACCESS_DENIED) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_PERMISSIONERROR,
+                "permission denied"
+            );
+        } else if (err == ERROR_SHARING_VIOLATION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OSERROR,
+                "file in use by other process"
+            );
+        } else if (err == ERROR_INVALID_NAME) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "given path name is invalid"
+            );
+        } else if (err == ERROR_LABEL_TOO_LONG ||
+                err == ERROR_BUFFER_OVERFLOW ||
+                err == ERROR_FILENAME_EXCED_RANGE
+                ) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "given path name too long"
+            );
+        }
+        char buf[256];
+        snprintf(buf, sizeof(buf) - 1,
+            "unhandled type of operation error: %d",
+            (int)err
+        );
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            buf
+        );
+    }
+    int filedescr = _open_osfhandle(
+        (int32_t)f2, _O_RDONLY
+    );
+    if (filedescr < 0) {
+        CloseHandle(f2);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            "conversion to FILE* unexpectly failed"
+        );
+    }
+    f2 = NULL;  // now owned by 'filedescr'
+    FILE *f = _fdopen(filedescr, "rb");
+    if (!f) {
+        _close(filedescr);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OSERROR,
+            "conversion to FILE* unexpectly failed"
+        );
+    }
+    filedescr = -1;  // now owned by 'f'/FILE* ptr
+
     #else
     char _utf8bufstack[1024];
     char *utf8buf = _utf8bufstack;
@@ -273,7 +390,7 @@ int iolib_open(
     }
     utf8buf[outlen] = '\0';
     int i = 0;
-    while (i < outlen) {
+    while (i < outlen) {   // make sure nullbytes -> no such file
         if (utf8buf[i] == '\0') {
             if (freeutf8buf)
                 free(utf8buf);
@@ -319,7 +436,7 @@ int iolib_open(
         else if (errno == ENFILE)
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OSERROR,
-                "no free file handles left"
+                "too many open files"
             );
         else if (errno == ENAMETOOLONG)
             return vmexec_ReturnFuncError(
@@ -336,9 +453,14 @@ int iolib_open(
                 vmthread, H64STDERROR_IOERROR,
                 "special file that doesn't support i/o"
             );
+        char buf[256];
+        snprintf(buf, sizeof(buf) - 1,
+            "unhandled type of operation error: %d",
+            (int)errno
+        );
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OSERROR,
-            "unhandled type of operation error"
+            buf
         );
     }
     if (freeutf8buf)
@@ -373,7 +495,11 @@ int iolib_open(
         vmthread->heap, 0
     );
     if (!fileobj) {
+        #if defined(_WIN32) || defined(_WIN64)
+        CloseHandle(f);
+        #else
         fclose(f);
+        #endif
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OUTOFMEMORYERROR,
             "out of memory allocating file object"
@@ -385,7 +511,11 @@ int iolib_open(
     fileobj->classid = vmthread->vmexec_owner->program->_io_file_class_idx;
     fileobj->cdata = malloc(sizeof(_fileobj_cdata));
     if (!fileobj->cdata) {
+        #if defined(_WIN32) || defined(_WIN64)
+        CloseHandle(f);
+        #else
         fclose(f);
+        #endif
         poolalloc_free(vmthread->heap, fileobj);
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OUTOFMEMORYERROR,

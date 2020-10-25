@@ -8,6 +8,7 @@
 #else
 #include <alloca.h>
 #endif
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -378,7 +379,7 @@ int utf32_to_utf8(
     uint64_t totallen = 0;
     int64_t i = 0;
     while (i < input_len) {
-        if (outbuflen < 6)
+        if (outbuflen < 1)
             return 0;
         int inneroutlen = 0;
         if (!write_codepoint_as_utf8(
@@ -392,6 +393,64 @@ int utf32_to_utf8(
         outbuflen -= inneroutlen;
         outbuf += inneroutlen;
         totallen += inneroutlen;
+        i++;
+    }
+    if (out_len) *out_len = (int64_t)totallen;
+    return 1;
+}
+
+int utf32_to_utf16(
+        const h64wchar *input, int64_t input_len,
+        char *outbuf, int64_t outbuflen,
+        int64_t *out_len, int surrogateunescape
+        ) {
+    const h64wchar *p = input;
+    uint64_t totallen = 0;
+    int64_t i = 0;
+    while (i < input_len) {
+        if (outbuflen < (int64_t)sizeof(int16_t))
+            return 0;
+        int inneroutlen = 0;
+        uint64_t codepoint = (*p);
+        if (codepoint <= UINT16_MAX) {
+            int16_t u16 = codepoint;
+            memcpy(outbuf, &u16, sizeof(int16_t));
+        } else if (
+                codepoint >= 0xDC80ULL + 0 &&
+                codepoint <= 0xDC80ULL + 255) {
+            // Special surrogate "junk" encoding:
+            int16_t u16 = codepoint - 0xDC80ULL;
+            if (!surrogateunescape) {
+                u16 = 0xFFFDULL;
+            }
+            memcpy(outbuf, &u16, sizeof(int16_t));
+            inneroutlen = sizeof(int16_t);
+            totallen++;
+        } else {
+            // This needs surrogate encoding.
+            if (outbuflen < (int64_t)sizeof(int16_t) * 2)
+                return 0;
+            uint16_t u16_1 = (
+                0xD800ULL + ((
+                    codepoint & 0xFFFFFC00ULL
+                ) >> 10)
+            );
+            uint16_t u16_2 = (
+                0xDC00ULL + (
+                    codepoint & 0x3FFULL
+                )
+            );
+            memcpy(outbuf, &u16_1, sizeof(int16_t));
+            memcpy(
+                outbuf + sizeof(int16_t), &u16_2, sizeof(int16_t)
+            );
+            inneroutlen = sizeof(int16_t) * 2;
+            totallen += 2;
+        }
+        assert(inneroutlen > 0);
+        p++;
+        outbuflen -= inneroutlen;
+        outbuf += inneroutlen;
         i++;
     }
     if (out_len) *out_len = (int64_t)totallen;

@@ -51,6 +51,12 @@ int utf32_to_utf8(
     int64_t *out_len, int surrogateunescape
 );
 
+int utf32_to_utf16(
+    const h64wchar *input, int64_t input_len,
+    char *outbuf, int64_t outbuflen,
+    int64_t *out_len, int surrogateunescape
+);
+
 int64_t utf16_letter_len(
     h64wchar *sdata, int64_t sdata_len
 );

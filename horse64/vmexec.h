@@ -49,6 +49,9 @@ typedef struct h64vmerrorcatchframe {
 } h64vmerrorcatchframe;
 
 
+
+typedef struct vmsuspendoverview vmsuspendoverview;
+
 typedef struct h64vmthread {
     h64vmexec *vmexec_owner;
     int can_access_globals;
@@ -75,6 +78,8 @@ typedef struct h64vmthread {
 typedef struct h64vmexec {
     h64misccompileroptions moptions;
     h64program *program;
+
+    vmsuspendoverview *suspend_overview;
 
     h64vmthread **thread;
     int thread_count;
@@ -107,10 +112,6 @@ int vmthread_RunFunctionWithReturnInt(
 void vmthread_Free(h64vmthread *vmthread);
 
 void vmexec_Free(h64vmexec *vmexec);
-
-int vmexec_ExecuteProgram(
-    h64program *pr, h64misccompileroptions *moptions
-);
 
 int vmexec_ReturnFuncError(
     h64vmthread *vmthread, int64_t error_id,

@@ -253,7 +253,7 @@ char *filesys_Normalize(const char *path) {
             // Collapse all double slashes away:
             while (result[i + 1] == '/'
                     #if defined(_WIN32) || defined(_WIN64)
-                    || result[i] == '\\'
+                    || result[i + 1] == '\\'
                     #endif
                     ) {
                 memmove(result + i, result + (i + 1),
