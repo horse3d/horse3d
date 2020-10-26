@@ -338,7 +338,7 @@ int iolib_open(
         );
     }
     int filedescr = _open_osfhandle(
-        (int32_t)f2, _O_RDONLY
+        (intptr_t)f2, _O_RDONLY
     );
     if (filedescr < 0) {
         CloseHandle(f2);

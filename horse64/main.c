@@ -10,6 +10,7 @@
 #include "horse64/packageversion.h"
 #include "filesys.h"
 #include "vfs.h"
+#include "widechar.h"
 
 #define NOBETTERARGPARSE 1
 
@@ -210,7 +211,7 @@ int WINAPI WinMain(
                 goto oom;
             int64_t out_len = 0;
             if (!utf16_to_utf8(
-                    _winSplitList[k], strlen(_winSplitList[k]),
+                    _winSplitList[k], wcslen(_winSplitList[k]),
                     argbuf, argbuflen - 1, &out_len, 1
                    ) || out_len >= argbuflen)
                 goto oom;

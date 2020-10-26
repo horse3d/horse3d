@@ -8,6 +8,7 @@ endif
 
 # -------- DEPENDENCY PATHS, to be located from ./vendor --------
 PHYSFSPATH=$(shell pwd)/$(shell echo -e 'import os\nfor f in os.listdir("./vendor"):\n  if not os.path.isdir("vendor/" + f):\n    continue\n  if f.lower().startswith("physfs-") or f.lower() == "physfs":\n    print("vendor/" + f)\n' | python3)
+OPENSSLPATH=$(shell pwd)/$(shell echo -e 'import os\nfor f in os.listdir("./vendor"):\n  if not os.path.isdir("vendor/" + f):\n    continue\n  if f.lower().startswith("openssl-") or f.lower() == "openssl":\n    print("vendor/" + f)\n' | python3)
 
 # -------- CFLAGS & LDFLAGS DEFAULTS --------
 CANUSESSE=`python3 tools/can-use-sse.py`
@@ -21,9 +22,10 @@ CFLAGS_OPTIMIZATION:=-O0 -g $(SSEFLAG) -fno-omit-frame-pointer
 else
 CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -fno-associative-math -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
 endif
+OPENSSLHOSTOPTION:=linux-generic64
 CXXFLAGS:=-fexceptions
-CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -Wl,-Bdynamic
-LDFLAGS:= -Wl,-Bstatic -lphysfs -Wl,-Bdynamic
+CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -L"$(OPENSSLPATH)" -Wl,-Bdynamic
+LDFLAGS:= -Wl,-Bstatic -lphysfs -lh64openssl -Wl,-Bdynamic
 TEST_OBJECTS:=$(patsubst %.c, %.o, $(wildcard ./horse64/test_*.c) $(wildcard ./horse64/compiler/test_*.c))
 ALL_OBJECTS:=$(filter-out ./horse64/vmexec_inst_unopbinop_INCLUDE.o, $(patsubst %.c, %.o, $(wildcard ./horse64/*.c) $(wildcard ./horse64/corelib/*.c) $(wildcard ./horse64/compiler/*.c)) vendor/siphash.o)
 TEST_BINARIES:=$(patsubst %.o, %.bin, $(TEST_OBJECTS))
@@ -37,8 +39,9 @@ CFLAGS+= -mthreads -static-libgcc -static-libstdc++ -mwindows
 BINEXT:=.exe
 PLATFORM:=windows
 CROSSCOMPILEHOST:=$(shell echo -e 'print("'$(CC)'".rpartition("-")[0])' | python3)
+OPENSSLHOSTOPTION:=mingw64 --cross-compile-prefix=$(CROSSCOMPILEHOST)-
 HOSTOPTION:= --host=$(CROSSCOMPILEHOST)
-LDFLAGS+= -lwininet -lole32 -lgdi32 -lshell32 -lwinmm -luser32 -luuid -lodbc32 -loleaut32 -limm32 -lhid -lversion -lsetupapi -Wl,-Bstatic -lstdc++ -lwinpthread -Wl,-Bdynamic
+LDFLAGS+= -lwininet -lws2_32 -lole32 -lgdi32 -lshell32 -lwinmm -luser32 -luuid -lodbc32 -loleaut32 -limm32 -lhid -lversion -lsetupapi -Wl,-Bstatic -lstdc++ -lwinpthread -Wl,-Bdynamic
 STRIPTOOL:=$(CROSSCOMPILEHOST)-strip
 CXX:=$(CROSSCOMPILEHOST)-g++
 BULLETCXX:=$(CXX)
@@ -51,11 +54,12 @@ STRIPTOOL:=strip
 ifneq (,$(findstring aarch64,$(CC)))
 CROSSCOMPILEHOST:=$(shell echo -e 'print("'$(CC)'".rpartition("-")[0])' | python3)
 CXX:=$(CROSSCOMPILEHOST)-g++
+OPENSSLHOSTOPTION:=linux-generic64 --cross-compile-prefix=$(CROSSCOMPILEHOST)-
 STRIPTOOL:=$(CROSSCOMPILEHOST)-strip
 endif
 endif
 
-.PHONY: test remove-main-o check-submodules datapak release debug wchar_data
+.PHONY: test remove-main-o check-submodules datapak release debug wchar_data openssl
 
 debug: all
 showvariables:
@@ -108,7 +112,7 @@ release:
 	make build-deps DEBUGGABLE=false CC="$(CC)" CXX="$(CXX)"
 	make DEBUGGABLE=false CC="$(CC)" CXX="$(CXX)"
 build-deps:
-	make physfs DEBUGGABLE="$(DEBUGGABLE)" CC="$(CC)" CXX="$(CXX)"
+	make physfs openssl DEBUGGABLE="$(DEBUGGABLE)" CC="$(CC)" CXX="$(CXX)"
 
 clean:
 	rm -f $(ALL_OBJECTS) coreapi.h3dpak $(TEST_BINARIES)
@@ -117,6 +121,10 @@ physfs:
 	CC="$(CC)" python3 tools/physfsmakefile.py > $(PHYSFSPATH)/Makefile
 	cd $(PHYSFSPATH) && rm -f libphysfs.a && make clean && make CC="$(CC)" CXX="$(CXX)"
 
+openssl:
+	cd $(OPENSSLPATH) && rm -f lib*.a && ./Configure $(OPENSSLHOSTOPTION) no-engine no-comp no-hw no-shared threads CC="$(CC)" && make clean && make CC="$(CC)" CXX="$(CXX)" && cp libssl.a libh64openssl.a
+
 veryclean: clean
 	rm -f $(BINNAME)-*.exe $(BINNAME)-*.bin
-	cd "$(LUAPATH)" && rm -f *.o lib*.a ./lua
+	cd $(OPENSSLPATH) && rm -f lib*.a
+	cd $(PHYSFSPATH) && rm -f libphysfs.a
