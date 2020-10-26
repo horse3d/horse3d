@@ -11,6 +11,8 @@
 #include "filesys.h"
 #include "vfs.h"
 
+#define NOBETTERARGPARSE 1
+
 #if defined(_WIN32) || defined(_WIN64)
 int _actualmain(int argc, const char **argv) {
 #else
@@ -37,16 +39,22 @@ int main(int argc, const char **argv) {
                        "[...options + arguments...]\n");
                 printf("\n");
                 printf("Available actions:\n");
-                printf("  - \"codeinfo\"          Compile .h64 code and show "
+                printf("  - \"codeinfo\"          "
+                       "Compile .h64 code and show "
                        "describe resulting bytecode.\n");
-                printf("  - \"compile\"           Compile .h64 code "
+                printf("  - \"compile\"           "
+                       "Compile .h64 code "
                        "and output executable.\n");
-                printf("  - \"get_asm\"           Translate to .hasm\n");
-                printf("  - \"get_ast\"           Get AST of code\n");
+                printf("  - \"get_asm\"           "
+                       "Translate to .hasm\n");
+                printf("  - \"get_ast\"           "
+                       "Get AST of code\n");
                 printf("  - \"get_resolved_ast\"  "
                        "Get AST of code with resolved identifiers\n");
-                printf("  - \"get_tokens\"        Get Tokenization of code\n");
-                printf("  - \"run\"               Compile .h64 code, and "
+                printf("  - \"get_tokens\"        "
+                       "Get Tokenization of code\n");
+                printf("  - \"run\"               "
+                       "Compile .h64 code, and "
                        "run it immediately.\n");
                 return 0;
             }
@@ -138,8 +146,17 @@ static int str_is_spaces(const char *s) {
 }
 
 
-int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev,
-                   LPSTR szCmdLine, int sw) {
+int WINAPI WinMain(
+        HINSTANCE hInst, HINSTANCE hPrev,
+        LPSTR szCmdLine, int sw
+        ) {
+    #if defined(NOBETTERARGPARSE) && NOBETTERARGPARSE != 0
+
+    // Shoddy argument splitting based on GetCommandLineW()
+
+    int argc = 1;
+    LPWSTR *_winSplitList = NULL;
+    int _winSplitCount = 0;
     char **argv = malloc(sizeof(*argv));
     if (!argv)
         return 1;
@@ -156,12 +173,107 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev,
         argv[0] = strdup("horsec.exe");
     }
     if (!argv[0])
+        goto oom;
+
+    _winSplitList = CommandLineToArgvW(
+        GetCommandLineW(), &_winSplitCount
+    );
+    if (!_winSplitList) {
+        oom: ;
+        if (_winSplitList) LocalFree(_winSplitList);
+        int i = 0;
+        while (i < argc) {
+            free(argv[i]);
+            i++;
+        }
+        free(argv);
+        fprintf(stderr, "horsevm: error: arg alloc or convert "
+            "failure");
         return 1;
+    }
+    if (_winSplitCount > 0) {
+        char **argv_new = realloc(
+            argv, sizeof(*argv) * (_winSplitCount + 1)
+        );
+        if (!argv_new)
+            goto oom;
+        argv = argv_new;
+        memset(argv[1], 0, sizeof(*argv) * (_winSplitCount));
+        argc += _winSplitCount;
+        int k = 0;
+        while (k < _winSplitCount) {
+            int argbuflen = wcslen(_winSplitList[k]) * 10 + 1;
+            char *argbuf = malloc(
+                argbuflen
+            );
+            if (!argbuf)
+                goto oom;
+            int64_t out_len = 0;
+            if (!utf16_to_utf8(
+                    _winSplitList[k], strlen(_winSplitList[k]),
+                    argbuf, argbuflen - 1, &out_len, 1
+                   ) || out_len >= argbuflen)
+                goto oom;
+            argbuf[argbuflen] = '\0';
+            argv[k + 1] = argbuf;
+            k++;
+        }
+    }
+    LocalFree(_winSplitList);
+    _winSplitList = NULL;
+
+    int result = _actualmain(argc, (const char**) argv);
+    int k = 0;
+    while (k < argc) {
+        free(argv[k]);
+        k++;
+    }
+    free(argv);
+    return result;
+    #else
+
+    // Unix-style arg parsing
+
+    char **argv = malloc(sizeof(*argv));
+    if (!argv) {
+        oom:
+        fprintf(stderr, "horsevm: error: arg alloc or convert "
+            "failure");
+        return 1;
+    }
+    char *execfullpath = filesys_GetOwnExecutable();
+    char *execname = NULL;
+    if (execfullpath) {
+        char *execname = filesys_Basename(execfullpath);
+        free(execfullpath);
+        execfullpath = NULL;
+    }
+    if (execname) {
+        argv[0] = strdup(execname);
+    } else {
+        argv[0] = strdup("horsec.exe");
+    }
+    if (!argv[0])
+        goto oom;
     char *argline = NULL;
-    if (szCmdLine)
-        argline = strdup(szCmdLine);
-    if (!argline)
-        return 1;
+    {
+        wchar_t *wcharCmdLine = GetCommandLineW();
+        if (!wcharCmdLine)
+            goto oom;
+        {
+            int arglinebytes = wcslen(wcharCmdLine) * 10 + 1;
+            argline = malloc(arglinelen);
+            if (!argline)
+                goto oom;
+            int64_t out_len = 0;
+            if (!utf16_to_utf8(
+                    _winSplitList[k], strlen(_winSplitList[k]),
+                    argline, arglinebytes - 1, &out_len, 1
+                    ) || out_len >= arglinebytes)
+                goto oom;
+            argline[out_len] = '\0';
+        }
+    }
     char *p = argline;
     int len = strlen(argline);
     char in_quote = '\0';
@@ -175,7 +287,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev,
                 )) {
             char **new_argv = realloc(argv, sizeof(*argv) * (argc + 1));
             if (!new_argv)
-                return 1;
+                goto oom;
             argline[i] = '\0';
             int added_it = 0;
             if (strlen(p) > 0 && !str_is_spaces(p)) {
@@ -232,6 +344,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev,
     }
     free(argv);
     return result;
+    #endif
 }
 #endif
 

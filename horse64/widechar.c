@@ -158,7 +158,7 @@ int write_codepoint_as_utf8(
 
 int get_utf8_codepoint(
         const unsigned char *p, int size,
-        h64wchar *out, int *outlen
+        h64wchar *out, int *cpbyteslen
         ) {
     if (size < 1)
         return 0;
@@ -166,7 +166,7 @@ int get_utf8_codepoint(
         if (*p > 127)
             return 0;
         if (out) *out = (h64wchar)(*p);
-        if (outlen) *outlen = 1;
+        if (cpbyteslen) *cpbyteslen = 1;
         return 1;
     }
     uint8_t c = (*(uint8_t*)p);
@@ -187,7 +187,7 @@ int get_utf8_codepoint(
         if (c <= 127ULL)
             return 0;  // not valid to be encoded with two bytes.
         if (out) *out = c;
-        if (outlen) *outlen = 2;
+        if (cpbyteslen) *cpbyteslen = 2;
         return 1;
     }
     if ((int)(c & 0xF0) == (int)0xE0 && size >= 3) {  // p[0] == 1110xxxx
@@ -218,7 +218,7 @@ int get_utf8_codepoint(
             return 0;
         }
         if (out) *out = c;
-        if (outlen) *outlen = 3;
+        if (cpbyteslen) *cpbyteslen = 3;
         return 1;
     }
     if ((int)(c & 0xF8) == (int)0xF0 && size >= 4) {  // p[0] == 11110xxx
@@ -250,7 +250,7 @@ int get_utf8_codepoint(
         if (c <= 0xFFFFULL)
             return 0;  // not valid to be encoded with four bytes.
         if (out) *out = c;
-        if (outlen) *outlen = 4;
+        if (cpbyteslen) *cpbyteslen = 4;
         return 1;
     }
     return 0;
@@ -428,6 +428,7 @@ int utf32_to_utf16(
             totallen++;
         } else {
             // This needs surrogate encoding.
+            // (REGULAR utf16 surrogates, not surrogate-escaping.)
             if (outbuflen < (int64_t)sizeof(int16_t) * 2)
                 return 0;
             uint16_t u16_1 = (
@@ -452,6 +453,153 @@ int utf32_to_utf16(
         outbuflen -= inneroutlen;
         outbuf += inneroutlen;
         i++;
+    }
+    if (out_len) *out_len = (int64_t)totallen;
+    return 1;
+}
+
+int utf8_to_utf16(
+        const uint8_t *input, int64_t input_len,
+        uint16_t *outbuf, int64_t outbuflen,
+        int64_t *out_len, int surrogateunescape,
+        int surrogateescape
+        ) {
+    const uint8_t *p = input;
+    uint64_t totallen = 0;
+    int64_t i = 0;
+    while (i < input_len) {
+        if (outbuflen < 1)
+            return 0;
+
+        h64wchar value = 0;
+        int cpbyteslen = 0;
+        int result = get_utf8_codepoint(
+            p, input_len, &value, &cpbyteslen
+        );
+        if (!result) {
+            if (surrogateescape) {
+                value = 0xFFFDULL;
+            } else {
+                value = 0xD800 + value;
+            }
+            cpbyteslen = 1;
+        } else if (value >= 0xD800 &&
+                value < 0xE000) {
+            value = 0xFFFDULL;
+            if (value <= 0xD800 + 255 &&
+                    surrogateunescape) {
+                h64wchar value2 = 0;
+                int cpbyteslen2 = 0;
+                int result2 = get_utf8_codepoint(
+                    p + cpbyteslen, input_len - cpbyteslen,
+                    &value, &cpbyteslen2
+                );
+                if (result2 && value2 >= 0xD800 &&
+                        value2 <= 0xD800 + 255) {
+                    uint16_t origval;
+                    uint8_t decoded1 = value - 0xD800;
+                    uint8_t decoded2 = value2 - 0xD800;
+                    memcpy(
+                        &origval, &decoded1, sizeof(decoded1)
+                    );
+                    memcpy(
+                        ((char*)&origval) + sizeof(decoded1),
+                        &decoded2, sizeof(decoded2)
+                    );
+                    cpbyteslen += cpbyteslen2;
+                    value = origval;
+                }
+            }
+        }
+
+        if ((int64_t)totallen + 1 > outbuflen)
+            return 0;
+
+        outbuf[totallen] = value;
+        totallen++;
+        p += cpbyteslen;
+        i += cpbyteslen;
+    }
+    if (out_len) *out_len = (int64_t)totallen;
+    return 1;
+}
+
+int utf16_to_utf8(
+        const uint16_t *input, int64_t input_len,
+        char *outbuf, int64_t outbuflen,
+        int64_t *out_len, int surrogateescape
+        ) {
+    const uint16_t *p = input;
+    uint64_t totallen = 0;
+    int64_t i = 0;
+    while (i < input_len) {
+        if (outbuflen < 1)
+            return 0;
+        uint64_t value = *((uint16_t*)p);
+        int is_valid_surrogate_pair = 0;
+        if (value >= 0xD800 && value < 0xE000 &&
+                i + 1 < input_len &&
+                p[1] >= 0xD800 && p[1] < 0xE000) {
+            uint64_t sg1 = value & 0x3FF;
+            sg1 = sg1 << 10;
+            uint64_t sg2 = p[1] & 0x3FF;
+            uint64_t fullvalue = sg1 + sg2;
+            if ((fullvalue < 0xD800 || fullvalue >= 0xE000) &&
+                    fullvalue < 0x200000ULL) {
+                value = fullvalue;
+                is_valid_surrogate_pair = 1;
+            }
+        } else if (value >= 0xD800 && value < 0xE000) {
+            if (surrogateescape) {
+                // Special case: encode junk here with surrogates.
+                // Write the 16-bit value out as two surrogate
+                // escapes for each 8-bit part:
+                uint8_t invalid_value[2];
+                memcpy(invalid_value, &value, sizeof(uint16_t));
+                value = 0xDC80ULL + invalid_value[0];
+                int inneroutlen = 0;
+                if (!write_codepoint_as_utf8(
+                        (uint64_t)value, 0,
+                        outbuf, outbuflen, &inneroutlen
+                        )) {
+                    return 0;
+                }
+                assert(inneroutlen > 0);
+                outbuflen -= inneroutlen;
+                outbuf += inneroutlen;
+                totallen += inneroutlen;
+                value = 0xDC80ULL + invalid_value[1];
+                inneroutlen = 0;
+                if (!write_codepoint_as_utf8(
+                        (uint64_t)value, 0,
+                        outbuf, outbuflen, &inneroutlen
+                        )) {
+                    return 0;
+                }
+                assert(inneroutlen > 0);
+                outbuflen -= inneroutlen;
+                outbuf += inneroutlen;
+                totallen += inneroutlen;
+                i++;
+                p++;
+                continue;
+            } else {
+                value = 0xFFFDULL;
+            }
+        }
+        int inneroutlen = 0;
+        if (!write_codepoint_as_utf8(
+                (uint64_t)value, 0,
+                outbuf, outbuflen, &inneroutlen
+                )) {
+            return 0;
+        }
+        assert(inneroutlen > 0);
+        p += (is_valid_surrogate_pair ? 2 : 1);
+        outbuflen -= inneroutlen;
+        outbuf += inneroutlen;
+        totallen += inneroutlen;
+        i += (is_valid_surrogate_pair ? 2 : 1);
     }
     if (out_len) *out_len = (int64_t)totallen;
     return 1;

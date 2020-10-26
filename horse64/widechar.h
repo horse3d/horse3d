@@ -65,4 +65,17 @@ int64_t utf16_letters_count(
     h64wchar *sdata, int64_t sdata_len
 );
 
+int utf8_to_utf16(
+    const uint8_t *input, int64_t input_len,
+    uint16_t *outbuf, int64_t outbuflen,
+    int64_t *out_len, int surrogateunescape,
+    int surrogateescape
+);
+
+int utf16_to_utf8(
+    const uint16_t *input, int64_t input_len,
+    char *outbuf, int64_t outbuflen,
+    int64_t *out_len, int surrogateescape
+);
+
 #endif  // HORSE64_WIDECHAR_H_
