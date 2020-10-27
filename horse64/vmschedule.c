@@ -10,6 +10,7 @@
 
 #include "bytecode.h"
 #include "debugsymbols.h"
+#include "pipe.h"
 #include "stack.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
@@ -73,7 +74,41 @@ int vmschedule_AsyncScheduleFunc(
         vmthread_Free(newthread);
         return 0;
     }
-    assert(0); // FIXME, complete this
+
+    // Pipe through the stack contents:
+    h64gcvalue _stackbuf[64];
+    h64gcvalue *object_instances_transferlist = _stackbuf;
+    int object_instances_transferlist_count = 0;
+    int object_instances_transferlist_alloc = 64;
+    int object_instances_transferlist_onheap = 0;
+    int64_t i = 0;
+    while (i < func_slots) {
+        int result = _pipe_DoPipeObject(
+            vmthread, newthread,
+            i + new_func_floor, i,
+            &object_instances_transferlist,
+            &object_instances_transferlist_count,
+            &object_instances_transferlist_alloc,
+            &object_instances_transferlist_onheap
+        );
+        if (!result) {
+            if (object_instances_transferlist_onheap)
+                free(object_instances_transferlist);
+            vmthread_Free(newthread);
+            return 0;
+        }
+        i++;
+    }
+
+    // Set up calls to .on_piped() later, for all piped object instances:
+    assert(
+        object_instances_transferlist_count == 0
+    ); // ^ FIXME, implement this
+
+    // Set suspend state to be resumed once we get to run this:
+    assert(0);  // FIXME: implement
+
+    return 1;
 }
 
 int vmschedule_ExecuteProgram(
