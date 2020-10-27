@@ -51,6 +51,18 @@ h64vmthread *vmthread_New(h64vmexec *owner) {
     vmthread->can_access_globals = 1;
     vmthread->can_call_noasync = 1;
 
+    if (!vmthread->suspend_info) {
+        vmthread->suspend_info = malloc(
+            sizeof(*vmthread->suspend_info)
+        );
+        if (!vmthread->suspend_info) {
+            vmthread_Free(vmthread);
+            return NULL;
+        }
+        memset(vmthread->suspend_info, 0,
+               sizeof(*vmthread->suspend_info));
+    }
+
     if (owner) {
         h64vmthread **new_thread = realloc(
             owner->thread, sizeof(*new_thread) * (
@@ -83,6 +95,26 @@ h64vmexec *vmexec_New() {
         free(vmexec);
         return NULL;
     }
+    memset(
+        vmexec->suspend_overview, 0,
+        sizeof(*vmexec->suspend_overview)
+    );
+    vmexec->suspend_overview->waittypes_currently_active = (
+        malloc(sizeof(*vmexec->suspend_overview->
+                      waittypes_currently_active) *
+        (SUSPENDTYPE_TOTALCOUNT))
+    );
+    if (!vmexec->suspend_overview->waittypes_currently_active) {
+        free(vmexec->suspend_overview);
+        free(vmexec);
+        return NULL;
+    }
+    memset(
+        vmexec->suspend_overview->waittypes_currently_active, 0,
+        sizeof(*vmexec->suspend_overview->
+                      waittypes_currently_active) *
+        (SUSPENDTYPE_TOTALCOUNT)
+    );
 
     return vmexec;
 }

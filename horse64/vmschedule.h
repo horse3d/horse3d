@@ -10,15 +10,22 @@
 typedef struct h64vmthread h64vmthread;
 
 typedef enum suspendtype {
-    SUSPENDTYPE_FIXEDTIME = 0,
+    SUSPENDTYPE_NONE = 0,
+    SUSPENDTYPE_FIXEDTIME = 1,
     SUSPENDTYPE_WAITFORSOCKET,
     SUSPENDTYPE_WAITFORPROCESSTERMINATION,
+    SUSPENDTYPE_ASYNCCALLSCHEDULED,
     SUSPENDTYPE_TOTALCOUNT
 } suspendtype;
 
 typedef struct vmsuspendoverview {
     uint8_t *waittypes_currently_active;
 } vmsuspendoverview;
+
+typedef struct vmthreadsuspendinfo {
+    suspendtype suspendtype;
+    int64_t suspendarg;
+} vmthreadsuspendinfo;
 
 typedef struct h64program h64program;
 typedef struct h64misccompileroptions h64misccompileroptions;

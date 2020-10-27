@@ -106,8 +106,12 @@ int vmschedule_AsyncScheduleFunc(
     ); // ^ FIXME, implement this
 
     // Set suspend state to be resumed once we get to run this:
-    assert(0);  // FIXME: implement
-
+    vmthread->suspend_info->suspendtype = (
+        SUSPENDTYPE_ASYNCCALLSCHEDULED
+    );
+    vmexec->suspend_overview->waittypes_currently_active[
+        SUSPENDTYPE_ASYNCCALLSCHEDULED
+    ]++;
     return 1;
 }
 
