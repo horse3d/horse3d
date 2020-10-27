@@ -95,6 +95,24 @@ void vmthread_Free(h64vmthread *vmthread) {
     if (!vmthread)
         return;
 
+    if (vmthread->vmexec_owner) {
+        int i = 0;
+        while (i < vmthread->vmexec_owner->thread_count) {
+            if (vmthread->vmexec_owner->thread[i] == vmthread) {
+                if (i + 1 < vmthread->vmexec_owner->thread_count)
+                    memcpy(
+                        &vmthread->vmexec_owner->thread[i],
+                        &vmthread->vmexec_owner->thread[i + 1],
+                        (vmthread->vmexec_owner->thread_count - i - 1) *
+                            sizeof(*vmthread->vmexec_owner->thread)
+                    );
+                vmthread->vmexec_owner->thread_count--;
+                continue;
+            }
+            i++;
+        }
+    }
+
     int i = 0;
     while (i < vmthread->arg_reorder_space_count) {
         DELREF_NONHEAP(&vmthread->arg_reorder_space[i]);
@@ -1927,7 +1945,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     *returneduncaughterror = 0;
                 DELREF_NONHEAP(&retval);
                 valuecontent_Free(&retval);
-                return 0;
+                goto triggeroom;
             }
             if (!result) {
                 // Handle function call error
@@ -1968,6 +1986,26 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             p += sizeof(h64instruction_call);
             goto *jumptable[((h64instructionany *)p)->type];
         } else {
+            if ((inst->flags & CALLFLAG_ASYNC) != 0) {
+                // Async call. Need to set it up as separate execution
+                // thread instead.
+                int result = vmschedule_AsyncScheduleFunc(
+                    vmexec, vmthread,
+                    new_func_floor, func_id
+                );
+                if (!result) {
+                    goto triggeroom;
+                }
+                // Reset stack size again:
+                if (!vmthread_ResetCallTempStack(vmthread)) {
+                    goto triggeroom;
+                }
+                // Advance past call:
+                p += sizeof(h64instruction_call);
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+
+            // Set execution to the new function:
             int64_t return_offset = (ptrdiff_t)(
                 p - pr->func[func_id].instructions
             ) + sizeof(h64instruction_call);

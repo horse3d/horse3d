@@ -22,6 +22,14 @@ typedef struct vmsuspendoverview {
 
 typedef struct h64program h64program;
 typedef struct h64misccompileroptions h64misccompileroptions;
+typedef struct h64vmthread h64vmthread;
+typedef struct h64vmexec h64vmexec;
+
+
+int vmschedule_AsyncScheduleFunc(
+    h64vmexec *vmexec, h64vmthread *vmthread,
+    int64_t new_func_floor, int64_t func_id
+);
 
 int vmschedule_SuspendFunc(
     h64vmthread *vmthread, suspendtype suspend_type,

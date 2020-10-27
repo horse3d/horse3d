@@ -59,6 +59,23 @@ static void _printuncaughterror(
     fprintf(stderr, "\n");
 }
 
+int vmschedule_AsyncScheduleFunc(
+        h64vmexec *vmexec, h64vmthread *vmthread,
+        int64_t new_func_floor, int64_t func_id
+        ) {
+    h64vmthread *newthread = vmthread_New(vmexec);
+    if (!newthread) {
+        return 0;
+    }
+    int64_t func_slots = STACK_TOTALSIZE(vmthread->stack) - new_func_floor;
+    if (!stack_ToSize(
+            newthread->stack, func_slots, 0)) {
+        vmthread_Free(newthread);
+        return 0;
+    }
+    assert(0); // FIXME, complete this
+}
+
 int vmschedule_ExecuteProgram(
         h64program *pr, h64misccompileroptions *moptions
         ) {
