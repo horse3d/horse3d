@@ -7,6 +7,8 @@
 
 #include <stdint.h>
 
+#include "threading.h"
+
 typedef struct h64vmthread h64vmthread;
 
 typedef enum suspendtype {
@@ -26,6 +28,15 @@ typedef struct vmthreadsuspendinfo {
     suspendtype suspendtype;
     int64_t suspendarg;
 } vmthreadsuspendinfo;
+
+typedef struct h64vmworker {
+    thread *worker_thread;
+} h64vmworker;
+
+typedef struct h64vmworkerset {
+      h64vmworker **worker;
+      int worker_count;
+} h64vmworkerset;
 
 typedef struct h64program h64program;
 typedef struct h64misccompileroptions h64misccompileroptions;

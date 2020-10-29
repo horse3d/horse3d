@@ -116,11 +116,33 @@ h64vmexec *vmexec_New() {
         (SUSPENDTYPE_TOTALCOUNT)
     );
 
+    vmexec->worker_overview = malloc(sizeof(*vmexec->worker_overview));
+    if (!vmexec->worker_overview) {
+        free(vmexec->suspend_overview->waittypes_currently_active);
+        free(vmexec->suspend_overview);
+        free(vmexec);
+        return NULL;
+    }
+    memset(
+        vmexec->worker_overview, 0,
+        sizeof(*vmexec->worker_overview)
+    );
+
     return vmexec;
 }
 
 void vmexec_Free(h64vmexec *vmexec) {
-    // FIXME
+    if (!vmexec)
+        return;
+
+    if (vmexec->suspend_overview) {
+        free(vmexec->suspend_overview->waittypes_currently_active);
+        free(vmexec->suspend_overview);
+    }
+    if (vmexec->worker_overview) {
+        free(vmexec->worker_overview);
+    }
+    free(vmexec);
 }
 
 void vmthread_Free(h64vmthread *vmthread) {

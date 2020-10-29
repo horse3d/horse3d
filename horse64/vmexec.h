@@ -22,6 +22,7 @@ typedef struct poolalloc poolalloc;
 typedef struct h64stack h64stack;
 typedef struct h64refvalue h64refvalue;
 typedef struct h64vmexec h64vmexec;
+typedef struct h64vmworkerset h64vmworkerset;
 
 
 typedef struct h64vmfunctionframe {
@@ -82,6 +83,7 @@ typedef struct h64vmexec {
     h64program *program;
 
     vmsuspendoverview *suspend_overview;
+    h64vmworkerset *worker_overview;
 
     h64vmthread **thread;
     int thread_count;
