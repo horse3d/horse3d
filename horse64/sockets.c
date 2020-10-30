@@ -9,6 +9,7 @@
 #include <assert.h>
 #if defined(_WIN32) || defined(_WIN64)
 #include <winsock2.h>
+typedef int socklen_t;
 #else
 #include <sys/socket.h>
 #include <fcntl.h>
