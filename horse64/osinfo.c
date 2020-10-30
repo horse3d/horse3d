@@ -125,10 +125,10 @@ __attribute__((constructor)) void _init_osinfo() {
     if (_osinfo_inited)
         return;
     _osinfo_inited = 1;
-    if (_init_cpu_count())
+    if (!_init_cpu_count())
         fprintf(
             stderr, "horsevm: warning: "
-            "_init_cpu_count() unexpectedly failed, memory issue?"
+            "_init_cpu_count() unexpectedly failed, memory issue?\n"
         );
 }
 

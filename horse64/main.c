@@ -41,8 +41,8 @@ int main(int argc, const char **argv) {
                 printf("\n");
                 printf("Available actions:\n");
                 printf("  - \"codeinfo\"          "
-                       "Compile .h64 code and show "
-                       "describe resulting bytecode.\n");
+                       "Compile .h64 code and "
+                       "show overview info of bytecode.\n");
                 printf("  - \"compile\"           "
                        "Compile .h64 code "
                        "and output executable.\n");
