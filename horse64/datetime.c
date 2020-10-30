@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 #if defined(_WIN32) || defined(_WIN64)
-#define WINVER 0x0600
-#define _WIN32_WINNT 0x0600
+#define WINVER 0x0601
+#define _WIN32_WINNT 0x0601
 #endif
 
 #include <assert.h>

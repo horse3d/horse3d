@@ -1,5 +1,5 @@
 
-#define WINVER 0x0600
+#define WINVER 0x0601
 
 #include <locale.h>
 #include <stdio.h>
