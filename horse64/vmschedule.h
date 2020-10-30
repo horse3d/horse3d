@@ -34,8 +34,8 @@ typedef struct h64vmworker {
 } h64vmworker;
 
 typedef struct h64vmworkerset {
-      h64vmworker **worker;
-      int worker_count;
+    h64vmworker **worker;
+    int worker_count;
 } h64vmworkerset;
 
 typedef struct h64program h64program;
@@ -43,6 +43,10 @@ typedef struct h64misccompileroptions h64misccompileroptions;
 typedef struct h64vmthread h64vmthread;
 typedef struct h64vmexec h64vmexec;
 
+
+void vmschedule_FreeWorkerSet(
+    h64vmworkerset *wset
+);
 
 int vmschedule_AsyncScheduleFunc(
     h64vmexec *vmexec, h64vmthread *vmthread,

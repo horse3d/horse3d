@@ -139,9 +139,7 @@ void vmexec_Free(h64vmexec *vmexec) {
         free(vmexec->suspend_overview->waittypes_currently_active);
         free(vmexec->suspend_overview);
     }
-    if (vmexec->worker_overview) {
-        free(vmexec->worker_overview);
-    }
+    vmschedule_FreeWorkerSet(vmexec->worker_overview);
     free(vmexec);
 }
 

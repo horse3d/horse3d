@@ -24,6 +24,8 @@ typedef struct h64socket {
     size_t sendbufsize, sendbuffill;
 } h64socket;
 
+typedef struct h64threadevent h64threadevent;
+
 h64socket *sockets_New(int tls);
 
 int sockets_Send(
@@ -31,5 +33,7 @@ int sockets_Send(
 );
 
 void sockets_Destroy(h64socket *sock);
+
+int sockets_NewPair(h64socket **s1, h64socket **s2);
 
 #endif  // HORSE64_SOCKETS_H_

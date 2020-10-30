@@ -10,6 +10,7 @@
 
 #include "bytecode.h"
 #include "debugsymbols.h"
+#include "osinfo.h"
 #include "pipe.h"
 #include "stack.h"
 #include "valuecontentstruct.h"
@@ -113,6 +114,38 @@ int vmschedule_AsyncScheduleFunc(
         SUSPENDTYPE_ASYNCCALLSCHEDULED
     ]++;
     return 1;
+}
+
+void vmschedule_FreeWorkerSet(
+        h64vmworkerset *wset
+        ) {
+    if (!wset)
+        return;
+
+    int i = 0;
+    while (i < wset->worker_count) {
+        if (wset->worker[i] && wset->worker[i]->worker_thread) {
+            thread_Join(wset->worker[i]->worker_thread);
+            wset->worker[i]->worker_thread = NULL;
+        }
+        i++;
+    }
+    free(wset->worker);
+
+    free(wset);
+}
+
+void vmschedule_RunWorker(void *userdata) {
+    h64vmexec *vmexec = (h64vmexec *)userdata;
+
+
+}
+
+int vmschedule_WorkerCount() {
+    int thread_count = osinfo_CpuThreads();
+    if (thread_count < 4)
+        return 4;
+    return thread_count;
 }
 
 int vmschedule_ExecuteProgram(
