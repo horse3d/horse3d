@@ -32,11 +32,11 @@ typedef struct h64vmfunctionframe {
     int func_id;
     int return_slot;
     int return_to_func_id;
-    int catchframe_count_on_enter;
+    int rescueframe_count_on_enter;
     ptrdiff_t return_to_execution_offset;
 } h64vmfunctionframe;
 
-typedef struct h64vmerrorcatchframe {
+typedef struct h64vmrescueframe {
     int32_t func_frame_no, id;
     int64_t catch_instruction_offset;
     int64_t finally_instruction_offset;
@@ -47,7 +47,7 @@ typedef struct h64vmerrorcatchframe {
     int caught_types_count;
     int64_t caught_types_firstfive[5];
     int64_t *caught_types_more;
-} h64vmerrorcatchframe;
+} h64vmrescueframe;
 
 
 
@@ -71,7 +71,7 @@ typedef struct h64vmthread {
     int funcframe_count, funcframe_alloc;
     h64vmfunctionframe *funcframe;
     int errorframe_count, errorframe_alloc;
-    h64vmerrorcatchframe *errorframe;
+    h64vmrescueframe *errorframe;
 
     int execution_func_id;
     int execution_instruction_id;

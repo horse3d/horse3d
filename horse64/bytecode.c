@@ -41,10 +41,10 @@ static char _name_itype_condjump[] = "condjump";
 static char _name_itype_jump[] = "jump";
 static char _name_itype_newiterator[] = "newiterator";
 static char _name_itype_iterate[] = "iterate";
-static char _name_itype_pushcatchframe[] = "pushcatchframe";
-static char _name_itype_addcatchtypebyref[] = "addcatchtyperef";
-static char _name_itype_addcatchtype[] = "addcatchtype";
-static char _name_itype_popcatchframe[] = "popcatchframe";
+static char _name_itype_pushrescueframe[] = "pushrescueframe";
+static char _name_itype_addrescuetypebyref[] = "addrescuetyperef";
+static char _name_itype_addrescuetype[] = "addrescuetype";
+static char _name_itype_poprescueframe[] = "poprescueframe";
 static char _name_itype_jumptofinally[] = "jumptofinally";
 static char _name_itype_getattributebyname[] = "getattributebyname";
 static char _name_itype_newlist[] = "newlist";
@@ -105,14 +105,14 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_newiterator;
     case H64INST_ITERATE:
         return _name_itype_iterate;
-    case H64INST_PUSHCATCHFRAME:
-        return _name_itype_pushcatchframe;
-    case H64INST_ADDCATCHTYPEBYREF:
-        return _name_itype_addcatchtypebyref;
-    case H64INST_ADDCATCHTYPE:
-        return _name_itype_addcatchtype;
-    case H64INST_POPCATCHFRAME:
-        return _name_itype_popcatchframe;
+    case H64INST_PUSHRESCUEFRAME:
+        return _name_itype_pushrescueframe;
+    case H64INST_ADDRESCUETYPEBYREF:
+        return _name_itype_addrescuetypebyref;
+    case H64INST_ADDRESCUETYPE:
+        return _name_itype_addrescuetype;
+    case H64INST_POPRESCUEFRAME:
+        return _name_itype_poprescueframe;
     case H64INST_JUMPTOFINALLY:
         return _name_itype_jumptofinally;
     case H64INST_GETATTRIBUTEBYNAME:
@@ -572,14 +572,14 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_newiterator);
     case H64INST_ITERATE:
         return sizeof(h64instruction_iterate);
-    case H64INST_PUSHCATCHFRAME:
-        return sizeof(h64instruction_pushcatchframe);
-    case H64INST_ADDCATCHTYPEBYREF:
-        return sizeof(h64instruction_addcatchtypebyref);
-    case H64INST_ADDCATCHTYPE:
-        return sizeof(h64instruction_addcatchtype);
-    case H64INST_POPCATCHFRAME:
-        return sizeof(h64instruction_popcatchframe);
+    case H64INST_PUSHRESCUEFRAME:
+        return sizeof(h64instruction_pushrescueframe);
+    case H64INST_ADDRESCUETYPEBYREF:
+        return sizeof(h64instruction_addrescuetypebyref);
+    case H64INST_ADDRESCUETYPE:
+        return sizeof(h64instruction_addrescuetype);
+    case H64INST_POPRESCUEFRAME:
+        return sizeof(h64instruction_poprescueframe);
     case H64INST_JUMPTOFINALLY:
         return sizeof(h64instruction_jumptofinally);
     case H64INST_GETATTRIBUTEBYNAME:

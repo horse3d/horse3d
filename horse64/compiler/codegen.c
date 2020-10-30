@@ -795,14 +795,14 @@ int codegen_FinalBytecodeTransform(
                 jumpid = hajump->jumpbytesoffset;
                 break;
             }
-            case H64INST_PUSHCATCHFRAME: {
-                h64instruction_pushcatchframe *catchjump = (
-                    (h64instruction_pushcatchframe *)inst
+            case H64INST_PUSHRESCUEFRAME: {
+                h64instruction_pushrescueframe *catchjump = (
+                    (h64instruction_pushrescueframe *)inst
                 );
-                if ((catchjump->mode & CATCHMODE_JUMPONCATCH) != 0) {
-                    jumpid = catchjump->jumponcatch;
+                if ((catchjump->mode & RESCUEMODE_JUMPONFINALLY) != 0) {
+                    jumpid = catchjump->jumponrescue;
                 }
-                if ((catchjump->mode & CATCHMODE_JUMPONFINALLY) != 0) {
+                if ((catchjump->mode & RESCUEMODE_JUMPONFINALLY) != 0) {
                     jumpid2 = catchjump->jumponfinally;
                 }
                 break;
@@ -848,11 +848,11 @@ int codegen_FinalBytecodeTransform(
                     hajump->jumpbytesoffset = offset;
                     break;
                 }
-                case H64INST_PUSHCATCHFRAME: {
-                    h64instruction_pushcatchframe *catchjump = (
-                        (h64instruction_pushcatchframe *)inst
+                case H64INST_PUSHRESCUEFRAME: {
+                    h64instruction_pushrescueframe *catchjump = (
+                        (h64instruction_pushrescueframe *)inst
                     );
-                    catchjump->jumponcatch = offset;
+                    catchjump->jumponrescue = offset;
                     break;
                 }
                 default:
@@ -875,9 +875,9 @@ int codegen_FinalBytecodeTransform(
                 }
 
                 switch (inst->type) {
-                case H64INST_PUSHCATCHFRAME: {
-                    h64instruction_pushcatchframe *catchjump = (
-                        (h64instruction_pushcatchframe *)inst
+                case H64INST_PUSHRESCUEFRAME: {
+                    h64instruction_pushrescueframe *catchjump = (
+                        (h64instruction_pushrescueframe *)inst
                     );
                     catchjump->jumponfinally = offset;
                     break;
@@ -2365,12 +2365,12 @@ int _codegencallback_DoCodegen_visit_in(
             func->funcdef._storageinfo->dostmts_used
         );
         func->funcdef._storageinfo->dostmts_used++;
-        h64instruction_pushcatchframe inst_pushframe = {0};
-        inst_pushframe.type = H64INST_PUSHCATCHFRAME;
+        h64instruction_pushrescueframe inst_pushframe = {0};
+        inst_pushframe.type = H64INST_PUSHRESCUEFRAME;
         inst_pushframe.sloterrorto = -1;
-        inst_pushframe.jumponcatch = -1;
+        inst_pushframe.jumponrescue = -1;
         inst_pushframe.jumponfinally = jumpid_finally;
-        inst_pushframe.mode = CATCHMODE_JUMPONFINALLY;
+        inst_pushframe.mode = RESCUEMODE_JUMPONFINALLY;
         inst_pushframe.frameid = dostmtid;
         if (!appendinst(
                 rinfo->pr->program, func, expr,
@@ -2378,8 +2378,8 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->hadoutofmemory = 1;
             return 0;
         }
-        h64instruction_addcatchtype addctype = {0};
-        addctype.type = H64INST_ADDCATCHTYPE;
+        h64instruction_addrescuetype addctype = {0};
+        addctype.type = H64INST_ADDRESCUETYPE;
         addctype.frameid = dostmtid;
         addctype.classid = (classid_t)H64STDERROR_ERROR;
         if (!appendinst(
@@ -2453,11 +2453,11 @@ int _codegencallback_DoCodegen_visit_in(
         // However, we need to wrap them all with tiny do/finally clauses
         // such that even when one of them fails, the others still
         // attempt to run afterwards.
-        int16_t *_withclause_catchframeid = (
-            malloc(sizeof(*_withclause_catchframeid) *
+        int16_t *_withclause_rescueframeid = (
+            malloc(sizeof(*_withclause_rescueframeid) *
                    expr->withstmt.withclause_count)
         );
-        if (!_withclause_catchframeid) {
+        if (!_withclause_rescueframeid) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2466,13 +2466,13 @@ int _codegencallback_DoCodegen_visit_in(
                    expr->withstmt.withclause_count)
         );
         if (!_withclause_jumpfinallyid) {
-            free(_withclause_catchframeid);
+            free(_withclause_rescueframeid);
             rinfo->hadoutofmemory = 1;
             return 0;
         }
         memset(
-            _withclause_catchframeid, 0,
-            sizeof(*_withclause_catchframeid) *
+            _withclause_rescueframeid, 0,
+            sizeof(*_withclause_rescueframeid) *
                 expr->withstmt.withclause_count
         );
         memset(
@@ -2486,12 +2486,12 @@ int _codegencallback_DoCodegen_visit_in(
             int gotfinally = 0;
             if (i + 1 < expr->withstmt.withclause_count) {
                 if (!_enforce_dostmt_limit_in_func(rinfo, func)) {
-                    free(_withclause_catchframeid);
+                    free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     return 0;
                 }
                 gotfinally = 1;
-                _withclause_catchframeid[i] = (
+                _withclause_rescueframeid[i] = (
                     func->funcdef._storageinfo->dostmts_used
                 );
                 func->funcdef._storageinfo->dostmts_used++;
@@ -2499,35 +2499,35 @@ int _codegencallback_DoCodegen_visit_in(
                     func->funcdef._storageinfo->jump_targets_used
                 );
                 func->funcdef._storageinfo->jump_targets_used++;
-                h64instruction_pushcatchframe inst_pushframe2 = {0};
-                inst_pushframe2.type = H64INST_PUSHCATCHFRAME;
+                h64instruction_pushrescueframe inst_pushframe2 = {0};
+                inst_pushframe2.type = H64INST_PUSHRESCUEFRAME;
                 inst_pushframe2.sloterrorto = -1;
-                inst_pushframe2.jumponcatch = -1;
+                inst_pushframe2.jumponrescue = -1;
                 inst_pushframe2.jumponfinally = (
                     _withclause_jumpfinallyid[i]
                 );
                 inst_pushframe2.frameid = (
-                    _withclause_catchframeid[i]
+                    _withclause_rescueframeid[i]
                 );
-                inst_pushframe2.mode = CATCHMODE_JUMPONFINALLY;
+                inst_pushframe2.mode = RESCUEMODE_JUMPONFINALLY;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &inst_pushframe2, sizeof(inst_pushframe2))) {
-                    free(_withclause_catchframeid);
+                    free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
-                h64instruction_addcatchtype addctype2 = {0};
-                addctype2.type = H64INST_ADDCATCHTYPE;
+                h64instruction_addrescuetype addctype2 = {0};
+                addctype2.type = H64INST_ADDRESCUETYPE;
                 addctype2.frameid = (
-                    _withclause_catchframeid[i]
+                    _withclause_rescueframeid[i]
                 );
                 addctype2.classid = (classid_t)H64STDERROR_ERROR;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &addctype2, sizeof(addctype2))) {
-                    free(_withclause_catchframeid);
+                    free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2556,7 +2556,7 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &hasattrcheck, sizeof(hasattrcheck))) {
-                    free(_withclause_catchframeid);
+                    free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2575,7 +2575,7 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &abyname, sizeof(abyname))) {
-                    free(_withclause_catchframeid);
+                    free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2590,7 +2590,7 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &callclose, sizeof(callclose))) {
-                    free(_withclause_catchframeid);
+                    free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2605,7 +2605,7 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &skipattrcheck, sizeof(skipattrcheck))) {
-                    free(_withclause_catchframeid);
+                    free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2617,7 +2617,7 @@ int _codegencallback_DoCodegen_visit_in(
             if (!appendinst(
                     rinfo->pr->program, func, expr,
                     &pastchecktarget, sizeof(pastchecktarget))) {
-                free(_withclause_catchframeid);
+                free(_withclause_rescueframeid);
                 free(_withclause_jumpfinallyid);
                 rinfo->hadoutofmemory = 1;
                 return 0;
@@ -2626,12 +2626,12 @@ int _codegencallback_DoCodegen_visit_in(
                 h64instruction_jumptofinally nowtofinally = {0};
                 nowtofinally.type = H64INST_JUMPTOFINALLY;
                 nowtofinally.frameid = (
-                    _withclause_catchframeid[i]
+                    _withclause_rescueframeid[i]
                 );
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &nowtofinally, sizeof(nowtofinally))) {
-                    free(_withclause_catchframeid);
+                    free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2644,7 +2644,7 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
                         &finallytarget, sizeof(finallytarget))) {
-                    free(_withclause_catchframeid);
+                    free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2659,10 +2659,10 @@ int _codegencallback_DoCodegen_visit_in(
             if (i + 1 < expr->withstmt.withclause_count)
                 gotfinally = 1;
             if (gotfinally) {
-                h64instruction_popcatchframe inst_popcatch = {0};
-                inst_popcatch.type = H64INST_POPCATCHFRAME;
+                h64instruction_poprescueframe inst_popcatch = {0};
+                inst_popcatch.type = H64INST_POPRESCUEFRAME;
                 inst_popcatch.frameid = (
-                    _withclause_catchframeid[i]
+                    _withclause_rescueframeid[i]
                 );
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
@@ -2675,8 +2675,8 @@ int _codegencallback_DoCodegen_visit_in(
         }
 
         // End of entire block here.
-        h64instruction_popcatchframe inst_popcatch = {0};
-        inst_popcatch.type = H64INST_POPCATCHFRAME;
+        h64instruction_poprescueframe inst_popcatch = {0};
+        inst_popcatch.type = H64INST_POPRESCUEFRAME;
         inst_popcatch.frameid = dostmtid;
         if (!appendinst(
                 rinfo->pr->program, func, expr,
@@ -2705,10 +2705,10 @@ int _codegencallback_DoCodegen_visit_in(
         );
         func->funcdef._storageinfo->dostmts_used++;
 
-        h64instruction_pushcatchframe inst_pushframe = {0};
-        inst_pushframe.type = H64INST_PUSHCATCHFRAME;
+        h64instruction_pushrescueframe inst_pushframe = {0};
+        inst_pushframe.type = H64INST_PUSHRESCUEFRAME;
         inst_pushframe.sloterrorto = -1;
-        inst_pushframe.jumponcatch = -1;
+        inst_pushframe.jumponrescue = -1;
         inst_pushframe.jumponfinally = -1;
         inst_pushframe.frameid = dostmtid;
         if (expr->dostmt.errors_count > 0) {
@@ -2720,15 +2720,15 @@ int _codegencallback_DoCodegen_visit_in(
                 error_tmp = expr->storage.ref.id;
             }
             inst_pushframe.sloterrorto = error_tmp;
-            inst_pushframe.mode |= CATCHMODE_JUMPONCATCH;
+            inst_pushframe.mode |= RESCUEMODE_JUMPONFINALLY;
             jumpid_catch = (
                 func->funcdef._storageinfo->jump_targets_used
             );
             func->funcdef._storageinfo->jump_targets_used++;
-            inst_pushframe.jumponcatch = jumpid_catch;
+            inst_pushframe.jumponrescue = jumpid_catch;
         }
         if (expr->dostmt.has_finally_block) {
-            inst_pushframe.mode |= CATCHMODE_JUMPONFINALLY;
+            inst_pushframe.mode |= RESCUEMODE_JUMPONFINALLY;
             jumpid_finally = (
                 func->funcdef._storageinfo->jump_targets_used
             );
@@ -2754,8 +2754,8 @@ int _codegencallback_DoCodegen_visit_in(
                 );
             } else if (expr->dostmt.errors[i]->storage.ref.type ==
                        H64STORETYPE_GLOBALCLASSSLOT) {
-                h64instruction_addcatchtype addctype = {0};
-                addctype.type = H64INST_ADDCATCHTYPE;
+                h64instruction_addrescuetype addctype = {0};
+                addctype.type = H64INST_ADDRESCUETYPE;
                 addctype.frameid = dostmtid;
                 addctype.classid = (
                     expr->dostmt.errors[i]->
@@ -2795,8 +2795,8 @@ int _codegencallback_DoCodegen_visit_in(
                 }
             }
             assert(error_tmp >= 0);
-            h64instruction_addcatchtypebyref addctyperef = {0};
-            addctyperef.type = H64INST_ADDCATCHTYPEBYREF;
+            h64instruction_addrescuetypebyref addctyperef = {0};
+            addctyperef.type = H64INST_ADDRESCUETYPEBYREF;
             addctyperef.slotfrom = error_tmp;
             addctyperef.frameid = dostmtid;
             if (!appendinst(
@@ -2824,9 +2824,9 @@ int _codegencallback_DoCodegen_visit_in(
             free1linetemps(func);
             i++;
         }
-        if ((inst_pushframe.mode & CATCHMODE_JUMPONFINALLY) == 0) {
-            h64instruction_popcatchframe inst_popcatch = {0};
-            inst_popcatch.type = H64INST_POPCATCHFRAME;
+        if ((inst_pushframe.mode & RESCUEMODE_JUMPONFINALLY) == 0) {
+            h64instruction_poprescueframe inst_popcatch = {0};
+            inst_popcatch.type = H64INST_POPRESCUEFRAME;
             inst_popcatch.frameid = dostmtid;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
@@ -2834,7 +2834,7 @@ int _codegencallback_DoCodegen_visit_in(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-            if ((inst_pushframe.mode & CATCHMODE_JUMPONCATCH) != 0) {
+            if ((inst_pushframe.mode & RESCUEMODE_JUMPONFINALLY) != 0) {
                 h64instruction_jump inst_jump = {0};
                 inst_jump.type = H64INST_JUMP;
                 inst_jump.jumpbytesoffset = jumpid_end;
@@ -2861,7 +2861,7 @@ int _codegencallback_DoCodegen_visit_in(
             }
         }
 
-        if ((inst_pushframe.mode & CATCHMODE_JUMPONCATCH) != 0) {
+        if ((inst_pushframe.mode & RESCUEMODE_JUMPONFINALLY) != 0) {
             h64instruction_jumptarget inst_jumpcatch = {0};
             inst_jumpcatch.type = H64INST_JUMPTARGET;
             inst_jumpcatch.jumpid = jumpid_catch;
@@ -2888,11 +2888,11 @@ int _codegencallback_DoCodegen_visit_in(
                 free1linetemps(func);
                 i++;
             }
-            if ((inst_pushframe.mode & CATCHMODE_JUMPONFINALLY) == 0) {
+            if ((inst_pushframe.mode & RESCUEMODE_JUMPONFINALLY) == 0) {
                 // No finally follows, so we need to clean up the
                 // error frame here.
-                h64instruction_popcatchframe inst_popcatch = {0};
-                inst_popcatch.type = H64INST_POPCATCHFRAME;
+                h64instruction_poprescueframe inst_popcatch = {0};
+                inst_popcatch.type = H64INST_POPRESCUEFRAME;
                 inst_popcatch.frameid = dostmtid;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
@@ -2906,7 +2906,7 @@ int _codegencallback_DoCodegen_visit_in(
             }
         }
 
-        if ((inst_pushframe.mode & CATCHMODE_JUMPONFINALLY) != 0) {
+        if ((inst_pushframe.mode & RESCUEMODE_JUMPONFINALLY) != 0) {
             h64instruction_jumptarget inst_jumpfinally = {0};
             inst_jumpfinally.type = H64INST_JUMPTARGET;
             inst_jumpfinally.jumpid = jumpid_finally;
@@ -2933,8 +2933,8 @@ int _codegencallback_DoCodegen_visit_in(
                 free1linetemps(func);
                 i++;
             }
-            h64instruction_popcatchframe inst_popcatch = {0};
-            inst_popcatch.type = H64INST_POPCATCHFRAME;
+            h64instruction_poprescueframe inst_popcatch = {0};
+            inst_popcatch.type = H64INST_POPRESCUEFRAME;
             inst_popcatch.frameid = dostmtid;
             if (!appendinst(
                     rinfo->pr->program, func, expr,

@@ -247,9 +247,9 @@ static inline int popfuncframe(
             stack_space_for_this_func)
         new_top = vt->funcframe[vt->funcframe_count - 1].
                   stack_space_for_this_func;
-    int new_catchframe_count = vt->funcframe[vt->funcframe_count - 1].
-        catchframe_count_on_enter;
-    while (vt->errorframe_count > new_catchframe_count)
+    int new_rescueframe_count = vt->funcframe[vt->funcframe_count - 1].
+        rescueframe_count_on_enter;
+    while (vt->errorframe_count > new_rescueframe_count)
         poperrorframe(vt);
     #ifndef NDEBUG
     if (!dontresizestack)
@@ -344,7 +344,7 @@ static inline int pushfuncframe(
             )) {
         return 0;
     }
-    vt->funcframe[vt->funcframe_count].catchframe_count_on_enter = (
+    vt->funcframe[vt->funcframe_count].rescueframe_count_on_enter = (
         vt->errorframe_count
     );
     vt->funcframe[vt->funcframe_count].stack_func_floor = new_func_floor;
@@ -375,7 +375,7 @@ static int pusherrorframe(
     int new_alloc = vmthread->errorframe_count + 10;
     if (new_alloc > vmthread->errorframe_alloc ||
             new_alloc < vmthread->errorframe_alloc - 20) {
-        h64vmerrorcatchframe *newframes = realloc(
+        h64vmrescueframe *newframes = realloc(
             vmthread->errorframe,
             sizeof(*newframes) * new_alloc
         );
@@ -388,7 +388,7 @@ static int pusherrorframe(
             vmthread->errorframe_alloc = new_alloc;
         }
     }
-    h64vmerrorcatchframe *newframe = (
+    h64vmrescueframe *newframe = (
         &vmthread->errorframe[vmthread->errorframe_count]
     );
     memset(newframe, 0, sizeof(*newframe));
@@ -713,15 +713,15 @@ int vmthread_ResetCallTempStack(h64vmthread *vmthread) {
     return 1;
 }
 
-static int _catchframefromid(
-        h64vmthread *vmthread, int catchframeid
+static int _rescueframefromid(
+        h64vmthread *vmthread, int rescueframeid
         ) {
     assert(vmthread->funcframe_count > 0);
     int i = vmthread->errorframe_count - 1;
     while (i >= vmthread->funcframe[
             vmthread->funcframe_count - 1
-            ].catchframe_count_on_enter) {
-        if (vmthread->errorframe[i].id == catchframeid)
+            ].rescueframe_count_on_enter) {
+        if (vmthread->errorframe[i].id == rescueframeid)
             return i;
         i--;
     }
@@ -729,12 +729,12 @@ static int _catchframefromid(
 }
 
 static void vmthread_errors_EndFinally(
-        h64vmthread *vmthread, int catchframeid,
+        h64vmthread *vmthread, int rescueframeid,
         int64_t *current_func_id, ptrdiff_t *current_exec_offset,
         int *returneduncaughterror,
         h64errorinfo *out_uncaughterror
         ) {
-    int endedframeslot = _catchframefromid(vmthread, catchframeid);
+    int endedframeslot = _rescueframefromid(vmthread, rescueframeid);
     assert(endedframeslot >= 0);
     assert(vmthread->errorframe_count > 0);
     if (vmthread->errorframe[
@@ -2320,9 +2320,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         fprintf(stderr, "iterate not implemented\n");
         return 0;
     }
-    inst_pushcatchframe: {
-        h64instruction_pushcatchframe *inst = (
-            (h64instruction_pushcatchframe *)p
+    inst_pushrescueframe: {
+        h64instruction_pushrescueframe *inst = (
+            (h64instruction_pushrescueframe *)p
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
@@ -2335,10 +2335,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #endif
         if (!pusherrorframe(
                 vmthread, inst->frameid,
-                ((inst->mode & CATCHMODE_JUMPONCATCH) != 0 ?
+                ((inst->mode & RESCUEMODE_JUMPONRESCUE) != 0 ?
                  (p - pr->func[func_id].instructions) +
-                 (int64_t)inst->jumponcatch : -1),
-                ((inst->mode & CATCHMODE_JUMPONFINALLY) != 0 ?
+                 (int64_t)inst->jumponrescue : -1),
+                ((inst->mode & RESCUEMODE_JUMPONFINALLY) != 0 ?
                  (p - pr->func[func_id].instructions) +
                  (int64_t)inst->jumponfinally : -1),
                 inst->sloterrorto)) {
@@ -2349,9 +2349,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                vmthread->errorframe_count > previous_count);
         #endif
 
-        p += sizeof(h64instruction_pushcatchframe);
-        while (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE ||
-                ((h64instructionany *)p)->type == H64INST_ADDCATCHTYPEBYREF
+        p += sizeof(h64instruction_pushrescueframe);
+        while (((h64instructionany *)p)->type == H64INST_ADDRESCUETYPE ||
+                ((h64instructionany *)p)->type == H64INST_ADDRESCUETYPEBYREF
                 ) {
             #ifndef NDEBUG
             if (vmthread->vmexec_owner->moptions.vmexec_debug &&
@@ -2359,16 +2359,16 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 goto triggeroom;
             #endif
             int64_t class_id = -1;
-            if (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE) {
-                assert(((h64instruction_addcatchtype *)p)->frameid ==
+            if (((h64instructionany *)p)->type == H64INST_ADDRESCUETYPE) {
+                assert(((h64instruction_addrescuetype *)p)->frameid ==
                        inst->frameid);
-                class_id = ((h64instruction_addcatchtype *)p)->classid;
+                class_id = ((h64instruction_addrescuetype *)p)->classid;
             } else {
                 int16_t slotfrom = (
-                    ((h64instruction_addcatchtypebyref *)p)->slotfrom
+                    ((h64instruction_addrescuetypebyref *)p)->slotfrom
                 );
                 assert(
-                    ((h64instruction_addcatchtypebyref *)p)->frameid ==
+                    ((h64instruction_addrescuetypebyref *)p)->frameid ==
                     inst->frameid
                 );
                 valuecontent *vc = STACK_ENTRY(stack, slotfrom);
@@ -2388,7 +2388,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 goto *jumptable[((h64instructionany *)p)->type];
             }
             assert(vmthread->errorframe_count > 0);
-            h64vmerrorcatchframe *topframe = &(vmthread->
+            h64vmrescueframe *topframe = &(vmthread->
                 errorframe[vmthread->errorframe_count - 1]);
             if (topframe->caught_types_count + 1 > 5) {
                 int64_t *caught_types_more_new = malloc(
@@ -2406,25 +2406,25 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 topframe->caught_types_firstfive[index] = class_id;
             }
             topframe->caught_types_count++;
-            if (((h64instructionany *)p)->type == H64INST_ADDCATCHTYPE) {
-                p += sizeof(h64instruction_addcatchtype);
+            if (((h64instructionany *)p)->type == H64INST_ADDRESCUETYPE) {
+                p += sizeof(h64instruction_addrescuetype);
             } else {
-                p += sizeof(h64instruction_addcatchtypebyref);
+                p += sizeof(h64instruction_addrescuetypebyref);
             }
         }
         goto *jumptable[((h64instructionany *)p)->type];
     }
-    inst_addcatchtypebyref: {
-        fprintf(stderr, "INVALID isolated addcatchtypebyref!!\n");
+    inst_addrescuetypebyref: {
+        fprintf(stderr, "INVALID isolated addrescuetypebyref!!\n");
         return 0;
     }
-    inst_addcatchtype: {
-        fprintf(stderr, "INVALID isolated addcatchtype!!\n");
+    inst_addrescuetype: {
+        fprintf(stderr, "INVALID isolated addrescuetype!!\n");
         return 0;
     }
-    inst_popcatchframe: {
-        h64instruction_popcatchframe *inst = (
-            (h64instruction_popcatchframe *)p
+    inst_poprescueframe: {
+        h64instruction_poprescueframe *inst = (
+            (h64instruction_poprescueframe *)p
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
@@ -2453,7 +2453,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 return 1;
             }
             if (offset == oldoffset) {
-                offset += sizeof(h64instruction_popcatchframe);
+                offset += sizeof(h64instruction_poprescueframe);
             }
             p = (pr->func[func_id].instructions + offset);
         }
@@ -3172,10 +3172,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_JUMP] = &&inst_jump;
     jumptable[H64INST_NEWITERATOR] = &&inst_newiterator;
     jumptable[H64INST_ITERATE] = &&inst_iterate;
-    jumptable[H64INST_PUSHCATCHFRAME] = &&inst_pushcatchframe;
-    jumptable[H64INST_ADDCATCHTYPEBYREF] = &&inst_addcatchtypebyref;
-    jumptable[H64INST_ADDCATCHTYPE] = &&inst_addcatchtype;
-    jumptable[H64INST_POPCATCHFRAME] = &&inst_popcatchframe;
+    jumptable[H64INST_PUSHRESCUEFRAME] = &&inst_pushrescueframe;
+    jumptable[H64INST_ADDRESCUETYPEBYREF] = &&inst_addrescuetypebyref;
+    jumptable[H64INST_ADDRESCUETYPE] = &&inst_addrescuetype;
+    jumptable[H64INST_POPRESCUEFRAME] = &&inst_poprescueframe;
     jumptable[H64INST_GETATTRIBUTEBYNAME] = &&inst_getattributebyname;
     jumptable[H64INST_JUMPTOFINALLY] = &&inst_jumptofinally;
     jumptable[H64INST_NEWLIST] = &&inst_newlist;

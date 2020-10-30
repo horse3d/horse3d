@@ -43,10 +43,10 @@ typedef enum instructiontype {
     H64INST_JUMP,
     H64INST_NEWITERATOR,
     H64INST_ITERATE,
-    H64INST_PUSHCATCHFRAME,
-    H64INST_ADDCATCHTYPEBYREF,
-    H64INST_ADDCATCHTYPE,
-    H64INST_POPCATCHFRAME,
+    H64INST_PUSHRESCUEFRAME,
+    H64INST_ADDRESCUETYPEBYREF,
+    H64INST_ADDRESCUETYPE,
+    H64INST_POPRESCUEFRAME,
     H64INST_GETATTRIBUTEBYNAME,
     H64INST_JUMPTOFINALLY,
     H64INST_NEWLIST,
@@ -223,33 +223,33 @@ typedef struct h64instruction_iterate {
     int16_t slotvalueto, slotiteratorfrom, jumponend;
 } __attribute__ ((packed)) h64instruction_iterate;
 
-#define CATCHMODE_JUMPONCATCH 1
-#define CATCHMODE_JUMPONFINALLY 2
+#define RESCUEMODE_JUMPONRESCUE 1
+#define RESCUEMODE_JUMPONFINALLY 2
 
-typedef struct h64instruction_pushcatchframe {
+typedef struct h64instruction_pushrescueframe {
     uint8_t type;
     uint8_t mode;
     int16_t sloterrorto;
-    jumpoffset_t jumponcatch, jumponfinally;
+    jumpoffset_t jumponrescue, jumponfinally;
     int16_t frameid;
-} __attribute__ ((packed)) h64instruction_pushcatchframe;
+} __attribute__ ((packed)) h64instruction_pushrescueframe;
 
-typedef struct h64instruction_addcatchtypebyref {
+typedef struct h64instruction_addrescuetypebyref {
     uint8_t type;
     int16_t slotfrom;
     int16_t frameid;
-} __attribute__ ((packed)) h64instruction_addcatchtypebyref;
+} __attribute__ ((packed)) h64instruction_addrescuetypebyref;
 
-typedef struct h64instruction_addcatchtype {
+typedef struct h64instruction_addrescuetype {
     uint8_t type;
     classid_t classid;
     int16_t frameid;
-} __attribute__ ((packed)) h64instruction_addcatchtype;
+} __attribute__ ((packed)) h64instruction_addrescuetype;
 
-typedef struct h64instruction_popcatchframe {
+typedef struct h64instruction_poprescueframe {
     uint8_t type;
     int16_t frameid;
-} __attribute__ ((packed)) h64instruction_popcatchframe;
+} __attribute__ ((packed)) h64instruction_poprescueframe;
 
 typedef struct h64instruction_jumptofinally {
     uint8_t type;

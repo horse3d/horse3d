@@ -403,78 +403,78 @@ int disassembler_PrintInstruction(
         }
         break;
     }
-    case H64INST_PUSHCATCHFRAME: {
-        h64instruction_pushcatchframe *inst_pushcatchframe =
-            (h64instruction_pushcatchframe *)inst;
+    case H64INST_PUSHRESCUEFRAME: {
+        h64instruction_pushrescueframe *inst_pushrescueframe =
+            (h64instruction_pushrescueframe *)inst;
         char sloterrorbuf[64] = "none";
-        if (inst_pushcatchframe->sloterrorto >= 0) {
+        if (inst_pushrescueframe->sloterrorto >= 0) {
             snprintf(
                 sloterrorbuf, sizeof(sloterrorbuf) - 1,
-                "t%d", inst_pushcatchframe->sloterrorto
+                "t%d", inst_pushrescueframe->sloterrorto
             );
         }
         char catchjumpbuf[64] = "none";
-        if ((inst_pushcatchframe->mode & CATCHMODE_JUMPONCATCH) != 0) {
+        if ((inst_pushrescueframe->mode & RESCUEMODE_JUMPONRESCUE) != 0) {
             snprintf(
                 catchjumpbuf, sizeof(catchjumpbuf) - 1,
                 "%s%d",
-                (inst_pushcatchframe->jumponcatch >= 0 ? "+" : ""),
-                (int)inst_pushcatchframe->jumponcatch
+                (inst_pushrescueframe->jumponrescue >= 0 ? "+" : ""),
+                (int)inst_pushrescueframe->jumponrescue
             );
         }
         char finallyjumpbuf[64] = "none";
-        if ((inst_pushcatchframe->mode & CATCHMODE_JUMPONFINALLY) != 0) {
+        if ((inst_pushrescueframe->mode & RESCUEMODE_JUMPONFINALLY) != 0) {
             snprintf(
                 finallyjumpbuf, sizeof(finallyjumpbuf) - 1,
                 "%s%d",
-                (inst_pushcatchframe->jumponfinally >= 0 ? "+" : ""),
-                (int)inst_pushcatchframe->jumponfinally
+                (inst_pushrescueframe->jumponfinally >= 0 ? "+" : ""),
+                (int)inst_pushrescueframe->jumponfinally
             );
         }
         if (!disassembler_Write(di,
                 "    %s cf%d %d %s %s %s",
                 bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_pushcatchframe->frameid,
-                (int)inst_pushcatchframe->mode,
+                (int)inst_pushrescueframe->frameid,
+                (int)inst_pushrescueframe->mode,
                 sloterrorbuf, catchjumpbuf, finallyjumpbuf
                 )) {
             return 0;
         }
         break;
     }
-    case H64INST_ADDCATCHTYPEBYREF: {
-        h64instruction_addcatchtypebyref *inst_addcatchtypebyref =
-            (h64instruction_addcatchtypebyref *)inst;
+    case H64INST_ADDRESCUETYPEBYREF: {
+        h64instruction_addrescuetypebyref *inst_addrescuetypebyref =
+            (h64instruction_addrescuetypebyref *)inst;
         if (!disassembler_Write(di,
                 "    %s cf%d t%d",
                 bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_addcatchtypebyref->frameid,
-                (int)inst_addcatchtypebyref->slotfrom
+                (int)inst_addrescuetypebyref->frameid,
+                (int)inst_addrescuetypebyref->slotfrom
                 )) {
             return 0;
         }
         break;
     }
-    case H64INST_ADDCATCHTYPE: {
-        h64instruction_addcatchtype *inst_addcatchtype =
-            (h64instruction_addcatchtype *)inst;
+    case H64INST_ADDRESCUETYPE: {
+        h64instruction_addrescuetype *inst_addrescuetype =
+            (h64instruction_addrescuetype *)inst;
         if (!disassembler_Write(di,
                 "    %s cf%d c%" PRId64,
                 bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_addcatchtype->frameid,
-                (int64_t)inst_addcatchtype->classid
+                (int)inst_addrescuetype->frameid,
+                (int64_t)inst_addrescuetype->classid
                 )) {
             return 0;
         }
         break;
     }
-    case H64INST_POPCATCHFRAME: {
-        h64instruction_popcatchframe *inst_popcatchframe =
-            (h64instruction_popcatchframe *)inst;
+    case H64INST_POPRESCUEFRAME: {
+        h64instruction_poprescueframe *inst_poprescueframe =
+            (h64instruction_poprescueframe *)inst;
         if (!disassembler_Write(di,
                 "    %s cf%d",
                 bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_popcatchframe->frameid
+                (int)inst_poprescueframe->frameid
                 )) {
             return 0;
         }
