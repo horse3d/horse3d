@@ -51,6 +51,17 @@ h64socket *sockets_NewBlockingRaw() {
         free(sock);
         return NULL;
     }
+    #if defined(_WIN32) || defined(_WIN64)
+    // SECURITY RELEVANT, default Windows sockets to be address exclusive
+    // to match the Linux/BSD/macOS defaults:
+    int val = 1;
+    if (setsockopt(sock->fd, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
+            (char *)&val, sizeof(val)) != 0) {
+        closesocket(sock->fd);
+        free(sock);
+        return NULL;
+    }
+    #endif
     return sock;
 }
 
