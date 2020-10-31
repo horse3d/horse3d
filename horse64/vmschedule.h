@@ -9,6 +9,7 @@
 
 #include "threading.h"
 
+typedef struct h64vmexec h64vmexec;
 typedef struct h64vmthread h64vmthread;
 
 typedef enum suspendtype {
@@ -30,7 +31,10 @@ typedef struct vmthreadsuspendinfo {
 } vmthreadsuspendinfo;
 
 typedef struct h64vmworker {
+    int no;
     thread *worker_thread;
+    h64vmthread *current_vmthread;
+    h64vmexec *vmexec;
 } h64vmworker;
 
 typedef struct h64vmworkerset {

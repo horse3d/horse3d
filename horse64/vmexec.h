@@ -53,11 +53,12 @@ typedef struct h64vmrescueframe {
 
 typedef struct vmsuspendoverview vmsuspendoverview;
 typedef struct vmthreadsuspendinfo vmthreadsuspendinfo;
+typedef struct h64vmworker h64vmworker;
 
 typedef struct h64vmthread {
     h64vmexec *vmexec_owner;
-    int can_access_globals;
-    int can_call_noasync;
+    h64vmworker *_Atomic volatile run_by_worker;
+    uint8_t is_main_thread;
 
     int kwarg_index_track_count;
     int32_t *kwarg_index_track_map;
@@ -88,6 +89,8 @@ typedef struct h64vmexec {
     h64vmthread **thread;
     int thread_count;
     h64vmthread *active_thread;
+
+    int program_return_value;
 } h64vmexec;
 
 ATTR_UNUSED static inline int VMTHREAD_FUNCSTACKBOTTOM(

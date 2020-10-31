@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "bytecode.h"
 #include "debugsymbols.h"
@@ -110,6 +111,9 @@ int vmschedule_AsyncScheduleFunc(
     vmthread->suspend_info->suspendtype = (
         SUSPENDTYPE_ASYNCCALLSCHEDULED
     );
+    vmthread->suspend_info->suspendarg = (
+        func_id
+    );
     vmexec->suspend_overview->waittypes_currently_active[
         SUSPENDTYPE_ASYNCCALLSCHEDULED
     ]++;
@@ -135,12 +139,6 @@ void vmschedule_FreeWorkerSet(
     free(wset);
 }
 
-void vmschedule_RunWorker(void *userdata) {
-    h64vmexec *vmexec = (h64vmexec *)userdata;
-
-
-}
-
 int vmschedule_WorkerCount() {
     int thread_count = osinfo_CpuThreads();
     if (thread_count < 4)
@@ -148,68 +146,171 @@ int vmschedule_WorkerCount() {
     return thread_count;
 }
 
-int vmschedule_ExecuteProgram(
-        h64program *pr, h64misccompileroptions *moptions
-        ) {
-    h64vmexec *mainexec = vmexec_New();
-    if (!mainexec) {
-        fprintf(stderr, "vmexec.c: out of memory during setup\n");
-        return -1;
-    }
+void vmschedule_WorkerRun(void *userdata) {
+    h64vmworker *worker = (h64vmworker *)userdata;
 
-    h64vmthread *mainthread = vmthread_New(mainexec);
-    if (!mainthread) {
-        fprintf(stderr, "vmexec.c: out of memory during setup\n");
-        return -1;
-    }
-    mainexec->program = pr;
-
-    assert(pr->main_func_index >= 0);
-    memcpy(&mainexec->moptions, moptions, sizeof(*moptions));
-    h64errorinfo einfo = {0};
-    int haduncaughterror = 0;
-    int rval = 0;
-    if (pr->globalinit_func_index >= 0) {
+    if (worker->no == 0) {
+        // Main thread worker. Find the main thread:
+        h64vmthread *mainthread = NULL;
+        h64program *pr = worker->vmexec->program;
+        int i = 0;
+        while (i < worker->vmexec->thread_count) {
+            if (worker->vmexec->thread[i]->is_main_thread) {
+                mainthread = worker->vmexec->thread[i];
+                assert(mainthread->run_by_worker == NULL);
+                mainthread->run_by_worker = worker;
+                break;
+            }
+            i++;
+        }
+        if (!mainthread) {
+            fprintf(
+                stderr, "horsevm: error: "
+                "vmschedule.c: main worker failed to find "
+                "main thread...?\n"
+            );
+            return;
+        }
+        // Run the global var init and main func on this thread:
+        h64errorinfo einfo = {0};
+        int haduncaughterror = 0;
+        int rval = 0;
+        if (pr->globalinit_func_index >= 0) {
+            if (!vmthread_RunFunctionWithReturnInt(
+                    worker->vmexec, mainthread, pr->globalinit_func_index,
+                    &haduncaughterror, &einfo, &rval
+                    )) {
+                fprintf(stderr, "horsevm: error: vmschedule.c: "
+                    " fatal error in $$globalinit, "
+                    "out of memory?\n");
+                vmthread_Free(mainthread);
+                worker->vmexec->program_return_value = -1;
+                return;
+            }
+            if (haduncaughterror) {
+                assert(einfo.error_class_id >= 0);
+                _printuncaughterror(pr, &einfo);
+                vmthread_Free(mainthread);
+                worker->vmexec->program_return_value = -1;
+                return;
+            }
+            int result = stack_ToSize(mainthread->stack, 0, 0);
+            assert(result != 0);
+        }
+        haduncaughterror = 0;
+        rval = 0;
         if (!vmthread_RunFunctionWithReturnInt(
-                mainexec, mainthread, pr->globalinit_func_index,
+                worker->vmexec, mainthread, pr->main_func_index,
                 &haduncaughterror, &einfo, &rval
                 )) {
-            fprintf(stderr, "vmexec.c: fatal error in $$globalinit, "
+            fprintf(stderr, "horsevm: error: vmschedule.c: "
+                "fatal error in main, "
                 "out of memory?\n");
             vmthread_Free(mainthread);
-            return -1;
+            worker->vmexec->program_return_value = -1;
+            return;
         }
         if (haduncaughterror) {
             assert(einfo.error_class_id >= 0);
             _printuncaughterror(pr, &einfo);
             vmthread_Free(mainthread);
+            worker->vmexec->program_return_value = -1;
+            return;
+        }
+        vmthread_Free(mainthread);
+        worker->vmexec->program_return_value = rval;
+        return;
+    }
+}
+
+int vmschedule_ExecuteProgram(
+        h64program *pr, h64misccompileroptions *moptions
+        ) {
+    h64vmexec *mainexec = vmexec_New();
+    if (!mainexec) {
+        fprintf(stderr, "horsevm: error: vmschedule.c: "
+            " out of memory during setup\n");
+        return -1;
+    }
+
+    h64vmthread *mainthread = vmthread_New(mainexec);
+    if (!mainthread) {
+        fprintf(stderr, "horsevm: error: vmschedule.c: "
+            "out of memory during setup\n");
+        return -1;
+    }
+    mainexec->program = pr;
+    mainthread->is_main_thread = 1;
+
+    assert(pr->main_func_index >= 0);
+    memcpy(&mainexec->moptions, moptions, sizeof(*moptions));
+
+    int worker_count = vmschedule_WorkerCount();
+    if (mainexec->worker_overview->worker_count < worker_count) {
+        h64vmworker **new_workers = realloc(
+            mainexec->worker_overview->worker,
+            sizeof(*new_workers) * (worker_count)
+        );
+        if (!new_workers) {
+            fprintf(stderr, "horsevm: error: vmschedule.c: "
+                "out of memory during setup\n");
             return -1;
         }
-        int result = stack_ToSize(mainthread->stack, 0, 0);
-        assert(result != 0);
+        mainexec->worker_overview->worker = new_workers;
+        int k = mainexec->worker_overview->worker_count;
+        while (k < worker_count) {
+            mainexec->worker_overview->worker[k] = malloc(
+                sizeof(**new_workers)
+            );
+            if (!mainexec->worker_overview->worker[k]) {
+                fprintf(
+                    stderr, "horsevm: error: vmschedule.c: out of memory "
+                    "during setup\n"
+                );
+                return -1;
+            }
+            memset(
+                mainexec->worker_overview->worker[k], 0,
+                sizeof(*mainexec->worker_overview->worker[k])
+            );
+            mainexec->worker_overview->worker[k]->vmexec = mainexec;
+            k++;
+        }
     }
-    haduncaughterror = 0;
-    rval = 0;
-    if (!vmthread_RunFunctionWithReturnInt(
-            mainexec, mainthread, pr->main_func_index,
-            &haduncaughterror, &einfo, &rval
-            )) {
-        fprintf(stderr, "vmexec.c: fatal error in main, "
-            "out of memory?\n");
-        vmthread_Free(mainthread);
-        vmexec_Free(mainexec);
-        return -1;
+    // Spawn all threads:
+    int threaderror = 0;
+    int i = 0;
+    while (i < worker_count) {
+        mainexec->worker_overview->worker[i]->worker_thread = (
+            thread_Spawn(
+                vmschedule_WorkerRun,
+                mainexec->worker_overview->worker[i]
+            )
+        );
+        if (!mainexec->worker_overview->worker[i]->worker_thread)
+            threaderror = 1;
+        i++;
     }
-    if (haduncaughterror) {
-        assert(einfo.error_class_id >= 0);
-        _printuncaughterror(pr, &einfo);
-        vmthread_Free(mainthread);
-        vmexec_Free(mainexec);
-        return -1;
+    if (threaderror) {
+        fprintf(
+            stderr, "horsevm: error: vmschedule.c: out of memory "
+            "spawning workers\n"
+        );
     }
-    vmthread_Free(mainthread);
-    vmexec_Free(mainexec);
-    return rval;
+    // Wait until we're done:
+    i = 0;
+    while (i < worker_count) {
+        if (mainexec->worker_overview->worker[i]->worker_thread) {
+            thread_Join(
+                mainexec->worker_overview->worker[i]->worker_thread
+            );
+            mainexec->worker_overview->worker[i]->worker_thread = NULL;
+        }
+        i++;
+    }
+    if (threaderror && mainexec->program_return_value == 0)
+        mainexec->program_return_value = -1;
+    return mainexec->program_return_value;
 }
 
 int vmschedule_SuspendFunc(

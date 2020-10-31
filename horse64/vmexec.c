@@ -48,8 +48,7 @@ h64vmthread *vmthread_New(h64vmexec *owner) {
         return NULL;
     }
     vmthread->call_settop_reverse = -1;
-    vmthread->can_access_globals = 1;
-    vmthread->can_call_noasync = 1;
+    vmthread->is_main_thread = 0;
 
     if (!vmthread->suspend_info) {
         vmthread->suspend_info = malloc(

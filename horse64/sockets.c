@@ -9,6 +9,7 @@
 #include <assert.h>
 #if defined(_WIN32) || defined(_WIN64)
 #include <winsock2.h>
+#include <ws2tcpip.h>
 typedef int socklen_t;
 #else
 #include <sys/socket.h>
@@ -39,14 +40,16 @@ __attribute__((constructor)) void _winsockinit() {
     #endif
 }
 
-h64socket *sockets_NewBlockingRaw() {
+h64socket *sockets_NewBlockingRaw(int v6capable) {
     #if defined(_WIN32) || defined(_WIN64)
     _winsockinit();
     #endif
     h64socket *sock = malloc(sizeof(*sock));
     if (!sock)
         return NULL;
-    sock->fd = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+    sock->fd = socket(
+        (v6capable ? AF_INET6 : AF_INET), SOCK_STREAM, IPPROTO_TCP
+    );
     if (sock->fd < 0) {
         free(sock);
         return NULL;
@@ -60,6 +63,16 @@ h64socket *sockets_NewBlockingRaw() {
         closesocket(sock->fd);
         free(sock);
         return NULL;
+    }
+    // Enable dual stack:
+    if (v6capable) {
+        val = 0;
+        if (setsockopt(sock->fd, SOL_SOCKET, IPV6_V6ONLY,
+                (char *)&val, sizeof(val)) != 0) {
+            closesocket(sock->fd);
+            free(sock);
+            return NULL;
+        }
     }
     #endif
     return sock;
@@ -83,8 +96,8 @@ int sockets_SetNonblocking(h64socket *sock, int nonblocking) {
     return 1;
 }
 
-h64socket *sockets_New(int tls) {
-    h64socket *sock = sockets_NewBlockingRaw();
+h64socket *sockets_New(int ipv6capable, int tls) {
+    h64socket *sock = sockets_NewBlockingRaw(ipv6capable);
     if (!sockets_SetNonblocking(sock, 1)) {
         sockets_Destroy(sock);
         return NULL;
@@ -303,12 +316,12 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     te.resultconnfd = -1;
 
     // Get socket pair:
-    te.recv_server = sockets_NewBlockingRaw();
+    te.recv_server = sockets_NewBlockingRaw(1);
     if (!te.recv_server) {
         sockets_FreeSocketPairSetupData(&te);
         return 0;
     }
-    te.trigger_client = sockets_NewBlockingRaw();
+    te.trigger_client = sockets_NewBlockingRaw(1);
     if (!te.trigger_client) {
         sockets_FreeSocketPairSetupData(&te);
         return 0;
@@ -321,12 +334,11 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     }
 
     // Connect socket pair:
-    struct sockaddr_in servaddr = {0};
-    servaddr.sin_family = AF_INET6;
-    servaddr.sin_addr.s_addr = INADDR_LOOPBACK;
-    if (bind(
-            te.recv_server->fd, (struct sockaddr *)&servaddr,
-            sizeof(servaddr)) < 0) {
+    struct sockaddr_in6 servaddr = {0};
+    servaddr.sin6_family = AF_INET6;
+    servaddr.sin6_addr = in6addr_loopback;
+    if (bind(te.recv_server->fd, (struct sockaddr *)&servaddr,
+             sizeof(servaddr)) < 0) {
         sockets_FreeSocketPairSetupData(&te);
         return 0;
     }
@@ -338,7 +350,7 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
         sockets_FreeSocketPairSetupData(&te);
         return 0;
     }
-    te.port = servaddr.sin_port;
+    te.port = servaddr.sin6_port;
     assert(te.port > 0);
     thread *accept_thread = thread_Spawn(
         _threadEventAccepter, &te

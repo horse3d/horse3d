@@ -26,7 +26,7 @@ typedef struct h64socket {
 
 typedef struct h64threadevent h64threadevent;
 
-h64socket *sockets_New(int tls);
+h64socket *sockets_New(int ipv6capable, int tls);
 
 int sockets_Send(
     h64socket *s, const uint8_t *bytes, size_t byteslen
