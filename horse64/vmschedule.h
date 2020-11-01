@@ -40,6 +40,7 @@ typedef struct h64vmworker {
 typedef struct h64vmworkerset {
     h64vmworker **worker;
     int worker_count;
+    mutex *worker_mutex;
 } h64vmworkerset;
 
 typedef struct h64program h64program;
