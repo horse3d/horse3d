@@ -11,6 +11,7 @@
 
 typedef struct h64vmexec h64vmexec;
 typedef struct h64vmthread h64vmthread;
+typedef struct h64misccompileroptions h64misccompileroptions;
 
 typedef enum suspendtype {
     SUSPENDTYPE_NONE = 0,
@@ -35,6 +36,7 @@ typedef struct h64vmworker {
     thread *worker_thread;
     h64vmthread *current_vmthread;
     h64vmexec *vmexec;
+    h64misccompileroptions *moptions;
 } h64vmworker;
 
 typedef struct h64vmworkerset {

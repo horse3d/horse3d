@@ -51,6 +51,8 @@ static int _compileargparse(
             if (strcmp(cmd, "run") == 0) {
                 printf("  --vmexec-debug:          Print instructions "
                        "as they run\n");
+                printf("  --vmscheduler-debug:     Print info about "
+                       "horsevm scheduling\n");
             }
             return 0;
         } else if (strcmp(cmd, "get_tokens") != 0 &&
@@ -63,6 +65,13 @@ static int _compileargparse(
             #ifdef NDEBUG
             fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
                 "output for --vmexec-debug not compiled in\n", cmd);
+            #endif
+        } else if (strcmp(cmd, "run") == 0 &&
+                strcmp(argv[i], "--vmscheduler-debug") == 0) {
+            miscoptions->vmscheduler_debug = 1;
+            #ifdef NDEBUG
+            fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
+                "output for --vmscheduler-debug not compiled in\n", cmd);
             #endif
         } else if (strcmp(argv[i], "--compiler-stage-debug") == 0) {
             miscoptions->compiler_stage_debug = 1;

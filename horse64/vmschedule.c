@@ -5,6 +5,7 @@
 #include "compileconfig.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -146,6 +147,10 @@ void vmschedule_FreeWorkerSet(
         i++;
     }
     free(wset->worker);
+    if (wset->worker_mutex) {
+        mutex_Destroy(wset->worker_mutex);
+        wset->worker_mutex = NULL;
+    }
 
     free(wset);
 }
@@ -161,6 +166,11 @@ void vmschedule_WorkerRun(void *userdata) {
     h64vmworker *worker = (h64vmworker *)userdata;
 
     if (worker->no == 0) {
+        #ifndef NDEBUG
+        if (worker->moptions->vmscheduler_debug)
+            fprintf(stderr, "horsevm: debug: vmschedule.c: "
+                "[w%d] WAIT finding main thread...\n", worker->no);
+        #endif
         // Main thread worker. Find the main thread:
         h64vmthread *mainthread = NULL;
         mutex *access_mutex = (
@@ -192,6 +202,13 @@ void vmschedule_WorkerRun(void *userdata) {
         int haduncaughterror = 0;
         int rval = 0;
         if (pr->globalinit_func_index >= 0) {
+            #ifndef NDEBUG
+            if (worker->moptions->vmscheduler_debug)
+                fprintf(stderr, "horsevm: debug: vmschedule.c: "
+                    "[w%d] RUN f%" PRId64
+                    " ($$globalinit func)...\n", worker->no,
+                    (int64_t)pr->globalinit_func_index);
+            #endif
             if (!vmthread_RunFunctionWithReturnInt(
                     worker->vmexec, mainthread, pr->globalinit_func_index,
                     &haduncaughterror, &einfo, &rval
@@ -217,6 +234,12 @@ void vmschedule_WorkerRun(void *userdata) {
             int result = stack_ToSize(mainthread->stack, 0, 0);
             assert(result != 0);
         }
+        #ifndef NDEBUG
+        if (worker->moptions->vmscheduler_debug)
+            fprintf(stderr, "horsevm: debug: vmschedule.c: "
+                "[w%d] RUN f%" PRId64 " (main func)...\n",
+                worker->no, (int64_t)pr->main_func_index);
+        #endif
         haduncaughterror = 0;
         rval = 0;
         if (!vmthread_RunFunctionWithReturnInt(
@@ -318,6 +341,8 @@ int vmschedule_ExecuteProgram(
     int threaderror = 0;
     int i = 0;
     while (i < worker_count) {
+        mainexec->worker_overview->worker[i]->no = i;
+        mainexec->worker_overview->worker[i]->moptions = moptions;
         mainexec->worker_overview->worker[i]->worker_thread = (
             thread_Spawn(
                 vmschedule_WorkerRun,
@@ -347,10 +372,6 @@ int vmschedule_ExecuteProgram(
     }
     if (threaderror && mainexec->program_return_value == 0)
         mainexec->program_return_value = -1;
-    if (mainexec->worker_overview->worker_mutex) {
-        mutex_Destroy(mainexec->worker_overview->worker_mutex);
-        mainexec->worker_overview->worker_mutex = NULL;
-    }
     int retval = mainexec->program_return_value;
     vmexec_Free(mainexec);
     while (mainexec->thread_count > 0) {
