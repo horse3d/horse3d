@@ -109,8 +109,12 @@ h64vmthread *vmthread_New(h64vmexec *owner);
 h64vmexec *vmexec_New();
 
 int vmthread_RunFunctionWithReturnInt(
-    h64vmexec *vmexec, h64vmthread *start_thread,
+    h64vmworker *worker,
+    h64vmthread *start_thread,
+    int already_locked_in,
     int64_t func_id,
+    int *returnedsuspend,
+    vmthreadsuspendinfo *suspendinfo,
     int *returneduncaughterror,
     h64errorinfo *einfo,
     int *out_returnint

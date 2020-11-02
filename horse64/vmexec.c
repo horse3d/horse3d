@@ -60,6 +60,9 @@ h64vmthread *vmthread_New(h64vmexec *owner) {
         }
         memset(vmthread->suspend_info, 0,
                sizeof(*vmthread->suspend_info));
+        vmthread->suspend_info->suspendtype = (
+            SUSPENDTYPE_ASYNCCALLSCHEDULED
+        );
     }
 
     if (owner) {
@@ -1547,12 +1550,13 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         const int _expandlastposarg = (
             inst->flags & CALLFLAG_EXPANDLASTPOSARG
         );
-        const int noargreorder = (
-            likely(!func_lastposargismultiarg &&
-                   !_expandlastposarg &&
-                   inst->posargs == func_posargs &&
-                   inst->kwargs ==
-                       pr->func[target_func_id].kwarg_count));
+        const int noargreorder = (likely(
+            !func_lastposargismultiarg &&
+            !_expandlastposarg &&
+            inst->posargs == func_posargs &&
+            inst->kwargs ==
+                pr->func[target_func_id].kwarg_count
+        ));
 
         // See how many positional args we can definitely leave on the
         // stack as-is:
@@ -3214,6 +3218,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 int vmthread_RunFunction(
         h64vmexec *vmexec, h64vmthread *start_thread,
         int64_t func_id,
+        int *returnedsuspend,
+        vmthreadsuspendinfo *suspendinfo,
         int *returneduncaughterror,
         h64errorinfo *einfo
         ) {
@@ -3273,27 +3279,91 @@ int vmthread_RunFunction(
 }
 
 int vmthread_RunFunctionWithReturnInt(
-        h64vmexec *vmexec, h64vmthread *start_thread,
+        h64vmworker *worker,
+        h64vmthread *start_thread,
+        int already_locked_in,
         int64_t func_id,
+        int *returnedsuspend,
+        vmthreadsuspendinfo *suspendinfo,
         int *returneduncaughterror,
         h64errorinfo *einfo, int *out_returnint
         ) {
-    if (!vmexec || !start_thread || !einfo || !out_returnint)
-        return 0;
+    assert(worker);
+    h64vmexec *vmexec = worker->vmexec;
+    assert(
+        vmexec && start_thread && einfo && returneduncaughterror &&
+        out_returnint && suspendinfo && returnedsuspend
+    );
+    if (!already_locked_in) {
+        mutex_Lock(vmexec->worker_overview->worker_mutex);
+        if (!vmschedule_CanThreadResume_UnguardedCheck(
+                start_thread
+                )) {
+            mutex_Release(vmexec->worker_overview->worker_mutex);
+            *returneduncaughterror = 1;
+            *returnedsuspend = 0;
+            memset(einfo, 0, sizeof(*einfo));
+            einfo->error_class_id = H64STDERROR_RUNTIMEERROR;
+            char msgbuf[] = "internal error: VM scheduler bug, "
+                "trying to resume unresumable VM thread";
+            int64_t outlen = 0;
+            h64wchar *outbuf = utf8_to_utf32(
+                msgbuf, strlen(msgbuf),
+                NULL, NULL, &outlen
+            );
+            if (outbuf) {
+                einfo->msg = outbuf;
+                einfo->msglen = outlen;
+            }
+            einfo->refcount = 1;
+            return 0;
+        }
+        start_thread->suspend_info->suspendtype = (
+            SUSPENDTYPE_NONE
+        );
+    } else {
+        assert(start_thread->suspend_info->suspendtype == (
+            SUSPENDTYPE_NONE
+        ));
+    }
+    start_thread->run_by_worker = worker;
+    mutex_Release(vmexec->worker_overview->worker_mutex);
+
+    int innerreturnedsuspend = 0;
     int innerreturneduncaughterror = 0;
     int64_t old_stack_size = start_thread->stack->entry_count;
     int result = vmthread_RunFunction(
-        vmexec, start_thread, func_id, &innerreturneduncaughterror,
-        einfo
+        vmexec, start_thread, func_id,
+        &innerreturnedsuspend, suspendinfo,
+        &innerreturneduncaughterror, einfo
     );
+    mutex_Lock(vmexec->worker_overview->worker_mutex);
     assert(
         ((start_thread->stack->entry_count <= old_stack_size + 1) ||
         !result) && start_thread->stack->entry_count >= old_stack_size
     );
     if (innerreturneduncaughterror) {
         *returneduncaughterror = 1;
+        *returnedsuspend = 0;
+        start_thread->suspend_info->suspendtype = (
+            SUSPENDTYPE_DONE
+        );
+        return 1;
+    } else if (innerreturnedsuspend) {
+        *returneduncaughterror = 0;
+        *returnedsuspend = 1;
+        memcpy(
+            start_thread->suspend_info,
+            suspendinfo,
+            sizeof(*suspendinfo)
+        );
         return 1;
     }
+    start_thread->suspend_info->suspendtype = (
+        SUSPENDTYPE_DONE
+    );
+    *returneduncaughterror = 0;
+    *returnedsuspend = 0;
     if (!result || start_thread->stack->
             entry_count <= old_stack_size) {
         *out_returnint = 0;

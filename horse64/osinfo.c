@@ -11,6 +11,8 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #if defined(__linux__) || defined(__linux)
 #include <sys/sysinfo.h>
 #elif defined(_WIN32) || defined(_WIN64)
@@ -20,9 +22,10 @@
 #include "osinfo.h"
 
 static int cpu_thread_count = 0;
+static int cpu_core_count = 0;
 static int _osinfo_inited = 0;
 
-int _init_cpu_count() {
+int _init_cpu_thread_count() {
 #if defined(__linux__) || defined(__linux)
     // Linux code path
     cpu_thread_count = get_nprocs_conf();
@@ -67,7 +70,52 @@ int _init_cpu_count() {
     return 1;
 #else
     // Generic Unix code path
-        FILE *f = fopen("/proc/cpuinfo", "r");
+    #error "not implemented yet"
+#endif
+}
+
+int _init_cpu_core_count() {
+#if defined(_WIN64) || defined(_WIN32)
+    // Winapi code path
+    int allocsize = 128;
+    char *buf = malloc(allocsize);
+    if (!buf)
+        return 0;
+    DWORD size = allocsize;
+    while (1) {
+        if (!GetLogicalProcessorInformationEx(
+                3, (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buf,
+                &size
+                )) {
+            if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+                return 0;
+            allocsize *= 2;
+            free(buf);
+            buf = malloc(allocsize);
+            if (!buf)
+                return 0;
+            size = allocsize;
+        } else {
+            break;
+        }
+    }
+    int count = 0;
+    char *p = buf;
+    int remainingbytes = size;
+    while (remainingbytes > 0) {
+        SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *cpuinfo =
+            (SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*)p;
+        if (cpuinfo->Relationship == 0)
+            count++;
+        p += cpuinfo->Size;
+        remainingbytes -= cpuinfo->Size;
+    }
+    free(buf);
+    cpu_core_count = count;
+    return 1;
+#elif defined(__linux__) || defined(__linux)
+    // Linux code path
+    FILE *f = fopen("/proc/cpuinfo", "r");
     if (!f)
         return 0;
 
@@ -111,6 +159,7 @@ int _init_cpu_count() {
                 int cores = atoi(linebuf);
                 if (cores > 0) {
                     fclose(f);
+                    cpu_core_count = cores;
                     return 1;
                 }
             }
@@ -123,6 +172,9 @@ int _init_cpu_count() {
     }
     fclose(f);
     return 0;
+#else
+    // Generic Unix code path
+    #error "not implemented yet"
 #endif
 }
 
@@ -130,10 +182,15 @@ __attribute__((constructor)) void _init_osinfo() {
     if (_osinfo_inited)
         return;
     _osinfo_inited = 1;
-    if (!_init_cpu_count())
+    if (!_init_cpu_thread_count())
         fprintf(
             stderr, "horsevm: warning: "
-            "_init_cpu_count() unexpectedly failed, memory issue?\n"
+            "_init_cpu_thread_count() unexpectedly failed, memory issue?\n"
+        );
+    if (!_init_cpu_core_count())
+        fprintf(
+            stderr, "horsevm: warning: "
+            "_init_cpu_core_count() unexpectedly failed, memory issue?\n"
         );
 }
 

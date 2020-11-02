@@ -151,6 +151,7 @@ h64program *h64program_New() {
     memset(p, 0, sizeof(*p));
 
     p->main_func_index = -1;
+    p->globalinitsimple_func_index = -1;
     p->globalinit_func_index = -1;
     p->print_func_index = -1;
     p->containeradd_func_index = -1;

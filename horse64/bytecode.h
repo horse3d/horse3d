@@ -380,6 +380,7 @@ typedef struct h64program {
     h64func *func;
 
     funcid_t main_func_index;
+    funcid_t globalinitsimple_func_index;
     funcid_t globalinit_func_index;
     funcid_t print_func_index;
     funcid_t containeradd_func_index;

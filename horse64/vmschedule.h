@@ -19,6 +19,7 @@ typedef enum suspendtype {
     SUSPENDTYPE_WAITFORSOCKET,
     SUSPENDTYPE_WAITFORPROCESSTERMINATION,
     SUSPENDTYPE_ASYNCCALLSCHEDULED,
+    SUSPENDTYPE_DONE,
     SUSPENDTYPE_TOTALCOUNT
 } suspendtype;
 
@@ -27,7 +28,7 @@ typedef struct vmsuspendoverview {
 } vmsuspendoverview;
 
 typedef struct vmthreadsuspendinfo {
-    suspendtype suspendtype;
+    _Atomic volatile suspendtype suspendtype;
     int64_t suspendarg;
 } vmthreadsuspendinfo;
 
@@ -43,6 +44,11 @@ typedef struct h64vmworkerset {
     h64vmworker **worker;
     int worker_count;
     mutex *worker_mutex;
+
+    _Atomic volatile int workers_ran_globalinitsimple;
+    _Atomic volatile int workers_ran_globalinit;
+    _Atomic volatile int workers_ran_main;
+    _Atomic volatile int fatalerror;
 } h64vmworkerset;
 
 typedef struct h64program h64program;
@@ -69,5 +75,8 @@ int vmschedule_ExecuteProgram(
     h64program *pr, h64misccompileroptions *moptions
 );
 
+int vmschedule_CanThreadResume_UnguardedCheck(
+    h64vmthread *vt
+);
 
 #endif  // HORSE64_VMSCHEDULE_H_

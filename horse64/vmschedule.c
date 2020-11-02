@@ -162,112 +162,211 @@ int vmschedule_WorkerCount() {
     return thread_count;
 }
 
-void vmschedule_WorkerRun(void *userdata) {
-    h64vmworker *worker = (h64vmworker *)userdata;
+int vmschedule_CanThreadResume_UnguardedCheck(
+        h64vmthread *vt
+        ) {
+    if (vt->suspend_info->suspendtype !=
+            SUSPENDTYPE_ASYNCCALLSCHEDULED) {
+        return 0;
+    }
+    return 1;
+}
 
-    if (worker->no == 0) {
-        #ifndef NDEBUG
-        if (worker->moptions->vmscheduler_debug)
-            fprintf(stderr, "horsevm: debug: vmschedule.c: "
-                "[w%d] WAIT finding main thread...\n", worker->no);
-        #endif
-        // Main thread worker. Find the main thread:
-        h64vmthread *mainthread = NULL;
-        mutex *access_mutex = (
-            worker->vmexec->worker_overview->worker_mutex
+int vmschedule_CanThreadResume_LockIfYes(
+        h64vmthread *vt
+        ) {
+    mutex_Lock(vt->vmexec_owner->worker_overview->worker_mutex);
+    int result = vmschedule_CanThreadResume_UnguardedCheck(vt);
+    if (result) {
+        // Leave locked if result is positive.
+        return 1;
+    }
+    mutex_Release(vt->vmexec_owner->worker_overview->worker_mutex);
+    return result;
+}
+
+static int vmschedule_RunMainThreadLaunchFunc(
+        h64vmworker *worker, h64vmthread *mainthread,
+        funcid_t func_id, const char *debug_func_name
+        ) {
+    // IMPORTANT: access mutex must be already LOCKED entering this.
+    // It will be LOCKED on return, too.
+    h64program *pr = worker->vmexec->program;
+    h64errorinfo einfo = {0};
+    vmthreadsuspendinfo sinfo = {0};
+    int hadsuspendevent = 0;
+    int haduncaughterror = 0;
+    int rval = 0;
+    if (func_id >= 0) {
+        mainthread->run_by_worker = worker;
+        mainthread->suspend_info->suspendtype = (
+            SUSPENDTYPE_NONE
         );
-        mutex_Lock(access_mutex);
-        h64program *pr = worker->vmexec->program;
-        int i = 0;
-        while (i < worker->vmexec->thread_count) {
-            if (worker->vmexec->thread[i]->is_main_thread) {
-                mainthread = worker->vmexec->thread[i];
-                assert(mainthread->run_by_worker == NULL);
-                mainthread->run_by_worker = worker;
-                break;
-            }
-            i++;
-        }
-        mutex_Release(access_mutex);
-        if (!mainthread) {
-            fprintf(
-                stderr, "horsevm: error: "
-                "vmschedule.c: main worker failed to find "
-                "main thread...?\n"
-            );
-            return;
-        }
-        // Run the global var init and main func on this thread:
-        h64errorinfo einfo = {0};
-        int haduncaughterror = 0;
-        int rval = 0;
-        if (pr->globalinit_func_index >= 0) {
-            #ifndef NDEBUG
-            if (worker->moptions->vmscheduler_debug)
-                fprintf(stderr, "horsevm: debug: vmschedule.c: "
-                    "[w%d] RUN f%" PRId64
-                    " ($$globalinit func)...\n", worker->no,
-                    (int64_t)pr->globalinit_func_index);
-            #endif
-            if (!vmthread_RunFunctionWithReturnInt(
-                    worker->vmexec, mainthread, pr->globalinit_func_index,
-                    &haduncaughterror, &einfo, &rval
-                    )) {
-                fprintf(stderr, "horsevm: error: vmschedule.c: "
-                    " fatal error in $$globalinit, "
-                    "out of memory?\n");
-                mutex_Lock(access_mutex);
-                vmthread_Free(mainthread);
-                worker->vmexec->program_return_value = -1;
-                mutex_Release(access_mutex);
-                return;
-            }
-            if (haduncaughterror) {
-                assert(einfo.error_class_id >= 0);
-                mutex_Lock(access_mutex);
-                _printuncaughterror(pr, &einfo);
-                vmthread_Free(mainthread);
-                worker->vmexec->program_return_value = -1;
-                mutex_Release(access_mutex);
-                return;
-            }
-            int result = stack_ToSize(mainthread->stack, 0, 0);
-            assert(result != 0);
-        }
         #ifndef NDEBUG
         if (worker->moptions->vmscheduler_debug)
             fprintf(stderr, "horsevm: debug: vmschedule.c: "
-                "[w%d] RUN f%" PRId64 " (main func)...\n",
-                worker->no, (int64_t)pr->main_func_index);
+                "[w%d] RUN f%" PRId64
+                " (%s func)...\n", worker->no,
+                (int64_t)func_id, debug_func_name);
         #endif
-        haduncaughterror = 0;
-        rval = 0;
         if (!vmthread_RunFunctionWithReturnInt(
-                worker->vmexec, mainthread, pr->main_func_index,
+                worker, mainthread,
+                1,  // assume locked mutex, will return LOCKED, too
+                func_id,
+                &hadsuspendevent, &sinfo,
                 &haduncaughterror, &einfo, &rval
                 )) {
             fprintf(stderr, "horsevm: error: vmschedule.c: "
-                "fatal error in main, "
-                "out of memory?\n");
-            mutex_Lock(access_mutex);
+                " fatal error in %s, "
+                "out of memory?\n", debug_func_name);
             vmthread_Free(mainthread);
             worker->vmexec->program_return_value = -1;
-            mutex_Release(access_mutex);
-            return;
+            return 0;
         }
         if (haduncaughterror) {
             assert(einfo.error_class_id >= 0);
-            mutex_Lock(access_mutex);
             _printuncaughterror(pr, &einfo);
             vmthread_Free(mainthread);
             worker->vmexec->program_return_value = -1;
-            mutex_Release(access_mutex);
-            return;
+            return 0;
         }
-        mutex_Lock(access_mutex);
-        vmthread_Free(mainthread);
-        worker->vmexec->program_return_value = rval;
-        mutex_Release(access_mutex);
+        if (!hadsuspendevent) {
+            int result = stack_ToSize(mainthread->stack, 0, 0);
+            assert(result != 0);
+        }
+    }
+    return 1;
+}
+
+void vmschedule_WorkerRun(void *userdata) {
+    h64vmworker *worker = (h64vmworker *)userdata;
+    h64program *pr = worker->vmexec->program;
+    mutex *access_mutex = (
+        worker->vmexec->worker_overview->worker_mutex
+    );
+
+    h64vmthread *mainthread = NULL;
+    while (!worker->vmexec->worker_overview->fatalerror) {
+        if (worker->no == 0 && !mainthread) {
+            // Main thread worker needs to know the main
+            // thread:
+            #ifndef NDEBUG
+            if (worker->moptions->vmscheduler_debug)
+                fprintf(
+                    stderr, "horsevm: debug: vmschedule.c: "
+                    "[w%d] WAIT finding main thread...\n",
+                    worker->no
+                );
+            #endif
+            mutex_Lock(access_mutex);
+            int i = 0;
+            while (i < worker->vmexec->thread_count) {
+                if (worker->vmexec->thread[i]->is_main_thread) {
+                    mainthread = worker->vmexec->thread[i];
+                    assert(mainthread->run_by_worker == NULL ||
+                           mainthread->run_by_worker == worker);
+                    mainthread->run_by_worker = worker;
+                    break;
+                }
+                i++;
+            }
+            mutex_Release(access_mutex);
+            if (!mainthread) {
+                fprintf(
+                    stderr, "horsevm: error: "
+                    "vmschedule.c: main worker failed to find "
+                    "main thread...?\n"
+                );
+                return;
+            }
+        }
+        // Special case: allow mainthread to re-run if main not run yet.
+        if (worker->no == 0 && mainthread &&
+                !worker->vmexec->worker_overview->
+                    workers_ran_main) {
+            mutex_Lock(access_mutex);
+            if (!worker->vmexec->worker_overview->
+                    workers_ran_main &&
+                    mainthread->suspend_info->suspendtype ==
+                        SUSPENDTYPE_DONE) {
+                mainthread->suspend_info->suspendtype = (
+                    SUSPENDTYPE_ASYNCCALLSCHEDULED
+                );
+            }
+            mutex_Release(access_mutex);
+        }
+        // Special case: $$globalinitsimple run
+        if (worker->no == 0 && mainthread &&
+                !worker->vmexec->worker_overview->
+                    workers_ran_globalinitsimple &&
+                vmschedule_CanThreadResume_LockIfYes(mainthread)
+                ) {
+            // NOTE: access_lock is NOW LOCKED.
+            int result = vmschedule_RunMainThreadLaunchFunc(
+                worker, mainthread, pr->globalinitsimple_func_index,
+                "$$globalinitsimple"
+            );  // NOTE: assumes locked mutex, and LOCKS it again.
+            if (result) {
+                worker->vmexec->worker_overview->
+                    workers_ran_globalinitsimple = 1;
+            } else {
+                worker->vmexec->worker_overview->fatalerror = 1;
+                mutex_Release(access_mutex);
+                return;
+            }
+            mutex_Release(access_mutex);
+            continue;
+        }
+        // Special case: $$globalinit run
+        if (worker->no == 0 && mainthread &&
+                worker->vmexec->worker_overview->
+                    workers_ran_globalinitsimple &&
+                !worker->vmexec->worker_overview->
+                    workers_ran_globalinit &&
+                vmschedule_CanThreadResume_LockIfYes(mainthread)
+                ) {
+            // NOTE: access_lock is NOW LOCKED.
+            int result = vmschedule_RunMainThreadLaunchFunc(
+                worker, mainthread, pr->globalinit_func_index,
+                "$$globalinit"
+            );  // NOTE: assumes locked mutex, and LOCKS it again.
+            if (result) {
+                worker->vmexec->worker_overview->
+                    workers_ran_globalinit = 1;
+            } else {
+                worker->vmexec->worker_overview->fatalerror = 1;
+                mutex_Release(access_mutex);
+                return;
+            }
+            mutex_Release(access_mutex);
+            continue;
+        }
+        // Special case: main run
+        if (worker->no == 0 && mainthread &&\
+                worker->vmexec->worker_overview->
+                    workers_ran_globalinitsimple &&
+                worker->vmexec->worker_overview->
+                    workers_ran_globalinit &&
+                !worker->vmexec->worker_overview->
+                    workers_ran_main &&
+                vmschedule_CanThreadResume_LockIfYes(mainthread)
+                ) {
+            // NOTE: access_lock is NOW LOCKED.
+            int result = vmschedule_RunMainThreadLaunchFunc(
+                worker, mainthread, pr->main_func_index,
+                "main"
+            );  // NOTE: assumes locked mutex, and LOCKS it again.
+            if (result) {
+                worker->vmexec->worker_overview->
+                    workers_ran_main = 1;
+            } else {
+                worker->vmexec->worker_overview->fatalerror = 1;
+                mutex_Release(access_mutex);
+                return;
+            }
+            mutex_Release(access_mutex);
+            continue;
+        }
         return;
     }
 }
