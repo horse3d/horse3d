@@ -2,6 +2,7 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "corelib/system.h"
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
 #else
@@ -324,6 +325,10 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
 
     // 'time' module:
     if (!timelib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'system' module:
+    if (!systemlib_RegisterFuncsAndModules(p))
         return 0;
 
     // 'print' function:

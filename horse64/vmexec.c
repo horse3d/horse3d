@@ -3326,7 +3326,7 @@ int vmthread_RunFunction(
         // See if returned value is actually a suspend info:
         {
             valuecontent *retval = STACK_ENTRY(
-                start_thread->stack, old_stack + 1
+                start_thread->stack, old_stack
             );
             if (retval->type == H64VALTYPE_SUSPENDINFO) {
                 if (returnedsuspend)

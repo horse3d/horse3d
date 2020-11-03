@@ -2,11 +2,11 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
-#ifndef HORSE64_CORELIB_TIME_H_
-#define HORSE64_CORELIB_TIME_H_
+#ifndef HORSE64_CORELIB_SYSTEM_H_
+#define HORSE64_CORELIB_SYSTEM_H_
 
 typedef struct h64program h64program;
 
-int timelib_RegisterFuncsAndModules(h64program *p);
+int systemlib_RegisterFuncsAndModules(h64program *p);
 
-#endif  // HORSE64_CORELIB_TIME_H_
+#endif  // HORSE64_CORELIB_SYSTEM_H_

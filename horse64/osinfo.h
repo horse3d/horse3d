@@ -7,4 +7,6 @@
 
 int osinfo_CpuThreads();
 
+int osinfo_CpuCores();
+
 #endif  // HORSE64_OSINFO_H_

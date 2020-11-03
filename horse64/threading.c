@@ -344,7 +344,7 @@ thread *thread_SpawnWithPriority(
     }
     if (priority == 2) {
         struct sched_param param;
-        int policy;
+        int policy = 0;
         pthread_getschedparam(t->t, &policy, &param);
         param.sched_priority = sched_get_priority_max(policy);
         pthread_setschedparam(t->t, policy, &param);

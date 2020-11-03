@@ -194,6 +194,11 @@ __attribute__((constructor)) void _init_osinfo() {
         );
 }
 
+int osinfo_CpuCores() {
+    _init_osinfo();
+    return cpu_core_count;
+}
+
 int osinfo_CpuThreads() {
     _init_osinfo();
     return cpu_thread_count;
