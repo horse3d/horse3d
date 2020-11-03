@@ -1753,21 +1753,42 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 stack->current_func_floor, 0
             );
             assert(result != 0);  // shrinks, so shouldn't fail
-       }
-       // Ok, now we rearrange the stack to be what is actually needed:
-       {
+        } else if (unlikely(inst->kwargs > 0)) {
+            // (Almost) no re-order, but gotta strip out name indexes.
+            int64_t base = (
+                stack_args_bottom + inst->posargs +
+                stack->current_func_floor
+            );
+            int64_t top = stack->entry_count;
+            int64_t i = 0;
+            while (i < inst->kwargs) {
+                DELREF_NONHEAP(&stack->entry[base + i]);
+                valuecontent_Free(&stack->entry[base + i]);
+                memmove(
+                    &stack->entry[base + i],
+                    &stack->entry[base + i + 1],
+                    top - (i + base) - 1
+                );
+                stack->entry_count--;
+                i++;
+            }
+        }
+        // Ok, now we rearrange the stack to be what is actually needed:
+        {
             // Increase to total amount required for target func:
-            assert(
-                stack_args_bottom +
-                pr->func[target_func_id].input_stack_size +
-                stack->current_func_floor >= STACK_TOTALSIZE(stack)
-            );
-            int result = stack_ToSize(
-                stack, stack_args_bottom +
-                pr->func[target_func_id].input_stack_size +
-                pr->func[target_func_id].inner_stack_size +
-                stack->current_func_floor, 0
-            );
+            int result = 1;
+            if (stack_args_bottom +
+                    pr->func[target_func_id].input_stack_size +
+                    pr->func[target_func_id].inner_stack_size +
+                    stack->current_func_floor > STACK_TOTALSIZE(stack)
+                    ) {
+                result = stack_ToSize(
+                    stack, stack_args_bottom +
+                    pr->func[target_func_id].input_stack_size +
+                    pr->func[target_func_id].inner_stack_size +
+                    stack->current_func_floor, 0
+                );
+            }
             if (!result) {
                 oom_with_sortinglist:
                 // Free our temporary sorting space:
