@@ -91,28 +91,44 @@ attempts to cover most bases, to give a fully usable universal experience.
 If there were to be design principles underlying Horse64,
 it'd probably be similar to these (**work in progress**):
 
-- **Simplicity over flexibility:**
-  It is preferred to make rarer tasks more complicated,
-  to making very common tasks too easy to do in too many different ways.
-  If the language is as a result a bad match for some uses then that's okay.
-  *(This should apply mostly to the language core, less so to the
-  standard library.)*
+### Design goal: Simplicity over flexibility:
 
-- **Readability over conciseness:**
-  Keeping the language approachable is in overall preferred to saving
-  advanced programmers letters to type out, unless the impact is too grave.
+It is preferred to make rarer tasks more complicated,
+to making very common tasks too easy to do in too many different ways.
+There should preferrably one obvious way to do something, such that
+people understand each others' code without learning a needless pile of
+syntax variations.
+If the language is as a result a bad match for some uses then that's okay.
 
-- **Self-contained tooling over perfection:**
-  Having a less optimal implementation is preferred over adding in
-  large dependencies to core tooling. This keeps the project lean,
-  independently maintainable, and portable.
-  *(Large dependencies could be e.g. external GC libraries, LLVM, etc.)*
+*(This goal should apply mostly to the language core, less so to the
+standard library.)*
 
-- **Common shared style is encouraged:**
-  Everyone using Horse64 is encouraged to stick to the
-  [Common Style Guide](./Common%20Style%20Guide.md).
+### Design goal: Readability over conciseness:
+
+Keeping the language approachable is in overall preferred to saving
+advanced programmers letters to type out, unless the impact is too grave.
+
+*(As a practical consequence, Horse64 often uses a keyword instead of
+a short symbol for various operators.)*
+
+### Design goal: Self-contained tooling over perfection:
+
+Having a less optimal implementation is preferred over adding in
+large dependencies to core tooling. This keeps the project lean,
+independently maintainable, and portable.
+
+*(Large dependencies could be e.g. external GC libraries, LLVM, etc.
+Horse64's core avoids those.)*
+
+### Design goal: Common shared style is encouraged
+
+Everyone using Horse64 is encouraged to stick to the
+[Common Style Guide](./Common%20Style%20Guide.md).
+
+### Future design changes
 
 Since the project is still young, these points are subject to change.
+Feel free to leave feedback on them and make suggestions.
 
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
