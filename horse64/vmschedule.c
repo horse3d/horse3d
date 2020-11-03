@@ -494,7 +494,7 @@ int vmschedule_SuspendFunc(
     DELREF_NONHEAP(vc);
     valuecontent_Free(vc);
     memset(vc, 0, sizeof(*vc));
-    vc->type = H64VALTYPE_THREADSUSPENDINFO;
+    vc->type = H64VALTYPE_SUSPENDINFO;
     vc->suspend_type = suspend_type;
     vc->suspend_intarg = suspend_intarg;
     return 0;

@@ -1067,12 +1067,63 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_setglobal: {
-        fprintf(stderr, "setglobal not implemented\n");
-        return 0;
+        h64instruction_setglobal *inst = (
+            (h64instruction_setglobal *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
+        #endif
+
+        if (!vmthread->is_main_thread) {
+            RAISE_ERROR(
+                H64STDERROR_INVALIDNOASYNCRESOURCEERROR,
+                "cannot access globals from noasync function"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+
+        valuecontent *vcfrom = STACK_ENTRY(
+            stack, inst->slotfrom
+        );
+        valuecontent *vcto = &(
+            pr->globalvar[inst->globalto].content
+        );
+        memcpy(vcto, vcfrom, sizeof(*vcto));
+
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_getglobal: {
-        fprintf(stderr, "getglobal not implemented\n");
-        return 0;
+        h64instruction_getglobal *inst = (
+            (h64instruction_getglobal *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
+        #endif
+
+        if (!vmthread->is_main_thread &&
+                !pr->globalvar[inst->globalfrom].is_simple_constant) {
+            RAISE_ERROR(
+                H64STDERROR_INVALIDNOASYNCRESOURCEERROR,
+                "cannot access globals from noasync function"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+
+        valuecontent *vcfrom = &(
+            pr->globalvar[inst->globalfrom].content
+        );
+        valuecontent *vcto = STACK_ENTRY(
+            stack, inst->slotto
+        );
+        memcpy(vcto, vcfrom, sizeof(*vcto));
+
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_setbyindexexpr: {
         h64instruction_setbyindexexpr *inst = (
@@ -3272,6 +3323,21 @@ int vmthread_RunFunction(
         //   (old stack + return value on top)
         // Set old function floor:
         start_thread->stack->current_func_floor = old_floor;
+        // See if returned value is actually a suspend info:
+        {
+            valuecontent *retval = STACK_ENTRY(
+                start_thread->stack, old_stack + 1
+            );
+            if (retval->type == H64VALTYPE_SUSPENDINFO) {
+                if (returnedsuspend)
+                    *returnedsuspend = 1;
+                if (suspendinfo) {
+                    suspendinfo->suspendtype = retval->suspend_type;
+                    suspendinfo->suspendarg = retval->suspend_intarg;
+                }
+                return 1;
+            }
+        }
     }
     if (returneduncaughterror)
         *returneduncaughterror = inneruncaughterror;

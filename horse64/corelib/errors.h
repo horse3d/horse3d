@@ -32,7 +32,7 @@ typedef enum stderrorclassnum {
     H64STDERROR_INDEXERROR,
     H64STDERROR_MATHERROR,
     H64STDERROR_INVALIDDESTRUCTORERROR,
-    H64STDERROR_INVALIDNOASYNCCALLERROR,
+    H64STDERROR_INVALIDNOASYNCRESOURCEERROR,
     H64STDERROR_ENCODINGERROR,
     H64STDERROR_TOTAL_COUNT
 } stderrorclassnum;
@@ -50,7 +50,7 @@ ATTR_UNUSED static const char *stderrorclassnames[] = {
     "IndexError",
     "MathError",
     "InvalidDestructorError",
-    "InvalidNoasyncCallError",
+    "InvalidNoasyncResourceError",
     "EncodingError",
     NULL
 };

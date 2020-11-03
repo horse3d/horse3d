@@ -367,6 +367,7 @@ typedef struct h64func {
 
 typedef struct h64globalvar {
     valuecontent content;
+    uint8_t is_simple_constant;
 } h64globalvar;
 
 typedef struct h64program {
