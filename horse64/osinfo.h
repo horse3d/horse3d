@@ -9,4 +9,6 @@ int osinfo_CpuThreads();
 
 int osinfo_CpuCores();
 
+const char *osinfo_PlatformName();
+
 #endif  // HORSE64_OSINFO_H_

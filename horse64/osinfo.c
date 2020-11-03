@@ -25,6 +25,26 @@ static int cpu_thread_count = 0;
 static int cpu_core_count = 0;
 static int _osinfo_inited = 0;
 
+
+#if defined(_WIN32) || defined(_WIN64)
+static char _platname[] = "Windows";
+#elif defined(__linux) || defined(__linux__)
+static char _platname[] = "Linux";
+#elif defined(__apple__) || defined(__APPLE__)
+static char _platname[] = "macOS";
+#elif defined(__FreeBSD__)
+static char _platname[] = "FreeBSD";
+#elif defined(BSD)
+static char _platname[] = "Generic BSD";
+#elif defined(POSIX)
+static char _platname[] = "Generic Unix";
+#else
+static char *_platname = NULL;
+#endif
+const char *osinfo_PlatformName() {
+    return _platname;
+}
+
 int _init_cpu_thread_count() {
 #if defined(__linux__) || defined(__linux)
     // Linux code path
