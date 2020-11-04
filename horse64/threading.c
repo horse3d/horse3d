@@ -36,6 +36,7 @@
 #include <string.h>
 #ifdef ISWIN
 #include <process.h>
+#include <winsock2.h>
 #include <windows.h>
 #else
 #include <errno.h>
