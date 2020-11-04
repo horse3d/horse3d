@@ -291,6 +291,8 @@ static void _threadEventAccepter(void *userdata) {
             }
             i++;
         }
+        if (te->resultconnfd >= 0)
+            break;
     }
     int k = 0;
     while (k < conns_count) {
@@ -338,7 +340,9 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     servaddr.sin6_family = AF_INET6;
     servaddr.sin6_addr = in6addr_loopback;
     if (bind(te.recv_server->fd, (struct sockaddr *)&servaddr,
-             sizeof(servaddr)) < 0) {
+             sizeof(servaddr)) < 0 || listen(
+             te.recv_server->fd, 2048) < 0
+             ) {
         sockets_FreeSocketPairSetupData(&te);
         return 0;
     }
@@ -373,8 +377,16 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
         sockets_FreeSocketPairSetupData(&te);
         return 0;
     }
+    if (send(te.trigger_client->fd, te.connectkey,
+             sizeof(te.connectkey), 0) < 0) {
+        te.failure = 1;
+    }
     thread_Join(accept_thread);
     accept_thread = NULL;
+    if (te.failure) {
+        sockets_FreeSocketPairSetupData(&te);
+        return 0;
+    }
 
     // Done with payload handling, set client to non-blocking:
     if (!sockets_SetNonblocking(te.trigger_client, 1)) {
