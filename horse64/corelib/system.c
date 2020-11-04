@@ -83,6 +83,7 @@ int systemlib_platform(
             gcval->str_val.s, platname_u32,
             sizeof(*platname_u32) * platname_u32len
         );
+        free(platname_u32);
     } else {
         retval->type = H64VALTYPE_NONE;
     }

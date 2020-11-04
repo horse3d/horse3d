@@ -63,6 +63,11 @@ h64vmthread *vmthread_New(h64vmexec *owner) {
         vmthread->suspend_info->suspendtype = (
             SUSPENDTYPE_ASYNCCALLSCHEDULED
         );
+        assert(owner->suspend_overview != NULL);
+        owner->suspend_overview->
+            waittypes_currently_active[
+                SUSPENDTYPE_ASYNCCALLSCHEDULED
+            ]++;
     }
 
     if (owner) {
@@ -136,7 +141,15 @@ h64vmexec *vmexec_New() {
 void vmexec_Free(h64vmexec *vmexec) {
     if (!vmexec)
         return;
-
+    if (vmexec->thread) {
+        int i = 0;
+        while (i < vmexec->thread_count) {
+            if (vmexec->thread[i])
+                vmthread_Free(vmexec->thread[i]);
+            i++;
+        }
+        free(vmexec->thread);
+    }
     if (vmexec->suspend_overview) {
         free(vmexec->suspend_overview->waittypes_currently_active);
         free(vmexec->suspend_overview);
@@ -188,6 +201,9 @@ void vmthread_Free(h64vmthread *vmthread) {
     free(vmthread->kwarg_index_track_map);
     if (vmthread->str_pile) {
         poolalloc_Destroy(vmthread->str_pile);
+    }
+    if (vmthread->suspend_info) {
+        free(vmthread->suspend_info);
     }
     free(vmthread);
 }
@@ -3404,6 +3420,16 @@ int vmthread_RunFunctionWithReturnInt(
             }
             einfo->refcount = 1;
             return 0;
+        }
+        int oldtype = start_thread->suspend_info->suspendtype;
+        if (oldtype != SUSPENDTYPE_NONE &&
+                oldtype != SUSPENDTYPE_DONE) {
+            vmexec->suspend_overview->waittypes_currently_active[
+                oldtype
+            ]--;
+            assert(vmexec->suspend_overview->waittypes_currently_active[
+                oldtype
+            ] >= 0);
         }
         start_thread->suspend_info->suspendtype = (
             SUSPENDTYPE_NONE

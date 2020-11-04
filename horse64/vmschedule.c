@@ -118,6 +118,16 @@ int vmschedule_AsyncScheduleFunc(
     ); // ^ FIXME, implement this
 
     // Set suspend state to be resumed once we get to run this:
+    int oldtype = vmthread->suspend_info->suspendtype;
+    if (oldtype != SUSPENDTYPE_NONE &&
+            oldtype != SUSPENDTYPE_DONE) {
+        vmexec->suspend_overview->waittypes_currently_active[
+            oldtype
+        ]--;
+        assert(vmexec->suspend_overview->waittypes_currently_active[
+            oldtype
+        ] >= 0);
+    }
     vmthread->suspend_info->suspendtype = (
         SUSPENDTYPE_ASYNCCALLSCHEDULED
     );
@@ -140,9 +150,12 @@ void vmschedule_FreeWorkerSet(
 
     int i = 0;
     while (i < wset->worker_count) {
-        if (wset->worker[i] && wset->worker[i]->worker_thread) {
-            thread_Join(wset->worker[i]->worker_thread);
-            wset->worker[i]->worker_thread = NULL;
+        if (wset->worker[i]) {
+            if (wset->worker[i]->worker_thread) {
+                thread_Join(wset->worker[i]->worker_thread);
+                wset->worker[i]->worker_thread = NULL;
+            }
+            free(wset->worker[i]);
         }
         i++;
     }
@@ -199,6 +212,17 @@ static int vmschedule_RunMainThreadLaunchFunc(
     int rval = 0;
     if (func_id >= 0) {
         mainthread->run_by_worker = worker;
+        int oldtype = mainthread->suspend_info->suspendtype;
+        if (oldtype != SUSPENDTYPE_NONE &&
+                oldtype != SUSPENDTYPE_DONE) {
+            worker->vmexec->suspend_overview->waittypes_currently_active[
+                oldtype
+            ]--;
+            assert(worker->vmexec->suspend_overview->
+                waittypes_currently_active[
+                    oldtype
+                ] >= 0);
+        }
         mainthread->suspend_info->suspendtype = (
             SUSPENDTYPE_NONE
         );
@@ -433,10 +457,12 @@ int vmschedule_ExecuteProgram(
                 sizeof(*mainexec->worker_overview->worker[k])
             );
             mainexec->worker_overview->worker[k]->vmexec = mainexec;
+            mainexec->worker_overview->worker_count++;
             k++;
         }
     }
     // Spawn all threads:
+    worker_count = mainexec->worker_overview->worker_count;
     int threaderror = 0;
     int i = 0;
     while (i < worker_count) {
@@ -472,10 +498,10 @@ int vmschedule_ExecuteProgram(
     if (threaderror && mainexec->program_return_value == 0)
         mainexec->program_return_value = -1;
     int retval = mainexec->program_return_value;
-    vmexec_Free(mainexec);
     while (mainexec->thread_count > 0) {
         vmthread_Free(mainexec->thread[0]);
     }
+    vmexec_Free(mainexec);
     return retval;
 }
 
