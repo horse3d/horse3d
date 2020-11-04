@@ -350,6 +350,12 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
         sockets_FreeSocketPairSetupData(&te);
         return 0;
     }
+
+    // Connect client and send payload (blocking):
+    if (!sockets_SetNonblocking(te.trigger_client, 0)) {
+        sockets_FreeSocketPairSetupData(&te);
+        return 0;
+    }
     te.port = servaddr.sin6_port;
     assert(te.port > 0);
     thread *accept_thread = thread_Spawn(
@@ -369,6 +375,14 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     }
     thread_Join(accept_thread);
     accept_thread = NULL;
+
+    // Done with payload handling, set client to non-blocking:
+    if (!sockets_SetNonblocking(te.trigger_client, 1)) {
+        sockets_FreeSocketPairSetupData(&te);
+        return 0;
+    }
+
+    // Evaluate result:
     assert(te.resultconnfd >= 0 && te.trigger_client != NULL);
     h64socket *sock_one = te.trigger_client;
     te.trigger_client = NULL;
@@ -381,6 +395,14 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     memset(sock_two, 0, sizeof(*sock_two));
     sock_two->fd = te.resultconnfd;
     te.resultconnfd = -1;
+
+    // Also set second socket end to non-blocking and return:
+    if (!sockets_SetNonblocking(sock_two, 1)) {
+        sockets_Destroy(sock_one);
+        sockets_Destroy(sock_two);
+        sockets_FreeSocketPairSetupData(&te);
+        return 0;
+    }
     sockets_FreeSocketPairSetupData(&te);
     *s1 = sock_one;
     *s2 = sock_two;

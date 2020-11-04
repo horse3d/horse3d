@@ -43,6 +43,7 @@
 #endif
 
 #include "secrandom.h"
+#include "sockets.h"
 #include "threading.h"
 
 
@@ -388,4 +389,57 @@ void thread_Join(thread *t) {
     pthread_join(t->t, NULL);
 #endif
     free(t);
+}
+
+
+typedef struct threadevent {
+    h64socket *_targetside, *_sourceside;
+    volatile int set;
+    mutex *datalock;
+} threadevent;
+
+void threadevent_Free(threadevent *te) {
+    if (!te)
+        return;
+    sockets_Destroy(te->_targetside);
+    sockets_Destroy(te->_sourceside);
+    mutex_Destroy(te->datalock);
+    free(te);
+}
+
+threadevent *threadevent_Create() {
+    threadevent *te = malloc(sizeof(*te));
+    if (!te)
+        return NULL;
+    memset(te, 0, sizeof(*te));
+    if (!sockets_NewPair(&te->_sourceside, &te->_targetside)) {
+        threadevent_Free(te);
+        return NULL;
+    }
+    if (!sockets_SetNonblocking(te->_sourceside, 0)) {
+        threadevent_Free(te);
+        return 0;
+    }
+    te->datalock = mutex_Create();
+    if (!te->datalock) {
+        threadevent_Free(te);
+        return NULL;
+    }
+    return te;
+}
+
+int threadevent_PollIsSet(threadevent *te, int unsetifset) {
+    mutex_Lock(te->datalock);
+    if (te->set) {
+        if (unsetifset)
+            te->set = 0;
+        mutex_Release(te->datalock);
+        return 1;
+    }
+    mutex_Release(te->datalock);
+    return 0;
+}
+
+h64socket *threadevent_WaitForSocket(threadevent *te) {
+    return te->_targetside;
 }

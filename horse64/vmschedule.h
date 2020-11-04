@@ -37,6 +37,7 @@ typedef struct h64vmworker {
     thread *worker_thread;
     h64vmthread *current_vmthread;
     h64vmexec *vmexec;
+    threadevent *wakeupevent;
     h64misccompileroptions *moptions;
 } h64vmworker;
 

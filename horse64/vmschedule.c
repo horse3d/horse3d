@@ -461,21 +461,23 @@ int vmschedule_ExecuteProgram(
             k++;
         }
     }
-    // Spawn all threads:
+    // Spawn all threads other than main thread (that will be us!):
     worker_count = mainexec->worker_overview->worker_count;
     int threaderror = 0;
     int i = 0;
     while (i < worker_count) {
         mainexec->worker_overview->worker[i]->no = i;
         mainexec->worker_overview->worker[i]->moptions = moptions;
-        mainexec->worker_overview->worker[i]->worker_thread = (
-            thread_Spawn(
-                vmschedule_WorkerRun,
-                mainexec->worker_overview->worker[i]
-            )
-        );
-        if (!mainexec->worker_overview->worker[i]->worker_thread)
-            threaderror = 1;
+        if (i > 1) {
+            mainexec->worker_overview->worker[i]->worker_thread = (
+                thread_Spawn(
+                    vmschedule_WorkerRun,
+                    mainexec->worker_overview->worker[i]
+                )
+            );
+            if (!mainexec->worker_overview->worker[i]->worker_thread)
+                threaderror = 1;
+        }
         i++;
     }
     if (threaderror) {
@@ -484,8 +486,11 @@ int vmschedule_ExecuteProgram(
             "spawning workers\n"
         );
     }
-    // Wait until we're done:
-    i = 0;
+    // Run main thread:
+    vmschedule_WorkerRun( mainexec->worker_overview->worker[0]);
+
+    // Wait until other threads are done:
+    i = 1;
     while (i < worker_count) {
         if (mainexec->worker_overview->worker[i]->worker_thread) {
             thread_Join(
