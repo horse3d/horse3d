@@ -5,6 +5,7 @@
 #ifndef HORSE64_THREADING_H_
 #define HORSE64_THREADING_H_
 
+#include <stdint.h>
 
 typedef struct mutex mutex;
 
@@ -61,10 +62,17 @@ threadevent *threadevent_Create();
 
 h64socket *threadevent_WaitForSocket(threadevent *te);
 
-int threadevent_Set(threadevent *te);
+void threadevent_Set(threadevent *te);
 
 int threadevent_PollIsSet(threadevent *te, int unsetifset);
 
 void threadevent_Free(threadevent *te);
+
+void threadevent_Unset(threadevent *te);
+
+int threadevent_WaitUntilSet(
+    threadevent *te, uint64_t timeout_ms,
+    int unsetifset
+);
 
 #endif  // HORSE64_THREADING_H_

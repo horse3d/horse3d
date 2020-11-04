@@ -17,6 +17,7 @@
 #include "compiler/disassembler.h"
 #include "compiler/operator.h"
 #include "corelib/errors.h"
+#include "datetime.h"
 #include "debugsymbols.h"
 #include "gcvalue.h"
 #include "poolalloc.h"
@@ -3371,6 +3372,7 @@ int vmthread_RunFunction(
                 if (suspendinfo) {
                     suspendinfo->suspendtype = retval->suspend_type;
                     suspendinfo->suspendarg = retval->suspend_intarg;
+                    suspendinfo->suspenditemready = 0;
                 }
                 return 1;
             }
@@ -3400,7 +3402,7 @@ int vmthread_RunFunctionWithReturnInt(
     if (!already_locked_in) {
         mutex_Lock(vmexec->worker_overview->worker_mutex);
         if (!vmschedule_CanThreadResume_UnguardedCheck(
-                start_thread
+                start_thread, datetime_Ticks()
                 )) {
             mutex_Release(vmexec->worker_overview->worker_mutex);
             *returneduncaughterror = 1;
@@ -3465,7 +3467,7 @@ int vmthread_RunFunctionWithReturnInt(
     } else if (innerreturnedsuspend) {
         *returneduncaughterror = 0;
         *returnedsuspend = 1;
-        memcpy(
+        memcpy(  // mutex was locked, so this is fine
             start_thread->suspend_info,
             suspendinfo,
             sizeof(*suspendinfo)

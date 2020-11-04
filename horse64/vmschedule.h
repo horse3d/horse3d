@@ -28,8 +28,9 @@ typedef struct vmsuspendoverview {
 } vmsuspendoverview;
 
 typedef struct vmthreadsuspendinfo {
-    _Atomic volatile suspendtype suspendtype;
+    volatile suspendtype suspendtype;
     int64_t suspendarg;
+    uint8_t suspenditemready;
 } vmthreadsuspendinfo;
 
 typedef struct h64vmworker {
@@ -77,7 +78,7 @@ int vmschedule_ExecuteProgram(
 );
 
 int vmschedule_CanThreadResume_UnguardedCheck(
-    h64vmthread *vt
+    h64vmthread *vt, uint64_t now
 );
 
 #endif  // HORSE64_VMSCHEDULE_H_

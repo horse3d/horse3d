@@ -20,6 +20,7 @@
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #else
+#include <sys/socket.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -42,6 +43,7 @@
 #include <semaphore.h>
 #endif
 
+#include "datetime.h"
 #include "secrandom.h"
 #include "sockets.h"
 #include "threading.h"
@@ -416,10 +418,6 @@ threadevent *threadevent_Create() {
         threadevent_Free(te);
         return NULL;
     }
-    if (!sockets_SetNonblocking(te->_sourceside, 0)) {
-        threadevent_Free(te);
-        return 0;
-    }
     te->datalock = mutex_Create();
     if (!te->datalock) {
         threadevent_Free(te);
@@ -442,4 +440,98 @@ int threadevent_PollIsSet(threadevent *te, int unsetifset) {
 
 h64socket *threadevent_WaitForSocket(threadevent *te) {
     return te->_targetside;
+}
+
+
+void threadevent_Unset(threadevent *te) {
+    assert(te != NULL);
+    mutex_Lock(te->datalock);
+    te->set = 0;
+    mutex_Release(te->datalock);
+}
+
+
+void threadevent_Set(threadevent *te) {
+    mutex_Lock(te->datalock);
+    te->set = 1;
+    mutex_Release(te->datalock);
+    char c = 0;
+    while (1) {
+        ssize_t result = send(
+            te->_sourceside->fd, &c, 1, 0
+        );
+        if (result < 0) {
+            #if defined(_WIN32) || defined(_WIN64)
+            uint32_t errc = GetLastError();
+            if (errc != WSA_IO_INCOMPLETE &&
+                    errc != WSA_IO_PENDING &&
+                    errc != WSAEINTR &&
+                    errc != WSAEWOULDBLOCK &&
+                    errc != WSAEINPROGRESS &&
+                    errc != WSAEALREADY) {
+            #else
+            if (errno != EAGAIN && errno != EWOULDBLOCK &&
+                    errno != EPIPE) {
+            #endif
+                break;
+            }
+            continue;
+        } else {
+            break;
+        }
+    }
+}
+
+int threadevent_WaitUntilSet(
+        threadevent *te, uint64_t timeout_ms,
+        int unsetifset
+        ) {
+    int fd = te->_targetside->fd;
+    fd_set read_fds = {0};
+    FD_SET(fd, &read_fds);
+
+    mutex_Lock(te->datalock);
+    if (te->set) {
+        if (unsetifset)
+            te->set = 1;
+        mutex_Release(te->datalock);
+        return 1;
+    }
+    mutex_Release(te->datalock);
+
+    struct timeval tv = {0};
+    while (1) {
+        uint64_t now = datetime_Ticks();
+        tv.tv_sec = (timeout_ms / 1000ULL);
+        tv.tv_usec = (timeout_ms % 1000ULL) * 1000ULL;
+        int result = select(
+            fd,
+            &read_fds, NULL, NULL,
+            (timeout_ms == 0 ? NULL : &tv)
+        );
+        if (result >= 0) {
+            char c;
+            ssize_t recvbytes = 1;
+            while (recvbytes > 0) {
+                recvbytes = recv(
+                    fd, &c, 1, 0
+                );
+            }
+        }
+        mutex_Lock(te->datalock);
+        if (te->set) {
+            if (unsetifset)
+                te->set = 1;
+            mutex_Release(te->datalock);
+            return 1;
+        }
+        mutex_Release(te->datalock);
+        if (timeout_ms > 0) {
+            timeout_ms -= (datetime_Ticks() - now);
+            if (timeout_ms >= 1) {
+                continue;
+            }
+            return 0;
+        }
+    }
 }

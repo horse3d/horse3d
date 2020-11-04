@@ -11,10 +11,12 @@
 #include <unistd.h>
 
 #include "bytecode.h"
+#include "datetime.h"
 #include "debugsymbols.h"
 #include "osinfo.h"
 #include "pipe.h"
 #include "stack.h"
+#include "threading.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
 #include "vmschedule.h"
@@ -134,6 +136,7 @@ int vmschedule_AsyncScheduleFunc(
     vmthread->suspend_info->suspendarg = (
         func_id
     );
+    vmthread->suspend_info->suspenditemready = 0;
     mutex_Lock(access_mutex);
     vmexec->suspend_overview->waittypes_currently_active[
         SUSPENDTYPE_ASYNCCALLSCHEDULED
@@ -176,20 +179,32 @@ int vmschedule_WorkerCount() {
 }
 
 int vmschedule_CanThreadResume_UnguardedCheck(
-        h64vmthread *vt
+        h64vmthread *vt, uint64_t now
         ) {
     if (vt->suspend_info->suspendtype !=
             SUSPENDTYPE_ASYNCCALLSCHEDULED) {
+        if (vt->suspend_info->suspendtype ==
+                SUSPENDTYPE_FIXEDTIME) {
+            if (unlikely(vt->suspend_info->suspenditemready))
+                return 1;
+            if ((int64_t)now >= vt->suspend_info->suspendarg) {
+                vt->suspend_info->suspenditemready = 1;
+                return 1;
+            }
+            return 0;
+        }
         return 0;
     }
     return 1;
 }
 
 int vmschedule_CanThreadResume_LockIfYes(
-        h64vmthread *vt
+        h64vmthread *vt, uint64_t now
         ) {
     mutex_Lock(vt->vmexec_owner->worker_overview->worker_mutex);
-    int result = vmschedule_CanThreadResume_UnguardedCheck(vt);
+    int result = vmschedule_CanThreadResume_UnguardedCheck(
+        vt, now
+    );
     if (result) {
         // Leave locked if result is positive.
         return 1;
@@ -304,6 +319,9 @@ void vmschedule_WorkerRun(void *userdata) {
                 return;
             }
         }
+
+        uint64_t now = datetime_Ticks();
+
         // Special case: allow mainthread to re-run if main not run yet.
         if (worker->no == 0 && mainthread &&
                 !worker->vmexec->worker_overview->
@@ -323,7 +341,7 @@ void vmschedule_WorkerRun(void *userdata) {
         if (worker->no == 0 && mainthread &&
                 !worker->vmexec->worker_overview->
                     workers_ran_globalinitsimple &&
-                vmschedule_CanThreadResume_LockIfYes(mainthread)
+                vmschedule_CanThreadResume_LockIfYes(mainthread, now)
                 ) {
             // NOTE: access_lock is NOW LOCKED.
             int result = vmschedule_RunMainThreadLaunchFunc(
@@ -347,7 +365,7 @@ void vmschedule_WorkerRun(void *userdata) {
                     workers_ran_globalinitsimple &&
                 !worker->vmexec->worker_overview->
                     workers_ran_globalinit &&
-                vmschedule_CanThreadResume_LockIfYes(mainthread)
+                vmschedule_CanThreadResume_LockIfYes(mainthread, now)
                 ) {
             // NOTE: access_lock is NOW LOCKED.
             int result = vmschedule_RunMainThreadLaunchFunc(
@@ -373,7 +391,7 @@ void vmschedule_WorkerRun(void *userdata) {
                     workers_ran_globalinit &&
                 !worker->vmexec->worker_overview->
                     workers_ran_main &&
-                vmschedule_CanThreadResume_LockIfYes(mainthread)
+                vmschedule_CanThreadResume_LockIfYes(mainthread, now)
                 ) {
             // NOTE: access_lock is NOW LOCKED.
             int result = vmschedule_RunMainThreadLaunchFunc(
@@ -391,8 +409,52 @@ void vmschedule_WorkerRun(void *userdata) {
             mutex_Release(access_mutex);
             continue;
         }
-        return;
+
+        // See if we can run anything:
+        mutex_Lock(access_mutex);
+        threadevent_Unset(worker->wakeupevent);
+        int have_notdone_thread = 0;
+        int tc = worker->vmexec->thread_count;
+        int i = 0;
+        while (i < tc) {
+            h64vmthread *vt = worker->vmexec->thread[i];
+            if (likely(vt->suspend_info->suspendtype !=
+                       SUSPENDTYPE_DONE))
+                have_notdone_thread = 1;
+            if (worker->no != 0 && vt->is_main_thread) {
+                i++;
+                continue;
+            }
+            i++;
+        }
+        mutex_Release(access_mutex);
+        // Nothing we can run -> sleep, or exit if program is done:
+        if (!have_notdone_thread) {
+            // We reached the end of the program.
+            return;
+        }
+        if (worker->vmexec->worker_overview->fatalerror)
+            break;  // could have changed right before threadevent_Unset()
+        ATTR_UNUSED int result = threadevent_WaitUntilSet(
+            worker->wakeupevent, 5000, 1
+        );
     }
+}
+
+void _wakeup_threads(h64vmexec *vmexec) {
+    mutex *access_mutex = vmexec->worker_overview->worker_mutex;
+    mutex_Lock(access_mutex);
+    int wc = vmexec->worker_overview->worker_count;
+    int i = 0;
+    while (i < wc) {
+        threadevent_Set(vmexec->worker_overview->worker[i]->wakeupevent);
+        i++;
+    }
+    mutex_Release(access_mutex);
+}
+
+void vmschedule_WorkerSupervisorRun(void *userdata) {
+
 }
 
 int vmschedule_ExecuteProgram(
@@ -457,6 +519,16 @@ int vmschedule_ExecuteProgram(
                 sizeof(*mainexec->worker_overview->worker[k])
             );
             mainexec->worker_overview->worker[k]->vmexec = mainexec;
+            mainexec->worker_overview->worker[k]->wakeupevent = (
+                threadevent_Create()
+            );
+            if (!mainexec->worker_overview->worker[k]->wakeupevent) {
+                fprintf(
+                    stderr, "horsevm: error: vmschedule.c: out of "
+                    "memory during setup\n"
+                );
+                return -1;
+            }
             mainexec->worker_overview->worker_count++;
             k++;
         }
@@ -481,18 +553,43 @@ int vmschedule_ExecuteProgram(
         i++;
     }
     if (threaderror) {
+        mainexec->worker_overview->fatalerror = 1;
         fprintf(
             stderr, "horsevm: error: vmschedule.c: out of memory "
             "spawning workers\n"
         );
     }
+
+    // Launch supervisor thread:
+    struct threadinfo *supervisor_thread = NULL;
+    if (!threaderror)
+        supervisor_thread = thread_Spawn(
+            vmschedule_WorkerSupervisorRun, mainexec
+        );
+    if (!threaderror && !supervisor_thread) {
+        threaderror = 1;
+        fprintf(
+            stderr, "horsevm: error: vmschedule.c: out of memory "
+            "spawning supervisor\n"
+        );
+    }
+
+    // If we had a thread error, then signal to stop early:
+    if (threaderror) {
+        mainexec->worker_overview->fatalerror = 1;
+    }
+
     // Run main thread:
-    vmschedule_WorkerRun( mainexec->worker_overview->worker[0]);
+    if (!threaderror)
+        vmschedule_WorkerRun( mainexec->worker_overview->worker[0]);
 
     // Wait until other threads are done:
     i = 1;
     while (i < worker_count) {
         if (mainexec->worker_overview->worker[i]->worker_thread) {
+            threadevent_Set(
+                mainexec->worker_overview->worker[i]->wakeupevent
+            );
             thread_Join(
                 mainexec->worker_overview->worker[i]->worker_thread
             );
@@ -500,6 +597,9 @@ int vmschedule_ExecuteProgram(
         }
         i++;
     }
+    thread_Join(
+        supervisor_thread
+    );
     if (threaderror && mainexec->program_return_value == 0)
         mainexec->program_return_value = -1;
     int retval = mainexec->program_return_value;

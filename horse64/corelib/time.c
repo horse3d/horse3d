@@ -28,7 +28,10 @@ int timelib_sleep(
         ) {
     /**
      * Sleep for the given amount of seconds. Fractional values are supported,
-     * e.g. it is possible to sleep 0.01 seconds.
+     * e.g. it is possible to sleep 0.01 seconds. If the system goes into
+     * suspend or hibernate while your function is sleeping, then the
+     * remaining sleep interval will be resumed post suspend (so the suspend
+     * does not count into the sleep interval).
      *
      * @func sleep
      * @param amount the amount of seconds to sleep
@@ -67,7 +70,7 @@ int timelib_sleep(
 
     return vmschedule_SuspendFunc(
         vmthread, SUSPENDTYPE_FIXEDTIME,
-        datetime_TicksNoSuspendJump() + sleepms
+        datetime_Ticks() + sleepms
     );
 }
 
