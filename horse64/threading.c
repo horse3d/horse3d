@@ -2,6 +2,7 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include <stdint.h>
 #ifndef ISWIN
 #if defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(__WIN32__)
 #define ISWIN
@@ -476,6 +477,13 @@ void threadevent_Set(threadevent *te) {
             #endif
                 break;
             }
+            fd_set write_fds = {0};
+            FD_ZERO(&write_fds);
+            FD_SET(te->_sourceside->fd, &write_fds);
+            select(
+                FD_SETSIZE, NULL, &write_fds,
+                NULL, NULL
+            );
             continue;
         } else {
             break;
@@ -489,28 +497,38 @@ int threadevent_WaitUntilSet(
         ) {
     int fd = te->_targetside->fd;
     fd_set read_fds = {0};
-    FD_SET(fd, &read_fds);
 
     mutex_Lock(te->datalock);
     if (te->set) {
         if (unsetifset)
-            te->set = 1;
+            te->set = 0;
         mutex_Release(te->datalock);
         return 1;
     }
     mutex_Release(te->datalock);
 
+    int64_t timeremain_ms = 0;
+    if (timeout_ms > 0 && timeout_ms > (uint64_t)INT64_MAX)
+        timeremain_ms = INT64_MAX;
+    else if (timeout_ms > 0)
+        timeremain_ms = timeout_ms;
+    int64_t origtimeremain_ms = timeremain_ms;
+    uint64_t start = datetime_Ticks();
     struct timeval tv = {0};
     while (1) {
-        uint64_t now = datetime_Ticks();
-        tv.tv_sec = (timeout_ms / 1000ULL);
-        tv.tv_usec = (timeout_ms % 1000ULL) * 1000ULL;
+        if (timeremain_ms > 0) {
+            tv.tv_sec = (timeremain_ms / 1000ULL);
+            tv.tv_usec = (timeremain_ms % 1000ULL) * 1000ULL;
+        }
+        FD_ZERO(&read_fds);
+        FD_SET(fd, &read_fds);
+        assert(FD_ISSET(fd, &read_fds));
         int result = select(
-            fd,
+            FD_SETSIZE,
             &read_fds, NULL, NULL,
-            (timeout_ms == 0 ? NULL : &tv)
+            (timeremain_ms == 0 ? NULL : &tv)
         );
-        if (result >= 0) {
+        if (result > 0) {
             char c;
             ssize_t recvbytes = 1;
             while (recvbytes > 0) {
@@ -522,16 +540,18 @@ int threadevent_WaitUntilSet(
         mutex_Lock(te->datalock);
         if (te->set) {
             if (unsetifset)
-                te->set = 1;
+                te->set = 0;
             mutex_Release(te->datalock);
             return 1;
         }
         mutex_Release(te->datalock);
-        if (timeout_ms > 0) {
-            timeout_ms -= (datetime_Ticks() - now);
-            if (timeout_ms >= 1) {
+        if (timeremain_ms > 0) {
+            timeremain_ms = origtimeremain_ms - (datetime_Ticks() - start);
+            if (timeremain_ms >= 1) {
                 continue;
             }
+            return 0;
+        } else {
             return 0;
         }
     }

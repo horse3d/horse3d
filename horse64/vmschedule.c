@@ -411,6 +411,14 @@ void vmschedule_WorkerRun(void *userdata) {
         }
 
         // See if we can run anything:
+        #ifndef NDEBUG
+        if (worker->moptions->vmscheduler_debug)
+            fprintf(
+                stderr, "horsevm: debug: vmschedule.c: "
+                "[w%d] CHECK looking for work...\n",
+                worker->no
+            );
+        #endif
         mutex_Lock(access_mutex);
         threadevent_Unset(worker->wakeupevent);
         int have_notdone_thread = 0;
@@ -431,10 +439,26 @@ void vmschedule_WorkerRun(void *userdata) {
         // Nothing we can run -> sleep, or exit if program is done:
         if (!have_notdone_thread) {
             // We reached the end of the program.
+            #ifndef NDEBUG
+            if (worker->moptions->vmscheduler_debug)
+                fprintf(
+                    stderr, "horsevm: debug: vmschedule.c: "
+                    "[w%d] END no jobs left, assuming program end\n",
+                    worker->no
+                );
+            #endif
             return;
         }
         if (worker->vmexec->worker_overview->fatalerror)
             break;  // could have changed right before threadevent_Unset()
+        #ifndef NDEBUG
+        if (worker->moptions->vmscheduler_debug)
+            fprintf(
+                stderr, "horsevm: debug: vmschedule.c: "
+                "[w%d] WAIT sleeping until wakeup event...\n",
+                worker->no
+            );
+        #endif
         ATTR_UNUSED int result = threadevent_WaitUntilSet(
             worker->wakeupevent, 5000, 1
         );
@@ -454,7 +478,7 @@ void _wakeup_threads(h64vmexec *vmexec) {
 }
 
 void vmschedule_WorkerSupervisorRun(void *userdata) {
-
+    h64vmexec *vmexec = (h64vmexec*) userdata;
 }
 
 int vmschedule_ExecuteProgram(
@@ -584,12 +608,26 @@ int vmschedule_ExecuteProgram(
         vmschedule_WorkerRun( mainexec->worker_overview->worker[0]);
 
     // Wait until other threads are done:
+    #ifndef NDEBUG
+    if (moptions->vmscheduler_debug)
+        fprintf(
+            stderr, "horsevm: debug: vmschedule.c: "
+            "[w0] END sending termination to all threads...\n"
+        );
+    #endif
     i = 1;
     while (i < worker_count) {
         if (mainexec->worker_overview->worker[i]->worker_thread) {
             threadevent_Set(
                 mainexec->worker_overview->worker[i]->wakeupevent
             );
+            #ifndef NDEBUG
+            if (moptions->vmscheduler_debug)
+                fprintf(
+                    stderr, "horsevm: debug: vmschedule.c: "
+                    "[w0] END waiting for shutdown of w%d\n", i
+                );
+            #endif
             thread_Join(
                 mainexec->worker_overview->worker[i]->worker_thread
             );
