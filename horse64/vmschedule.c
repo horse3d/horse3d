@@ -459,9 +459,19 @@ void vmschedule_WorkerRun(void *userdata) {
                 worker->no
             );
         #endif
-        ATTR_UNUSED int result = threadevent_WaitUntilSet(
+        int result = threadevent_WaitUntilSet(
             worker->wakeupevent, 5000, 1
         );
+        if (result) {
+            #ifndef NDEBUG
+            if (worker->moptions->vmscheduler_debug)
+                fprintf(
+                    stderr, "horsevm: debug: vmschedule.c: "
+                    "[w%d] AWOKEN by thread event set\n",
+                    worker->no
+                );
+            #endif
+        }
     }
 }
 
@@ -564,7 +574,7 @@ int vmschedule_ExecuteProgram(
     while (i < worker_count) {
         mainexec->worker_overview->worker[i]->no = i;
         mainexec->worker_overview->worker[i]->moptions = moptions;
-        if (i > 1) {
+        if (i >= 1) {
             mainexec->worker_overview->worker[i]->worker_thread = (
                 thread_Spawn(
                     vmschedule_WorkerRun,
