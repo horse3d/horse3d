@@ -37,6 +37,10 @@ typedef struct vmthreadsuspendinfo {
 typedef struct vmthreadresumeinfo {
     int64_t byteoffset;
     funcid_t func_id;
+    int64_t precall_old_stack;
+    int64_t precall_old_floor;
+    int precall_funcframesbefore;
+    int precall_errorframesbefore;
 } vmthreadresumeinfo;
 
 typedef struct h64vmworker {

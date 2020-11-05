@@ -79,6 +79,10 @@ h64vmthread *vmthread_New(h64vmexec *owner) {
     memset(vmthread->resume_info, 0,
            sizeof(*vmthread->resume_info));
     vmthread->resume_info->func_id = -1;
+    vmthread->resume_info->precall_old_stack = -1;
+    vmthread->resume_info->precall_old_floor = -1;
+    vmthread->resume_info->precall_funcframesbefore = -1;
+    vmthread->resume_info->precall_errorframesbefore = -1;
 
     if (owner) {
         h64vmthread **new_thread = realloc(
@@ -3358,12 +3362,41 @@ int vmthread_RunFunction(
         h64errorinfo *einfo
         ) {
     // Remember func frames & old stack we had before, then launch:
-    int64_t old_stack = start_thread->stack->entry_count - (
-        vmexec->program->func[func_id].input_stack_size
+    int isresume = (
+        func_id < 0 && start_thread->resume_info->func_id >= 0
     );
-    int64_t old_floor = start_thread->stack->current_func_floor;
-    int funcframesbefore = start_thread->funcframe_count;
-    int errorframesbefore = start_thread->errorframe_count;
+    int64_t old_stack = -1;
+    int64_t old_floor = -1;
+    int funcframesbefore = -1;
+    int errorframesbefore = -1;
+    if (!isresume) {
+        assert(func_id >= 0 && func_id < vmexec->program->func_count);
+        old_stack = start_thread->stack->entry_count - (
+            vmexec->program->func[func_id].input_stack_size
+        );
+        old_floor = start_thread->stack->current_func_floor;
+        funcframesbefore = start_thread->funcframe_count;
+        errorframesbefore = start_thread->errorframe_count;
+        start_thread->resume_info->precall_old_stack = old_stack;
+        start_thread->resume_info->precall_old_floor = old_floor;
+        start_thread->resume_info->precall_funcframesbefore = (
+            funcframesbefore
+        );
+        start_thread->resume_info->precall_errorframesbefore = (
+            errorframesbefore
+        );
+    } else {
+        old_stack = start_thread->resume_info->precall_old_stack;
+        old_floor = start_thread->resume_info->precall_old_floor;
+        funcframesbefore = (
+            start_thread->resume_info->precall_funcframesbefore
+        );
+        errorframesbefore = (
+            start_thread->resume_info->precall_errorframesbefore
+        );
+        assert(func_id < 0);
+    }
+
     int inneruncaughterror = 0;
     int innersuspend = 0;
     int result = _vmthread_RunFunction_NoPopFuncFrames(
@@ -3486,6 +3519,10 @@ int vmthread_RunFunctionWithReturnInt(
     int innerreturnedsuspend = 0;
     int innerreturneduncaughterror = 0;
     int64_t old_stack_size = start_thread->stack->entry_count;
+    assert(
+        (func_id >= 0 && start_thread->resume_info->func_id < 0) ||
+        (func_id < 0 && start_thread->resume_info->func_id >= 0)
+    );
     int result = vmthread_RunFunction(
         vmexec, start_thread, func_id,
         &innerreturnedsuspend, suspendinfo,

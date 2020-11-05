@@ -433,6 +433,72 @@ void vmschedule_WorkerRun(void *userdata) {
                 i++;
                 continue;
             }
+            if (vmschedule_CanThreadResume_UnguardedCheck(
+                    vt, now
+                    )) {
+                #ifndef NDEBUG
+                if (worker->moptions->vmscheduler_debug)
+                    fprintf(
+                        stderr, "horsevm: debug: vmschedule.c: "
+                        "[w%d] RESUME picking up vm thread %p\n",
+                        worker->no, vt
+                    );
+                #endif
+                h64program *pr = worker->vmexec->program;
+                h64errorinfo einfo = {0};
+                vmthreadsuspendinfo sinfo = {0};
+                int hadsuspendevent = 0;
+                int haduncaughterror = 0;
+                int rval = 0;
+                vt->run_by_worker = worker;
+                int oldtype = vt->suspend_info->suspendtype;
+                if (oldtype != SUSPENDTYPE_NONE &&
+                        oldtype != SUSPENDTYPE_DONE) {
+                    worker->vmexec->suspend_overview->
+                        waittypes_currently_active[
+                            oldtype
+                        ]--;
+                    assert(worker->vmexec->suspend_overview->
+                        waittypes_currently_active[
+                            oldtype
+                        ] >= 0);
+                }
+                if (oldtype == SUSPENDTYPE_ASYNCCALLSCHEDULED) {
+                    memset(vt->resume_info, 0, sizeof(*vt->resume_info));
+                    vt->resume_info->func_id = (
+                        (funcid_t)vt->suspend_info->suspendarg
+                    );
+                }
+                vt->suspend_info->suspendtype = (
+                    SUSPENDTYPE_NONE
+                );
+                assert(vt->resume_info->func_id >= 0);
+                if (!vmthread_RunFunctionWithReturnInt(
+                        worker, vt,
+                        1,  // assume locked mutex & will return LOCKED
+                        -1,  // func_id = -1 since we resume
+                        &hadsuspendevent, &sinfo,
+                        &haduncaughterror, &einfo, &rval
+                        ) || haduncaughterror) {
+                    // Mutex will be locked again, here.
+                    if (!haduncaughterror) {
+                        fprintf(stderr,
+                            "horsevm: error: vmschedule.c: "
+                            " fatal error in function, "
+                            "out of memory?\n"
+                        );
+                    } else {
+                        assert(einfo.error_class_id >= 0);
+                        _printuncaughterror(pr, &einfo);
+                    }
+                    vt->suspend_info->suspendtype = (
+                        SUSPENDTYPE_DONE
+                    );
+                    vmthread_Free(vt);
+                    worker->vmexec->program_return_value = -1;
+                }
+                break;
+            }
             i++;
         }
         mutex_Release(access_mutex);
