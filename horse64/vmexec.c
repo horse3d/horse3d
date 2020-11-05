@@ -51,25 +51,34 @@ h64vmthread *vmthread_New(h64vmexec *owner) {
     vmthread->call_settop_reverse = -1;
     vmthread->is_main_thread = 0;
 
+    vmthread->suspend_info = malloc(
+        sizeof(*vmthread->suspend_info)
+    );
     if (!vmthread->suspend_info) {
-        vmthread->suspend_info = malloc(
-            sizeof(*vmthread->suspend_info)
-        );
-        if (!vmthread->suspend_info) {
-            vmthread_Free(vmthread);
-            return NULL;
-        }
-        memset(vmthread->suspend_info, 0,
-               sizeof(*vmthread->suspend_info));
-        vmthread->suspend_info->suspendtype = (
-            SUSPENDTYPE_ASYNCCALLSCHEDULED
-        );
-        assert(owner->suspend_overview != NULL);
-        owner->suspend_overview->
-            waittypes_currently_active[
-                SUSPENDTYPE_ASYNCCALLSCHEDULED
-            ]++;
+        vmthread_Free(vmthread);
+        return NULL;
     }
+    memset(vmthread->suspend_info, 0,
+            sizeof(*vmthread->suspend_info));
+    vmthread->suspend_info->suspendtype = (
+        SUSPENDTYPE_ASYNCCALLSCHEDULED
+    );
+    assert(owner->suspend_overview != NULL);
+    owner->suspend_overview->
+        waittypes_currently_active[
+            SUSPENDTYPE_ASYNCCALLSCHEDULED
+        ]++;
+
+    vmthread->resume_info = malloc(
+        sizeof(*vmthread->resume_info)
+    );
+    if (!vmthread->resume_info) {
+        vmthread_Free(vmthread);
+        return NULL;
+    }
+    memset(vmthread->resume_info, 0,
+           sizeof(*vmthread->resume_info));
+    vmthread->resume_info->func_id = -1;
 
     if (owner) {
         h64vmthread **new_thread = realloc(
@@ -205,6 +214,9 @@ void vmthread_Free(h64vmthread *vmthread) {
     }
     if (vmthread->suspend_info) {
         free(vmthread->suspend_info);
+    }
+    if (vmthread->resume_info) {
+        free(vmthread->resume_info);
     }
     free(vmthread);
 }
@@ -936,7 +948,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64vmexec *vmexec, h64vmthread *start_thread,
         int64_t func_id,
         int *returneduncaughterror,
-        h64errorinfo *einfo
+        h64errorinfo *einfo,
+        int *returnedsuspend,
+        vmthreadsuspendinfo *suspend_info
         ) {
     if (!vmexec || !start_thread || !einfo)
         return 0;
@@ -2092,6 +2106,37 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 goto triggeroom;
             }
             if (!result) {
+                if (retval.type == H64VALTYPE_SUSPENDINFO) {
+                    // Handle function suspend
+                    if (returneduncaughterror)
+                        *returneduncaughterror = 0;
+                    if (returnedsuspend)
+                        *returnedsuspend = 1;
+                    if (suspend_info) {
+                        // NOTE: can't directly copy to
+                        // vmhread->suspend_info here, because
+                        // we don't have the worker_overview
+                        // mutex.
+                        memset(
+                            suspend_info, 0,
+                            sizeof(*suspend_info)
+                        );
+                        suspend_info->suspendtype = (
+                            retval.suspend_type
+                        );
+                        suspend_info->suspendarg = (
+                            retval.suspend_intarg
+                        );
+                    }
+                    p += sizeof(h64instruction_call);
+                    vmthread->resume_info->byteoffset = (
+                        p - pr->func[func_id].instructions
+                    );
+                    vmthread->resume_info->func_id = func_id;
+                    DELREF_NONHEAP(&retval);
+                    valuecontent_Free(&retval);
+                    return 1;
+                }
                 // Handle function call error
                 valuecontent oome = {0};
                 oome.type = H64VALTYPE_ERROR;
@@ -3320,9 +3365,19 @@ int vmthread_RunFunction(
     int funcframesbefore = start_thread->funcframe_count;
     int errorframesbefore = start_thread->errorframe_count;
     int inneruncaughterror = 0;
+    int innersuspend = 0;
     int result = _vmthread_RunFunction_NoPopFuncFrames(
-        vmexec, start_thread, func_id, &inneruncaughterror, einfo
+        vmexec, start_thread, func_id, &inneruncaughterror, einfo,
+        &innersuspend, suspendinfo
     );  // ^ run actual function
+    if (!inneruncaughterror && innersuspend) {
+        // Special: we need to leave things as they are for resume.
+        if (returnedsuspend)
+            *returnedsuspend = 1;
+        if (returneduncaughterror)
+            *returneduncaughterror = 0;
+        return result;
+    }
 
     // Make sure we don't leave excess func frames behind:
     assert(start_thread->funcframe_count >= funcframesbefore);
@@ -3361,22 +3416,6 @@ int vmthread_RunFunction(
         //   (old stack + return value on top)
         // Set old function floor:
         start_thread->stack->current_func_floor = old_floor;
-        // See if returned value is actually a suspend info:
-        {
-            valuecontent *retval = STACK_ENTRY(
-                start_thread->stack, old_stack
-            );
-            if (retval->type == H64VALTYPE_SUSPENDINFO) {
-                if (returnedsuspend)
-                    *returnedsuspend = 1;
-                if (suspendinfo) {
-                    suspendinfo->suspendtype = retval->suspend_type;
-                    suspendinfo->suspendarg = retval->suspend_intarg;
-                    suspendinfo->suspenditemready = 0;
-                }
-                return 1;
-            }
-        }
     }
     if (returneduncaughterror)
         *returneduncaughterror = inneruncaughterror;
@@ -3455,7 +3494,8 @@ int vmthread_RunFunctionWithReturnInt(
     mutex_Lock(vmexec->worker_overview->worker_mutex);
     assert(
         ((start_thread->stack->entry_count <= old_stack_size + 1) ||
-        !result) && start_thread->stack->entry_count >= old_stack_size
+        !result || innerreturnedsuspend) &&
+        start_thread->stack->entry_count >= old_stack_size
     );
     if (innerreturneduncaughterror) {
         *returneduncaughterror = 1;

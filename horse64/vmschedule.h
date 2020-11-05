@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "compiler/globallimits.h"
 #include "threading.h"
 
 typedef struct h64vmexec h64vmexec;
@@ -32,6 +33,11 @@ typedef struct vmthreadsuspendinfo {
     int64_t suspendarg;
     uint8_t suspenditemready;
 } vmthreadsuspendinfo;
+
+typedef struct vmthreadresumeinfo {
+    int64_t byteoffset;
+    funcid_t func_id;
+} vmthreadresumeinfo;
 
 typedef struct h64vmworker {
     int no;

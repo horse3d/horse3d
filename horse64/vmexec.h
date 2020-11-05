@@ -77,6 +77,7 @@ typedef struct h64vmthread {
     int execution_func_id;
     int execution_instruction_id;
     vmthreadsuspendinfo *suspend_info;
+    vmthreadresumeinfo *resume_info;
 } h64vmthread;
 
 typedef struct h64vmexec {
