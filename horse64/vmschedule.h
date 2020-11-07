@@ -14,15 +14,7 @@ typedef struct h64vmexec h64vmexec;
 typedef struct h64vmthread h64vmthread;
 typedef struct h64misccompileroptions h64misccompileroptions;
 
-typedef enum suspendtype {
-    SUSPENDTYPE_NONE = 0,
-    SUSPENDTYPE_FIXEDTIME = 1,
-    SUSPENDTYPE_WAITFORSOCKET,
-    SUSPENDTYPE_WAITFORPROCESSTERMINATION,
-    SUSPENDTYPE_ASYNCCALLSCHEDULED,
-    SUSPENDTYPE_DONE,
-    SUSPENDTYPE_TOTALCOUNT
-} suspendtype;
+#include "vmsuspendtypeenum.h"
 
 typedef struct vmsuspendoverview {
     uint8_t *waittypes_currently_active;
@@ -39,8 +31,10 @@ typedef struct vmthreadresumeinfo {
     funcid_t func_id;
     int64_t precall_old_stack;
     int64_t precall_old_floor;
+    int funcnestdepth;
     int precall_funcframesbefore;
     int precall_errorframesbefore;
+    uint8_t run_from_start;
 } vmthreadresumeinfo;
 
 typedef struct h64vmworker {

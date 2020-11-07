@@ -26,10 +26,61 @@
 #include "vmlist.h"
 #include "vmschedule.h"
 #include "vmstrings.h"
+#include "vmsuspendtypeenum.h"
 #include "widechar.h"
 
 #define DEBUGVMEXEC
 
+
+void vmthread_SetSuspendState(
+        h64vmthread *vmthread,
+        suspendtype suspend_type, int64_t suspend_arg
+        ) {
+    assert(vmthread->vmexec_owner != NULL);
+    #ifndef NDEBUG
+    if (vmthread->vmexec_owner->moptions.vmscheduler_debug)
+        fprintf(
+            stderr, "horsevm: debug: vmschedule.c: "
+            "[t%p] STATE of thread suspend changed %d -> %d"
+            " (arg: %" PRId64 ")\n",
+            vmthread,
+            (int)vmthread->suspend_info->suspendtype,
+            (int)suspend_type, (int64_t)suspend_arg
+        );
+    #endif
+    suspendtype old_type = vmthread->suspend_info->suspendtype;
+    if (old_type != SUSPENDTYPE_NONE) {
+        vmthread->vmexec_owner->suspend_overview->
+            waittypes_currently_active[old_type]--;
+        assert(vmthread->vmexec_owner->suspend_overview->
+            waittypes_currently_active[old_type] >= 0);
+    }
+    vmthread->suspend_info->suspendtype = suspend_type;
+    vmthread->suspend_info->suspendarg = suspend_arg;
+    vmthread->suspend_info->suspenditemready = 0;
+    if (suspend_type != SUSPENDTYPE_NONE) {
+        vmthread->vmexec_owner->suspend_overview->
+            waittypes_currently_active[
+                suspend_type
+            ]++;
+        assert(vmthread->vmexec_owner->suspend_overview->
+            waittypes_currently_active[
+                suspend_type
+            ] > 0);
+        if (old_type == SUSPENDTYPE_NONE)
+            vmthread->upcoming_resume_info->run_from_start = 0;
+    }
+    if (suspend_type == SUSPENDTYPE_ASYNCCALLSCHEDULED ||
+            suspend_type == SUSPENDTYPE_NONE) {
+        vmthread->upcoming_resume_info->func_id = -1;
+        #ifndef NDEBUG
+        vmthread->upcoming_resume_info->precall_old_stack = -1;
+        vmthread->upcoming_resume_info->precall_old_floor = -1;
+        vmthread->upcoming_resume_info->precall_funcframesbefore = -1;
+        vmthread->upcoming_resume_info->precall_errorframesbefore = -1;
+        #endif
+    }
+}
 
 h64vmthread *vmthread_New(h64vmexec *owner) {
     h64vmthread *vmthread = malloc(sizeof(*vmthread));
@@ -51,6 +102,17 @@ h64vmthread *vmthread_New(h64vmexec *owner) {
     vmthread->call_settop_reverse = -1;
     vmthread->is_main_thread = 0;
 
+    vmthread->upcoming_resume_info = malloc(
+        sizeof(*vmthread->upcoming_resume_info)
+    );
+    if (!vmthread->upcoming_resume_info) {
+        vmthread_Free(vmthread);
+        return NULL;
+    }
+    memset(vmthread->upcoming_resume_info, 0,
+           sizeof(*vmthread->upcoming_resume_info));
+    vmthread->upcoming_resume_info->func_id = -1;
+
     vmthread->suspend_info = malloc(
         sizeof(*vmthread->suspend_info)
     );
@@ -60,29 +122,12 @@ h64vmthread *vmthread_New(h64vmexec *owner) {
     }
     memset(vmthread->suspend_info, 0,
             sizeof(*vmthread->suspend_info));
-    vmthread->suspend_info->suspendtype = (
-        SUSPENDTYPE_ASYNCCALLSCHEDULED
-    );
+    vmthread->vmexec_owner = owner;
     assert(owner->suspend_overview != NULL);
     owner->suspend_overview->
         waittypes_currently_active[
             SUSPENDTYPE_ASYNCCALLSCHEDULED
         ]++;
-
-    vmthread->resume_info = malloc(
-        sizeof(*vmthread->resume_info)
-    );
-    if (!vmthread->resume_info) {
-        vmthread_Free(vmthread);
-        return NULL;
-    }
-    memset(vmthread->resume_info, 0,
-           sizeof(*vmthread->resume_info));
-    vmthread->resume_info->func_id = -1;
-    vmthread->resume_info->precall_old_stack = -1;
-    vmthread->resume_info->precall_old_floor = -1;
-    vmthread->resume_info->precall_funcframesbefore = -1;
-    vmthread->resume_info->precall_errorframesbefore = -1;
 
     if (owner) {
         h64vmthread **new_thread = realloc(
@@ -219,8 +264,8 @@ void vmthread_Free(h64vmthread *vmthread) {
     if (vmthread->suspend_info) {
         free(vmthread->suspend_info);
     }
-    if (vmthread->resume_info) {
-        free(vmthread->resume_info);
+    if (vmthread->upcoming_resume_info) {
+        free(vmthread->upcoming_resume_info);
     }
     free(vmthread);
 }
@@ -249,9 +294,9 @@ static int vmthread_PrintExec(
     char *_s = disassembler_InstructionToStr(inst);
     if (!_s) return 0;
     fprintf(
-        stderr, "horsevm: debug: vmexec f:%" PRId64 " "
+        stderr, "horsevm: debug: vmexec [t%p] f:%" PRId64 " "
         "o:%" PRId64 " st:%" PRId64 "/%" PRId64 " %s\n",
-        (int64_t)fid,
+        vt, (int64_t)fid,
         (int64_t)((char*)inst - (char*)vt->vmexec_owner->
                   program->func[fid].instructions),
         (int64_t)vt->stack->current_func_floor,
@@ -876,8 +921,8 @@ static void vmexec_PrintPostErrorInfo(
         int64_t func_id, int64_t offset
         ) {
     fprintf(stderr,
-        "horsevm: debug: vmexec ** RESUME post error"
-        " in func %" PRId64 " at offset %" PRId64 "\n",
+        "horsevm: debug: vmexec ** ERROR raised, resuming. (it was in "
+        " in func %" PRId64 " at offset %" PRId64 ")\n",
         func_id,
         (int64_t)offset
     );
@@ -948,9 +993,47 @@ static void vmexec_PrintPostErrorInfo(
 #define RAISE_ERROR_U32(class_id, msg, msglen) \
     RAISE_ERROR_EX(class_id, 1, (const char *)msg, (int)msglen)
 
+// Macro for suspending inside _vmthread_RunFunction_NoPopFuncFrames:
+#define SUSPEND_VM(suspend_valuecontent) \
+    /* Handle function suspend: */ \
+    if (returneduncaughterror) \
+        *returneduncaughterror = 0; \
+    if (returnedsuspend) \
+        *returnedsuspend = 1; \
+    if (suspend_info) { \
+        /* NOTE: can't directly copy to */ \
+        /* vmhread->suspend_info here, because */ \
+        /* we don't have the worker_overview */ \
+        /* mutex. */ \
+        memset( \
+            suspend_info, 0, \
+            sizeof(*suspend_info) \
+        ); \
+        suspend_info->suspendtype = ( \
+            suspend_valuecontent->suspend_type \
+        ); \
+        suspend_info->suspendarg = ( \
+            suspend_valuecontent->suspend_intarg \
+        ); \
+    } \
+    p += sizeof(h64instruction_call); \
+    vmthread->upcoming_resume_info->byteoffset = ( \
+        p - pr->func[func_id].instructions \
+    ); \
+    vmthread->upcoming_resume_info->func_id = func_id; \
+    vmthread->upcoming_resume_info->funcnestdepth = funcnestdepth; \
+    DELREF_NONHEAP(suspend_valuecontent); \
+    valuecontent_Free(suspend_valuecontent); \
+    if (vmexec->moptions.vmscheduler_debug) \
+        fprintf( \
+            stderr, "horsevm: debug: vmschedule.c: " \
+            "[t%p] SUSPEND in func %" PRId64 "\n", \
+            start_thread, (int64_t)func_id\
+        );
+
 int _vmthread_RunFunction_NoPopFuncFrames(
         h64vmexec *vmexec, h64vmthread *start_thread,
-        int64_t func_id,
+        vmthreadresumeinfo *rinfo,
         int *returneduncaughterror,
         h64errorinfo *einfo,
         int *returnedsuspend,
@@ -960,6 +1043,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     h64program *pr = vmexec->program;
 
+    int64_t func_id = rinfo->func_id;
     #ifndef NDEBUG
     if (vmexec->moptions.vmexec_debug)
         fprintf(
@@ -968,9 +1052,26 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             func_id
         );
     #endif
+    int isresume = 0;
+    if (!rinfo->run_from_start) {
+        isresume = 1;
+        #ifndef NDEBUG
+        if (vmexec->moptions.vmscheduler_debug) \
+            fprintf( \
+                stderr, "horsevm: debug: vmschedule.c: " \
+                "[t%p] %s in func %" PRId64 "\n", \
+                start_thread,
+                (rinfo->run_from_start ?
+                 "ASYNCCALL" : "RESUME"),
+                (int64_t)func_id\
+            );
+        #endif
+    }
     assert(func_id >= 0 && func_id < pr->func_count);
     assert(!pr->func[func_id].iscfunc);
     char *p = pr->func[func_id].instructions;
+    if (isresume)
+        p += rinfo->byteoffset;
     char *pend = p + (intptr_t)pr->func[func_id].instructions_bytes;
     void *jumptable[H64INST_TOTAL_COUNT];
     void *op_jumptable[TOTAL_OP_COUNT];
@@ -978,10 +1079,26 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     h64stack *stack = start_thread->stack;
     poolalloc *heap = start_thread->heap;
     int64_t original_stack_size = (
-        stack->entry_count - pr->func[func_id].input_stack_size
+        start_thread->upcoming_resume_info->precall_old_stack
+        // NOTE: we do NOT want to get this from rinfo, since rinfo
+        // is -1 on non-resume. Instead, this value will be set even when
+        // everything else is -1'ed for future resumes by our caller.
     );
+    assert(original_stack_size >= 0);
+    #ifndef NDEBUG
+    if (!isresume) {
+        // This should have been set by our caller:
+        assert(
+            (int64_t)(stack->entry_count - pr->func[func_id].input_stack_size)
+            == start_thread->upcoming_resume_info->precall_old_stack
+        );
+    }
+    #endif
     stack->current_func_floor = original_stack_size;
     int funcnestdepth = 0;
+    if (isresume) {
+        funcnestdepth = rinfo->funcnestdepth;
+    }
     #ifndef NDEBUG
     if (vmexec->moptions.vmexec_debug)
         fprintf(
@@ -2111,34 +2228,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             }
             if (!result) {
                 if (retval.type == H64VALTYPE_SUSPENDINFO) {
-                    // Handle function suspend
-                    if (returneduncaughterror)
-                        *returneduncaughterror = 0;
-                    if (returnedsuspend)
-                        *returnedsuspend = 1;
-                    if (suspend_info) {
-                        // NOTE: can't directly copy to
-                        // vmhread->suspend_info here, because
-                        // we don't have the worker_overview
-                        // mutex.
-                        memset(
-                            suspend_info, 0,
-                            sizeof(*suspend_info)
-                        );
-                        suspend_info->suspendtype = (
-                            retval.suspend_type
-                        );
-                        suspend_info->suspendarg = (
-                            retval.suspend_intarg
-                        );
-                    }
-                    p += sizeof(h64instruction_call);
-                    vmthread->resume_info->byteoffset = (
-                        p - pr->func[func_id].instructions
-                    );
-                    vmthread->resume_info->func_id = func_id;
-                    DELREF_NONHEAP(&retval);
-                    valuecontent_Free(&retval);
+                    SUSPEND_VM((&retval));
                     return 1;
                 }
                 // Handle function call error
@@ -2318,6 +2408,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             assert(result != 0);
             func_id = -1;
             assert(stack->entry_count - current_stack_size == 0);
+            assert(original_stack_size >= 0);
             if (!stack_ToSize(
                     stack, original_stack_size + 1, 0
                     )) {
@@ -3355,7 +3446,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
 int vmthread_RunFunction(
         h64vmexec *vmexec, h64vmthread *start_thread,
-        int64_t func_id,
+        vmthreadresumeinfo *rinfo,
         int *returnedsuspend,
         vmthreadsuspendinfo *suspendinfo,
         int *returneduncaughterror,
@@ -3363,44 +3454,46 @@ int vmthread_RunFunction(
         ) {
     // Remember func frames & old stack we had before, then launch:
     int isresume = (
-        func_id < 0 && start_thread->resume_info->func_id >= 0
+        !rinfo->run_from_start
     );
+    int64_t func_id = rinfo->func_id;
     int64_t old_stack = -1;
     int64_t old_floor = -1;
     int funcframesbefore = -1;
     int errorframesbefore = -1;
+    assert(func_id >= 0 && func_id < vmexec->program->func_count);
     if (!isresume) {
-        assert(func_id >= 0 && func_id < vmexec->program->func_count);
         old_stack = start_thread->stack->entry_count - (
             vmexec->program->func[func_id].input_stack_size
         );
         old_floor = start_thread->stack->current_func_floor;
         funcframesbefore = start_thread->funcframe_count;
         errorframesbefore = start_thread->errorframe_count;
-        start_thread->resume_info->precall_old_stack = old_stack;
-        start_thread->resume_info->precall_old_floor = old_floor;
-        start_thread->resume_info->precall_funcframesbefore = (
-            funcframesbefore
-        );
-        start_thread->resume_info->precall_errorframesbefore = (
-            errorframesbefore
-        );
     } else {
-        old_stack = start_thread->resume_info->precall_old_stack;
-        old_floor = start_thread->resume_info->precall_old_floor;
+        old_stack = rinfo->precall_old_stack;
+        old_floor = rinfo->precall_old_floor;
         funcframesbefore = (
-            start_thread->resume_info->precall_funcframesbefore
+            rinfo->precall_funcframesbefore
         );
         errorframesbefore = (
-            start_thread->resume_info->precall_errorframesbefore
+            rinfo->precall_errorframesbefore
         );
-        assert(func_id < 0);
     }
+    assert(old_stack >= 0);
+    start_thread->upcoming_resume_info->precall_old_stack = old_stack;
+    start_thread->upcoming_resume_info->precall_old_floor = old_floor;
+    start_thread->upcoming_resume_info->precall_funcframesbefore = (
+        funcframesbefore
+    );
+    start_thread->upcoming_resume_info->precall_errorframesbefore = (
+        errorframesbefore
+    );
 
     int inneruncaughterror = 0;
     int innersuspend = 0;
     int result = _vmthread_RunFunction_NoPopFuncFrames(
-        vmexec, start_thread, func_id, &inneruncaughterror, einfo,
+        vmexec, start_thread, rinfo,
+        &inneruncaughterror, einfo,
         &innersuspend, suspendinfo
     );  // ^ run actual function
     if (!inneruncaughterror && innersuspend) {
@@ -3495,36 +3588,38 @@ int vmthread_RunFunctionWithReturnInt(
             einfo->refcount = 1;
             return 0;
         }
-        int oldtype = start_thread->suspend_info->suspendtype;
-        if (oldtype != SUSPENDTYPE_NONE &&
-                oldtype != SUSPENDTYPE_DONE) {
-            vmexec->suspend_overview->waittypes_currently_active[
-                oldtype
-            ]--;
-            assert(vmexec->suspend_overview->waittypes_currently_active[
-                oldtype
-            ] >= 0);
-        }
-        start_thread->suspend_info->suspendtype = (
-            SUSPENDTYPE_NONE
-        );
-    } else {
-        assert(start_thread->suspend_info->suspendtype == (
-            SUSPENDTYPE_NONE
-        ));
     }
     start_thread->run_by_worker = worker;
-    mutex_Release(vmexec->worker_overview->worker_mutex);
+    vmthreadresumeinfo storedresumeinfo;
+    memcpy(
+        &storedresumeinfo, start_thread->upcoming_resume_info,
+        sizeof(storedresumeinfo)
+    );
+    vmthread_SetSuspendState(  // will clear upcoming_resume_info
+        start_thread, SUSPENDTYPE_NONE, 0
+    );
 
+    mutex_Release(vmexec->worker_overview->worker_mutex);
     int innerreturnedsuspend = 0;
     int innerreturneduncaughterror = 0;
     int64_t old_stack_size = start_thread->stack->entry_count;
     assert(
-        (func_id >= 0 && start_thread->resume_info->func_id < 0) ||
-        (func_id < 0 && start_thread->resume_info->func_id >= 0)
+        (func_id >= 0 && storedresumeinfo.func_id < 0) ||
+        (func_id < 0 && storedresumeinfo.func_id >= 0) ||
+        (func_id >= 0 && storedresumeinfo.func_id == func_id)
     );
+    if (storedresumeinfo.func_id < 0 && func_id >= 0) {
+        storedresumeinfo.func_id = func_id;
+        storedresumeinfo.run_from_start = 1;
+    } else {
+        #ifndef NDEBUG
+        assert(storedresumeinfo.func_id == func_id || func_id < 0);
+        #endif
+    }
+    assert(storedresumeinfo.run_from_start ||
+           storedresumeinfo.precall_old_stack >= 0);
     int result = vmthread_RunFunction(
-        vmexec, start_thread, func_id,
+        vmexec, start_thread, &storedresumeinfo,
         &innerreturnedsuspend, suspendinfo,
         &innerreturneduncaughterror, einfo
     );
@@ -3537,22 +3632,21 @@ int vmthread_RunFunctionWithReturnInt(
     if (innerreturneduncaughterror) {
         *returneduncaughterror = 1;
         *returnedsuspend = 0;
-        start_thread->suspend_info->suspendtype = (
-            SUSPENDTYPE_DONE
+        vmthread_SetSuspendState(
+            start_thread, SUSPENDTYPE_DONE, 0
         );
         return 1;
     } else if (innerreturnedsuspend) {
         *returneduncaughterror = 0;
         *returnedsuspend = 1;
-        memcpy(  // mutex was locked, so this is fine
-            start_thread->suspend_info,
-            suspendinfo,
-            sizeof(*suspendinfo)
-        );
+        vmthread_SetSuspendState(
+            start_thread, suspendinfo->suspendtype,
+            suspendinfo->suspendarg
+        );  // mutex was locked, so this is fine
         return 1;
     }
-    start_thread->suspend_info->suspendtype = (
-        SUSPENDTYPE_DONE
+    vmthread_SetSuspendState(
+        start_thread, SUSPENDTYPE_DONE, 0
     );
     *returneduncaughterror = 0;
     *returnedsuspend = 0;

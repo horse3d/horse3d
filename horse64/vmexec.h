@@ -15,6 +15,7 @@
 
 #include "bytecode.h"
 #include "compiler/main.h"
+#include "vmsuspendtypeenum.h"
 
 typedef struct h64program h64program;
 typedef struct h64instruction h64instruction;
@@ -77,7 +78,7 @@ typedef struct h64vmthread {
     int execution_func_id;
     int execution_instruction_id;
     vmthreadsuspendinfo *suspend_info;
-    vmthreadresumeinfo *resume_info;
+    vmthreadresumeinfo *upcoming_resume_info;
 } h64vmthread;
 
 typedef struct h64vmexec {
@@ -108,6 +109,11 @@ void vmthread_WipeFuncStack(h64vmthread *vmthread);
 h64vmthread *vmthread_New(h64vmexec *owner);
 
 h64vmexec *vmexec_New();
+
+void vmthread_SetSuspendState(
+    h64vmthread *vmthread,
+    suspendtype suspend_type, int64_t suspend_arg
+);
 
 int vmthread_RunFunctionWithReturnInt(
     h64vmworker *worker,

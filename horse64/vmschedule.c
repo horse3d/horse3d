@@ -20,6 +20,7 @@
 #include "valuecontentstruct.h"
 #include "vmexec.h"
 #include "vmschedule.h"
+#include "vmsuspendtypeenum.h"
 
 
 static char _unexpectedlookupfail[] = "<unexpected lookup fail>";
@@ -120,27 +121,22 @@ int vmschedule_AsyncScheduleFunc(
     ); // ^ FIXME, implement this
 
     // Set suspend state to be resumed once we get to run this:
-    int oldtype = vmthread->suspend_info->suspendtype;
-    if (oldtype != SUSPENDTYPE_NONE &&
-            oldtype != SUSPENDTYPE_DONE) {
-        vmexec->suspend_overview->waittypes_currently_active[
-            oldtype
-        ]--;
-        assert(vmexec->suspend_overview->waittypes_currently_active[
-            oldtype
-        ] >= 0);
-    }
-    vmthread->suspend_info->suspendtype = (
-        SUSPENDTYPE_ASYNCCALLSCHEDULED
-    );
-    vmthread->suspend_info->suspendarg = (
-        func_id
-    );
-    vmthread->suspend_info->suspenditemready = 0;
     mutex_Lock(access_mutex);
-    vmexec->suspend_overview->waittypes_currently_active[
-        SUSPENDTYPE_ASYNCCALLSCHEDULED
-    ]++;
+    #ifndef NDEBUG
+    if (newthread->vmexec_owner->moptions.vmscheduler_debug)
+        fprintf(
+            stderr, "horsevm: debug: vmschedule.c: "
+            "[t%p] SCHEDASYNC doing async call of func %" PRId64
+            " on t%p\n",
+            vmthread, func_id, newthread
+        );
+    #endif
+    vmthread_SetSuspendState(
+        newthread, SUSPENDTYPE_ASYNCCALLSCHEDULED, -1
+    );
+    newthread->upcoming_resume_info->func_id = func_id;
+    newthread->upcoming_resume_info->run_from_start = 1;
+    assert(newthread->upcoming_resume_info->func_id >= 0);
     mutex_Release(access_mutex);
     return 1;
 }
@@ -227,20 +223,6 @@ static int vmschedule_RunMainThreadLaunchFunc(
     int rval = 0;
     if (func_id >= 0) {
         mainthread->run_by_worker = worker;
-        int oldtype = mainthread->suspend_info->suspendtype;
-        if (oldtype != SUSPENDTYPE_NONE &&
-                oldtype != SUSPENDTYPE_DONE) {
-            worker->vmexec->suspend_overview->waittypes_currently_active[
-                oldtype
-            ]--;
-            assert(worker->vmexec->suspend_overview->
-                waittypes_currently_active[
-                    oldtype
-                ] >= 0);
-        }
-        mainthread->suspend_info->suspendtype = (
-            SUSPENDTYPE_NONE
-        );
         #ifndef NDEBUG
         if (worker->moptions->vmscheduler_debug)
             fprintf(stderr, "horsevm: debug: vmschedule.c: "
@@ -331,9 +313,11 @@ void vmschedule_WorkerRun(void *userdata) {
                     workers_ran_main &&
                     mainthread->suspend_info->suspendtype ==
                         SUSPENDTYPE_DONE) {
-                mainthread->suspend_info->suspendtype = (
-                    SUSPENDTYPE_ASYNCCALLSCHEDULED
+                vmthread_SetSuspendState(
+                    mainthread, SUSPENDTYPE_ASYNCCALLSCHEDULED, -1
                 );
+                mainthread->upcoming_resume_info->func_id = -1;
+                mainthread->upcoming_resume_info->run_from_start = 1;
             }
             mutex_Release(access_mutex);
         }
@@ -451,28 +435,7 @@ void vmschedule_WorkerRun(void *userdata) {
                 int haduncaughterror = 0;
                 int rval = 0;
                 vt->run_by_worker = worker;
-                int oldtype = vt->suspend_info->suspendtype;
-                if (oldtype != SUSPENDTYPE_NONE &&
-                        oldtype != SUSPENDTYPE_DONE) {
-                    worker->vmexec->suspend_overview->
-                        waittypes_currently_active[
-                            oldtype
-                        ]--;
-                    assert(worker->vmexec->suspend_overview->
-                        waittypes_currently_active[
-                            oldtype
-                        ] >= 0);
-                }
-                if (oldtype == SUSPENDTYPE_ASYNCCALLSCHEDULED) {
-                    memset(vt->resume_info, 0, sizeof(*vt->resume_info));
-                    vt->resume_info->func_id = (
-                        (funcid_t)vt->suspend_info->suspendarg
-                    );
-                }
-                vt->suspend_info->suspendtype = (
-                    SUSPENDTYPE_NONE
-                );
-                assert(vt->resume_info->func_id >= 0);
+                //assert(vt->resume_info->func_id >= 0);
                 if (!vmthread_RunFunctionWithReturnInt(
                         worker, vt,
                         1,  // assume locked mutex & will return LOCKED
@@ -586,6 +549,9 @@ int vmschedule_ExecuteProgram(
     }
     mainexec->program = pr;
     mainthread->is_main_thread = 1;
+    vmthread_SetSuspendState(
+        mainthread, SUSPENDTYPE_ASYNCCALLSCHEDULED, -1
+    );
 
     assert(pr->main_func_index >= 0);
     memcpy(&mainexec->moptions, moptions, sizeof(*moptions));
