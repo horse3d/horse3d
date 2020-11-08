@@ -1098,6 +1098,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     int funcnestdepth = 0;
     if (isresume) {
         funcnestdepth = rinfo->funcnestdepth;
+    } else {
+        assert(rinfo->funcnestdepth <= 0);
     }
     #ifndef NDEBUG
     if (vmexec->moptions.vmexec_debug)
@@ -2474,6 +2476,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         // Return to old execution:
         funcid_t oldfuncid = func_id;
         func_id = returnfuncid;
+        assert(func_id >= 0);
         p = pr->func[func_id].instructions + returnoffset;
         pend = pr->func[func_id].instructions + (
             (ptrdiff_t)pr->func[func_id].instructions_bytes
