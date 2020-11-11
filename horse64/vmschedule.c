@@ -435,7 +435,6 @@ void vmschedule_WorkerRun(void *userdata) {
                 int haduncaughterror = 0;
                 int rval = 0;
                 vt->run_by_worker = worker;
-                //assert(vt->resume_info->func_id >= 0);
                 if (!vmthread_RunFunctionWithReturnInt(
                         worker, vt,
                         1,  // assume locked mutex & will return LOCKED

@@ -1122,6 +1122,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             (int64_t)(stack->entry_count - pr->func[func_id].input_stack_size)
             == start_thread->upcoming_resume_info->precall_old_stack
         );
+        // Must have a clean function frame stack:
+        assert(start_thread->funcframe_count == 0);
     }
     #endif
     stack->current_func_floor = original_stack_size;
@@ -3473,7 +3475,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         original_stack_size
     );
 
-    funcnestdepth++;
+    if (!isresume)
+        funcnestdepth++;
     goto *jumptable[((h64instructionany *)p)->type];
 }
 
