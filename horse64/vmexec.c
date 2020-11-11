@@ -41,9 +41,11 @@ void vmthread_SetSuspendState(
     if (vmthread->vmexec_owner->moptions.vmscheduler_debug)
         fprintf(
             stderr, "horsevm: debug: vmschedule.c: "
-            "[t%p] STATE of thread suspend changed %d -> %d"
+            "[t%p:%s] STATE of thread suspend "
+            "changed %d -> %d"
             " (arg: %" PRId64 ")\n",
             vmthread,
+            (vmthread->is_main_thread ? "main" : "nonmain"),
             (int)vmthread->suspend_info->suspendtype,
             (int)suspend_type, (int64_t)suspend_arg
         );
@@ -80,6 +82,32 @@ void vmthread_SetSuspendState(
         vmthread->upcoming_resume_info->precall_errorframesbefore = -1;
         #endif
     }
+    #ifndef NDEBUG
+    if (vmthread->vmexec_owner->moptions.vmscheduler_verbose_debug) {
+        fprintf(
+            stderr, "horsevm: debug: vmschedule.c: THREAD STATES:"
+        );
+        int i = 0;
+        while (i < vmthread->vmexec_owner->thread_count) {
+            h64vmthread *vth = vmthread->vmexec_owner->thread[i];
+            fprintf(stderr,
+                " [t%p:%s]->%d(arg: %" PRId64 ","
+                "resume ptr:%p,"
+                "resume->func_id:%" PRId64 ","
+                "resume->offset:%" PRId64 ")",
+                vth,
+                (vth->is_main_thread ? "main" : "nonmain"),
+                (int)vth->suspend_info->suspendtype,
+                (int64_t)vth->suspend_info->suspendarg,
+                vth->upcoming_resume_info,
+                (int64_t)vth->upcoming_resume_info->func_id,
+                (int64_t)vth->upcoming_resume_info->byteoffset
+            );
+            i++;
+        }
+        fprintf(stderr, "\n");
+    }
+    #endif
 }
 
 h64vmthread *vmthread_New(h64vmexec *owner) {
@@ -294,9 +322,11 @@ static int vmthread_PrintExec(
     char *_s = disassembler_InstructionToStr(inst);
     if (!_s) return 0;
     fprintf(
-        stderr, "horsevm: debug: vmexec [t%p] f:%" PRId64 " "
+        stderr, "horsevm: debug: vmexec [t%p:%s] "
+        "f:%" PRId64 " "
         "o:%" PRId64 " st:%" PRId64 "/%" PRId64 " %s\n",
-        vt, (int64_t)fid,
+        vt, (vt->is_main_thread ? "main" : "nonmain"),
+        (int64_t)fid,
         (int64_t)((char*)inst - (char*)vt->vmexec_owner->
                   program->func[fid].instructions),
         (int64_t)vt->stack->current_func_floor,
@@ -2276,7 +2306,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 // thread instead.
                 int result = vmschedule_AsyncScheduleFunc(
                     vmexec, vmthread,
-                    new_func_floor, func_id
+                    new_func_floor, target_func_id
                 );
                 if (!result) {
                     goto triggeroom;

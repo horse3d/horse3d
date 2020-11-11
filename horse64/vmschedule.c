@@ -396,7 +396,7 @@ void vmschedule_WorkerRun(void *userdata) {
 
         // See if we can run anything:
         #ifndef NDEBUG
-        if (worker->moptions->vmscheduler_debug)
+        if (worker->moptions->vmscheduler_verbose_debug)
             fprintf(
                 stderr, "horsevm: debug: vmschedule.c: "
                 "[w%d] CHECK looking for work...\n",
@@ -481,7 +481,7 @@ void vmschedule_WorkerRun(void *userdata) {
         if (worker->vmexec->worker_overview->fatalerror)
             break;  // could have changed right before threadevent_Unset()
         #ifndef NDEBUG
-        if (worker->moptions->vmscheduler_debug)
+        if (worker->moptions->vmscheduler_verbose_debug)
             fprintf(
                 stderr, "horsevm: debug: vmschedule.c: "
                 "[w%d] WAIT sleeping until wakeup event...\n",
