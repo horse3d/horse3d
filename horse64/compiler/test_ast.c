@@ -90,6 +90,18 @@ START_TEST (test_ast_complex)
 }
 END_TEST
 
+START_TEST (test_ast_twoprints)
+{
+    char s[] = (
+        "func main {"
+        "    print(4)"
+        "    print(5)"
+        "}"
+    );
+    _parsetest_do(s, PARSETEST_EXPECTOK);
+}
+END_TEST
+
 START_TEST (test_ast_bracketnesting)
 {
     char s[] = (
@@ -105,4 +117,5 @@ START_TEST (test_ast_bracketnesting)
 END_TEST
 
 
-TESTS_MAIN (test_ast_simple, test_ast_complex, test_ast_bracketnesting)
+TESTS_MAIN (test_ast_simple, test_ast_complex, test_ast_twoprints,
+            test_ast_bracketnesting)
