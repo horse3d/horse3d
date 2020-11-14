@@ -1435,7 +1435,7 @@ FILE *filesys_TempFile(
     assert(
         sizeof(wchar_t) == sizeof(uint16_t)
         // should be true for windows
-    )
+    );
     if (!tempbufw)
         return NULL;
     unsigned int rval = 0;
@@ -1458,7 +1458,7 @@ FILE *filesys_TempFile(
         return NULL;
     int result = utf16_to_utf8(
         (const uint16_t*)tempbufw, rval,
-        (uint8_t*)tempbuf, tempbufwsize * 5 + 1,
+        (char*)tempbuf, tempbufwsize * 5 + 1,
         &tempbuffill, 1
     );
     free(tempbufw);
