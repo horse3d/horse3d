@@ -17,6 +17,7 @@
 #include "compiler/lexer.h"
 #include "compiler/main.h"
 #include "compiler/scoperesolver.h"
+#include "filesys.h"
 #include "json.h"
 #include "uri.h"
 #include "vmexec.h"
@@ -25,7 +26,8 @@
 static int _compileargparse(
         const char *cmd,
         const char **argv, int argc, int argoffset,
-        const char **fileuri, h64compilewarnconfig *wconfig,
+        char **fileuriorexec,
+        h64compilewarnconfig *wconfig,
         h64misccompileroptions *miscoptions
         ) {
     if (wconfig) warningconfig_Init(wconfig);
@@ -33,8 +35,44 @@ static int _compileargparse(
     int i = argoffset;
     while (i < argc) {
         if ((strlen(argv[i]) == 0 || argv[i][0] != '-' ||
-                doubledashed) && fileuri && !*fileuri) {
-            *fileuri = argv[i];
+                doubledashed) && fileuriorexec && !*fileuriorexec) {
+            // For exec case, we want to combine all arguments into one:
+            if (i + 1 < argc && strcmp(cmd, "exec") == 0) {
+                int len = 0;
+                int k = i;
+                int kmax = i;
+                while (k < argc) {
+                    if (argv[k][0] == '-' && !doubledashed) {
+                        break;
+                    }
+                    kmax = k;
+                    len += (k > i ? 1 : 0) + strlen(argv[k]);
+                    k++;
+                }
+                *fileuriorexec = malloc(len + 1);
+                if (*fileuriorexec) {
+                    char *p = *fileuriorexec;
+                    k = i;
+                    while (k <= kmax) {
+                        if (k > i) {
+                            p[0] = ' ';
+                            p++;
+                            k++;
+                        }
+                        memcpy(p, argv[k], strlen(argv[k]));
+                        p += strlen(argv[k]);
+                        k++;
+                    }
+                    p[0] = '\0';
+                }
+            } else {
+                *fileuriorexec = strdup(argv[i]);
+            }
+            if (!*fileuriorexec) {
+                fprintf(stderr, "horsec: error: "
+                    "out of memory parsing arguments");
+                return 0;
+            }
         } else if (strcmp(argv[i], "--") == 0) {
             doubledashed = 1;
         } else if (strcmp(argv[i], "--help") == 0) {
@@ -47,8 +85,9 @@ static int _compileargparse(
                 printf("  --import-debug:          Print details on import "
                        "resolution\n");
             }
-            printf(    "  --compiler-stage-debug:  Print compiler stages info\n");
-            if (strcmp(cmd, "run") == 0) {
+            printf(    "  --compiler-stage-debug:  "
+                "Print compiler stages info\n");
+            if (strcmp(cmd, "run") == 0 || strcmp(cmd, "exec") == 0) {
                 printf("  --vmexec-debug:          Print instructions "
                        "as they run\n");
                 printf("  --vmsched-debug:         Print info about "
@@ -61,21 +100,24 @@ static int _compileargparse(
                    strcmp(cmd, "get_ast") != 0 &&
                    strcmp(argv[i], "--import-debug") == 0) {
             miscoptions->import_debug = 1;
-        } else if (strcmp(cmd, "run") == 0 &&
+        } else if ((strcmp(cmd, "run") == 0 ||
+                strcmp(cmd, "exec") == 0) &&
                 strcmp(argv[i], "--vmexec-debug") == 0) {
             miscoptions->vmexec_debug = 1;
             #ifdef NDEBUG
             fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
                 "output for --vmexec-debug not compiled in\n", cmd);
             #endif
-        } else if (strcmp(cmd, "run") == 0 &&
+        } else if ((strcmp(cmd, "run") == 0 ||
+                strcmp(cmd, "exec") == 0) &&
                 strcmp(argv[i], "--vmsched-debug") == 0) {
             miscoptions->vmscheduler_debug = 1;
             #ifdef NDEBUG
             fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
                 "output for --vmsched-debug not compiled in\n", cmd);
             #endif
-        } else if (strcmp(cmd, "run") == 0 &&
+        } else if ((strcmp(cmd, "run") == 0 ||
+                strcmp(cmd, "exec") == 0) &&
                 strcmp(argv[i], "--vmsched-verbose-debug") == 0) {
             miscoptions->vmscheduler_debug = 1;
             miscoptions->vmscheduler_verbose_debug = 1;
@@ -101,7 +143,7 @@ static int _compileargparse(
         }
         i++;
     }
-    if (fileuri && !*fileuri) {
+    if (fileuriorexec && !*fileuriorexec) {
         fprintf(stderr,
             "horsec: error: %s: need argument \"file\"\n", cmd);
         return 0;
@@ -109,7 +151,10 @@ static int _compileargparse(
     return 1;
 }
 
-static void printmsg(h64result *result, h64resultmessage *msg) {
+static void printmsg(
+        h64result *result, h64resultmessage *msg,
+        const char *exectempfileuri
+        ) {
     const char *verb = "<unknown-msg-type>";
     if (msg->type == H64MSG_ERROR)
         verb = "error";
@@ -126,6 +171,22 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
     const char *fileuri = (msg->fileuri ? msg->fileuri : result->fileuri);
     if (!fileuri && msg->line >= 0) {
         fileuri = "<unknown-file>";
+    } else if (fileuri && exectempfileuri) {
+        int isexecuri = 0;
+        int result = uri_Compare(
+            fileuri, exectempfileuri, 1,
+            #if defined(_WIN32) || defined(_WIN64)
+            1,
+            #else
+            0,
+            #endif
+            &isexecuri
+        );
+        if (!result) {
+            fileuri = "<compare-oom>";
+        } else if (isexecuri) {
+            fileuri = "<exec>";
+        }
     }
     if (fileuri) {
         fprintf(output_fd, "%s", fileuri);
@@ -143,35 +204,100 @@ static void printmsg(h64result *result, h64resultmessage *msg) {
 #define COMPILEEX_MODE_RUN 2
 #define COMPILEEX_MODE_CODEINFO 3
 #define COMPILEEX_MODE_TOASM 4
+#define COMPILEEX_MODE_EXEC 5
 
 int compiler_command_CompileEx(
         int mode, const char **argv, int argc, int argoffset
         ) {
     const char *fileuri = NULL;
+    const char *execarg = NULL;
     const char *_name_mode_compile = "compile";
     const char *_name_mode_run = "run";
+    const char *_name_mode_exec = "exec";
     const char *_name_mode_cinfo = "codeinfo";
     const char *_name_mode_getasm = "get_asm";
     const char *command = (
         mode == COMPILEEX_MODE_COMPILE ? _name_mode_compile : (
         mode == COMPILEEX_MODE_RUN ? _name_mode_run : (
-        mode == COMPILEEX_MODE_TOASM ? _name_mode_getasm :_name_mode_cinfo
-        )));
+        mode == COMPILEEX_MODE_EXEC ? _name_mode_exec : (
+        mode == COMPILEEX_MODE_TOASM ? _name_mode_getasm :
+        _name_mode_cinfo
+        )))
+    );
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
+    char *fileuriorexec = NULL;
+    char *tempfilepath = NULL;
+    char *tempfilefolder = NULL;
     if (!_compileargparse(
-            command, argv, argc,
-            argoffset, &fileuri, &wconfig, &moptions
+            command, argv, argc, argoffset,
+            &fileuriorexec, &wconfig, &moptions
             ))
         return 0;
+    assert(fileuriorexec != NULL);
+    if (mode == COMPILEEX_MODE_EXEC) {
+        execarg = fileuriorexec;
+        FILE *tempfile = filesys_TempFile(
+            1, "code", ".h64", &tempfilefolder, &tempfilepath
+        );
+        if (!tempfile) {
+            assert(tempfilefolder == NULL);
+            free(fileuriorexec);
+            fprintf(stderr, "horsec: error: out of memory or "
+                "internal error with temporary file\n");
+            return 0;
+        }
+        ssize_t written = fwrite(
+            execarg, 1, strlen(execarg), tempfile
+        );
+        if (written < (ssize_t)strlen(execarg)) {
+            fclose(tempfile);
+            filesys_RemoveFile(tempfilepath);
+            filesys_RemoveFolder(tempfilefolder, 1);
+            free(tempfilepath);
+            free(tempfilefolder);
+            free(fileuriorexec);
+            fprintf(stderr, "horsec: error: input/output error "
+                "with temporary file\n");
+            return 0;
+        }
+        fclose(tempfile);
+        fileuri = uri_Normalize(
+            tempfilepath, 1
+        );
+        if (!fileuri) {
+            filesys_RemoveFile(tempfilepath);
+            filesys_RemoveFolder(tempfilefolder, 1);
+            free(tempfilepath);
+            free(tempfilefolder);
+            free(fileuriorexec);
+            fprintf(stderr, "horsec: error: out of memory or "
+                "internal error with temporary file\n");
+            return 0;
+        }
+    } else {
+        fileuri = fileuriorexec;
+    }
 
     char *error = NULL;
-    char *project_folder_uri = compileproject_FolderGuess(
-        fileuri, 1, &error
-    );
+    char *project_folder_uri = NULL;
+    if (mode != COMPILEEX_MODE_EXEC) {
+        project_folder_uri = compileproject_FolderGuess(
+            fileuri, 1, &error
+        );
+    } else {
+        project_folder_uri = strdup(tempfilefolder);
+    }
     if (!project_folder_uri) {
+        if (tempfilepath) {
+            filesys_RemoveFile(tempfilepath);
+            filesys_RemoveFolder(tempfilefolder, 1);
+            free(tempfilepath);
+            free(tempfilefolder);
+            free(fileuriorexec);
+        }
         fprintf(stderr, "horsec: error: %s: %s\n",
-                command, error);
+                command, (error ? error : "out of memory"));
         free(error);
         return 0;
     }
@@ -179,12 +305,26 @@ int compiler_command_CompileEx(
     free(project_folder_uri);
     project_folder_uri = NULL;
     if (!project) {
+        if (tempfilepath) {
+            filesys_RemoveFile(tempfilepath);
+            filesys_RemoveFolder(tempfilefolder, 1);
+            free(tempfilepath);
+            free(tempfilefolder);
+            free(fileuriorexec);
+        }
         fprintf(stderr, "horsec: error: %s: alloc failure\n",
                 command);
         return 0;
     }
     h64ast *ast = NULL;
     if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
+        if (tempfilepath) {
+            filesys_RemoveFile(tempfilepath);
+            filesys_RemoveFolder(tempfilefolder, 1);
+            free(tempfilepath);
+            free(tempfilefolder);
+            free(fileuriorexec);
+        }
         fprintf(stderr, "horsec: error: %s: %s\n",
                 command, error);
         free(error);
@@ -194,6 +334,13 @@ int compiler_command_CompileEx(
     if (!compileproject_CompileAllToBytecode(
             project, &moptions, fileuri, &error
             )) {
+        if (tempfilepath) {
+            filesys_RemoveFile(tempfilepath);
+            filesys_RemoveFolder(tempfilefolder, 1);
+            free(tempfilepath);
+            free(tempfilefolder);
+            free(fileuriorexec);
+        }
         fprintf(stderr, "horsec: error: %s: %s\n",
                 command, error);
         free(error);
@@ -213,8 +360,18 @@ int compiler_command_CompileEx(
             i++;
             continue;
         }
-        printmsg(project->resultmsg, &project->resultmsg->message[i]);
+        printmsg(
+            project->resultmsg, &project->resultmsg->message[i],
+            (mode == COMPILEEX_MODE_EXEC ? tempfilepath : NULL)
+        );
         i++;
+    }
+    if (tempfilepath) {
+        filesys_RemoveFile(tempfilepath);
+        filesys_RemoveFolder(tempfilefolder, 1);
+        free(tempfilepath);
+        free(tempfilefolder);
+        free(fileuriorexec);
     }
     int nosuccess = (
         haderrormessages || !ast->resultmsg.success ||
@@ -237,7 +394,8 @@ int compiler_command_CompileEx(
         }
         if (!nosuccess || haveinstructions)
             disassembler_DumpToStdout(project->program);
-    } else if (mode == COMPILEEX_MODE_RUN) {
+    } else if (mode == COMPILEEX_MODE_RUN ||
+            mode == COMPILEEX_MODE_EXEC) {
         if (!nosuccess) {
             int resultcode = vmschedule_ExecuteProgram(
                 project->program, &moptions
@@ -425,7 +583,7 @@ jsonvalue *compiler_TokenizeToJSON(
 }
 
 int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
-    const char *fileuri = NULL;
+    char *fileuri = NULL;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
     if (!_compileargparse(
@@ -433,10 +591,12 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
             &fileuri, &wconfig, &moptions
             ))
         return 0;
+    assert(fileuri != NULL);
 
     jsonvalue *v = compiler_TokenizeToJSON(
         &moptions, fileuri, &wconfig
     );
+    free(fileuri);
     if (!v) {
         printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
@@ -450,7 +610,7 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
 }
 
 int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
-    const char *fileuri = NULL;
+    char *fileuri = NULL;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
     if (!_compileargparse(
@@ -463,6 +623,7 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
     jsonvalue *v = compiler_ParseASTToJSON(
         &moptions, fileuri, &wconfig, 0
     );
+    free(fileuri);
     if (!v) {
         printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
@@ -478,7 +639,7 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
 int compiler_command_GetResolvedAST(
         const char **argv, int argc, int argoffset
         ) {
-    const char *fileuri = NULL;
+    char *fileuri = NULL;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
     if (!_compileargparse(
@@ -491,6 +652,7 @@ int compiler_command_GetResolvedAST(
     jsonvalue *v = compiler_ParseASTToJSON(
         &moptions, fileuri, &wconfig, 1
     );
+    free(fileuri);
     if (!v) {
         printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
@@ -659,6 +821,12 @@ jsonvalue *compiler_ParseASTToJSON(
 int compiler_command_Run(const char **argv, int argc, int argoffset) {
     return compiler_command_CompileEx(
         COMPILEEX_MODE_RUN, argv, argc, argoffset
+    );
+}
+
+int compiler_command_Exec(const char **argv, int argc, int argoffset) {
+    return compiler_command_CompileEx(
+        COMPILEEX_MODE_EXEC, argv, argc, argoffset
     );
 }
 

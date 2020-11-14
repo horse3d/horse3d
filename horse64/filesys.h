@@ -6,6 +6,7 @@
 #define HORSE64_FILESYS_H_
 
 #include <stdint.h>
+#include <stdio.h>
 
 int filesys_FileExists(const char *path);
 
@@ -70,6 +71,12 @@ int filesys_PathCompare(const char *p1, const char *p2);
 int filesys_FolderContainsPath(
     const char *folder_path, const char *check_path,
     int *result
+);
+
+FILE *filesys_TempFile(
+    int subfolder, const char *prefix,
+    const char *suffix, char **folder_path,
+    char **path
 );
 
 #endif  // HORSE64_FILESYS_H_

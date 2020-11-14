@@ -1,0 +1,5 @@
+
+func main {
+    var v = ((1 + 2).as_str)
+    return (v == "3")
+}

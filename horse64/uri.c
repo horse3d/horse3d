@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "filesys.h"
+#include "nonlocale.h"
 #include "uri.h"
 
 
@@ -60,6 +61,121 @@ static char *uri_ParsePath(
         return unescaped_path_2;
     }
     return unescaped_path;
+}
+
+int uri_Compare(
+        const char *uri1str, const char *uri2str,
+        int converttoabsolutefilepaths,
+        int assumecasesensitivefilepaths, int *result
+        ) {
+    char *uri1normalized = NULL;
+    char *uri2normalized = NULL;
+    uriinfo *uri1 = NULL;
+    uriinfo *uri2 = NULL;
+    uri1normalized = uri_Normalize(
+        uri1str, converttoabsolutefilepaths
+    );
+    if (!uri1normalized)
+        goto oom;
+    uri2normalized = uri_Normalize(
+        uri2str, converttoabsolutefilepaths
+    );
+    if (!uri2normalized)
+        goto oom;
+    if (strcmp(uri1normalized, uri2normalized) == 0) {
+        match:
+        uri_Free(uri1);
+        uri_Free(uri2);
+        free(uri1normalized);
+        free(uri2normalized);
+        *result = 1;
+        return 1;
+    }
+    uri1 = uri_Parse(uri1normalized);
+    uri2 = uri_Parse(uri2normalized);
+    if (!uri1 || !uri2) {
+        oom:
+        uri_Free(uri1);
+        uri_Free(uri2);
+        free(uri1normalized);
+        free(uri2normalized);
+        return 0;
+    }
+    if (strcmp(uri1->protocol, uri2->protocol) != 0 ||
+            strlen(uri1->path) != strlen(uri2->path) ||
+            ((!assumecasesensitivefilepaths ||
+              h64casecmp(uri1->protocol, "file") != 0) &&
+              strcmp(uri1->path, uri2->path) != 0)) {
+        nomatch:
+        uri_Free(uri1);
+        uri_Free(uri2);
+        free(uri1normalized);
+        free(uri2normalized);
+        *result = 0;
+        return 1;
+    }
+    if (assumecasesensitivefilepaths &&
+            h64casecmp(uri1->protocol, "file") == 0) {
+        #if defined(_WIN32) || defined(_WIN64)
+        // Actually use winapi case folding to compare:
+        wchar_t *path1 = malloc(
+            sizeof(*path1) * (strlen(uri1->path) + 1)
+        );
+        if (!path1)
+            goto oom;
+        wchar_t *path2 = malloc(
+            sizeof(*path2) * (strlen(uri2->path) + 1)
+        );
+        if (!path2) {
+            free(path1);
+            goto oom;
+        }
+        int64_t result1len = 0;
+        int result1 = utf8_to_utf16(
+            uri1->path, strlen(uri1->path),
+            &path1, strlen(uri1->path),
+            &result1len, 1, 1
+        );
+        int64_t result2len = 0;
+        int result2 = utf8_to_utf16(
+            uri2->path, strlen(uri2->path),
+            &path2, strlen(uri2->path),
+            &result2len, 1, 1
+        );
+        if (!result1 || !result2) {
+            // This shouldn't happen. But we'd rather not crash here.
+            free(path1);
+            free(path2);
+            goto oom;
+        }
+        int i = 0;
+        while (i < result1len) {
+            result1[i] = CharUpperW(result1[i]);
+            i++;
+        }
+        i = 0;
+        while (i < result2len) {
+            result2[i] = CharUpperW(result2[i]);
+            i++;
+        }
+        if (memcmp(path1, path2) == 0) {
+            free(path1);
+            free(path2);
+            goto match;
+        }
+        free(path1);
+        free(path2);
+        goto nomatch;
+        #else
+        assert(0);  // FIXME implement this
+        goto nomatch;
+        #endif
+    }
+    if (h64casecmp(uri1->host, uri2->host) != 0 ||
+            uri1->port != uri2->port) {
+        goto nomatch;
+    }
+    goto match;
 }
 
 uriinfo *uri_ParseEx(

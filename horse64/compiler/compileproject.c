@@ -230,6 +230,7 @@ int compileproject_GetAST(
         *out_ast = NULL;
         return 0;
     }
+    result_RemoveMessageDuplicates(pr->resultmsg);
 
     if (!hash_StringMapSet(
             pr->astfilemap, relfilepath, (uintptr_t)result
@@ -427,7 +428,9 @@ char *compileproject_GetFileSubProjectPath(
                     project_name, relfilepath + firstslashindex + 1,
                     secondslashindex - (firstslashindex + 1)
                 );
-                project_name[secondslashindex - (firstslashindex + 1)] = '\0';
+                project_name[
+                    secondslashindex - (firstslashindex + 1)
+                ] = '\0';
 
                 // Turn relative project path into absolute one:
                 char *parent_abs = filesys_ToAbsolutePath(
@@ -1046,7 +1049,7 @@ char *compileproject_FolderGuess(
                 *error = strdup("alloc failure");
                 return NULL;
             }
-            while (strlen(snew) > 0 && (snew[strlen(snew) - 1] == '/'
+            while (strlen(snew) > 1 && (snew[strlen(snew) - 1] == '/'
                     #if defined(_WIN32) || defined(_WIN64)
                     || snew[strlen(snew) - 1] == '\\'
                     #endif
@@ -1098,7 +1101,14 @@ char *compileproject_FolderGuess(
 
     // Check if we can fall back to the current directory:
     if (cwd_fallback_if_appropriate) {
-        char *cwd = filesys_GetCurrentDirectory();
+        char *cwd_rel = filesys_GetCurrentDirectory();
+        if (!cwd_rel) {
+            free(full_path);
+            *error = strdup("alloc failure");
+            return NULL;
+        }
+        char *cwd = filesys_ToAbsolutePath(cwd_rel);
+        free(cwd_rel);
         if (!cwd) {
             free(full_path);
             *error = strdup("alloc failure");

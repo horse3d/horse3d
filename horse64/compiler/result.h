@@ -69,4 +69,8 @@ int result_AddMessageNoLoc(
 
 void result_FreeContents(h64result *result);
 
+void result_RemoveMessageDuplicates(
+    h64result *result
+);
+
 #endif  // HORSE64_COMPILER_RESULT_H_

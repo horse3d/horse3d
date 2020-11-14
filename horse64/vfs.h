@@ -6,6 +6,7 @@
 #define HORSE64_VFS_H_
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #define VFSFLAG_NO_REALDISK_ACCESS 1
 #define VFSFLAG_NO_VIRTUALPAK_ACCESS 2

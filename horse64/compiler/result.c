@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "compiler/result.h"
@@ -26,6 +27,39 @@ int result_Error(
             ))
         return 0;
     return 1;
+}
+
+void result_RemoveMessageDuplicates(
+        h64result *result
+        ) {
+    int i = 0;
+    while (i < result->message_count) {
+        int k = i + 1;
+        while (k < result->message_count) {
+            if (result->message[i].type ==
+                    result->message[k].type &&
+                    result->message[i].line ==
+                    result->message[k].line &&
+                    result->message[i].column ==
+                    result->message[k].column &&
+                    (strcmp(result->message[i].message,
+                            result->message[k].message) == 0)) {
+                free(result->message[k].message);
+                if (k + 1 < result->message_count)
+                    memcpy(
+                        &result->message[k],
+                        &result->message[k + 1],
+                        sizeof(*result->message) * (
+                            result->message_count - k - 1
+                        )
+                    );
+                result->message_count--;
+                continue;
+            }
+            k++;
+        }
+        i++;
+    }
 }
 
 int result_ErrorNoLoc(

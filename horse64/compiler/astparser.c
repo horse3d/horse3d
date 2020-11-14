@@ -58,9 +58,10 @@ static const char *_reftokname(tsinfo *tokenstreaminfo, h64token *token, int i) 
     ptrdiff_t offset = (token - tokenstreaminfo->token);
     assert(offset >= 0);
     int starti = ((int64_t)offset) / (int64_t)sizeof(*token);
-    if (i > tokenstreaminfo->token_count - starti - 1 || i < 0) {
+    if (i >= tokenstreaminfo->token_count - starti || i < 0) {
         return _reftokname_none;
     }
+    assert(token[i].type != H64TK_INVALID);
     return lexer_TokenTypeToStr(token[i].type);
 }
 
@@ -87,14 +88,15 @@ static int IdentifierIsReserved(const char *identifier) {
 
 static const char *_describetoken(
         char *buf, tsinfo *tokenstreaminfo, h64token *token, int i) {
-    ptrdiff_t offset = (token - tokenstreaminfo->token);
+    ptrdiff_t offset = ((char*)token - (char*)tokenstreaminfo->token);
     assert(offset >= 0);
     int starti = ((int64_t)offset) / (int64_t)sizeof(*token);
-    if (!token || i > tokenstreaminfo->token_count - starti - 1 || i < 0)
+    if (!token || i >= tokenstreaminfo->token_count - starti || i < 0)
         return _reftokname_none;
     int maxlen = 64;
     snprintf(buf, maxlen - 1, "%s", _reftokname(
         tokenstreaminfo, token, i));
+    assert(token[i].type != H64TK_INVALID);
     if (token[i].type == H64TK_BRACKET) {
         snprintf(
             buf, maxlen - 1,
@@ -456,15 +458,15 @@ int _ast_ParseFunctionArgList_Ex(
         assert(i > 0);
         if (i >= max_tokens_touse ||
                 !ast_ParseExprInline(
-                        context, newparsethis(
-                            &_buf, parsethis,
-                            tokens + i, max_tokens_touse - i
-                        ),
-                        INLINEMODE_GREEDY,
-                        &innerparsefail, &inneroom,
-                        &expr, &tlen,
-                        nestingdepth
-                        )) {
+                    context, newparsethis(
+                        &_buf, parsethis,
+                        tokens + i, max_tokens_touse - i
+                    ),
+                    INLINEMODE_GREEDY,
+                    &innerparsefail, &inneroom,
+                    &expr, &tlen,
+                    nestingdepth
+                    )) {
             free(arg_name);
             free(kwarg_name);
             char buf[512]; char describebuf[64];
@@ -538,52 +540,15 @@ int ast_ParseFuncDefArgs(
 int ast_ParseExprInlineOperator_Recurse(
         h64parsecontext *context,
         h64parsethis *parsethis,
-        h64expression *lefthandside,
-        int lefthandsidetokenlen,
-        int precedencelevel,
         int *parsefail,
         int *outofmemory,
         h64expression **out_expr,
         int *out_tokenlen,
         int nestingdepth
         ) {
-    /* !! WARNING !!
-
-       This function has complicated ownership semantics!
-       The lefthandside arg ownership will be taken from you on:
-
-       * success (returned int == 1)
-       * parse or oom failure (returned int == 0,
-                               *parsefail == 1 OR *outofmemory == 1)
-
-       The lefthandside arg ownership will NOT be taken from you on:
-
-       * generic other failure (returned int == 0,
-                                *parsefail == 0 AND *outofmemory == 0)
-
-       In case lefthandside is NOT taken from you after the call, YOU MUST
-       MARK IT DESTROYED or reuse it. However, if lefthandside is taken from
-       you, you MUST NOT EVER mark it destroyed or reuse it afterwards!
-    */
-
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
     const char *fileuri = context->fileuri;
-
-    if (outofmemory) *outofmemory = 0;
-    if (parsefail) *parsefail = 1;
-    if (max_tokens_touse <= 0) {
-        if (parsefail) *parsefail = 0;
-        // XXX: do NOT free original lefthandside if no parse error.
-        return 0;
-    }
-    assert(lefthandside || lefthandsidetokenlen == 0);
-
-    #ifdef H64AST_DEBUG
-    char describebuf[64];
-    printf("horsec: debug: OP PARSE FROM %d, token: %s\n", 0,
-         _describetoken(describebuf, tokenstreaminfo, tokens, 0));
-    #endif
 
     int i = 0;
     nestingdepth++;
@@ -591,397 +556,118 @@ int ast_ParseExprInlineOperator_Recurse(
         char buf[128];
         snprintf(buf, sizeof(buf) - 1,
             "exceeded maximum parser recursion of %d, "
-            "less nesting expected", H64LIMIT_MAXPARSERECURSION
-        );
-        result_Error(
-            context->resultmsg, buf, fileuri,
-            _refline(context->tokenstreaminfo, tokens, i),
-            _refcol(context->tokenstreaminfo, tokens, i)
+            "less nesting expected",
+            H64LIMIT_MAXPARSERECURSION
         );
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 1;
-        return 0;
-    }
-
-    h64expression *original_lefthand = lefthandside;
-    i += lefthandsidetokenlen;
-    int operatorsprocessed = 0;
-
-    // Parse left-hand side if we don't have any yet:
-    if (i == 0 && !lefthandside &&
-            tokens[i].type != H64TK_UNOPSYMBOL) {
-        int inneroom = 0;
-        int innerparsefail = 0;
-        int tlen = 0;
-        h64expression *innerexpr = NULL;
-        h64parsethis _buf;
-        if (!ast_ParseExprInline(
-                context, newparsethis(
-                    &_buf, parsethis,
-                    tokens, max_tokens_touse
-                ),
-                INLINEMODE_NONGREEDY,
-                &innerparsefail, &inneroom,
-                &innerexpr, &tlen, nestingdepth
-                )) {
-            if (inneroom) {
-                if (outofmemory) *outofmemory = 1;
-                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-                if (original_lefthand &&
-                        original_lefthand != lefthandside)
-                    ast_MarkExprDestroyed(original_lefthand);
-                return 0;
-            } else if (innerparsefail) {
-                if (outofmemory) *outofmemory = 0;
-                if (parsefail) *parsefail = 1;
-                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-                if (original_lefthand &&
-                        original_lefthand != lefthandside)
-                    ast_MarkExprDestroyed(original_lefthand);
-                return 0;
-            }
-            if (parsefail) *parsefail = 0;
-            if (lefthandside &&
-                    original_lefthand != lefthandside)
-                ast_MarkExprDestroyed(lefthandside);
-            // XXX: do NOT free original_lefthandside if no parse error.
-            return 0;
-        }
-        if (lefthandside && original_lefthand != lefthandside)
-            ast_MarkExprDestroyed(lefthandside);
-        lefthandside = innerexpr;
-        lefthandsidetokenlen = tlen;
-        i += tlen;
-    } else if (!lefthandside && tokens[i].type == H64TK_BINOPSYMBOL &&
-            !IS_ASSIGN_OP(tokens[i].int_value)) {
-        char buf[512]; char describebuf[64];
-        snprintf(buf, sizeof(buf) - 1,
-            "unexpected %s, "
-            "expected left hand value before binary operator",
-            _describetoken(describebuf,
-                           context->tokenstreaminfo, tokens, i)
-        );
-        if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
                 context->resultmsg,
                 H64MSG_ERROR, buf, fileuri,
-                _refline(context->tokenstreaminfo, tokens, i),
-                _refcol(context->tokenstreaminfo, tokens, i)
-                ))
-            if (outofmemory) *outofmemory = 1;
-        if (parsefail) *parsefail = 1;
-        if (original_lefthand && original_lefthand != lefthandside)
-            ast_MarkExprDestroyed(original_lefthand);
-        if (lefthandside) ast_MarkExprDestroyed(lefthandside);
+                _refline(context->tokenstreaminfo,
+                            tokens, i),
+                _refcol(context->tokenstreaminfo,
+                        tokens, i)
+                )) {
+            if (outofmemory) *outofmemory = 0;
+            if (parsefail) *parsefail = 1;
+        }
         return 0;
     }
 
-    #ifdef H64AST_DEBUG
-    char describebufy[64];
-    char *lhandside = ast_ExpressionToJSONStr(lefthandside, NULL);
-    printf("horsec: debug: "
-         "GOT LEFT HAND SIDE %s AND NOW AT %d %s - "
-         "current handling level: %d\n", lhandside, i,
-         _describetoken(describebufy, tokenstreaminfo, tokens, i),
-         precedencelevel);
-    if (lhandside) free(lhandside);
-    #endif
+    if (outofmemory) *outofmemory = 0;
+    if (parsefail) *parsefail = 1;
+    if (max_tokens_touse <= 0) {
+        if (parsefail) *parsefail = 0;
+        return 0;
+    }
 
-    // Deal with operators we encounter:
+    // Collect the right-most, most relevant operator:
+    int bracket_open_indexes[H64LIMIT_MAXPARSERECURSION];
+    int highest_precedence_index = -1;
+    int highest_precedence_pvalue = -1;
+    int bracket_depth = 0;
+    int operand_max_tokens_touse = max_tokens_touse;
+    i = 0;
     while (i < max_tokens_touse) {
-        if ((tokens[i].type != H64TK_BINOPSYMBOL ||
-                IS_ASSIGN_OP(tokens[i].int_value)) &&
-                tokens[i].type != H64TK_UNOPSYMBOL)
-            break;
-
-        int precedence = operator_PrecedenceByType(
-            tokens[i].int_value
+        int is_bracket_op = 0;
+        const int is_bracket_like = (
+            tokens[i].type == H64TK_BRACKET ||
+            (tokens[i].type == H64TK_BINOPSYMBOL &&
+            (tokens[i].int_value == H64OP_CALL ||
+            tokens[i].int_value == H64OP_INDEXBYEXPR))
         );
-
-        // Make sure we don't have an unary op unless at the start:
-        if (tokens[i].type == H64TK_UNOPSYMBOL && i > 0) {
-            char buf[512]; char describebuf[64];
-            snprintf(buf, sizeof(buf) - 1,
-                "unexpected %s, "
-                "expected binary operator or end of inline "
-                "expression starting in line %"
-                PRId64 ", column %" PRId64 " instead",
-                _describetoken(describebuf,
-                    context->tokenstreaminfo, tokens, i),
-                _refline(context->tokenstreaminfo, tokens, 0),
-                _refline(context->tokenstreaminfo, tokens, 0)
-            );
-            if (outofmemory) *outofmemory = 0;
-            if (!result_AddMessage(
-                    context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
-                    _refline(context->tokenstreaminfo, tokens, i),
-                    _refcol(context->tokenstreaminfo, tokens, i)
-                    ))
-                if (outofmemory) *outofmemory = 1;
-            if (parsefail) *parsefail = 1;
-            if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-            if (original_lefthand && original_lefthand != lefthandside)
-                ast_MarkExprDestroyed(original_lefthand);
-            return 0;
-        }
-
-        // Hand off different precedence levels:
-        if (precedence < precedencelevel) {
-            #ifdef H64AST_DEBUG
-            printf("horsec: debug: "
-                "RECURSE down to %d AT %d FOR op %s\n",
-                precedencelevel - 1, i,
-                operator_OpPrintedAsStr(tokens[i].int_value));
-            #endif
-            assert(precedence >= 0);
-            int inneroom = 0;
-            int innerparsefail = 0;
-            int tlen = 0;
-
-            h64expression *innerrighthand = NULL;
-            int innerrighthandlen = 0;
-            if (lefthandside && (
-                    lefthandside->type == H64EXPRTYPE_BINARYOP ||
-                    lefthandside->type == H64EXPRTYPE_UNARYOP)) {
-                innerrighthandlen = (
-                    lefthandside->op.totaltokenlen -
-                    lefthandside->op.optokenoffset - 1
-                );
-                innerrighthand = (
-                    lefthandside->type == H64EXPRTYPE_BINARYOP ?
-                    lefthandside->op.value2 : lefthandside->op.value1
-                );
-                assert(innerrighthandlen > 0);
-                assert(innerrighthand != NULL);
-            }
-
-            int skipback = innerrighthandlen;
-            if (!innerrighthand) skipback = i;
-            h64expression *innerexpr = NULL;
-            h64parsethis _buf;
-            if (!ast_ParseExprInlineOperator_Recurse(
-                    context,
-                    newparsethis(&_buf, parsethis, tokens + i - skipback,
-                              max_tokens_touse - (i - skipback)),
-                    innerrighthand,
-                    innerrighthandlen,
-                    precedencelevel - 1,
-                    &innerparsefail, &inneroom,
-                    &innerexpr, &tlen, nestingdepth
-                    )) {
-                if (inneroom) {
-                    if (original_lefthand &&
-                            original_lefthand != lefthandside)
-                        ast_MarkExprDestroyed(original_lefthand);
-                    ast_MarkExprDestroyed(lefthandside);
-                    if (outofmemory) *outofmemory = 1;
-                    return 0;
-                } else if (innerparsefail) {
-                    if (original_lefthand &&
-                            original_lefthand != lefthandside)
-                        ast_MarkExprDestroyed(original_lefthand);
-                    ast_MarkExprDestroyed(lefthandside);
+        if (is_bracket_like) {
+            is_bracket_op = (tokens[i].type != H64TK_BRACKET);
+            if ((tokens[i].type == H64TK_BRACKET && (
+                    tokens[i].char_value == '(' ||
+                    tokens[i].char_value == '[' ||
+                    tokens[i].char_value == '{')) ||
+                    (tokens[i].type == H64TK_BINOPSYMBOL &&
+                    (tokens[i].int_value == H64OP_CALL ||
+                    tokens[i].int_value == H64OP_INDEXBYEXPR))) {
+                if (bracket_depth + 1 >= H64LIMIT_MAXPARSERECURSION) {
+                    char buf[128];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "exceeded maximum parser "
+                        "recursion of %d, "
+                        "less nesting expected",
+                        H64LIMIT_MAXPARSERECURSION
+                    );
                     if (outofmemory) *outofmemory = 0;
                     if (parsefail) *parsefail = 1;
-                    return 0;
-                }
-                break;
-            }
-            if (innerexpr == original_lefthand)
-                original_lefthand = NULL;
-            if (innerexpr == lefthandside)
-                lefthandside = NULL;
-            assert(innerexpr != NULL);
-            assert(innerexpr->type == H64EXPRTYPE_BINARYOP ||
-                innerexpr->type == H64EXPRTYPE_UNARYOP ||
-                innerexpr->type == H64EXPRTYPE_CALL);
-            if (lefthandside && i - skipback > 0) {
-                if (lefthandside->type == H64EXPRTYPE_BINARYOP) {
-                    if (lefthandside->op.value2 &&
-                            lefthandside->op.value2 != original_lefthand &&
-                            lefthandside->op.value2 != innerrighthand)
-                        ast_MarkExprDestroyed(lefthandside->op.value2);
-                    lefthandside->op.value2 = innerexpr;
-                } else {
-                    assert(lefthandside->type == H64EXPRTYPE_UNARYOP);
-                    if (lefthandside->op.value1 &&
-                            lefthandside->op.value1 != original_lefthand &&
-                            lefthandside->op.value1 != innerrighthand)
-                        ast_MarkExprDestroyed(lefthandside->op.value1);
-                    lefthandside->op.value1 = innerexpr;
-                }
-                assert(tlen > innerrighthandlen &&
-                    i - skipback + tlen > i);
-            } else {
-                if (lefthandside && original_lefthand != lefthandside &&
-                        lefthandside != innerrighthand)
-                    ast_MarkExprDestroyed(lefthandside);
-                lefthandside = innerexpr;
-            }
-            lefthandsidetokenlen = (i - skipback) + tlen;
-            #ifdef H64AST_DEBUG
-            char *lhandside = ast_ExpressionToJSONStr(lefthandside, NULL);
-            printf("horsec: debug: FROM RECURSIVE INNER, "
-                "GOT NEW lefthand: %s\n", lhandside);
-            if (lhandside) free(lhandside);
-            #endif
-            i = lefthandsidetokenlen;
-            operatorsprocessed++;
-            continue;
-        } else if (precedence > precedencelevel) {
-            // Needs to be handled by parent call, we're done here.
-            break;
-        } else {
-            #ifdef H64AST_DEBUG
-            printf("horsec: debug: handling op %s at level %d\n",
-                operator_OpPrintedAsStr(tokens[i].int_value),
-               precedencelevel);
-            #endif
-        }
-        i++; // go past operator
-
-        int optokenoffset = i - 1;
-        operatorsprocessed++;
-        assert(
-            tokens[i - 1].type == H64TK_UNOPSYMBOL ||
-            i - 1 > 0
-        );
-
-        // Special handling of call right-hand side:
-        if (tokens[i - 1].type == H64TK_BINOPSYMBOL &&
-                tokens[i - 1].int_value == H64OP_CALL) {
-            h64expression *callexpr = ast_AllocExpr(context->ast);
-            if (!callexpr) {
-                if (outofmemory) *outofmemory = 1;
-                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-                if (original_lefthand && original_lefthand != lefthandside)
-                    ast_MarkExprDestroyed(original_lefthand);
-                return 0;
-            }
-            memset(callexpr, 0, sizeof(*callexpr));
-            callexpr->storage.eval_temp_id = -1;
-            callexpr->line = tokens[i - 1].line;
-            callexpr->column = tokens[i - 1].column;
-            callexpr->tokenindex = (i - 1) + (
-                ((char*)tokens -
-                 (char*)context->tokenstreaminfo->token) / sizeof(*tokens)
-            );
-            callexpr->type = H64EXPRTYPE_CALL;
-            callexpr->inlinecall.value = lefthandside;
-            if (lefthandside == original_lefthand)
-                original_lefthand = NULL;
-            lefthandside = NULL;
-            i--;
-            int tlen = 0;
-            int inneroom = 0;
-            int innerparsefail = 0;
-            h64parsethis _buf;
-            if (!ast_ParseFuncCallArgs(
-                    context, newparsethis(
-                        &_buf, parsethis, tokens + i, max_tokens_touse - i
-                    ),
-                    &innerparsefail, &inneroom,
-                    &callexpr->inlinecall.arguments,
-                    &tlen, nestingdepth
-                    )) {
-                ast_MarkExprDestroyed(callexpr);
-                if (inneroom) {
-                    if (outofmemory) *outofmemory = 1;
-                    if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-                    if (original_lefthand &&
-                            original_lefthand != lefthandside)
-                        ast_MarkExprDestroyed(original_lefthand);
-                    return 0;
-                }
-                if (outofmemory) *outofmemory = 0;
-                if (!innerparsefail) {
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, "internal error? "
-                            "got no function args "
-                            "but no error", fileuri,
-                            _refline(context->tokenstreaminfo, tokens, i),
-                            _refcol(context->tokenstreaminfo, tokens, i)
-                            ))
-                        if (outofmemory) *outofmemory = 1;
+                            H64MSG_ERROR, buf, fileuri,
+                            _refline(context->tokenstreaminfo,
+                                     tokens, i),
+                            _refcol(context->tokenstreaminfo,
+                                    tokens, i)
+                            )) {
+                        if (outofmemory) *outofmemory = 0;
+                        if (parsefail) *parsefail = 1;
+                    }
+                    return 0;
                 }
-                if (parsefail) *parsefail = 1;
-                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-                if (original_lefthand && original_lefthand != lefthandside)
-                    ast_MarkExprDestroyed(original_lefthand);
-                return 0;
+                bracket_open_indexes[bracket_depth] = i;
+                bracket_depth++;
+            } else {
+                assert(
+                    tokens[i].type == H64TK_BRACKET && (
+                    tokens[i].char_value == ')' ||
+                    tokens[i].char_value == ']' ||
+                    tokens[i].char_value == '}')
+                );
+                bracket_depth--;
+                if (bracket_depth < 0) {
+                    operand_max_tokens_touse = i;
+                    break;
+                }
             }
-            i += tlen;
-            lefthandside = callexpr;
-            lefthandsidetokenlen = i;
-            #ifdef H64AST_DEBUG
-            char describebufy2[64];
-            char *lhandside2 = ast_ExpressionToJSONStr(lefthandside, NULL);
-            printf("horsec: debug: "
-                "GOT CALL %s AND NOW AT %d %s (tlen was: %d) - "
-                "current handling level: %d\n", lhandside2, i,
-                _describetoken(describebufy2,
-                    tokenstreaminfo, tokens, i), tlen,
-                precedencelevel);
-            if (lhandside2) free(lhandside2);
-            #endif
+            if (!is_bracket_op || bracket_depth > 1) {
+                i++;
+                continue;
+            }
+        }
+        if (bracket_depth > 0 &&
+                (!is_bracket_op || bracket_depth > 1)) {
+            i++;
             continue;
         }
-
-        // Parse right-hand side:
-        h64expression *righthandside = NULL;
-        int righthandsidelen = 0;
-        {
-            int inneroom = 0;
-            int innerparsefail = 0;
-            int isindexbyexpr = (
-                tokens[i - 1].type == H64TK_BINOPSYMBOL &&
-                tokens[i - 1].int_value == H64OP_INDEXBYEXPR
-            );
-            h64parsethis _buf;
-            if (i >= max_tokens_touse ||
-                    (!isindexbyexpr && !ast_ParseExprInline(
-                        context, newparsethis(
-                            &_buf, parsethis, tokens + i, max_tokens_touse - i
-                        ),
-                        INLINEMODE_NONGREEDY,
-                        &innerparsefail, &inneroom,
-                        &righthandside, &righthandsidelen,
-                        nestingdepth
-                        )
-                    ) || (isindexbyexpr && !ast_ParseExprInline(
-                        context, newparsethis(
-                            &_buf, parsethis, tokens + i, max_tokens_touse - i
-                        ),
-                        INLINEMODE_GREEDY,
-                        &innerparsefail, &inneroom,
-                        &righthandside, &righthandsidelen, nestingdepth
-                        )
-                    )) {
-                if (inneroom) {
-                    if (outofmemory) *outofmemory = 1;
-                    if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-                    if (original_lefthand && original_lefthand != lefthandside)
-                        ast_MarkExprDestroyed(original_lefthand);
-                    return 0;
-                } else if (innerparsefail) {
-                    if (outofmemory) *outofmemory = 0;
-                    if (parsefail) *parsefail = 1;
-                    if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-                    if (original_lefthand && original_lefthand != lefthandside)
-                        ast_MarkExprDestroyed(original_lefthand);
-                    return 0;
-                }
-                righthandsideparsefail: ;
+        if (tokens[i].type == H64TK_UNOPSYMBOL ||
+                tokens[i].type == H64TK_BINOPSYMBOL) {
+            if (tokens[i].type == H64TK_UNOPSYMBOL &&
+                    highest_precedence_index < 0 && i > 0) {
                 char buf[512]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
-                    "expected %s",
+                    "expected binary operator or end of inline "
+                    "expression starting in line %"
+                    PRId64 ", column %" PRId64 " instead",
                     _describetoken(describebuf,
                         context->tokenstreaminfo, tokens, i),
-                    (isindexbyexpr ? "expression for indexing" :
-                     "right-hand side to binary operator")
+                    _refline(context->tokenstreaminfo, tokens, 0),
+                    _refline(context->tokenstreaminfo, tokens, 0)
                 );
                 if (outofmemory) *outofmemory = 0;
                 if (!result_AddMessage(
@@ -992,129 +678,436 @@ int ast_ParseExprInlineOperator_Recurse(
                         ))
                     if (outofmemory) *outofmemory = 1;
                 if (parsefail) *parsefail = 1;
-                if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-                if (original_lefthand && original_lefthand != lefthandside)
-                    ast_MarkExprDestroyed(original_lefthand);
                 return 0;
             }
-            if (isindexbyexpr && (
-                    i + righthandsidelen >= max_tokens_touse ||
-                    tokens[i + righthandsidelen].type != H64TK_BRACKET ||
-                    tokens[i + righthandsidelen].char_value != ']')) {
-                ast_MarkExprDestroyed(righthandside);
-                righthandside = NULL;
-                goto righthandsideparsefail;
-            } else if (isindexbyexpr) {
-                i++;  // go past closing ']'
+            if (tokens[i].type == H64TK_BINOPSYMBOL &&
+                    i == 0) {
+                char buf[512]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected unary operator or first operand "
+                    "before binary operator instead",
+                    _describetoken(describebuf,
+                        context->tokenstreaminfo, tokens, i)
+                );
+                if (outofmemory) *outofmemory = 0;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 1;
+                return 0;
+            }
+            int precedence = operator_PrecedenceByType(
+                tokens[i].int_value
+            );
+            assert(precedence >= 0);
+            if ((precedence <= highest_precedence_pvalue ||
+                    highest_precedence_pvalue < 0) && (
+                    tokens[i].type != H64TK_UNOPSYMBOL || i == 0)
+                    ) {
+                highest_precedence_pvalue = precedence;
+                highest_precedence_index = i;
             }
         }
-        assert(righthandside != NULL && righthandsidelen > 0);
-        i += righthandsidelen;
-
-        h64expression *opexpr = ast_AllocExpr(context->ast);
-        if (!opexpr) {
-            if (outofmemory) *outofmemory = 1;
-            if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-            if (original_lefthand && original_lefthand != lefthandside)
-                ast_MarkExprDestroyed(original_lefthand);
-            return 0;
-        }
-        memset(opexpr, 0, sizeof(*opexpr));
-        opexpr->storage.eval_temp_id = -1;
-        opexpr->tokenindex = -1;
-        opexpr->op.optype = tokens[optokenoffset].int_value;
-        if (tokens[optokenoffset].type == H64TK_UNOPSYMBOL) {
-            opexpr->type = H64EXPRTYPE_UNARYOP;
-            assert(lefthandside == NULL);
-            opexpr->op.value1 = righthandside;
-            if (lefthandside && lefthandside != original_lefthand &&
-                    lefthandside != righthandside)
-                ast_MarkExprDestroyed(lefthandside);
-            lefthandside = NULL;
-        } else {
-            opexpr->type = H64EXPRTYPE_BINARYOP;
-            opexpr->op.value1 = lefthandside;
-            if (original_lefthand == lefthandside)
-                original_lefthand = NULL;
-            opexpr->op.value2 = righthandside;
-            lefthandside = NULL;
-        }
-        assert((optokenoffset > 0 ||
-            tokens[optokenoffset].type == H64TK_UNOPSYMBOL) &&
-            optokenoffset < i);
-        opexpr->op.optokenoffset = optokenoffset;
-        lefthandside = opexpr;
-        lefthandsidetokenlen = i;
-        opexpr->op.totaltokenlen = i;
-        if (opexpr->op.value1) {
-            opexpr->tokenindex = opexpr->op.value1->tokenindex;
-            opexpr->line = opexpr->op.value1->line;
-            opexpr->column = opexpr->op.value1->column;
-        }
-
-        #ifdef H64AST_DEBUG
-        char describebufy2[64];
-        char *lhandside2 = ast_ExpressionToJSONStr(lefthandside, NULL);
-        printf("horsec: debug: "
-            "GOT NEW LEFT HAND SIDE %s AND NOW AT %d %s - "
-             "current handling level: %d\n", lhandside2, i,
-             _describetoken(describebufy2,
-                 tokenstreaminfo, tokens, i),
-             precedencelevel);
-        if (lhandside2) free(lhandside2);
-        #endif
+        i++;
     }
-    if (lefthandside && operatorsprocessed > 0 &&
-            lefthandside->type == H64EXPRTYPE_UNARYOP &&
-            lefthandside->op.optype == H64OP_NEW
-            ) {
-        if (lefthandside->op.value1 == NULL ||
-                lefthandside->op.value1->type != H64EXPRTYPE_CALL) {
-            char buf[512]; char describebuf[64];
+    // If no operator was found or this is an unfinished expression,
+    // bail out:
+    if (highest_precedence_index < 0 || bracket_depth > 0) {
+        if (bracket_depth > 0) {
+            int open_tk_index = bracket_open_indexes[0];
+            assert(open_tk_index >= 0);
+            assert(tokens[open_tk_index].type == H64TK_BRACKET ||
+                tokens[open_tk_index].type == H64TK_BINOPSYMBOL);
+            char c = -1;
+            if (tokens[open_tk_index].type == H64TK_BRACKET) {
+                c = tokens[open_tk_index].char_value;
+            } else {
+                assert(
+                    tokens[open_tk_index].type == H64TK_BINOPSYMBOL
+                );
+                assert(
+                    tokens[open_tk_index].int_value ==
+                        H64OP_INDEXBYEXPR ||
+                    tokens[open_tk_index].int_value ==
+                        H64OP_CALL
+                );
+                if (tokens[open_tk_index].int_value ==
+                        H64OP_INDEXBYEXPR) {
+                    c = '[';
+                } else {
+                    c = ')';
+                }
+            }
+            if (parsefail) *parsefail = 1;
+            char buf[256]; char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected %s, "
-                "expected expression with constructor arguments "
-                "as argument to \"new\"",
+                "expected closing bracket for opening "
+                "bracket '%c' in line %" PRId64
+                ", column %" PRId64,
                 _describetoken(describebuf,
                     context->tokenstreaminfo, tokens,
-                    lefthandside->op.optokenoffset)
+                    max_tokens_touse),
+                c,
+                _refline(context->tokenstreaminfo,
+                    tokens, open_tk_index),
+                _refcol(context->tokenstreaminfo,
+                    tokens, open_tk_index)
             );
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
                     H64MSG_ERROR, buf, fileuri,
                     _refline(context->tokenstreaminfo, tokens,
-                             lefthandside->op.optokenoffset),
+                        max_tokens_touse),
                     _refcol(context->tokenstreaminfo, tokens,
-                            lefthandside->op.optokenoffset)
+                        max_tokens_touse)
                     ))
                 if (outofmemory) *outofmemory = 1;
-            if (parsefail) *parsefail = 1;
-            if (lefthandside) ast_MarkExprDestroyed(lefthandside);
-            if (original_lefthand && original_lefthand != lefthandside)
-                ast_MarkExprDestroyed(original_lefthand);
-            return 0;
+        } else {
+            if (parsefail) *parsefail = 0;
+        }
+        if (outofmemory) *outofmemory = 0;
+        if (out_expr) *out_expr = NULL;
+        return 0;
+    }
+    // Parse the operands:
+    h64expression *op1 = NULL;
+    h64expression *op2 = NULL;
+    int op1_start = 0;
+    int op1_len = highest_precedence_index;
+    int op2_start = highest_precedence_index + 1;
+    int op2_len = (operand_max_tokens_touse - op2_start);
+
+    int is_unop = 0;
+    if (tokens[highest_precedence_index].type == H64TK_UNOPSYMBOL) {
+        op1_start = op2_start;
+        op1_len = op2_len;
+        op2_start = -1;
+        op2_len = -1;
+        is_unop = 1;
+    } else {
+        assert(
+            tokens[highest_precedence_index].type == H64TK_BINOPSYMBOL
+        );
+        assert(op1_len > 0);
+        if (op2_len <= 0) {
+            goto operand2fail;
         }
     }
-    if (lefthandside && operatorsprocessed > 0) {
-        if (original_lefthand && original_lefthand != lefthandside)
-            ast_MarkExprDestroyed(original_lefthand);
-        *out_expr = lefthandside;
-        *out_tokenlen = lefthandsidetokenlen;
+    {  // Left-hand side:
+        int tlen = 0;
+        int innerparsefail = 0;
+        int inneroom = 0;
+        h64parsethis _buf;
+        if (!ast_ParseExprInline(
+                context, newparsethis(
+                    &_buf, parsethis,
+                    tokens + op1_start, op1_len
+                ),
+                INLINEMODE_GREEDY,
+                &innerparsefail, &inneroom,
+                &op1, &tlen, nestingdepth
+                )) {
+            if (inneroom) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
+                return 0;
+            }
+            if (outofmemory) *outofmemory = 0;
+            if (!innerparsefail) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected valid %soperand "
+                    "for %s operator at line %" PRId64
+                    ", column %" PRId64,
+                    _describetoken(describebuf,
+                        context->tokenstreaminfo, tokens, op1_start),
+                    (is_unop ? "" : "left-hand "),
+                    (is_unop ? "unary" : "binary"),
+                    _refline(context->tokenstreaminfo,
+                        tokens,
+                        highest_precedence_index),
+                    _refcol(context->tokenstreaminfo,
+                        tokens,
+                        highest_precedence_index)
+                );
+                if (outofmemory) *outofmemory = 0;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo, tokens,
+                            op1_start),
+                        _refcol(context->tokenstreaminfo, tokens,
+                            op1_start)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+            }
+            if (parsefail) *parsefail = 1;
+            return 0;
+        }
+        if (tlen < op1_len && !is_unop) {
+            if (parsefail) *parsefail = 1;
+            int bogusremainderindex = op1_start + tlen;
+            ast_MarkExprDestroyed(op1);
+            char buf[256]; char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected spurious %s following "
+                "operand in line %" PRId64
+                ", column %" PRId64,
+                _describetoken(describebuf,
+                    context->tokenstreaminfo, tokens,
+                    bogusremainderindex),
+                _refline(context->tokenstreaminfo,
+                    tokens, op1_start),
+                _refcol(context->tokenstreaminfo,
+                    tokens, op1_start)
+            );
+            if (outofmemory) *outofmemory = 0;
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(context->tokenstreaminfo, tokens,
+                        bogusremainderindex),
+                    _refcol(context->tokenstreaminfo, tokens,
+                        bogusremainderindex)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            return 0;
+        } else if (tlen < op1_len) {
+            op1_len = tlen;
+            assert(op1_start + op1_len < operand_max_tokens_touse);
+            operand_max_tokens_touse = op1_start + op1_len;
+        }
+    }
+    // Right-hand side, first regular then for calls:
+    if (op2_start >= 0 &&
+            tokens[highest_precedence_index].int_value !=
+                H64OP_CALL) {  // regular right-hand:
+        assert(!is_unop);
+        int tlen = 0;
+        int innerparsefail = 0;
+        int inneroom = 0;
+        h64parsethis _buf;
+        if (!ast_ParseExprInline(
+                context, newparsethis(
+                    &_buf, parsethis,
+                    tokens + op2_start, op2_len
+                ),
+                INLINEMODE_GREEDY,
+                &innerparsefail, &inneroom,
+                &op2, &tlen, nestingdepth
+                )) {
+            if (inneroom) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
+                ast_MarkExprDestroyed(op1);
+                return 0;
+            }
+            if (outofmemory) *outofmemory = 0;
+            if (!innerparsefail) {
+                operand2fail: ;
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected valid right-hand operand "
+                    "for binary operator at line %" PRId64
+                    ", column %" PRId64,
+                    _describetoken(describebuf,
+                        context->tokenstreaminfo, tokens, op1_start),
+                    _refline(context->tokenstreaminfo,
+                        tokens,
+                        highest_precedence_index),
+                    _refcol(context->tokenstreaminfo,
+                        tokens,
+                        highest_precedence_index)
+                );
+                if (outofmemory) *outofmemory = 0;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo, tokens,
+                            op1_start),
+                        _refcol(context->tokenstreaminfo, tokens,
+                            op1_start)
+                        ))
+                    if (outofmemory) *outofmemory = 1;
+            }
+            if (parsefail) *parsefail = 1;
+            ast_MarkExprDestroyed(op1);
+            return 0;
+        }
+        if (tlen < op2_len) {
+            op2_len = tlen;
+            assert(op2_start + op2_len <= operand_max_tokens_touse);
+            operand_max_tokens_touse = op2_start + op2_len;
+        }
+        if (tokens[highest_precedence_index].int_value ==
+                H64OP_INDEXBYEXPR && (
+                tokens[op2_start + op2_len - 1].type != H64TK_BRACKET ||
+                tokens[op2_start + op2_len - 1].char_value != ']')) {
+            char buf[256]; char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected %s, "
+                "expected ']' closing bracket "
+                "for opening bracket in line %" PRId64
+                ", column %" PRId64,
+                _describetoken(describebuf,
+                    context->tokenstreaminfo, tokens,
+                    op2_start + op2_len),
+                _refline(context->tokenstreaminfo,
+                    tokens, highest_precedence_index),
+                _refcol(context->tokenstreaminfo,
+                    tokens, highest_precedence_index)
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(context->tokenstreaminfo, tokens,
+                        op2_start + op2_len),
+                    _refcol(context->tokenstreaminfo, tokens,
+                        op2_start + op2_len)
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
+                ast_MarkExprDestroyed(op1);
+                ast_MarkExprDestroyed(op2);
+                return 0;
+            }
+        }
+    } else if (op2_start >= 0 &&
+            tokens[highest_precedence_index].int_value ==
+                H64OP_CALL) {  // call right-hand:
+        op2_start--;  // expand to include '(' opening bracket
+        op2_len += 2;  // expand to include ')' closing bracket
+        h64expression *callexpr = ast_AllocExpr(context->ast);
+        if (!callexpr) {
+            if (outofmemory) *outofmemory = 1;
+            ast_MarkExprDestroyed(op1);
+            return 0;
+        }
+        memset(callexpr, 0, sizeof(*callexpr));
+        callexpr->storage.eval_temp_id = -1;
+        callexpr->line = tokens[0].line;
+        callexpr->column = tokens[0].column;
+        callexpr->tokenindex = op1->tokenindex;
+        callexpr->type = H64EXPRTYPE_CALL;
+        callexpr->inlinecall.value = op1;
+        int tlen = 0;
+        int inneroom = 0;
+        int innerparsefail = 0;
+        h64parsethis _buf;
+        if (!ast_ParseFuncCallArgs(
+                context, newparsethis(
+                    &_buf, parsethis,
+                    tokens + op2_start, op2_len
+                ),
+                &innerparsefail, &inneroom,
+                &callexpr->inlinecall.arguments,
+                &tlen, nestingdepth
+                )) {
+            ast_MarkExprDestroyed(callexpr);
+            if (inneroom) {
+                if (parsefail) *parsefail = 0;
+                if (outofmemory) *outofmemory = 1;
+                ast_MarkExprDestroyed(op1);
+                return 0;
+            }
+            if (outofmemory) *outofmemory = 0;
+            if (parsefail) *parsefail = 1;
+            if (!innerparsefail) {
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, "internal error? "
+                        "got no function args "
+                        "but no error", fileuri,
+                        _refline(context->tokenstreaminfo, tokens, i),
+                        _refcol(context->tokenstreaminfo, tokens, i)
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 0;
+                }
+            }
+            ast_MarkExprDestroyed(op1);
+            return 0;
+        }
+        assert(tlen <= op2_len);
+        assert(tokens[op2_start + tlen - 1].type == H64TK_BRACKET &&
+               tokens[op2_start + tlen - 1].char_value == ')');
+        if (tlen < op2_len)
+            op2_len = tlen;
+        if (tokens[op2_start + op2_len - 1].type != H64TK_BRACKET ||
+                tokens[op2_start + op2_len - 1].char_value != ')') {
+            char buf[256]; char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected %s, "
+                "expected ')' closing bracket "
+                "for opening bracket in line %" PRId64
+                ", column %" PRId64,
+                _describetoken(describebuf,
+                    context->tokenstreaminfo, tokens,
+                    op2_start + op2_len),
+                _refline(context->tokenstreaminfo,
+                    tokens, highest_precedence_index),
+                _refcol(context->tokenstreaminfo,
+                    tokens, highest_precedence_index)
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(context->tokenstreaminfo, tokens,
+                        op2_start + op2_len),
+                    _refcol(context->tokenstreaminfo, tokens,
+                        op2_start + op2_len)
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
+                ast_MarkExprDestroyed(op1);
+                ast_MarkExprDestroyed(op2);
+                return 0;
+            }
+        }
+        if (out_tokenlen) *out_tokenlen = op2_start + op2_len;
+        if (out_expr) *out_expr = callexpr;
         if (outofmemory) *outofmemory = 0;
         if (parsefail) *parsefail = 0;
         return 1;
-    } else {
-        if (lefthandside &&
-                original_lefthand != lefthandside)
-            ast_MarkExprDestroyed(lefthandside);
-        // XXX: do NOT free original lefthandside if generic error.
-        // (See explanation at the beginning of function.)
     }
-    *out_expr = NULL;
+    if (is_unop) {
+        assert(op1 != NULL && op2 == NULL);
+    } else {
+        assert(op1 != NULL && op2 != NULL);
+    }
+    h64expression *expr = ast_AllocExpr(context->ast);
+    if (!expr) {
+        if (outofmemory) *outofmemory = 1;
+        ast_MarkExprDestroyed(op1);
+        ast_MarkExprDestroyed(op2);
+        return 0;
+    }
+    memset(expr, 0, sizeof(*expr));
+    expr->type = (
+        is_unop ? H64EXPRTYPE_UNARYOP : H64EXPRTYPE_BINARYOP
+    );
+    expr->storage.eval_temp_id = -1;
+    expr->funcdef.bytecode_func_id = -1;
+    expr->line = _refline(context->tokenstreaminfo, tokens, 0);
+    expr->column = _refcol(context->tokenstreaminfo, tokens, 0);
+    expr->op.optype = tokens[highest_precedence_index].int_value;
+    expr->op.value1 = op1;
+    if (op2)
+        expr->op.value2 = op2;
+    if (out_tokenlen) *out_tokenlen = operand_max_tokens_touse;
+    if (out_expr) *out_expr = expr;
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 0;
-    return 0;
+    return 1;
 }
 
 int ast_ParseExprInlineOperator(
@@ -1126,10 +1119,15 @@ int ast_ParseExprInlineOperator(
         int *out_tokenlen,
         int nestingdepth
         ) {
-    return ast_ParseExprInlineOperator_Recurse(
+    /*return ast_ParseExprInlineOperator_Recurse(
         context, parsethis,
         NULL, 0,
         operator_precedences_total_count - 1,
+        parsefail, outofmemory,
+        out_expr, out_tokenlen, nestingdepth
+    );*/
+    return ast_ParseExprInlineOperator_Recurse(
+        context, parsethis,
         parsefail, outofmemory,
         out_expr, out_tokenlen, nestingdepth
     );
@@ -1568,7 +1566,6 @@ int ast_ParseExprInline(
             int inneroutofmemory = 0;
             if (!ast_ParseExprInlineOperator_Recurse(
                     context, parsethis,
-                    NULL, 0, operator_PrecedenceByType(tokens[0].int_value),
                     &innerparsefail, &inneroutofmemory,
                     &innerexpr, &tlen, nestingdepth
                     )) {

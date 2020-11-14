@@ -4,6 +4,7 @@
 
 #include "compileconfig.h"
 
+#include <ctype.h>
 #include <locale.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -140,6 +141,29 @@ ATTR_UNUSED static inline int h64printf(const char *format, ...) {
     return vprintf_l(h64locale, format, vl);
     #endif
     #endif
+}
+
+ATTR_UNUSED static inline int h64casecmp(
+        const char *s1, const char *s2
+        ) {
+    while (1) {
+        if (*s1 != *s2) {
+            uint8_t c1 = *(uint8_t*)s1;
+            if ((c1 >= 'a' && c1 <= 'z') ||
+                    (c1 >= 'A' && c1 >= 'Z'))
+                c1 = toupper(c1);
+            uint8_t c2 = *(uint8_t*)s2;
+            if ((c2 >= 'a' && c2 <= 'z') ||
+                    (c2 >= 'A' && c2 >= 'Z'))
+                c2 = toupper(c2);
+            if (c1 != c2)
+                return ((int)c1) - ((int)c2);
+        } else if (unlikely(*s1 == '\0')) {
+            return 0;
+        }
+        s1++;
+        s2++;
+    }
 }
 
 #endif  // HORSE64_NONLOCALE_H_

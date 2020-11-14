@@ -8,6 +8,7 @@
 #define _LARGEFILE64_SOURCE
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -36,6 +37,7 @@
 
 
 #include "filesys.h"
+#include "secrandom.h"
 #include "stringhelpers.h"
 
 int filesys_GetComponentCount(const char *path) {
@@ -1417,4 +1419,143 @@ int filesys_FolderContainsPath(
     free(checknormalized);
     *result = 0;
     return 1;
+}
+
+FILE *filesys_TempFile(
+        int subfolder, const char *prefix,
+        const char *suffix, char **folder_path,
+        char **path
+        ) {
+    char *tempbuf = NULL;
+    int64_t tempbuffill = 0;
+    #if defined(_WIN32) || defined(_WIN64)
+    int tempbufwsize = 512;
+    wchar_t *tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
+    if (!tempbufw)
+        return NULL;
+    unsigned int rval = 0;
+    while (1) {
+        rval = GetTempPath(
+            tempbufwsize - 1, tempbufw
+        );
+        if (rval >= tempbufwsize - 1) {
+            free(tempbuf);
+            tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
+            if (!tempbufw)
+                return NULL;
+            continue;
+        }
+        if (rval == 0)
+            return NULL;
+    }
+    tempbuf = malloc(tempbufwsize * 5 + 1);
+    if (!tempbuf)
+        return NULL;
+    int result = utf16_to_utf8(
+        tempbufw, rval, tempbuf, tempbufwsize * 5 + 1,
+        &tempbuffill, 1
+    );
+    free(tempbufw);
+    if (!result) {
+        free(tempbuf);
+        return NULL;
+    }
+    #else
+    tempbuf = strdup("/tmp/");
+    if (!tempbuf) {
+        return NULL;
+    }
+    tempbuffill = strlen("/tmp/");
+    #endif
+    uint64_t v[2];
+    if (!secrandom_GetBytes(
+            (char*)&v, sizeof(v)
+            )) {
+        free(tempbuf);
+        return NULL;
+    }
+    char extbuf[512];
+    snprintf(
+        extbuf, sizeof(extbuf) - 1,
+        "%s%s%" PRIu64 "%" PRIu64 "%s%s",
+        #if defined(_WIN32) || defined(_WIN64)
+        "\\",
+        #else
+        "/",
+        #endif
+        (subfolder ? "" : prefix),
+        v[0], v[1],
+        #if defined(_WIN32) || defined(_WIN64)
+        (subfolder ? "\\" : ""),
+        #else
+        (subfolder ? "/" : ""),
+        #endif
+        (subfolder ? "" : suffix)
+    );
+    extbuf[sizeof(extbuf) - 1] = '\0';
+    char *combined_path = malloc(tempbuffill + strlen(extbuf) + 1);
+    if (!combined_path) {
+        free(tempbuf);
+        return NULL;
+    }
+    memcpy(combined_path, tempbuf, tempbuffill);
+    memcpy(combined_path + tempbuffill, extbuf, strlen(extbuf) + 1);
+    free(tempbuf);
+    if (subfolder) {
+        if (!filesys_CreateDirectory(combined_path)) {
+            free(combined_path);
+            return NULL;
+        }
+        *folder_path = combined_path;
+        char *file_path = malloc(
+            strlen(combined_path) + (prefix ? strlen(prefix) : 0) +
+            strlen("tempfile") + (suffix ? strlen(suffix) : 0) + 1
+        );
+        if (!file_path) {
+            filesys_RemoveFolder(*folder_path, 0);
+            free(combined_path);
+            return NULL;
+        }
+        memcpy(
+            file_path, combined_path, strlen(combined_path)
+        );
+        if (prefix)
+            memcpy(
+                file_path + strlen(combined_path), prefix, strlen(prefix)
+            );
+        memcpy(
+            file_path + strlen(combined_path) +
+            (prefix ? strlen(prefix) : 0),
+            "tempfile", strlen("tempfile")
+        );
+        if (suffix)
+            memcpy(
+                file_path + strlen(combined_path) +
+                (prefix ? strlen(prefix) : 0) +
+                strlen("tempfile"),
+                suffix, strlen(suffix)
+            );
+        file_path[
+            strlen(combined_path) +
+            (prefix ? strlen(prefix) : 0) +
+            strlen("tempfile") +
+            (suffix ? strlen(suffix) : 0)
+        ] = '\0';
+        *path = file_path;
+    } else {
+        *folder_path = NULL;
+        *path = combined_path;
+    }
+    FILE *f = fopen(*path, "wb");
+    if (!f) {
+        if (*folder_path) {
+            filesys_RemoveFolder(*folder_path, 0);
+            free(*folder_path);
+            *folder_path = NULL;
+        }
+        free(*path);
+        *path = NULL;
+        return NULL;
+    }
+    return f;
 }

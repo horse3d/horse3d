@@ -80,6 +80,7 @@ int main(int argc, const char **argv) {
             }
             if (!action && (strcmp(argv[i], "codeinfo") == 0 ||
                     strcmp(argv[i], "compile") == 0 ||
+                    strcmp(argv[i], "exec") == 0 ||
                     strcmp(argv[i], "get_asm") == 0 ||
                     strcmp(argv[i], "get_ast") == 0 ||
                     strcmp(argv[i], "get_resolved_ast") == 0 ||
@@ -120,6 +121,9 @@ int main(int argc, const char **argv) {
             return -1;
     } else if (strcmp(action, "get_tokens") == 0) {
         if (!compiler_command_GetTokens(argv, argc, action_offset))
+            return -1;
+    } else if (strcmp(action, "exec") == 0) {
+        if (!compiler_command_Exec(argv, argc, action_offset))
             return -1;
     } else if (strcmp(action, "run") == 0) {
         if (!compiler_command_Run(argv, argc, action_offset))

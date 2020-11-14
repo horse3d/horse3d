@@ -497,6 +497,8 @@ static int _mark_destroyed_cb(
 }
 
 void ast_MarkExprDestroyed(h64expression *expr) {
+    if (!expr)
+        return;
     int result = ast_VisitExpression(
         expr, NULL, NULL, &_mark_destroyed_cb, NULL, NULL
     );

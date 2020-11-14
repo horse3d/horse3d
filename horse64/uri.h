@@ -26,4 +26,10 @@ void uri_Free(uriinfo *uri);
 
 char *uri_Dump(uriinfo *uri);
 
+int uri_Compare(
+    const char *uri1str, const char *uri2str,
+    int converttoabsolutefilepaths,
+    int assumecasesensitivefilepaths, int *result
+);
+
 #endif  // HORSE64_URI_H_

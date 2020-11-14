@@ -49,6 +49,10 @@ int compiler_command_ToASM(
     const char **argv, int argc, int argoffset
 );
 
+int compiler_command_Exec(
+    const char **argv, int argc, int argoffset
+);
+
 typedef struct h64misccompileroptions {
     int vmexec_debug;
     int compiler_stage_debug;
