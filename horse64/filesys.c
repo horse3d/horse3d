@@ -39,6 +39,7 @@
 #include "filesys.h"
 #include "secrandom.h"
 #include "stringhelpers.h"
+#include "widechar.h"
 
 int filesys_GetComponentCount(const char *path) {
     int i = 0;
@@ -1431,14 +1432,18 @@ FILE *filesys_TempFile(
     #if defined(_WIN32) || defined(_WIN64)
     int tempbufwsize = 512;
     wchar_t *tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
+    assert(
+        sizeof(wchar_t) == sizeof(uint16_t)
+        // should be true for windows
+    )
     if (!tempbufw)
         return NULL;
     unsigned int rval = 0;
     while (1) {
-        rval = GetTempPath(
+        rval = GetTempPathW(
             tempbufwsize - 1, tempbufw
         );
-        if (rval >= tempbufwsize - 1) {
+        if (rval >= (unsigned int)tempbufwsize - 1) {
             free(tempbuf);
             tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
             if (!tempbufw)
@@ -1452,7 +1457,8 @@ FILE *filesys_TempFile(
     if (!tempbuf)
         return NULL;
     int result = utf16_to_utf8(
-        tempbufw, rval, tempbuf, tempbufwsize * 5 + 1,
+        (const uint16_t*)tempbufw, rval,
+        (uint8_t*)tempbuf, tempbufwsize * 5 + 1,
         &tempbuffill, 1
     );
     free(tempbufw);

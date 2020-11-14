@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 
+#include "compileconfig.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -152,8 +154,8 @@ static int str_is_spaces(const char *s) {
 
 
 int WINAPI WinMain(
-        HINSTANCE hInst, HINSTANCE hPrev,
-        LPSTR szCmdLine, int sw
+        ATTR_UNUSED HINSTANCE hInst, ATTR_UNUSED HINSTANCE hPrev,
+        ATTR_UNUSED LPSTR szCmdLine, ATTR_UNUSED int sw
         ) {
     #if defined(NOBETTERARGPARSE) && NOBETTERARGPARSE != 0
 
