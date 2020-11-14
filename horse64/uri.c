@@ -119,13 +119,17 @@ int uri_Compare(
             h64casecmp(uri1->protocol, "file") == 0) {
         #if defined(_WIN32) || defined(_WIN64)
         // Actually use winapi case folding to compare:
-        wchar_t *path1 = malloc(
+        uint16_t *path1 = malloc(
             sizeof(*path1) * (strlen(uri1->path) + 1)
         );
         if (!path1)
             goto oom;
-        wchar_t *path2 = malloc(
+        uint16_t *path2 = malloc(
             sizeof(*path2) * (strlen(uri2->path) + 1)
+        );
+        assert(
+            sizeof(*path1) == sizeof(wchar_t)
+            // should be true for windows
         );
         if (!path2) {
             free(path1);
@@ -133,14 +137,14 @@ int uri_Compare(
         }
         int64_t path1len = 0;
         int result1 = utf8_to_utf16(
-            uri1->path, strlen(uri1->path),
-            &path1, strlen(uri1->path),
+            (const uint8_t*)uri1->path, strlen(uri1->path),
+            (uint16_t*)&path1, strlen(uri1->path),
             &path1len, 1, 1
         );
         int64_t path2len = 0;
         int result2 = utf8_to_utf16(
-            uri2->path, strlen(uri2->path),
-            &path2, strlen(uri2->path),
+            (const uint8_t*)uri2->path, strlen(uri2->path),
+            (uint16_t*)&path2, strlen(uri2->path),
             &path2len, 1, 1
         );
         if (!result1 || !result2) {
@@ -149,17 +153,16 @@ int uri_Compare(
             free(path2);
             goto oom;
         }
-        int i = 0;
-        while (i < result1len) {
-            path1[i] = CharUpperW(path1[i]);
-            i++;
+        if (path1len != path2len) {
+            free(path1);
+            free(path2);
+            goto nomatch;
         }
-        i = 0;
-        while (i < result2len) {
-            path2[i] = CharUpperW(path2[i]);
-            i++;
-        }
-        if (memcmp(path1, path2) == 0) {
+        path1[path1len] = '\0';
+        path2[path2len] = '\0';
+        CharUpperW(path1);
+        CharUpperW(path2);
+        if (memcmp(path1, path2, path1len) == 0) {
             free(path1);
             free(path2);
             goto match;
