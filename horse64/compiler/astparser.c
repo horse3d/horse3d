@@ -242,7 +242,26 @@ void ast_ParseRecover_FindNextStatement(
                     return;
                 }
             }
-        } else if (ast_TokenStartsStatementOutsideOfBrackets(tokens, i) &&
+        } else if (
+                // Statement end in well-formed ways (complete/correct):
+                ((ast_TokenStartsStatementOutsideOfBrackets(tokens, i) &&
+                brackets_depth <= 0) ||
+                // Statement end in NOT well-formed ways (this list
+                // will always be incomplete, it's just best effort):
+                (tokens[i].type == H64TK_KEYWORD && (
+                 strcmp(tokens[i].str_value, "await") == 0 ||
+                 strcmp(tokens[i].str_value, "while") == 0 ||
+                 strcmp(tokens[i].str_value, "do") == 0 ||
+                 strcmp(tokens[i].str_value, "if") == 0 ||
+                 strcmp(tokens[i].str_value, "for") == 0 ||
+                 strcmp(tokens[i].str_value, "class") == 0 ||
+                 strcmp(tokens[i].str_value, "func") == 0 ||
+                 strcmp(tokens[i].str_value, "const") == 0 ||
+                 strcmp(tokens[i].str_value, "var") == 0 ||
+                 strcmp(tokens[i].str_value, "continue") == 0 ||
+                 strcmp(tokens[i].str_value, "break") == 0 ||
+                 strcmp(tokens[i].str_value, "return") == 0))) &&
+                // Make sure we made progress if that was asked of us:
                 (i > initiali ||
                  (flags & RECOVERFLAGS_MUSTFORWARD) == 0)) {
             *k = i;
