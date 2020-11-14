@@ -11,6 +11,7 @@
 #include "filesys.h"
 #include "nonlocale.h"
 #include "uri.h"
+#include "widechar.h"
 
 
 static char *uri_ParsePath(
@@ -130,17 +131,17 @@ int uri_Compare(
             free(path1);
             goto oom;
         }
-        int64_t result1len = 0;
+        int64_t path1len = 0;
         int result1 = utf8_to_utf16(
             uri1->path, strlen(uri1->path),
             &path1, strlen(uri1->path),
-            &result1len, 1, 1
+            &path1len, 1, 1
         );
-        int64_t result2len = 0;
+        int64_t path2len = 0;
         int result2 = utf8_to_utf16(
             uri2->path, strlen(uri2->path),
             &path2, strlen(uri2->path),
-            &result2len, 1, 1
+            &path2len, 1, 1
         );
         if (!result1 || !result2) {
             // This shouldn't happen. But we'd rather not crash here.
@@ -150,12 +151,12 @@ int uri_Compare(
         }
         int i = 0;
         while (i < result1len) {
-            result1[i] = CharUpperW(result1[i]);
+            path1[i] = CharUpperW(path1[i]);
             i++;
         }
         i = 0;
         while (i < result2len) {
-            result2[i] = CharUpperW(result2[i]);
+            path2[i] = CharUpperW(path2[i]);
             i++;
         }
         if (memcmp(path1, path2) == 0) {
