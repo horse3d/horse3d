@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <check.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -114,8 +115,14 @@ START_TEST (test_scope_import_complex)
         int i = 0;
         while (i < project->resultmsg->message_count) {
             if (project->resultmsg->message[i].type == H64MSG_ERROR) {
-                fprintf(stderr, "TEST UNEXPECTED FAIL: %s\n",
-                        project->resultmsg->message[i].message);
+                fprintf(
+                    stderr, "TEST UNEXPECTED FAIL: %s "
+                    "(file:%s,line:%" PRId64 ",column:%" PRId64 ")\n",
+                    project->resultmsg->message[i].message,
+                    project->resultmsg->message[i].fileuri,
+                    project->resultmsg->message[i].line,
+                    project->resultmsg->message[i].column
+                );
             }
             ck_assert(project->resultmsg->message[i].type != H64MSG_ERROR);
             i++;

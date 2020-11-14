@@ -1521,6 +1521,9 @@ jsonvalue *ast_ExpressionToJSON(
         jsonvalue *value1 = ast_ExpressionToJSON(
             e->op.value1, fileuri
         );
+        if (!json_SetDictStr(v, "operator",
+                operator_OpTypeToStr(e->op.optype)))
+            fail = 1;
         if (!value1) {
             fail = 1;
         } else {
@@ -1540,14 +1543,14 @@ jsonvalue *ast_ExpressionToJSON(
                 fail = 1;
             }
         }
-        if (!json_SetDictStr(v, "operator",
-                operator_OpTypeToStr(e->op.optype)))
-            fail = 1;
     } else if (e->type == H64EXPRTYPE_IDENTIFIERREF) {
         if (e->identifierref.value &&
                 !json_SetDictStr(v, "value", e->identifierref.value))
             fail = 1;
     } else if (e->type == H64EXPRTYPE_UNARYOP) {
+        if (!json_SetDictStr(v, "operator",
+                operator_OpTypeToStr(e->op.optype)))
+            fail = 1;
         jsonvalue *value1 = ast_ExpressionToJSON(
             e->op.value1, fileuri
         );

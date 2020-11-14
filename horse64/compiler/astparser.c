@@ -155,6 +155,58 @@ h64expression *ast_AllocExpr(h64ast *ast) {
     }
     return poolalloc_malloc(ast->ast_expr_alloc, 0);
 }
+
+static int ast_TokenStartsStatementOutsideOfBrackets(
+        h64token *tokens, int i
+        ) {
+    if (i <= 0)
+        return 0;
+    if ((tokens[i].type == H64TK_IDENTIFIER || (
+            tokens[i].type == H64TK_KEYWORD && (
+            strcmp(tokens[i].str_value, "async") == 0
+            ))) &&
+            tokens[i - 1].type != H64TK_BINOPSYMBOL &&
+            tokens[i - 1].type != H64TK_UNOPSYMBOL &&
+            (tokens[i - 1].type != H64TK_KEYWORD ||
+                (strcmp(tokens[i - 1].str_value, "async") != 0 &&
+                strcmp(tokens[i - 1].str_value, "await") != 0 &&
+                strcmp(tokens[i - 1].str_value, "var") != 0 &&
+                strcmp(tokens[i - 1].str_value, "const") != 0 &&
+                strcmp(tokens[i - 1].str_value, "func") != 0 &&
+                strcmp(tokens[i - 1].str_value, "new") != 0 &&
+                strcmp(tokens[i - 1].str_value, "class") != 0 &&
+                strcmp(tokens[i - 1].str_value, "as") != 0 &&
+                strcmp(tokens[i - 1].str_value, "rescue") != 0 &&
+                strcmp(tokens[i - 1].str_value, "import") != 0 &&
+                strcmp(tokens[i - 1].str_value, "if") != 0 &&
+                strcmp(tokens[i - 1].str_value, "while") != 0 &&
+                strcmp(tokens[i - 1].str_value, "for") != 0 &&
+                strcmp(tokens[i - 1].str_value, "return") != 0 &&
+                strcmp(tokens[i - 1].str_value, "raise") != 0)) &&
+            tokens[i - 1].type != H64TK_INLINEFUNC &&
+            tokens[i - 1].type != H64TK_COMMA &&
+            tokens[i - 1].type != H64TK_MAPARROW
+            ) {
+        return 1;
+    } else if (tokens[i].type == H64TK_KEYWORD && (
+            strcmp(tokens[i].str_value, "while") == 0 ||
+            strcmp(tokens[i].str_value, "for") == 0 ||
+            strcmp(tokens[i].str_value, "func") == 0 ||
+            strcmp(tokens[i].str_value, "if") == 0 ||
+            strcmp(tokens[i].str_value, "do") == 0 ||
+            strcmp(tokens[i].str_value, "const") == 0 ||
+            strcmp(tokens[i].str_value, "import") == 0 ||
+            strcmp(tokens[i].str_value, "var") == 0 ||
+            strcmp(tokens[i].str_value, "continue") == 0 ||
+            strcmp(tokens[i].str_value, "break") == 0 ||
+            strcmp(tokens[i].str_value, "raise") == 0 ||
+            strcmp(tokens[i].str_value, "return") == 0 ||
+            strcmp(tokens[i].str_value, "await") == 0)) {
+        return 1;
+    }
+    return 0;
+}
+
 void ast_ParseRecover_FindNextStatement(
         tsinfo *tokenstreaminfo, h64token *tokens,
         int max_tokens_touse, int *k, int flags
@@ -190,22 +242,11 @@ void ast_ParseRecover_FindNextStatement(
                     return;
                 }
             }
-        } else if (tokens[i].type == H64TK_KEYWORD &&
+        } else if (ast_TokenStartsStatementOutsideOfBrackets(tokens, i) &&
                 (i > initiali ||
                  (flags & RECOVERFLAGS_MUSTFORWARD) == 0)) {
-            char *s = tokens[i].str_value;
-            if (strcmp(s, "if") == 0 ||
-                    strcmp(s, "var") == 0 ||
-                    strcmp(s, "const") == 0 ||
-                    strcmp(s, "for") == 0 ||
-                    strcmp(s, "while") == 0 ||
-                    strcmp(s, "func") == 0 ||
-                    strcmp(s, "do") == 0 ||
-                    strcmp(s, "class") == 0 ||
-                    strcmp(s, "with") == 0) {
-                *k = i;
-                return;
-            }
+            *k = i;
+            return;
         } else if ((tokens[i].type == H64TK_CONSTANT_INT ||
                 tokens[i].type == H64TK_CONSTANT_STRING ||
                 tokens[i].type == H64TK_CONSTANT_BYTES ||
@@ -590,6 +631,16 @@ int ast_ParseExprInlineOperator_Recurse(
     int operand_max_tokens_touse = max_tokens_touse;
     i = 0;
     while (i < max_tokens_touse) {
+        // End of statement handling:
+        if (bracket_depth <= 0 && i > 0) {
+            if (ast_TokenStartsStatementOutsideOfBrackets(
+                    tokens, i
+                    )) {
+                operand_max_tokens_touse = i;
+                break;
+            }
+        }
+        // Bracket handling:
         int is_bracket_op = 0;
         const int is_bracket_like = (
             tokens[i].type == H64TK_BRACKET ||
@@ -705,7 +756,7 @@ int ast_ParseExprInlineOperator_Recurse(
                 tokens[i].int_value
             );
             assert(precedence >= 0);
-            if ((precedence <= highest_precedence_pvalue ||
+            if ((precedence >= highest_precedence_pvalue ||
                     highest_precedence_pvalue < 0) && (
                     tokens[i].type != H64TK_UNOPSYMBOL || i == 0)
                     ) {
@@ -791,6 +842,7 @@ int ast_ParseExprInlineOperator_Recurse(
         op2_start = -1;
         op2_len = -1;
         is_unop = 1;
+        assert(op1_start > 0);
     } else {
         assert(
             tokens[highest_precedence_index].type == H64TK_BINOPSYMBOL
@@ -852,6 +904,7 @@ int ast_ParseExprInlineOperator_Recurse(
             if (parsefail) *parsefail = 1;
             return 0;
         }
+        assert(tlen <= op1_len);
         if (tlen < op1_len && !is_unop) {
             if (parsefail) *parsefail = 1;
             int bogusremainderindex = op1_start + tlen;
@@ -984,6 +1037,7 @@ int ast_ParseExprInlineOperator_Recurse(
     } else if (op2_start >= 0 &&
             tokens[highest_precedence_index].int_value ==
                 H64OP_CALL) {  // call right-hand:
+        assert(!is_unop);
         op2_start--;  // expand to include '(' opening bracket
         op2_len += 2;  // expand to include ')' closing bracket
         h64expression *callexpr = ast_AllocExpr(context->ast);
@@ -1119,13 +1173,6 @@ int ast_ParseExprInlineOperator(
         int *out_tokenlen,
         int nestingdepth
         ) {
-    /*return ast_ParseExprInlineOperator_Recurse(
-        context, parsethis,
-        NULL, 0,
-        operator_precedences_total_count - 1,
-        parsefail, outofmemory,
-        out_expr, out_tokenlen, nestingdepth
-    );*/
     return ast_ParseExprInlineOperator_Recurse(
         context, parsethis,
         parsefail, outofmemory,
@@ -1476,7 +1523,7 @@ int ast_ParseExprInline(
 
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
-    if (max_tokens_touse < 0) {
+    if (max_tokens_touse <= 0) {
         if (parsefail) *parsefail = 0;
         return 0;
     }

@@ -5,6 +5,8 @@
 #ifndef HORSE64_COMPILER_OPERATOR_H_
 #define HORSE64_COMPILER_OPERATOR_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 #include <stdlib.h>  // for NULL
 
@@ -71,7 +73,7 @@ extern int operator_precedences_total_count;
 extern int *operators_by_precedence_counts;
 extern h64optype **operators_by_precedence;
 
-static int operator_PrecedenceByType(int type) {
+ATTR_UNUSED static int operator_PrecedenceByType(int type) {
     if (IS_ASSIGN_OP(type))
         return 10;
     switch (type) {
