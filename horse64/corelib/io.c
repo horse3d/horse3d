@@ -21,6 +21,7 @@ int _close(
 #define _O_RDONLY 0x0000
 #include <malloc.h>
 #include <windows.h>
+int _open_osfhandle(intptr_t osfhandle, int flags);
 #else
 #include <alloca.h>
 #include <errno.h>

@@ -7,6 +7,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#include <winuser.h>
+#endif
 
 #include "filesys.h"
 #include "nonlocale.h"

@@ -7,12 +7,17 @@
 
 #include <stdio.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <fcntl.h>
+#include <windows.h>
+#endif
 
 #include "horse64/compiler/main.h"
 #include "horse64/packageversion.h"
 #include "filesys.h"
 #include "vfs.h"
 #include "widechar.h"
+
 
 #define NOBETTERARGPARSE 1
 

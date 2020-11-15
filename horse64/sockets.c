@@ -346,11 +346,15 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
         sockets_FreeSocketPairSetupData(&te);
         return 0;
     }
-    unsigned int len = sizeof(servaddr);
+    #if defined(_WIN32) || defined(_WIN64)
+    int len = sizeof(servaddr);
+    #else
+    socklen_t len = sizeof(servaddr);
+    #endif
     if (getsockname(
             te.recv_server->fd,
             (struct sockaddr *)&servaddr,
-            &len) != 0 || len != sizeof(servaddr)) {
+            &len) != 0 || (unsigned int)len != sizeof(servaddr)) {
         sockets_FreeSocketPairSetupData(&te);
         return 0;
     }
