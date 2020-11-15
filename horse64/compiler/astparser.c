@@ -2635,7 +2635,7 @@ int ast_ParseCodeBlock(
                 ast_ParseRecover_FindNextStatement(
                     context->tokenstreaminfo, tokens,
                     max_tokens_touse, &i,
-                    RECOVERFLAGS_NORMAL
+                    RECOVERFLAGS_NORMAL|RECOVERFLAGS_MUSTFORWARD
                 );
                 assert(i >= previ || i >= max_tokens_touse);
                 if (i < max_tokens_touse &&
