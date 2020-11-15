@@ -21,6 +21,10 @@ int _actualmain(int argc, const char **argv) {
 #else
 int main(int argc, const char **argv) {
 #endif
+    #if defined(_WIN32) || defined(_WIN64)
+    _setmode(_fileno(stdin), O_BINARY);
+    #endif
+
     vfs_Init(argv[0]);
 
     int doubledash_seen = 0;

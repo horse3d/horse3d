@@ -32,10 +32,15 @@ static int _compileargparse(
         ) {
     if (wconfig) warningconfig_Init(wconfig);
     int doubledashed = 0;
+    *fileuriorexec = NULL;
     int i = argoffset;
     while (i < argc) {
         if ((strlen(argv[i]) == 0 || argv[i][0] != '-' ||
                 doubledashed) && fileuriorexec && !*fileuriorexec) {
+            // This is the file or exec line argument.
+            if (miscoptions->from_stdin) {
+                goto invalidbothfileargandfromstdin;
+            }
             // For exec case, we want to combine all arguments into one:
             if (i + 1 < argc && strcmp(cmd, "exec") == 0) {
                 int len = 0;
@@ -95,7 +100,35 @@ static int _compileargparse(
                 printf("  --vmsched-verbose-debug: Extra detailed horsevm "
                        "scheduler info\n");
             }
+            if (strcmp(cmd, "run") == 0 || strcmp(cmd, "exec") == 0 ||
+                    strcmp(cmd, "compile") == 0 ||
+                    strcmp(cmd, "get_asm") == 0 ||
+                    strcmp(cmd, "codeinfo") == 0) {
+                printf("  --from-stdin:            Take code input from stdin "
+                       "instead\n");
+            }
+            if (*fileuriorexec)
+                free(*fileuriorexec);
+            *fileuriorexec = NULL;
             return 0;
+        } else if (strcmp(argv[i], "--from-stdin") == 0 && (
+                strcmp(cmd, "run") == 0 ||
+                strcmp(cmd, "exec") == 0 ||
+                strcmp(cmd, "compile") == 0 ||
+                strcmp(cmd, "get_asm") == 0 ||
+                strcmp(cmd, "codeinfo") == 0
+                )) {
+            if (*fileuriorexec != NULL) {
+                invalidbothfileargandfromstdin:
+                fprintf(stderr, "horsec: error: %s: "
+                    "cannot specify file argument but also "
+                    "--from-stdin\n", cmd);
+                if (*fileuriorexec)
+                    free(*fileuriorexec);
+                *fileuriorexec = NULL;
+                return 0;
+            }
+            miscoptions->from_stdin = 1;
         } else if (strcmp(cmd, "get_tokens") != 0 &&
                    strcmp(cmd, "get_ast") != 0 &&
                    strcmp(argv[i], "--import-debug") == 0) {
@@ -139,11 +172,14 @@ static int _compileargparse(
         } else {
             fprintf(stderr, "horsec: error: %s: unrecognized option: %s\n",
                     cmd, argv[i]);
+            if (*fileuriorexec)
+                free(*fileuriorexec);
+            *fileuriorexec = NULL;
             return 0;
         }
         i++;
     }
-    if (fileuriorexec && !*fileuriorexec) {
+    if (!*fileuriorexec && !miscoptions->from_stdin) {
         fprintf(stderr,
             "horsec: error: %s: need argument \"file\"\n", cmd);
         return 0;
@@ -209,8 +245,8 @@ static void printmsg(
 int compiler_command_CompileEx(
         int mode, const char **argv, int argc, int argoffset
         ) {
-    const char *fileuri = NULL;
-    const char *execarg = NULL;
+    char *fileuri = NULL;
+    char *execarg = NULL;
     const char *_name_mode_compile = "compile";
     const char *_name_mode_run = "run";
     const char *_name_mode_exec = "exec";
@@ -234,9 +270,42 @@ int compiler_command_CompileEx(
             &fileuriorexec, &wconfig, &moptions
             ))
         return 0;
-    assert(fileuriorexec != NULL);
-    if (mode == COMPILEEX_MODE_EXEC) {
+    assert(fileuriorexec != NULL || moptions.from_stdin);
+    if (mode == COMPILEEX_MODE_EXEC || moptions.from_stdin) {
         execarg = fileuriorexec;
+        fileuriorexec = NULL;
+        if (moptions.from_stdin) {
+            int bufsize = 4096;
+            int buffill = 0;
+            char *buf = malloc(bufsize);
+            if (!buf) {
+                free(fileuriorexec);
+                fprintf(stderr, "horsec: error: OOM reading from stdin\n");
+                return 0;
+            }
+            while (!feof(stdin) && !ferror(stdin)) {
+                if (buffill >= bufsize - 64) {
+                    int newbufsize = bufsize * 2;
+                    char *newbuf = realloc(buf, newbufsize);
+                    if (!newbuf) {
+                        free(fileuriorexec);
+                        fprintf(stderr, "horsec: error: "
+                            "OOM reading from stdin\n");
+                        return 0;
+                    }
+                    buf = newbuf;
+                    bufsize = newbufsize;
+                }
+                ssize_t rbytes = fread(
+                    buf + buffill, 1, bufsize - buffill,
+                    stdin
+                );
+                if (rbytes <= 0)
+                    break;
+            }
+            free(execarg);
+            execarg = buf;
+        }
         FILE *tempfile = filesys_TempFile(
             1, "code", ".h64", &tempfilefolder, &tempfilepath
         );
@@ -252,36 +321,36 @@ int compiler_command_CompileEx(
         );
         if (written < (ssize_t)strlen(execarg)) {
             fclose(tempfile);
-            filesys_RemoveFile(tempfilepath);
-            filesys_RemoveFolder(tempfilefolder, 1);
-            free(tempfilepath);
-            free(tempfilefolder);
-            free(fileuriorexec);
             fprintf(stderr, "horsec: error: input/output error "
                 "with temporary file\n");
-            return 0;
+            goto freeanderrorquit;
         }
         fclose(tempfile);
         fileuri = uri_Normalize(
             tempfilepath, 1
         );
         if (!fileuri) {
-            filesys_RemoveFile(tempfilepath);
-            filesys_RemoveFolder(tempfilefolder, 1);
-            free(tempfilepath);
-            free(tempfilefolder);
-            free(fileuriorexec);
             fprintf(stderr, "horsec: error: out of memory or "
                 "internal error with temporary file\n");
+            freeanderrorquit:
+            if (tempfilepath) {
+                filesys_RemoveFile(tempfilepath);
+                filesys_RemoveFolder(tempfilefolder, 1);
+                free(tempfilepath);
+                free(tempfilefolder);
+            }
+            free(fileuriorexec);
+            free(execarg);
             return 0;
         }
     } else {
         fileuri = fileuriorexec;
+        fileuriorexec = NULL;
     }
 
     char *error = NULL;
     char *project_folder_uri = NULL;
-    if (mode != COMPILEEX_MODE_EXEC) {
+    if (mode != COMPILEEX_MODE_EXEC && !moptions.from_stdin) {
         project_folder_uri = compileproject_FolderGuess(
             fileuri, 1, &error
         );
@@ -289,63 +358,34 @@ int compiler_command_CompileEx(
         project_folder_uri = strdup(tempfilefolder);
     }
     if (!project_folder_uri) {
-        if (tempfilepath) {
-            filesys_RemoveFile(tempfilepath);
-            filesys_RemoveFolder(tempfilefolder, 1);
-            free(tempfilepath);
-            free(tempfilefolder);
-            free(fileuriorexec);
-        }
         fprintf(stderr, "horsec: error: %s: %s\n",
                 command, (error ? error : "out of memory"));
-        free(error);
-        return 0;
+        goto freeanderrorquit;
     }
     h64compileproject *project = compileproject_New(project_folder_uri);
     free(project_folder_uri);
     project_folder_uri = NULL;
     if (!project) {
-        if (tempfilepath) {
-            filesys_RemoveFile(tempfilepath);
-            filesys_RemoveFolder(tempfilefolder, 1);
-            free(tempfilepath);
-            free(tempfilefolder);
-            free(fileuriorexec);
-        }
         fprintf(stderr, "horsec: error: %s: alloc failure\n",
                 command);
-        return 0;
+        goto freeanderrorquit;
     }
     h64ast *ast = NULL;
     if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
-        if (tempfilepath) {
-            filesys_RemoveFile(tempfilepath);
-            filesys_RemoveFolder(tempfilefolder, 1);
-            free(tempfilepath);
-            free(tempfilefolder);
-            free(fileuriorexec);
-        }
         fprintf(stderr, "horsec: error: %s: %s\n",
                 command, error);
         free(error);
         compileproject_Free(project);
-        return 0;
+        goto freeanderrorquit;
     }
     if (!compileproject_CompileAllToBytecode(
             project, &moptions, fileuri, &error
             )) {
-        if (tempfilepath) {
-            filesys_RemoveFile(tempfilepath);
-            filesys_RemoveFolder(tempfilefolder, 1);
-            free(tempfilepath);
-            free(tempfilefolder);
-            free(fileuriorexec);
-        }
         fprintf(stderr, "horsec: error: %s: %s\n",
                 command, error);
         free(error);
         compileproject_Free(project);
-        return 0;
+        goto freeanderrorquit;
     }
 
     // Examine & print message:
@@ -371,8 +411,10 @@ int compiler_command_CompileEx(
         filesys_RemoveFolder(tempfilefolder, 1);
         free(tempfilepath);
         free(tempfilefolder);
-        free(fileuriorexec);
     }
+    free(fileuriorexec);
+    free(fileuri);
+    free(execarg);
     int nosuccess = (
         haderrormessages || !ast->resultmsg.success ||
         !project->resultmsg->success
