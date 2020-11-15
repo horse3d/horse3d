@@ -195,7 +195,7 @@ int compileproject_GetAST(
     );
     if (!absfilepath) {
         free(relfilepath);
-        *error = strdup("alloc fail");
+        *error = strdup("alloc fail (abs file path)");
         *out_ast = NULL;
         return 0;
     }
@@ -212,7 +212,7 @@ int compileproject_GetAST(
     free(absfilepath); absfilepath = NULL;
     if (!result) {
         free(relfilepath);
-        *error = strdup("alloc fail");
+        *error = strdup("alloc fail (get uncached AST)");
         *out_ast = NULL;
         return 0;
     }
@@ -226,7 +226,7 @@ int compileproject_GetAST(
         ast_FreeContents(result);
         free(relfilepath);
         free(result);
-        *error = strdup("alloc fail");
+        *error = strdup("alloc fail (transfer errors)");
         *out_ast = NULL;
         return 0;
     }
@@ -238,7 +238,7 @@ int compileproject_GetAST(
         ast_FreeContents(result);
         free(relfilepath);
         free(result);
-        *error = strdup("alloc fail");
+        *error = strdup("alloc fail (ast file map set)");
         *out_ast = NULL;
         return 0;
     }
