@@ -402,7 +402,8 @@ int compiler_command_CompileEx(
         }
         printmsg(
             project->resultmsg, &project->resultmsg->message[i],
-            (mode == COMPILEEX_MODE_EXEC ? tempfilepath : NULL)
+            ((mode == COMPILEEX_MODE_EXEC ||
+              moptions.from_stdin) ? tempfilepath : NULL)
         );
         i++;
     }
