@@ -60,8 +60,7 @@ ATTR_UNUSED static char *h64keywords[] = {
     "break", "continue", "do",
     "rescue", "finally", "error",
     "new", "return", "in", "as",
-    "getter", "setter", "value",
-    "deprecated", "multiarg",
+    "protect", "deprecated", "expandarg",
     NULL
 };
 

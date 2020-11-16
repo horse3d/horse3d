@@ -327,6 +327,9 @@ typedef struct h64classattributeinfo {
     attridx_t methodorvaridx;  // vars have H64CLASS_METHOD_OFFSET offset
 } h64classattributeinfo;
 
+#define VARATTR_FLAGS_CONST 0x1
+#define VARATTR_FLAGS_READONLY 0x2
+
 typedef struct h64class {
     classid_t base_class_global_id;
     int is_error, is_threadable, user_set_async;
@@ -336,6 +339,7 @@ typedef struct h64class {
     funcid_t *funcattr_func_idx;
     attridx_t varattr_count;
     int64_t *varattr_global_name_idx;
+    uint8_t *varattr_flags;
 
     h64classattributeinfo **global_name_to_attribute_hashmap;
 
@@ -367,7 +371,7 @@ typedef struct h64func {
 
 typedef struct h64globalvar {
     valuecontent content;
-    uint8_t is_simple_constant;
+    uint8_t is_simple_constant, is_const;
 } h64globalvar;
 
 typedef struct h64program {

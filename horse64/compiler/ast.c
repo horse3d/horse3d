@@ -977,6 +977,14 @@ jsonvalue *ast_ExpressionToJSON(
             if (!json_AddToListStr(attributes, "deprecated"))
                 fail = 1;
         }
+        if (e->vardef.is_const) {
+            if (!json_AddToListStr(attributes, "const"))
+                fail = 1;
+        }
+        if (e->vardef.is_protected) {
+            if (!json_AddToListStr(attributes, "protect"))
+                fail = 1;
+        }
         if (!json_SetDict(v, "attributes", attributes)) {
             fail = 1;
             json_Free(attributes);
@@ -1407,14 +1415,6 @@ jsonvalue *ast_ExpressionToJSON(
         }
         if (e->funcdef.is_noasync) {
             if (!json_AddToListStr(attributes, "noasync"))
-                fail = 1;
-        }
-        if (e->funcdef.is_getter) {
-            if (!json_AddToListStr(attributes, "getter"))
-                fail = 1;
-        }
-        if (e->funcdef.is_setter) {
-            if (!json_AddToListStr(attributes, "setter"))
                 fail = 1;
         }
         if (e->funcdef.is_deprecated) {

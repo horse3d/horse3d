@@ -102,18 +102,14 @@ typedef struct h64expression {
     } knownvalue;
     union {
         struct vardef {
-            int is_deprecated;
+            uint8_t is_deprecated, is_const, is_protected;
             char *identifier;
-            int is_const;
             h64expression *value;
             h64scope *foundinscope;
         } vardef;
         struct funcdef {
             char *name;
-            uint8_t is_deprecated;
-            uint8_t is_async, is_noasync;
-            uint8_t is_getter;
-            uint8_t is_setter;
+            uint8_t is_deprecated, is_async, is_noasync;
             int stmt_count;
             h64expression **stmt;
             h64scope scope;

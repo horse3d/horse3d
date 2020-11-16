@@ -443,7 +443,7 @@ h64tokenizedfile lexer_ParseFromFile(
                       strcmp(prevtok->str_value, "while") == 0 ||
                       strcmp(prevtok->str_value, "for") == 0 ||
                       strcmp(prevtok->str_value, "except") == 0 ||
-                      strcmp(prevtok->str_value, "multiarg") == 0)))
+                      strcmp(prevtok->str_value, "expandarg") == 0)))
                 could_be_unary_op = 1;
         }
 

@@ -3099,6 +3099,9 @@ int ast_ParseExprStmt(
             ast_MarkExprDestroyed(expr);
             return 0;
         }
+        expr->vardef.is_const = (
+            strcmp(tokens[0].str_value, "const") == 0
+        );
 
         {
             int newidentifieroom = 0;
@@ -3115,14 +3118,42 @@ int ast_ParseExprStmt(
             }
         }
 
+        int protectindex = -1;
         while (i < max_tokens_touse &&
                 tokens[i].type == H64TK_KEYWORD) {
             if (strcmp(tokens[i].str_value, "deprecated") == 0) {
                 expr->vardef.is_deprecated = 1;
                 i++;
                 continue;
+            } else if (strcmp(tokens[i].str_value, "protect") == 0) {
+                expr->vardef.is_protected = 1;
+                protectindex = i;
+                i++;
+                continue;
             }
             break;
+        }
+        if (expr->vardef.is_const && expr->vardef.is_protected) {
+            char buf[512];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected use of protect on const"
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(
+                        context->tokenstreaminfo, tokens, protectindex),
+                    _refcol(
+                        context->tokenstreaminfo, tokens, protectindex)
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                scope_RemoveItem(
+                    parsethis->scope, expr->vardef.identifier
+                );
+                if (parsefail) *parsefail = 0;
+                *out_expr = NULL;
+                return 0;
+            }
         }
 
         if (i < max_tokens_touse &&
@@ -3374,46 +3405,8 @@ int ast_ParseExprStmt(
                 i++;
                 expr->funcdef.is_deprecated = 1;
                 continue;
-            } else if (i < max_tokens_touse &&
-                    tokens[i].type == H64TK_KEYWORD &&
-                    !expr->funcdef.is_getter &&
-                    strcmp(tokens[i].str_value, "getter") == 0) {
-                i++;
-                expr->funcdef.is_getter = 1;
-                continue;
-            } else if (i < max_tokens_touse &&
-                    tokens[i].type == H64TK_KEYWORD &&
-                    !expr->funcdef.is_setter &&
-                    strcmp(tokens[i].str_value, "setter") == 0) {
-                i++;
-                expr->funcdef.is_setter = 1;
-                continue;
             }
             break;
-        }
-        if (expr->funcdef.is_setter && expr->funcdef.is_getter) {
-            char buf[256];
-            snprintf(buf, sizeof(buf) - 1,
-                "unexpected combination of getter/setter, "
-                "expected just one for function definition "
-                " starting in line %" PRId64
-                ", column %" PRId64,
-                _refline(context->tokenstreaminfo, tokens, 0),
-                _refcol(context->tokenstreaminfo, tokens, 0)
-            );
-            if (outofmemory) *outofmemory = 0;
-            if (!result_AddMessage(
-                    context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
-                    _refline(context->tokenstreaminfo, tokens, i),
-                    _refcol(context->tokenstreaminfo, tokens, i)
-                    )) {
-                if (outofmemory) *outofmemory = 1;
-                if (parsefail) *parsefail = 1;
-                scope_RemoveItem(parsethis->scope, expr->funcdef.name);
-                ast_MarkExprDestroyed(expr);
-                return 0;
-            }
         }
         int tlen = 0;
         int innerparsefail = 0;

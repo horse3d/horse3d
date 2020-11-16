@@ -71,8 +71,11 @@ stmt ::= toplevelstmt | callstmt | assignstmt |
          ifstmt | whilestmt | forstmt | withstmt |
          dorescuefinallystmt | vardefstmt | asyncstmt |
          awaitstmt
-vardefstmt ::= "var" identifier | "var" identifier '=' expr |
-               "var" identifier '=' "async" callexpr
+vardefprops ::= "protect"? "deprecated"?
+vardefstmt ::= "var" identifier vardefprops? |
+               "var" identifier vardefprops? '=' "async"? expr |
+               "const" identifier vardefprops? |
+               "const" identifier vardefporps? '=' "async"? expr
 callstmt ::= callexpr
 assignstmt ::= lvalueexpr '=' expr |
                lvalueexpr assignbinop expr |
@@ -100,8 +103,7 @@ classattrstmt ::= vardefnoasyncstmt | funcdefstmt
 extendinfo ::= "extends" expr
 
 classprop ::= "async" | "noasync" | "deprecated"
-funcprop ::= "async" | "noasync" | "getter" | "setter" |
-             "deprecated"
+funcprop ::= "async" | "noasync" | "deprecated"
 
 
 # Detail rules for general statements:
