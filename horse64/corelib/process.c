@@ -80,7 +80,7 @@ int processlib_RegisterFuncsAndModules(h64program *p) {
     int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "run", &processlib_run,
-        NULL, 3, process_run_kw_arg_name, 0,  // fileuri, args
+        NULL, 3, process_run_kw_arg_name,  // fileuri, args
         "process", "core.horse64.org", 1, -1
     );
     if (idx < 0)

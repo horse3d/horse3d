@@ -393,7 +393,7 @@ int _ast_ParseFunctionArgList_Ex(
         int isexpandarg = 0;
         if (i < max_tokens_touse && is_call &&
                 tokens[i].type == H64TK_KEYWORD &&
-                strcmp(tokens[i].str_value, "expandarg")) {
+                strcmp(tokens[i].str_value, "expandarg") == 0) {
             if (had_expandarg) {
                 if (!result_AddMessage(
                         context->resultmsg,

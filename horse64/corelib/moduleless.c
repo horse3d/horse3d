@@ -279,27 +279,13 @@ int corelib_print(  // $$builtin.print
      * @func print
      */
     assert(STACK_TOP(vmthread->stack) == 1);
-    assert(STACK_ENTRY(vmthread->stack, 0)->type == H64VALTYPE_GCVAL &&
-        ((h64gcvalue*)STACK_ENTRY(vmthread->stack, 0)->ptr_value)->type ==
-        H64GCVALUETYPE_LIST
-    );
-    genericlist *l = (
-        ((h64gcvalue*)STACK_ENTRY(vmthread->stack, 0)->ptr_value)->
-            list_values
-    );
-    int64_t i = 0;
-    while (i < vmlist_Count(l)) {
-        if (i > 0)
-            printf(" ");
-        valuecontent *c = vmlist_Get(l, i + 1);
-        assert(c != NULL);
-        struct _printvalue_seeninfo sinfo = {0};
-        if (!_corelib_printvalue(vmthread, c, &sinfo))
-            return 0;  // error raised
-        if (sinfo.seen)
-            hashset_Free(sinfo.seen);
-        i++;
-    }
+    valuecontent *c = STACK_ENTRY(vmthread->stack, 0);
+    assert(c != NULL);
+    struct _printvalue_seeninfo sinfo = {0};
+    if (!_corelib_printvalue(vmthread, c, &sinfo))
+        return 0;  // error raised
+    if (sinfo.seen)
+        hashset_Free(sinfo.seen);
     printf("\n");
     return 1;
 }
@@ -334,7 +320,7 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     // 'print' function:
     idx = h64program_RegisterCFunction(
         p, "print", &corelib_print,
-        NULL, 1, NULL, 1, NULL, NULL, 1, -1
+        NULL, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -343,7 +329,7 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     // '$$container.add' function:
     idx = h64program_RegisterCFunction(
         p, "$$containeradd", &corelib_containeradd,
-        NULL, 1, NULL, 0, NULL, NULL, 1, -1
+        NULL, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;

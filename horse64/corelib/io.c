@@ -1032,7 +1032,7 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "open", &iolib_open,
-        NULL, 6, io_open_kw_arg_name, 0,  // fileuri, args
+        NULL, 6, io_open_kw_arg_name,  // fileuri, args
         "io", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -1049,7 +1049,7 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     const char *io_fileread_kw_arg_name[] = {"amount"};
     idx = h64program_RegisterCFunction(
         p, "read", &iolib_fileread,
-        NULL, 1, io_fileread_kw_arg_name, 0,  // fileuri, args
+        NULL, 1, io_fileread_kw_arg_name,  // fileuri, args
         "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)
@@ -1059,7 +1059,7 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     const char *io_fileoffset_kw_arg_name[] = {};
     idx = h64program_RegisterCFunction(
         p, "offset", &iolib_fileoffset,
-        NULL, 0, io_fileoffset_kw_arg_name, 0,  // fileuri, args
+        NULL, 0, io_fileoffset_kw_arg_name,  // fileuri, args
         "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)
@@ -1069,7 +1069,7 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     const char *io_fileseek_kw_arg_name[] = {NULL};
     idx = h64program_RegisterCFunction(
         p, "seek", &iolib_fileseek,
-        NULL, 1, io_fileseek_kw_arg_name, 0,  // fileuri, args
+        NULL, 1, io_fileseek_kw_arg_name,  // fileuri, args
         "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)
@@ -1078,7 +1078,7 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     // file.close method:
     idx = h64program_RegisterCFunction(
         p, "close", &iolib_fileclose,
-        NULL, 0, NULL, 0,  // fileuri, args
+        NULL, 0, NULL,  // fileuri, args
         "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)

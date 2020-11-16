@@ -791,7 +791,6 @@ funcid_t h64program_RegisterCFunction(
         const char *fileuri,
         int arg_count,
         const char **arg_kwarg_name,
-        int last_is_multiarg,
         const char *module_path,
         const char *library_name,
         int is_threadable,
@@ -1037,13 +1036,10 @@ funcid_t h64program_RegisterCFunction(
     );
     p->func[p->func_count].cfunclookup = cfunclookup;
     p->func[p->func_count].cfunc_ptr = func;
-    p->func[p->func_count].last_posarg_is_multiarg = last_is_multiarg;
     p->func[p->func_count].kwarg_count = kwarg_count;
     p->func[p->func_count].kwargnameindexes = kwarg_indexes;
     msymbols->func_symbols[msymbols->func_count].global_id = p->func_count;
     msymbols->func_symbols[msymbols->func_count].arg_count = arg_count;
-    msymbols->func_symbols[msymbols->func_count].
-        last_arg_is_multiarg = last_is_multiarg;
 
     msymbols->noncfunc_count++;
     p->func_count++;
@@ -1058,14 +1054,13 @@ funcid_t h64program_RegisterHorse64Function(
         const char *fileuri,
         int arg_count,
         const char **arg_kwarg_name,
-        int last_is_multiarg,
         const char *module_path,
         const char *library_name,
         classid_t associated_class_idx
         ) {
     funcid_t idx = h64program_RegisterCFunction(
         p, name, NULL, fileuri, arg_count, arg_kwarg_name,
-        last_is_multiarg, module_path,
+        module_path,
         library_name, -1, associated_class_idx
     );
     if (idx >= 0) {

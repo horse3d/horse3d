@@ -448,7 +448,6 @@ funcid_t h64program_RegisterCFunction(
     const char *fileuri,
     int arg_count,
     const char **arg_kwarg_name,
-    int last_is_multiarg,
     const char *module_path,
     const char *library_name,
     int is_threadable,
@@ -461,7 +460,6 @@ funcid_t h64program_RegisterHorse64Function(
     const char *fileuri,
     int arg_count,
     const char **arg_kwarg_name,
-    int last_posarg_is_multiarg,
     const char *module_path,
     const char *library_name,
     classid_t associated_class_idx

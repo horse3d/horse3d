@@ -137,7 +137,7 @@ int systemlib_RegisterFuncsAndModules(h64program *p) {
     int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "cores", &systemlib_cores,
-        NULL, 1, system_cores_kw_arg_name, 0,  // fileuri, args
+        NULL, 1, system_cores_kw_arg_name,  // fileuri, args
         "system", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -149,7 +149,7 @@ int systemlib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "platform", &systemlib_platform,
-        NULL, 0, system_platform_kw_arg_name, 0,  // fileuri, args
+        NULL, 0, system_platform_kw_arg_name,  // fileuri, args
         "system", "core.horse64.org", 1, -1
     );
     if (idx < 0)

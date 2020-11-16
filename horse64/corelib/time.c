@@ -123,7 +123,7 @@ int timelib_RegisterFuncsAndModules(h64program *p) {
     int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "sleep", &timelib_sleep,
-        NULL, 1, time_sleep_kw_arg_name, 0,  // fileuri, args
+        NULL, 1, time_sleep_kw_arg_name,  // fileuri, args
         "time", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -135,7 +135,7 @@ int timelib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "ticks", &timelib_ticks,
-        NULL, 0, time_ticks_kw_arg_name, 0,  // fileuri, args
+        NULL, 0, time_ticks_kw_arg_name,  // fileuri, args
         "time", "core.horse64.org", 1, -1
     );
     if (idx < 0)

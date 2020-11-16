@@ -36,7 +36,7 @@ int netlib_RegisterFuncsAndModules(h64program *p) {
     int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "connect", &netlib_connect,
-        NULL, 3, net_connect_kw_arg_name, 0,  // fileuri, args
+        NULL, 3, net_connect_kw_arg_name,  // fileuri, args
         "net", "core.horse64.org", 1, -1
     );
     if (idx < 0)

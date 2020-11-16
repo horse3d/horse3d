@@ -238,7 +238,7 @@ static int scoperesolver_ComputeItemStorage(
                     owningclassindex].hasvarinitfunc) {
                 int idx = h64program_RegisterHorse64Function(
                     program, "$$varinit",
-                    ast->fileuri, 0, NULL, 0,
+                    ast->fileuri, 0, NULL,
                     ast->module_path, ast->library_name,
                     owningclassindex
                 );
@@ -385,7 +385,6 @@ static int scoperesolver_ComputeItemStorage(
                 program, name, ast->fileuri,
                 expr->funcdef.arguments.arg_count,
                 (const char**)kwarg_names,
-                expr->funcdef.arguments.last_posarg_is_multiarg,
                 ast->module_path,
                 ast->library_name,
                 owningclassindex

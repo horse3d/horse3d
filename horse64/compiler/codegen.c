@@ -398,7 +398,7 @@ h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
         rinfo->pr->program->symbols->fileuri[
             rinfo->pr->program->symbols->mainfileuri_index
         ],
-        0, NULL, 0,
+        0, NULL,
         rinfo->pr->program->symbols->mainfile_module_path,
         "", -1
     );
