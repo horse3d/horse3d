@@ -1676,7 +1676,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     return 0;
                 }
                 RAISE_ERROR(H64STDERROR_TYPEERROR,
-                                "multiarg parameter must be a list");
+                                "expandarg parameter must be a list");
                 goto *jumptable[((h64instructionany *)p)->type];
             }
             effective_posarg_count += (
@@ -1689,11 +1689,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             (cinfo && cinfo->closure_self != NULL ? 1 : 0)
         );
         assert(func_posargs >= 0);
-        int func_lastposargismultiarg = (
-            pr->func[target_func_id].last_posarg_is_multiarg
-        );
-        if (effective_posarg_count < func_posargs -
-                (func_lastposargismultiarg ? 1 : 0)) {
+        if (effective_posarg_count < func_posargs) {
             if (!vmthread_ResetCallTempStack(vmthread)) {
                 if (returneduncaughterror)
                     *returneduncaughterror = 0;
@@ -1705,8 +1701,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
             goto *jumptable[((h64instructionany *)p)->type];
         }
-        if (effective_posarg_count > func_posargs &&
-                !func_lastposargismultiarg) {
+        if (effective_posarg_count > func_posargs) {
             if (!vmthread_ResetCallTempStack(vmthread)) {
                 if (returneduncaughterror)
                     *returneduncaughterror = 0;
@@ -1790,7 +1785,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             inst->flags & CALLFLAG_EXPANDLASTPOSARG
         );
         const int noargreorder = (likely(
-            !func_lastposargismultiarg &&
             !_expandlastposarg &&
             inst->posargs == func_posargs &&
             inst->kwargs ==
@@ -1805,8 +1799,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         const int inst_posargs = inst->posargs;
         if (unlikely(!noargreorder)) {
             // Compute what slots exactly we need to shift around:
-            leftalone_args = func_posargs -
-                             (func_lastposargismultiarg ? 1 : 0);
+            leftalone_args = func_posargs;
             if (inst->posargs - (
                     _expandlastposarg ? 1 : 0) <
                     leftalone_args)
@@ -2036,9 +2029,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                                 leftalone_args;
                 int reorderslot = 0;
                 int posarg = leftalone_args;
-                while (posarg < func_posargs - (
-                        func_lastposargismultiarg ? 1 : 0)) {
-                    assert(posarg < inst_posargs);
+                while (posarg < func_posargs) {
+                    assert(posarg < inst_posargs || _expandlastposarg);
                     assert(
                         stackslot - (stack_args_bottom + closure_arg_count)
                         < func_posargs
@@ -2057,71 +2049,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     reorderslot++;
                     posarg++;
                 }
-                // Stuff args that go into multiarg parameter into a list:
-                if (func_lastposargismultiarg) {
-                    valuecontent *multiarglist = (
-                        STACK_ENTRY(stack, stackslot)
-                    );
-                    assert(multiarglist->type ==
-                           H64VALTYPE_NONE);
-                    multiarglist->type =
-                        H64VALTYPE_GCVAL;
-                    multiarglist->ptr_value =
-                        poolalloc_malloc(
-                            heap, 0
-                        );
-                    if (!multiarglist->ptr_value) {
-                        if (!vmthread_ResetCallTempStack(vmthread)) {
-                            if (returneduncaughterror)
-                                *returneduncaughterror = 0;
-                            return 0;
-                        }
-                        goto triggeroom;
-                    }
-                    h64gcvalue *gcval = (h64gcvalue *)multiarglist->ptr_value;
-                    gcval->type = H64GCVALUETYPE_LIST;
-                    gcval->heapreferencecount = 0;
-                    gcval->externalreferencecount = 1;
-                    gcval->list_values = vmlist_New();
-                    if (!gcval->list_values) {
-                        poolalloc_free(heap, multiarglist->ptr_value);
-                        multiarglist->ptr_value = NULL;
-                        if (!vmthread_ResetCallTempStack(vmthread)) {
-                            if (returneduncaughterror)
-                                *returneduncaughterror = 0;
-                            return 0;
-                        }
-                        goto oom_with_sortinglist;
-                    }
-                    while (posarg < inst_posargs) {
-                        assert(reorderslot < reformat_argslots);
-                        assert(reorderslot < reformat_slots_used);
-                        int addresult = vmlist_Add(
-                            gcval->list_values,
-                            &vmthread->arg_reorder_space[reorderslot]
-                        );
-                        if (!addresult) {
-                            if (!vmthread_ResetCallTempStack(vmthread)) {
-                                if (returneduncaughterror)
-                                    *returneduncaughterror = 0;
-                                return 0;
-                            }
-                            goto oom_with_sortinglist;
-                        }
-                        DELREF_NONHEAP(&vmthread->
-                                       arg_reorder_space[reorderslot]);
-                        valuecontent_Free(
-                            &vmthread->arg_reorder_space[reorderslot]
-                        );
-                        memset(
-                            &vmthread->arg_reorder_space[reorderslot],
-                            0, sizeof(valuecontent)
-                        );
-                        reorderslot++;
-                        posarg++;
-                    }
-                    stackslot++;
-                }
+                assert(posarg == func_posargs && posarg >= inst_posargs);
                 // Finally, copy the keyword arguments on top:
                 if (pr->func[target_func_id].kwarg_count > 0) {
                     assert(
@@ -3211,8 +3139,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 // Make sure the function properties are correct:
                 assert(!pr->func[varinit_func_id].iscfunc);
                 assert(pr->func[varinit_func_id].input_stack_size == 1);
-                assert(pr->func[varinit_func_id].
-                       last_posarg_is_multiarg == 0);
                 assert(pr->func[varinit_func_id].kwarg_count == 0);
 
                 // Push function frame:

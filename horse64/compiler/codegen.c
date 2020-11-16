@@ -624,8 +624,7 @@ static int _codegen_call_to(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-            if (callexpr->inlinecall.arguments.
-                    last_posarg_is_multiarg) {
+            if (callexpr->inlinecall.expand_last_posarg) {
                 expandlastposarg = 1;
             }
         }
@@ -2058,8 +2057,6 @@ int _codegencallback_DoCodegen_visit_in(
             if (expr->funcdef.arguments.arg_value[i] != NULL) {
                 assert(i + 1 >= expr->funcdef.arguments.arg_count ||
                        expr->funcdef.arguments.arg_value[i + 1] != NULL);
-                assert(i > 0 || !expr->funcdef.arguments.
-                           last_posarg_is_multiarg);
                 int jump_past_id = (
                     func->funcdef._storageinfo->jump_targets_used
                 );

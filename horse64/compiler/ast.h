@@ -58,7 +58,6 @@ typedef struct h64scopedef h64scopedef;
 
 typedef struct h64funcargs {
     int arg_count;
-    int last_posarg_is_multiarg;
     char **arg_name;
     h64expression **arg_value;
 } h64funcargs;
@@ -160,7 +159,7 @@ typedef struct h64expression {
         struct inlinecall {
             h64expression *value;
             h64funcargs arguments;
-            uint8_t is_async;
+            uint8_t is_async, expand_last_posarg;
         } inlinecall;
         struct identifierref {
             h64scopedef *resolved_to_def;

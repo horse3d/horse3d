@@ -350,7 +350,6 @@ typedef struct h64class {
 typedef struct h64func {
     int input_stack_size, inner_stack_size;
     int iscfunc, is_threadable, user_set_async;
-    int last_posarg_is_multiarg;
     int kwarg_count;
     int64_t *kwargnameindexes;
 
