@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <check.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -46,9 +47,22 @@ void _parsetest_do(const char *testcode, int expectOK) {
     ) != 0);
     ck_assert(error == NULL);
     if (expectOK) {
+        int i = 0;
+        while (i < ast->resultmsg.message_count) {
+            if (ast->resultmsg.message[i].type == H64MSG_ERROR) {
+                printf(
+                    "UNEXPECTED FAIL MSG: %" PRId64 ":%" PRId64
+                    ": \"%s\"\n",
+                    ast->resultmsg.message[i].line,
+                    ast->resultmsg.message[i].column,
+                    ast->resultmsg.message[i].message
+                );
+            }
+            i++;
+        }
         ck_assert(project->resultmsg->success && "expected parse success");
         ck_assert(ast->resultmsg.success && "expected parse success");
-        int i = 0;
+        i = 0;
         while (i < ast->resultmsg.message_count) {
             ck_assert(ast->resultmsg.message[i].type != H64MSG_ERROR);
             i++;
@@ -79,11 +93,13 @@ END_TEST
 START_TEST (test_ast_complex)
 {
     char s[] = (
-        "class TestClass {"
-        "    var v = 1.5 + 0xA + 0b10"
-        "}"
-        "func main {"
-        "    var obj = TestClass()"
+        "class TestClass {\n"
+        "    var v = 1.5 + 0xA + 0b10\n"
+        "}\n"
+        "func main {\n"
+        "    var obj = TestClass()\n"
+        "    var b = 1\n"
+        "    b += obj.v\n"
         "}"
     );
     _parsetest_do(s, PARSETEST_EXPECTOK);

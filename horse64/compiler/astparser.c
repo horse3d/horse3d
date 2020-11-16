@@ -30,7 +30,9 @@
 #include "uri.h"
 
 
-static int64_t _refline(tsinfo *tokenstreaminfo, h64token *token, int i) {
+static int64_t _refline(
+        tsinfo *tokenstreaminfo, h64token *token, int i
+        ) {
     ptrdiff_t offset = (token - tokenstreaminfo->token);
     assert(offset >= 0);
     int starti = ((int)offset) / (int)sizeof(*token);
@@ -41,7 +43,9 @@ static int64_t _refline(tsinfo *tokenstreaminfo, h64token *token, int i) {
     return token[i].line;
 }
 
-static int64_t _refcol(tsinfo *tokenstreaminfo, h64token *token, int i) {
+static int64_t _refcol(
+        tsinfo *tokenstreaminfo, h64token *token, int i
+        ) {
     ptrdiff_t offset = (token - tokenstreaminfo->token);
     assert(offset >= 0);
     int starti = ((int64_t)offset) / (int64_t)sizeof(*token);
@@ -54,7 +58,9 @@ static int64_t _refcol(tsinfo *tokenstreaminfo, h64token *token, int i) {
 
 static char _reftokname_none[] = "end of file";
 
-static const char *_reftokname(tsinfo *tokenstreaminfo, h64token *token, int i) {
+static const char *_reftokname(
+        tsinfo *tokenstreaminfo, h64token *token, int i
+        ) {
     ptrdiff_t offset = (token - tokenstreaminfo->token);
     assert(offset >= 0);
     int starti = ((int64_t)offset) / (int64_t)sizeof(*token);
@@ -87,11 +93,17 @@ static int IdentifierIsReserved(const char *identifier) {
 }
 
 static const char *_describetoken(
-        char *buf, tsinfo *tokenstreaminfo, h64token *token, int i) {
-    ptrdiff_t offset = ((char*)token - (char*)tokenstreaminfo->token);
+        char *buf, tsinfo *tokenstreaminfo,
+        h64token *token, int i
+        ) {
+    ptrdiff_t offset = (
+        (char*)token - (char*)tokenstreaminfo->token
+    );
     assert(offset >= 0);
     int starti = ((int64_t)offset) / (int64_t)sizeof(*token);
-    if (!token || i >= tokenstreaminfo->token_count - starti || i < 0)
+    if (!token ||
+            i >= tokenstreaminfo->token_count - starti ||
+            i < 0)
         return _reftokname_none;
     int maxlen = 64;
     snprintf(buf, maxlen - 1, "%s", _reftokname(
@@ -104,12 +116,19 @@ static const char *_describetoken(
         );
     } else if (token[i].type == H64TK_BINOPSYMBOL ||
             token[i].type == H64TK_UNOPSYMBOL) {
-        snprintf(buf, maxlen - 1, "\"%s\"", operator_OpPrintedAsStr(
-            token[i].int_value));
+        snprintf(
+            buf, maxlen - 1, "\"%s\"", operator_OpPrintedAsStr(
+                token[i].int_value
+            )
+        );
     } else if (token[i].type == H64TK_KEYWORD) {
-        snprintf(buf, maxlen - 1, "keyword \"%s\"", token[i].str_value);
+        snprintf(
+            buf, maxlen - 1, "keyword \"%s\"", token[i].str_value
+        );
     } else if (token[i].type == H64TK_IDENTIFIER) {
-        snprintf(buf, maxlen - 1, "identifier \"%s\"", token[i].str_value);
+        snprintf(
+            buf, maxlen - 1, "identifier \"%s\"", token[i].str_value
+        );
         if (strlen(buf) > 35)
             memcpy(buf + 32, "...\"", strlen("...\"") + 1);
     } else if (token[i].type == H64TK_CONSTANT_INT) {
@@ -714,6 +733,13 @@ int ast_ParseExprInlineOperator_Recurse(
             if (ast_TokenStartsStatementOutsideOfBrackets(
                     tokens, i
                     )) {
+                operand_max_tokens_touse = i;
+                break;
+            }
+            if ((tokens[i].type == H64TK_BINOPSYMBOL ||
+                    tokens[i].type == H64TK_UNOPSYMBOL) &&
+                    IS_ASSIGN_OP(tokens[i].int_value)) {
+                // This is handled by the assignment statement parsing
                 operand_max_tokens_touse = i;
                 break;
             }
