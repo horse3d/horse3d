@@ -16,6 +16,7 @@ RECOVERED_FILES
 /doc/ldoc.css
 /doc/logo.png
 /.testdata.txt
+/testdata.h64
 /.testdata-prj
 /vendor/*
 /demo-assets/packaged-fonts/
