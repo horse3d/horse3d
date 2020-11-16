@@ -488,7 +488,7 @@ void vmschedule_WorkerRun(void *userdata) {
             );
         #endif
         int result = threadevent_WaitUntilSet(
-            worker->wakeupevent, 5000, 1
+            worker->wakeupevent, 10000, 1
         );
         if (result) {
             #ifndef NDEBUG
