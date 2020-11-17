@@ -866,7 +866,14 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     def->declarationexpr->type ==
                     H64EXPRTYPE_FOR_STMT ||
                     def->declarationexpr->type ==
-                    H64EXPRTYPE_WITH_CLAUSE) {
+                    H64EXPRTYPE_WITH_CLAUSE ||
+                    ((def->declarationexpr->type ==
+                    H64EXPRTYPE_FUNCDEF_STMT ||
+                    def->declarationexpr->type ==
+                    H64EXPRTYPE_INLINEFUNCDEF) &&
+                    func_has_param_with_name(
+                        def->declarationexpr, expr->identifierref.value
+                    ))) {
                 // Not our direct parent, so we're an external use.
                 // -> let's mark it as used from somewhere external:
                 def->everused = 1;
@@ -922,7 +929,18 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 }
             }
 
-            if (def->declarationexpr->storage.set) {
+            if ((def->declarationexpr->type ==
+                    H64EXPRTYPE_FUNCDEF_STMT ||
+                    def->declarationexpr->type ==
+                    H64EXPRTYPE_INLINEFUNCDEF) &&
+                    func_has_param_with_name(
+                        def->declarationexpr, expr->identifierref.value
+                    )) {
+                // Special case: function parameter.
+                // We don't know the stack slot yet since we need to collect
+                // all closure vars first, so keep unset for now:
+                expr->storage.set = 0;
+            } else if (def->declarationexpr->storage.set) {
                 memcpy(
                     &expr->storage, &def->declarationexpr->storage,
                     sizeof(expr->storage)
