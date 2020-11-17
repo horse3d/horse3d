@@ -1983,7 +1983,7 @@ int ast_ParseExprInline(
                 isset = 1;
                 islist = 0;
             }
-            if (tokens[0].char_value != '{' && !isvector) {
+            if (tokens[0].char_value == '{') {
                 // Figure out if this is a map.
                 // For that, skip past first item:
                 int i = 1;
@@ -2032,8 +2032,10 @@ int ast_ParseExprInline(
                 }
                 if (i < max_tokens_touse &&
                         tokens[i].type == H64TK_BRACKET &&
-                        ((tokens[i].char_value == ']' && !isset) ||
-                         (tokens[i].char_value == '}' && isset))) {
+                        ((tokens[i].char_value == ']' &&
+                         !isset && !ismap) ||
+                         (tokens[i].char_value == '}' &&
+                         (isset || ismap)))) {
                     i++;
                     break;
                 }
@@ -2046,7 +2048,7 @@ int ast_ParseExprInline(
                         PRId64 ", column %" PRId64 " instead",
                         _describetoken(describebuf,
                             context->tokenstreaminfo, tokens, i),
-                        (isset ? '}' : ']'),
+                        ((isset || ismap) ? '}' : ']'),
                         itemname,
                         expr->line, expr->column
                     );
@@ -2063,12 +2065,12 @@ int ast_ParseExprInline(
                     return 0;
                 }
 
-                // Special handling of empty map [->]
+                // Special handling of empty map {->}
                 if (ismap &&
                         i + 1 < max_tokens_touse &&
                         tokens[i].type == H64TK_MAPARROW &&
                         tokens[i + 1].type == H64TK_BRACKET &&
-                        tokens[i + 1].char_value == ']' &&
+                        tokens[i + 1].char_value == '}' &&
                         !hadanyitems) {
                     i += 2;
                     break;
