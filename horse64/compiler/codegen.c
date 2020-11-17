@@ -1704,6 +1704,99 @@ int _codegencallback_DoCodegen_visit_out(
                         return 0;
                     }
                 } else if (!iscomplexassign) {
+                    if (str->type != H64STORETYPE_STACKSLOT) {
+                        errorinvalidassign:
+                        if (str->type == H64STORETYPE_GLOBALCLASSSLOT) {
+                            int64_t classrefid = str->id;
+                            h64classsymbol *csymbol = (
+                                h64debugsymbols_GetClassSymbolById(
+                                    rinfo->pr->program->symbols, classrefid
+                                )
+                            );
+                            h64modulesymbols *msymbol = (
+                                h64debugsymbols_GetModuleSymbolsByClassId(
+                                    rinfo->pr->program->symbols, classrefid
+                                )
+                            );
+                            char buf[512];
+                            snprintf(
+                                buf, sizeof(buf) - 1,
+                                "unexpected assign to global class "
+                                "definition, can not assign to class "
+                                "%s.%s%s%s",
+                                msymbol->module_path, csymbol->name,
+                                (msymbol->library_name != NULL ?
+                                " from " : ""),
+                                (msymbol->library_name != NULL ?
+                                msymbol->library_name : "")
+                            );
+                            if (!result_AddMessage(
+                                    &rinfo->ast->resultmsg,
+                                    H64MSG_ERROR, buf,
+                                    rinfo->ast->fileuri,
+                                    expr->line, expr->column
+                                    )) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                            rinfo->hadunexpectederror = 1;
+                            return 0;
+                        } else  if (str->type == H64STORETYPE_GLOBALFUNCSLOT) {
+                            funcid_t funcrefid = str->id;
+                            h64funcsymbol *fsymbol = (
+                                h64debugsymbols_GetFuncSymbolById(
+                                    rinfo->pr->program->symbols, funcrefid
+                                )
+                            );
+                            h64modulesymbols *msymbol = (
+                                h64debugsymbols_GetModuleSymbolsByFuncId(
+                                    rinfo->pr->program->symbols, funcrefid
+                                )
+                            );
+                            char buf[512];
+                            snprintf(
+                                buf, sizeof(buf) - 1,
+                                "unexpected assign to global func "
+                                "definition, can not assign to func "
+                                "%s.%s%s%s",
+                                msymbol->module_path, fsymbol->name,
+                                (msymbol->library_name != NULL ?
+                                " from " : ""),
+                                (msymbol->library_name != NULL ?
+                                msymbol->library_name : "")
+                            );
+                            if (!result_AddMessage(
+                                    &rinfo->ast->resultmsg,
+                                    H64MSG_ERROR, buf,
+                                    rinfo->ast->fileuri,
+                                    expr->line, expr->column
+                                    )) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                            rinfo->hadunexpectederror = 1;
+                            return 0;
+                        } else {
+                            char buf[512];
+                            snprintf(
+                                buf, sizeof(buf) - 1,
+                                "unexpected assign to unassignable item, "
+                                "can not assign to storage type %d",
+                                (int)str->type
+                            );
+                            if (!result_AddMessage(
+                                    &rinfo->ast->resultmsg,
+                                    H64MSG_ERROR, buf,
+                                    rinfo->ast->fileuri,
+                                    expr->line, expr->column
+                                    )) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                            rinfo->hadunexpectederror = 1;
+                            return 0;
+                        }
+                    }
                     assert(str->type == H64STORETYPE_STACKSLOT);
                     oldvaluetemp = str->id;
                 } else {
@@ -1782,9 +1875,6 @@ int _codegencallback_DoCodegen_visit_out(
             }
         }
         assert(assignfromtemporary >= 0);
-        assert(str->type == H64STORETYPE_GLOBALVARSLOT ||
-               str->type == H64STORETYPE_STACKSLOT ||
-               str->type == H64STORETYPE_VARATTRSLOT);
         if (str->type == H64STORETYPE_GLOBALVARSLOT) {
             h64instruction_setglobal inst = {0};
             inst.type = H64INST_SETGLOBAL;
@@ -1808,6 +1898,9 @@ int _codegencallback_DoCodegen_visit_out(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
+        } else if (str->type != H64STORETYPE_STACKSLOT) {
+            // We cannot assign to this, show error.
+            goto errorinvalidassign;
         } else if (assignfromtemporary != str->id ||
                 complexsetter_tmp >= 0) {
             assert(str->type == H64STORETYPE_STACKSLOT);
