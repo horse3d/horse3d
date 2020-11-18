@@ -115,6 +115,7 @@ int main(int argc, const char **argv) {
         return -1;
     }
 
+    int return_value = 0;
     if (strcmp(action, "codeinfo") == 0) {
         if (!compiler_command_CodeInfo(argv, argc, action_offset))
             return -1;
@@ -134,15 +135,15 @@ int main(int argc, const char **argv) {
         if (!compiler_command_GetTokens(argv, argc, action_offset))
             return -1;
     } else if (strcmp(action, "exec") == 0) {
-        if (!compiler_command_Exec(argv, argc, action_offset))
+        if (!compiler_command_Exec(argv, argc, action_offset, &return_value))
             return -1;
     } else if (strcmp(action, "run") == 0) {
-        if (!compiler_command_Run(argv, argc, action_offset))
+        if (!compiler_command_Run(argv, argc, action_offset, &return_value))
             return -1;
     } else {
         return -1;
     }
-    return 0;
+    return return_value;
 }
 
 

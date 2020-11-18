@@ -243,6 +243,8 @@ static int vmschedule_RunMainThreadLaunchFunc(
             vmthread_Free(mainthread);
             worker->vmexec->program_return_value = -1;
             return 0;
+        } else if (!hadsuspendevent && !haduncaughterror) {
+            worker->vmexec->program_return_value = rval;
         }
         if (haduncaughterror) {
             assert(einfo.error_class_id >= 0);
@@ -458,6 +460,8 @@ void vmschedule_WorkerRun(void *userdata) {
                     );
                     vmthread_Free(vt);
                     worker->vmexec->program_return_value = -1;
+                } else if (!hadsuspendevent && !haduncaughterror) {
+                    worker->vmexec->program_return_value = rval;
                 }
                 break;
             }

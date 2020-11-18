@@ -243,7 +243,8 @@ static void printmsg(
 #define COMPILEEX_MODE_EXEC 5
 
 int compiler_command_CompileEx(
-        int mode, const char **argv, int argc, int argoffset
+        int mode, const char **argv, int argc, int argoffset,
+        int *return_int
         ) {
     char *fileuri = NULL;
     char *execarg = NULL;
@@ -444,7 +445,8 @@ int compiler_command_CompileEx(
                 project->program, &moptions
             );
             compileproject_Free(project);
-            _exit(resultcode);
+            if (return_int)
+                *return_int = resultcode;
             return 1;
         } else {
             fprintf(stderr, "horsec: error: "
@@ -462,7 +464,7 @@ int compiler_command_Compile(
         const char **argv, int argc, int argoffset
         ) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_COMPILE, argv, argc, argoffset
+        COMPILEEX_MODE_COMPILE, argv, argc, argoffset, NULL
     );
 }
 
@@ -861,26 +863,30 @@ jsonvalue *compiler_ParseASTToJSON(
     return v;
 }
 
-int compiler_command_Run(const char **argv, int argc, int argoffset) {
+int compiler_command_Run(
+        const char **argv, int argc, int argoffset, int *return_int
+        ) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_RUN, argv, argc, argoffset
+        COMPILEEX_MODE_RUN, argv, argc, argoffset, return_int
     );
 }
 
-int compiler_command_Exec(const char **argv, int argc, int argoffset) {
+int compiler_command_Exec(
+        const char **argv, int argc, int argoffset, int *return_int
+        ) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_EXEC, argv, argc, argoffset
+        COMPILEEX_MODE_EXEC, argv, argc, argoffset, return_int
     );
 }
 
 int compiler_command_CodeInfo(const char **argv, int argc, int argoffset) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_CODEINFO, argv, argc, argoffset
+        COMPILEEX_MODE_CODEINFO, argv, argc, argoffset, NULL
     );
 }
 
 int compiler_command_ToASM(const char **argv, int argc, int argoffset) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_TOASM, argv, argc, argoffset
+        COMPILEEX_MODE_TOASM, argv, argc, argoffset, NULL
     );
 }

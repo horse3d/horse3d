@@ -38,7 +38,7 @@ int compiler_command_GetTokens(
 );
 
 int compiler_command_Run(
-    const char **argc, int argv, int argoffset
+    const char **argc, int argv, int argoffset, int *return_int
 );
 
 int compiler_command_CodeInfo(
@@ -50,7 +50,7 @@ int compiler_command_ToASM(
 );
 
 int compiler_command_Exec(
-    const char **argv, int argc, int argoffset
+    const char **argv, int argc, int argoffset, int *return_int
 );
 
 typedef struct h64misccompileroptions {

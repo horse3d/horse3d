@@ -342,7 +342,8 @@ static int vmthread_PrintExec(
 static void poperrorframe(h64vmthread *vmthread);
 
 static inline int popfuncframe(
-        h64vmthread *vt, int dontresizestack
+        h64vmthread *vt, h64misccompileroptions *moptions,
+        int dontresizestack
         ) {
     assert(vt->funcframe_count > 0);
     int64_t new_floor = (
@@ -353,9 +354,10 @@ static inline int popfuncframe(
     int64_t prev_floor = vt->stack->current_func_floor;
     int64_t new_top = vt->funcframe[vt->funcframe_count - 1].
         restore_stack_size;
-    if (new_top < vt->funcframe[vt->funcframe_count - 1].
+    if (vt->funcframe_count - 2 >= 0 &&
+            new_top < vt->funcframe[vt->funcframe_count - 2].
             stack_space_for_this_func)
-        new_top = vt->funcframe[vt->funcframe_count - 1].
+        new_top = vt->funcframe[vt->funcframe_count - 2].
                   stack_space_for_this_func;
     int new_rescueframe_count = vt->funcframe[vt->funcframe_count - 1].
         rescueframe_count_on_enter;
@@ -367,6 +369,23 @@ static inline int popfuncframe(
     #endif
     vt->stack->current_func_floor = new_floor;
     if (!dontresizestack) {
+        #if defined(DEBUGVMEXEC)
+        if (moptions->vmexec_debug)
+            fprintf(
+                stderr, "horsevm: debug: vmexec [t%p:%s] (stack "
+                "resize back to old func frame %" PRId64 " at %p: "
+                "%" PRId64 ", with restore_stack_size %" PRId64
+                ", stack_space_for_this_func %" PRId64 ")\n",
+                vt, (vt->is_main_thread ? "main" : "nonmain"),
+                (int64_t)vt->funcframe_count - 1,
+                (void*)&vt->funcframe[vt->funcframe_count - 1],
+                new_top,
+                vt->funcframe[vt->funcframe_count - 1].
+                    restore_stack_size,
+                vt->funcframe[vt->funcframe_count - 1].
+                    stack_space_for_this_func
+            );
+        #endif
         if (new_top < vt->stack->entry_count) {
             int result = stack_ToSize(
                 vt->stack, new_top, 0
@@ -404,7 +423,9 @@ static inline int pushfuncframe(
     #ifndef NDEBUG
     if (vmexec->moptions.vmexec_debug) {
         fprintf(
-            stderr, "horsevm: debug: vmexec pushfuncframe %d -> %d\n",
+            stderr, "horsevm: debug: vmexec [t%p:%s] "
+            "pushfuncframe %d -> %d\n",
+            vt, (vt->is_main_thread ? "main" : "nonmain"),
             vt->funcframe_count, vt->funcframe_count + 1
         );
     }
@@ -444,6 +465,20 @@ static inline int pushfuncframe(
         vt->funcframe[vt->funcframe_count].restore_stack_size = (
             vt->call_settop_reverse
         );
+    vt->call_settop_reverse = -1;
+    #ifndef NDEBUG
+    if (vmexec->moptions.vmexec_debug) {
+        fprintf(
+            stderr, "horsevm: debug: vmexec [t%p:%s] "
+            "   (return stack size on frame %" PRId64 " at %p: "
+            "%" PRId64 ")\n",
+            vt, (vt->is_main_thread ? "main" : "nonmain"),
+            (int64_t)vt->funcframe_count,
+            (void*)&vt->funcframe[vt->funcframe_count],
+            vt->funcframe[vt->funcframe_count].restore_stack_size
+        );
+    }
+    #endif
     assert(new_func_floor >= 0);
     if (!stack_ToSize(
             vt->stack,
@@ -702,7 +737,9 @@ static int vmthread_errors_Raise(
                 vmthread->funcframe[i].return_to_execution_offset
             );
         }
-        if (!popfuncframe(vmthread, 0) &&
+        if (!popfuncframe(
+                    vmthread, &vmthread->vmexec_owner->moptions, 0
+                    ) &&
                 (i - 1 < 0 || i - 1 == unroll_to_frame)) {
             fataloom = 1;
         }
@@ -2367,7 +2404,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         assert(stack->entry_count >= current_stack_size);
         funcnestdepth--;
         if (funcnestdepth <= 0) {
-            int result = popfuncframe(vmthread, 1);
+            int result = popfuncframe(
+                vmthread, &vmthread->vmexec_owner->moptions, 1
+            );
                     // ^ pop frame but leave stack!
             assert(result != 0);
             func_id = -1;
@@ -2410,7 +2449,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             vmthread->funcframe[vmthread->funcframe_count - 1].
             return_to_execution_offset
         );
-        if (!popfuncframe(vmthread, 0)) {
+        if (!popfuncframe(
+                vmthread,
+                &vmthread->vmexec_owner->moptions,
+                0)) {
             // We cannot really recover from this.
             if (returneduncaughterror)
                 *returneduncaughterror = 0;
@@ -3475,7 +3517,9 @@ int vmthread_RunFunction(
     int i = start_thread->funcframe_count;
     while (i > funcframesbefore) {
         assert(inneruncaughterror);  // only allow unclean frames if error
-        int r = popfuncframe(start_thread, 1);  // don't clean stac ...
+        int r = popfuncframe(
+            start_thread, &vmexec->moptions, 1
+        );  // don't clean stack ...
             // ... since func stack bottoms might be nonsense, and this
             // might assert. We'll just wipe it manually later.
         assert(r != 0);
