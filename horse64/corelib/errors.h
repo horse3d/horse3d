@@ -12,12 +12,6 @@
 typedef struct h64program h64program;
 typedef struct h64vmthread h64vmthread;
 
-int stderror(
-    h64vmthread *vmthread,
-    int error_class_id,
-    const char *errmsg,
-    ...
-);
 
 typedef enum stderrorclassnum {
     H64STDERROR_ERROR = 0,

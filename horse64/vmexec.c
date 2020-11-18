@@ -3713,8 +3713,12 @@ int vmexec_ReturnFuncError(
         va_start(args, msg);
         vsnprintf(buf, sizeof(buf) - 1, msg, args);
         va_end(args);
-        vc->einfo->msg = utf8_to_utf32(
-            buf, strlen(buf), NULL, NULL, &vc->einfo->msglen
+        int wasinvalid = 0;
+        int wasoom = 0;
+        vc->einfo->msg = utf8_to_utf32_ex(
+            buf, strlen(buf), NULL, 0,
+            NULL, NULL, &vc->einfo->msglen,
+            1, 0, &wasinvalid, &wasoom
         );
         if (!vc->einfo->msg)
             vc->einfo->msglen = 0;
