@@ -62,14 +62,16 @@ static int _compileargparse(
                         if (k > i) {
                             p[0] = ' ';
                             p++;
-                            k++;
                         }
+                        assert(p != NULL);
+                        assert(argv[k] != NULL);
                         memcpy(p, argv[k], strlen(argv[k]));
                         p += strlen(argv[k]);
                         k++;
                     }
                     p[0] = '\0';
                 }
+                i = kmax;
             } else {
                 *fileuriorexec = strdup(argv[i]);
             }
