@@ -158,7 +158,7 @@ int _threadablechecker_register_visitin(
             if ((!gvsymbol->is_const ||
                     !gvsymbol->is_simple_const) &&
                     rinfo->pr->program->func[func_id].
-                        user_set_async) {
+                        user_set_parallel) {
                 if (!result_AddMessage(
                         rinfo->pr->resultmsg, H64MSG_ERROR,
                         "func marked as \"async\" cannot access "
@@ -292,7 +292,7 @@ int threadablechecker_IterateFinalGraph(
                         essentialfunc) {
                     project->program->classes[cid].is_threadable = 0;
                     gotchange = 1;
-                    if (project->program->classes[cid].user_set_async) {
+                    if (project->program->classes[cid].user_set_parallel) {
                         char *def_fileuri = NULL;
                         if (fsymbol->fileuri_index >= 0) {
                             def_fileuri = strdup(
@@ -349,7 +349,7 @@ int threadablechecker_IterateFinalGraph(
                 if (project->program->classes[cid].is_threadable == 0) {
                     project->program->func[i].is_threadable = 0;
                     gotchange = 1;
-                    if (project->program->func[i].user_set_async) {
+                    if (project->program->func[i].user_set_parallel) {
                         char *func_fileuri = NULL;
                         h64funcsymbol *fsymbol = (
                             h64debugsymbols_GetFuncSymbolById(
@@ -405,7 +405,7 @@ int threadablechecker_IterateFinalGraph(
                         project->program->func[f2].is_threadable == 0) {
                     project->program->func[i].is_threadable = 0;
                     gotchange = 1;
-                    if (project->program->func[i].user_set_async) {
+                    if (project->program->func[i].user_set_parallel) {
                         char *call_fileuri = NULL;
                         h64funcsymbol *fsymbol = (
                             h64debugsymbols_GetFuncSymbolById(
@@ -458,7 +458,7 @@ int threadablechecker_IterateFinalGraph(
                         project->program->classes[f2].is_threadable == 0) {
                     project->program->func[i].is_threadable = 0;
                     gotchange = 1;
-                    if (project->program->func[i].user_set_async) {
+                    if (project->program->func[i].user_set_parallel) {
                         char *call_fileuri = NULL;
                         h64funcsymbol *fsymbol = (
                             h64debugsymbols_GetFuncSymbolById(

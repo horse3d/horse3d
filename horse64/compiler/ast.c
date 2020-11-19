@@ -1238,12 +1238,12 @@ jsonvalue *ast_ExpressionToJSON(
         jsonvalue *storagejson = varstorage_StorageAsJSON(e);
         json_SetDict(v, "storage", storagejson);
         jsonvalue *attributes = json_List();
-        if (e->classdef.is_async) {
-            if (!json_AddToListStr(attributes, "async"))
+        if (e->classdef.is_parallel) {
+            if (!json_AddToListStr(attributes, "parallel"))
                 fail = 1;
         }
-        if (e->classdef.is_noasync) {
-            if (!json_AddToListStr(attributes, "noasync"))
+        if (e->classdef.is_noparallel) {
+            if (!json_AddToListStr(attributes, "noparallel"))
                 fail = 1;
         }
         if (e->classdef.is_deprecated) {
@@ -1409,12 +1409,12 @@ jsonvalue *ast_ExpressionToJSON(
         jsonvalue *storagejson = varstorage_StorageAsJSON(e);
         json_SetDict(v, "storage", storagejson);
         jsonvalue *attributes = json_List();
-        if (e->funcdef.is_async) {
-            if (!json_AddToListStr(attributes, "async"))
+        if (e->funcdef.is_parallel) {
+            if (!json_AddToListStr(attributes, "parallel"))
                 fail = 1;
         }
-        if (e->funcdef.is_noasync) {
-            if (!json_AddToListStr(attributes, "noasync"))
+        if (e->funcdef.is_noparallel) {
+            if (!json_AddToListStr(attributes, "noparallel"))
                 fail = 1;
         }
         if (e->funcdef.is_deprecated) {
@@ -1591,6 +1591,13 @@ jsonvalue *ast_ExpressionToJSON(
                 json_Free(value2);
                 fail = 1;
             }
+        }
+        if (!json_SetDictBool(v, "is_async", innere->inlinecall.is_async)) {
+            fail = 1;
+        }
+        if (!json_SetDictBool(v, "is_parallel",
+                              innere->inlinecall.is_parallel)) {
+            fail = 1;
         }
     }
     if (fileuri) {

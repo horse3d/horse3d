@@ -108,7 +108,7 @@ typedef struct h64expression {
         } vardef;
         struct funcdef {
             char *name;
-            uint8_t is_deprecated, is_async, is_noasync;
+            uint8_t is_deprecated, is_parallel, is_noparallel;
             int stmt_count;
             h64expression **stmt;
             h64scope scope;
@@ -159,7 +159,7 @@ typedef struct h64expression {
         struct inlinecall {
             h64expression *value;
             h64funcargs arguments;
-            uint8_t is_async, expand_last_posarg;
+            uint8_t is_async, is_parallel, expand_last_posarg;
         } inlinecall;
         struct identifierref {
             h64scopedef *resolved_to_def;
@@ -197,7 +197,7 @@ typedef struct h64expression {
             h64expression *returned_expression;
         } returnstmt;
         struct classdef {
-            uint8_t is_async, is_noasync;
+            uint8_t is_parallel, is_noparallel;
             uint8_t is_deprecated;
             h64scope scope;
             char *name;

@@ -650,7 +650,9 @@ static int _codegen_call_to(
         inst_call.slotcalledfrom = calledexprstoragetemp;
         inst_call.flags = 0 | (
             expandlastposarg ? CALLFLAG_EXPANDLASTPOSARG : 0
-        ) | (callexpr->inlinecall.is_async ? CALLFLAG_ASYNC : 0);
+        ) | (callexpr->inlinecall.is_async ? CALLFLAG_ASYNC : 0) |
+        (callexpr->inlinecall.is_async && callexpr->inlinecall.is_parallel ?
+         CALLFLAG_PARALLELASYNC : 0);
         inst_call.posargs = posargcount;
         inst_call.kwargs = kwargcount;
         if (!appendinst(

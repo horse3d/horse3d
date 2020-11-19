@@ -264,8 +264,8 @@ static int scoperesolver_ComputeItemStorage(
                 program->classes[
                     owningclassindex
                 ].varinitfuncidx = idx;
-                if (program->classes[owningclassindex].user_set_async)
-                    program->func[idx].user_set_async = 1;
+                if (program->classes[owningclassindex].user_set_parallel)
+                    program->func[idx].user_set_parallel = 1;
                 else if (program->classes[owningclassindex].is_threadable == 0)
                     program->func[idx].is_threadable = 0;
             }
@@ -410,9 +410,9 @@ static int scoperesolver_ComputeItemStorage(
             fsymbol->header_symbol_line = expr->line;
             fsymbol->header_symbol_column = expr->column;
         }
-        if (expr->funcdef.is_async) {
-            program->func[bytecode_func_id].user_set_async = 1;
-        } else if (expr->funcdef.is_noasync) {
+        if (expr->funcdef.is_parallel) {
+            program->func[bytecode_func_id].user_set_parallel = 1;
+        } else if (expr->funcdef.is_noparallel) {
             program->func[bytecode_func_id].is_threadable = 0;
         }
         int k = 0;

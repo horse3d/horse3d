@@ -167,6 +167,7 @@ typedef struct h64instruction_unop {
 
 #define CALLFLAG_EXPANDLASTPOSARG 1
 #define CALLFLAG_ASYNC 2
+#define CALLFLAG_PARALLELASYNC 4
 
 typedef struct h64instruction_call {
     uint8_t type;
@@ -332,7 +333,7 @@ typedef struct h64classattributeinfo {
 
 typedef struct h64class {
     classid_t base_class_global_id;
-    int is_error, is_threadable, user_set_async;
+    int is_error, is_threadable, user_set_parallel;
 
     attridx_t funcattr_count;
     int64_t *funcattr_global_name_idx;
@@ -349,7 +350,7 @@ typedef struct h64class {
 
 typedef struct h64func {
     int input_stack_size, inner_stack_size;
-    int iscfunc, is_threadable, user_set_async;
+    int iscfunc, is_threadable, user_set_parallel;
     int kwarg_count;
     int64_t *kwargnameindexes;
 

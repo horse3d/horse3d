@@ -188,6 +188,10 @@ static int ast_TokenStartsStatementOutsideOfBrackets(
             tokens[i - 1].type != H64TK_UNOPSYMBOL &&
             (tokens[i - 1].type != H64TK_KEYWORD ||
                 (strcmp(tokens[i - 1].str_value, "async") != 0 &&
+                (strcmp(tokens[i - 1].str_value, "parallel") != 0 ||
+                 i <= 1 || tokens[i - 2].type != H64TK_KEYWORD ||
+                 strcmp(tokens[i - 2].str_value, "async") != 0) &&
+                strcmp(tokens[i - 1].str_value, "extends") != 0 &&
                 strcmp(tokens[i - 1].str_value, "await") != 0 &&
                 strcmp(tokens[i - 1].str_value, "var") != 0 &&
                 strcmp(tokens[i - 1].str_value, "const") != 0 &&
@@ -2610,6 +2614,7 @@ int ast_ParseCodeBlock(
                 if (strcmp(tokens[k].str_value, "while") == 0 ||
                         strcmp(tokens[k].str_value, "do") == 0 ||
                         strcmp(tokens[k].str_value, "with") == 0 ||
+                        strcmp(tokens[k].str_value, "if") == 0 ||
                         strcmp(tokens[k].str_value, "async") == 0
                         ) {
                     // Looks like code block contents, let's assume
@@ -3474,20 +3479,23 @@ int ast_ParseExprStmt(
             }
             i += tlen;
         }
+        int lastparallelnoparallelindex = -1;
         while (1) {
             if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->funcdef.is_async &&
-                    strcmp(tokens[i].str_value, "async") == 0) {
+                    !expr->funcdef.is_parallel &&
+                    strcmp(tokens[i].str_value, "parallel") == 0) {
+                lastparallelnoparallelindex = i;
                 i++;
-                expr->funcdef.is_async = 1;
+                expr->funcdef.is_parallel = 1;
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->funcdef.is_async &&
-                    strcmp(tokens[i].str_value, "noasync") == 0) {
+                    !expr->funcdef.is_noparallel &&
+                    strcmp(tokens[i].str_value, "noparallel") == 0) {
+                lastparallelnoparallelindex = i;
                 i++;
-                expr->funcdef.is_noasync = 1;
+                expr->funcdef.is_noparallel = 1;
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
@@ -3498,6 +3506,23 @@ int ast_ParseExprStmt(
                 continue;
             }
             break;
+        }
+        if (expr->funcdef.is_parallel && expr->funcdef.is_noparallel) {
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, "unexpected invalid combination "
+                    "of \"parallel\" and \"noparallel\"", fileuri,
+                    _refline(context->tokenstreaminfo, tokens,
+                        lastparallelnoparallelindex),
+                    _refcol(context->tokenstreaminfo, tokens,
+                        lastparallelnoparallelindex)
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                if (parsefail) *parsefail = 0;
+                scope_RemoveItem(parsethis->scope, expr->funcdef.name);
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
         }
         int tlen = 0;
         int innerparsefail = 0;
@@ -3690,17 +3715,17 @@ int ast_ParseExprStmt(
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->classdef.is_async &&
-                    strcmp(tokens[i].str_value, "async") == 0) {
+                    !expr->classdef.is_parallel &&
+                    strcmp(tokens[i].str_value, "parallel") == 0) {
                 i++;
-                expr->classdef.is_async = 1;
+                expr->classdef.is_parallel = 1;
                 continue;
             } else if (i < max_tokens_touse &&
                     tokens[i].type == H64TK_KEYWORD &&
-                    !expr->classdef.is_async &&
-                    strcmp(tokens[i].str_value, "noasync") == 0) {
+                    !expr->classdef.is_noparallel &&
+                    strcmp(tokens[i].str_value, "noparallel") == 0) {
                 i++;
-                expr->classdef.is_noasync = 1;
+                expr->classdef.is_noparallel = 1;
                 continue;
             }
             break;
@@ -4378,6 +4403,11 @@ int ast_ParseExprStmt(
             (strcmp(tokens[0].str_value, "await") == 0 ||
              strcmp(tokens[0].str_value, "async") == 0)) {
         int isawait = (strcmp(tokens[0].str_value, "await") == 0);
+        int isparallelasync = (
+            !isawait && max_tokens_touse >= 1 &&
+            tokens[1].type == H64TK_KEYWORD &&
+            strcmp(tokens[1].str_value, "parallel") == 0
+        );
         int i = 0;
         if (statementmode != STATEMENTMODE_INFUNC &&
                 statementmode != STATEMENTMODE_INCLASSFUNC) {
@@ -4400,6 +4430,7 @@ int ast_ParseExprStmt(
         }
         expr->type = H64EXPRTYPE_RETURN_STMT;
         i++;
+        if (isparallelasync) i++;
 
         int tlen = 0;
         int innerparsefail = 0;
@@ -4507,6 +4538,7 @@ int ast_ParseExprStmt(
             expr = innerexpr;
             assert(expr->type == H64EXPRTYPE_CALL);
             expr->inlinecall.is_async = 1;
+            expr->inlinecall.is_parallel = isparallelasync;
             *out_expr = expr;
             if (outofmemory) *outofmemory = 0;
             if (parsefail) *parsefail = 0;
