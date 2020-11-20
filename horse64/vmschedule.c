@@ -529,7 +529,7 @@ int vmschedule_ExecuteProgram(
     h64vmexec *mainexec = vmexec_New();
     if (!mainexec) {
         fprintf(stderr, "horsevm: error: vmschedule.c: "
-            " out of memory during setup\n");
+            " out of memory in vmexec_New() during setup\n");
         return -1;
     }
     assert(mainexec->worker_overview != NULL);
@@ -539,7 +539,7 @@ int vmschedule_ExecuteProgram(
         );
         if (!mainexec->worker_overview->worker_mutex) {
              fprintf(stderr, "horsevm: error: vmschedule.c: "
-                " out of memory during setup\n");
+                " out of memory in mutex_Create() during setup\n");
             return -1;
         }
     }
@@ -547,7 +547,7 @@ int vmschedule_ExecuteProgram(
     h64vmthread *mainthread = vmthread_New(mainexec);
     if (!mainthread) {
         fprintf(stderr, "horsevm: error: vmschedule.c: "
-            "out of memory during setup\n");
+            "out of memory in vmthread_New() during setup\n");
         return -1;
     }
     mainexec->program = pr;
@@ -560,6 +560,11 @@ int vmschedule_ExecuteProgram(
     memcpy(&mainexec->moptions, moptions, sizeof(*moptions));
 
     int worker_count = vmschedule_WorkerCount();
+    #ifndef NDEBUG
+    if (mainexec->moptions.vmscheduler_debug)
+        fprintf(stderr, "horsevm: debug: vmschedule.c: "
+            "using %d workers\n", worker_count);
+    #endif
     if (mainexec->worker_overview->worker_count < worker_count) {
         h64vmworker **new_workers = realloc(
             mainexec->worker_overview->worker,
@@ -567,7 +572,8 @@ int vmschedule_ExecuteProgram(
         );
         if (!new_workers) {
             fprintf(stderr, "horsevm: error: vmschedule.c: "
-                "out of memory during setup\n");
+                "out of memory of new worker array "
+                "alloc during setup\n");
             return -1;
         }
         mainexec->worker_overview->worker = new_workers;
@@ -579,7 +585,7 @@ int vmschedule_ExecuteProgram(
             if (!mainexec->worker_overview->worker[k]) {
                 fprintf(
                     stderr, "horsevm: error: vmschedule.c: out of memory "
-                    "during setup\n"
+                    "of worker %d/%d info during setup\n", k, worker_count
                 );
                 return -1;
             }
@@ -594,7 +600,8 @@ int vmschedule_ExecuteProgram(
             if (!mainexec->worker_overview->worker[k]->wakeupevent) {
                 fprintf(
                     stderr, "horsevm: error: vmschedule.c: out of "
-                    "memory during setup\n"
+                    "memory of worker %d/%d threadevent during setup\n",
+                    k, worker_count
                 );
                 return -1;
             }

@@ -21,7 +21,10 @@
 
 static int _vfsinitdone = 0;
 
-void runprog(const char *prog, int expected_result) {
+void runprog(
+        const char *progname,
+        const char *prog, int expected_result
+        ) {
     if (!_vfsinitdone) {
         _vfsinitdone = 1;
         vfs_Init(NULL);
@@ -77,6 +80,9 @@ void runprog(const char *prog, int expected_result) {
     }
     free(fileuri);
     assert(ast->resultmsg.success && project->resultmsg->success);
+    moptions.vmscheduler_debug = 1;
+    moptions.vmscheduler_verbose_debug = 1;
+    printf("test_vmexec.c: running \"%s\"\n", progname);
     int resultcode = vmschedule_ExecuteProgram(
         project->program, &moptions
     );
@@ -87,6 +93,7 @@ void runprog(const char *prog, int expected_result) {
 START_TEST (test_fibonacci)
 {
     runprog(
+        "test_fibonacci",
         "func fib(n) {\n"
         "    var a = 0\n"
         "    var b = 1\n"
