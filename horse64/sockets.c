@@ -444,8 +444,11 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
         return 0;
     }
     if (connect(
-            te.trigger_client->fd, (struct sockaddr *)&servaddr,
-            sizeof(servaddr)) < 0) {
+            te.trigger_client->fd, (
+                v4bindused ? (struct sockaddr *)&servaddr4 :
+                (struct sockaddr *)&servaddr
+            ),
+            (v4bindused ? sizeof(servaddr4) : sizeof(servaddr))) < 0) {
         te.failure = 1;
         thread_Join(accept_thread);
         sockets_FreeSocketPairSetupData(&te);
