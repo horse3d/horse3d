@@ -87,6 +87,12 @@ void runprog(
         project->program, &moptions
     );
     compileproject_Free(project);
+    if (resultcode != expected_result)
+        fprintf(
+            stderr, "UNEXPECTED TEST FAIL: result mismatch: "
+            "got %d, expected %d\n",
+            resultcode, expected_result
+        );
     assert(resultcode == expected_result);
 }
 
@@ -97,7 +103,7 @@ START_TEST (test_fibonacci)
         "func fib(n) {\n"
         "    var a = 0\n"
         "    var b = 1\n"
-        "    while n >= 0 {\n"
+        "    while n > 0 {\n"
         "        var tmp = b\n"
         "        b += a\n"
         "        a = tmp\n"
@@ -105,8 +111,8 @@ START_TEST (test_fibonacci)
         "    }\n"
         "    return a\n"
         "}\n"
-        "func main{return fib(40)}\n",
-        165580141
+        "func main {return fib(40)}\n",
+        102334155
     );
 }
 END_TEST
