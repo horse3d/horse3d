@@ -358,15 +358,34 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     struct sockaddr_in6 servaddr = {0};
     servaddr.sin6_family = AF_INET6;
     servaddr.sin6_addr = in6addr_loopback;
+    struct sockaddr_in servaddr4 = {0};
+    servaddr4.sin_family = AF_INET6;
+    servaddr4.sin_addr.s_addr = INADDR_LOOPBACK;
+    int v4bindused = 0;
     if (bind(te.recv_server->fd, (struct sockaddr *)&servaddr,
-             sizeof(servaddr)) < 0 || listen(
-             te.recv_server->fd, 2048) < 0
-             ) {
+             sizeof(servaddr)) < 0) {
+        // See if falling back to IPv4 helps with anything:
+        v4bindused = 1;
+        if (bind(te.recv_server->fd, (struct sockaddr *)&servaddr4,
+                 sizeof(servaddr4)) < 0) {
+            sockets_FreeSocketPairSetupData(&te);
+            #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+            fprintf(stderr,
+                "horsevm: warning: sockets_NewPair() failure: "
+                "te.recv_server bind() failed\n"
+            );
+            #endif
+            return 0;
+        }
+    }
+    if (listen(
+            te.recv_server->fd, 2048) < 0
+            ) {
         sockets_FreeSocketPairSetupData(&te);
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
         fprintf(stderr,
             "horsevm: warning: sockets_NewPair() failure: "
-            "te.recv_server bind() failed\n"
+            "te.recv_server listen() failed\n"
         );
         #endif
         return 0;
@@ -376,10 +395,16 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     #else
     socklen_t len = sizeof(servaddr);
     #endif
-    if (getsockname(
+    if ((v4bindused ||
+            getsockname(
             te.recv_server->fd,
             (struct sockaddr *)&servaddr,
-            &len) != 0 || (unsigned int)len != sizeof(servaddr)) {
+            &len) != 0 || (unsigned int)len != sizeof(servaddr)) &&
+            (!v4bindused ||
+            getsockname(
+            te.recv_server->fd,
+            (struct sockaddr *)&servaddr4,
+            &len) != 0 || (unsigned int)len != sizeof(servaddr4))) {
         sockets_FreeSocketPairSetupData(&te);
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
         fprintf(stderr,
@@ -401,7 +426,9 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
         #endif
         return 0;
     }
-    te.port = servaddr.sin6_port;
+    te.port = (
+        v4bindused ? servaddr4.sin_port : servaddr.sin6_port
+    );
     assert(te.port > 0);
     thread *accept_thread = thread_Spawn(
         _threadEventAccepter, &te
