@@ -360,7 +360,7 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     servaddr.sin6_addr = in6addr_loopback;
     struct sockaddr_in servaddr4 = {0};
     servaddr4.sin_family = AF_INET;
-    servaddr4.sin_addr.s_addr = INADDR_LOOPBACK;
+    servaddr4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     int v4bindused = 0;
     if (bind(te.recv_server->fd, (struct sockaddr *)&servaddr,
              sizeof(servaddr)) < 0) {
