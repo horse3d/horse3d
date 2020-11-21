@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 #ifndef ISWIN
 #if defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(__WIN32__)
@@ -413,12 +415,20 @@ void threadevent_Free(threadevent *te) {
 
 threadevent *threadevent_Create() {
     threadevent *te = malloc(sizeof(*te));
-    if (!te)
+    if (!te) {
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: malloc() failure "
+            "in threadevent_Create() of 'te' struct, "
+            "returning NULL\n"
+        );
+        #endif
         return NULL;
+    }
     memset(te, 0, sizeof(*te));
     if (!sockets_NewPair(&te->_sourceside, &te->_targetside)) {
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
-        fprintf(
+        fprintf(stderr,
             "horsevm: warning: sockets_NewPair() failure "
             "in threadevent_Create(), returning NULL\n"
         );
@@ -428,6 +438,12 @@ threadevent *threadevent_Create() {
     }
     te->datalock = mutex_Create();
     if (!te->datalock) {
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: mutex creation failure "
+            "in threadevent_Create(), returning NULL\n"
+        );
+        #endif
         threadevent_Free(te);
         return NULL;
     }
