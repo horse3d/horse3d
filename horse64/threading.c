@@ -414,7 +414,6 @@ void threadevent_Free(threadevent *te) {
 }
 
 threadevent *threadevent_Create() {
-    printf("threadevent_Create() -> 1\n"); fflush(stdout);
     threadevent *te = malloc(sizeof(*te));
     if (!te) {
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
@@ -426,7 +425,6 @@ threadevent *threadevent_Create() {
         #endif
         return NULL;
     }
-    printf("threadevent_Create() -> 2\n"); fflush(stdout);
     memset(te, 0, sizeof(*te));
     if (!sockets_NewPair(&te->_sourceside, &te->_targetside)) {
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
@@ -438,7 +436,6 @@ threadevent *threadevent_Create() {
         threadevent_Free(te);
         return NULL;
     }
-    printf("threadevent_Create() -> 3\n"); fflush(stdout);
     te->datalock = mutex_Create();
     if (!te->datalock) {
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
@@ -450,7 +447,6 @@ threadevent *threadevent_Create() {
         threadevent_Free(te);
         return NULL;
     }
-    printf("threadevent_Create() -> 4\n"); fflush(stdout);
     return te;
 }
 
