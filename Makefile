@@ -18,7 +18,11 @@ else
 SSEFLAG:=
 endif
 ifeq ($(DEBUGGABLE),true)
+ifneq (,$(findstring mingw,$(CC)))
+CFLAGS_OPTIMIZATION:=-O0 -gstabs $(SSEFLAG) -fno-omit-frame-pointer
+else
 CFLAGS_OPTIMIZATION:=-O0 -g $(SSEFLAG) -fno-omit-frame-pointer
+endif
 else
 CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -fno-associative-math -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
 endif
