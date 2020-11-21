@@ -594,13 +594,15 @@ int vmschedule_ExecuteProgram(
                 sizeof(*mainexec->worker_overview->worker[k])
             );
             mainexec->worker_overview->worker[k]->vmexec = mainexec;
+            printf("threadevent_Create()...\n"); fflush(stdout);
             mainexec->worker_overview->worker[k]->wakeupevent = (
                 threadevent_Create()
             );
             if (!mainexec->worker_overview->worker[k]->wakeupevent) {
                 fprintf(
                     stderr, "horsevm: error: vmschedule.c: out of "
-                    "memory of worker %d/%d threadevent during setup\n",
+                    "memory when creating worker %d/%d's threadevent "
+                    "during setup\n",
                     k, worker_count
                 );
                 return -1;
