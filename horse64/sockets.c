@@ -25,6 +25,7 @@ typedef int socklen_t;
 
 #include "sockets.h"
 
+
 volatile _Atomic int winsockinitdone = 0;
 
 __attribute__((constructor)) void _winsockinit() {
@@ -321,17 +322,35 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     te.recv_server = sockets_NewBlockingRaw(1);
     if (!te.recv_server) {
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.recv_server creation failed\n"
+        );
+        #endif
         return 0;
     }
     te.trigger_client = sockets_NewBlockingRaw(1);
     if (!te.trigger_client) {
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.trigger_client creation failed\n"
+        );
+        #endif
         return 0;
     }
 
     // Generate connect key to ensure we got the right client:
     if (!secrandom_GetBytes(te.connectkey, sizeof(te.connectkey))) {
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.connectkey creation failed\n"
+        );
+        #endif
         return 0;
     }
 
@@ -344,6 +363,12 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
              te.recv_server->fd, 2048) < 0
              ) {
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.recv_server bind() failed\n"
+        );
+        #endif
         return 0;
     }
     #if defined(_WIN32) || defined(_WIN64)
@@ -356,12 +381,24 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
             (struct sockaddr *)&servaddr,
             &len) != 0 || (unsigned int)len != sizeof(servaddr)) {
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.recv_server getsockname() failed\n"
+        );
+        #endif
         return 0;
     }
 
     // Connect client and send payload (blocking):
     if (!sockets_SetNonblocking(te.trigger_client, 0)) {
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.triggerclient sockets_SetNonBlocking(0) failed\n"
+        );
+        #endif
         return 0;
     }
     te.port = servaddr.sin6_port;
@@ -371,6 +408,12 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     );
     if (!accept_thread) {
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "accept_thread spawn failed\n"
+        );
+        #endif
         return 0;
     }
     if (connect(
@@ -379,22 +422,46 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
         te.failure = 1;
         thread_Join(accept_thread);
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.trigger_client connect() failed\n"
+        );
+        #endif
         return 0;
     }
     if (send(te.trigger_client->fd, te.connectkey,
              sizeof(te.connectkey), 0) < 0) {
         te.failure = 1;
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.trigger_client send() failed\n"
+        );
+        #endif
     }
     thread_Join(accept_thread);
     accept_thread = NULL;
     if (te.failure) {
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.failure = 1, data exchange failed\n"
+        );
+        #endif
         return 0;
     }
 
     // Done with payload handling, set client to non-blocking:
     if (!sockets_SetNonblocking(te.trigger_client, 1)) {
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "te.trigger_client sockets_SetNonblocking(1) failed\n"
+        );
+        #endif
         return 0;
     }
 
@@ -406,6 +473,12 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     if (!sock_two) {
         sockets_Destroy(sock_one);
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "sock_two malloc() failed\n"
+        );
+        #endif
         return 0;
     }
     memset(sock_two, 0, sizeof(*sock_two));
@@ -417,6 +490,12 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
         sockets_Destroy(sock_one);
         sockets_Destroy(sock_two);
         sockets_FreeSocketPairSetupData(&te);
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(stderr,
+            "horsevm: warning: sockets_NewPair() failure: "
+            "sock_two sockets_SetNonblocking(1) failed\n"
+        );
+        #endif
         return 0;
     }
     sockets_FreeSocketPairSetupData(&te);

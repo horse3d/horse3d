@@ -417,6 +417,12 @@ threadevent *threadevent_Create() {
         return NULL;
     memset(te, 0, sizeof(*te));
     if (!sockets_NewPair(&te->_sourceside, &te->_targetside)) {
+        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+        fprintf(
+            "horsevm: warning: sockets_NewPair() failure "
+            "in threadevent_Create(), returning NULL\n"
+        );
+        #endif
         threadevent_Free(te);
         return NULL;
     }
