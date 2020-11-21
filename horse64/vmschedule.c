@@ -594,7 +594,6 @@ int vmschedule_ExecuteProgram(
                 sizeof(*mainexec->worker_overview->worker[k])
             );
             mainexec->worker_overview->worker[k]->vmexec = mainexec;
-            printf("threadevent_Create()...\n"); fflush(stdout);
             mainexec->worker_overview->worker[k]->wakeupevent = (
                 threadevent_Create()
             );
