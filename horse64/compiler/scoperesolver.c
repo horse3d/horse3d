@@ -782,11 +782,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             int directly_in_class_func = (
                 surroundingclass(func, 0) != NULL
             );
-            if (directly_in_class_func && !expr->storage.set) {
-                expr->storage.set = 1;
-                expr->storage.ref.type = H64STORETYPE_STACKSLOT;
-                expr->storage.ref.id = 0;
-            } else if (!directly_in_class_func) {
+            if (!directly_in_class_func) {
                 // This has to be a closure (nested inside other func).
                 // Any 'self' usage must have led to closure var storage:
                 assert(func != NULL);

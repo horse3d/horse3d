@@ -36,7 +36,7 @@ static int nosideeffectsdef(h64expression *expr) {
     return 0;
 }
 
-int _resolver_EnsureLStoreAssign(
+int _resolver_EnsureParamStoreAssign(
         asttransforminfo *rinfo, h64expression *expr
         ) {
     if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
@@ -95,7 +95,7 @@ int _resolver_EnsureLStoreAssign(
                     valueboxtemporaryid = i + (
                     (owningclassexpr != NULL ||
                      einfo->closure_with_self) ? 1 : 0
-                    );
+                    ) + expr->funcdef.arguments.arg_count;
                 einfo->lstoreassign[einfo->lstoreassign_count].
                     vardef = einfo->closureboundvars[i];
                 einfo->lstoreassign[einfo->lstoreassign_count].
@@ -126,7 +126,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_in(
         void *ud
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud;
-    if (!_resolver_EnsureLStoreAssign(rinfo, expr)) {
+    if (!_resolver_EnsureParamStoreAssign(rinfo, expr)) {
         rinfo->hadoutofmemory = 1;
         return 0;
     }
@@ -148,7 +148,7 @@ int _resolver_EnsureLocalDefStorage(
         h64expression *func = surroundingfunc(expr);
         if (!func)
             return 1;  // global, we don't care about that (non-local)
-        if (!_resolver_EnsureLStoreAssign(rinfo, func)) {
+        if (!_resolver_EnsureParamStoreAssign(rinfo, func)) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -282,7 +282,9 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
 
     // Ensure all identifiers referring to defs have storage set:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
-            !expr->storage.set) {
+            !expr->storage.set &&
+            strcmp(expr->identifierref.value, "base") != 0 &&
+            strcmp(expr->identifierref.value, "self") != 0) {
         h64expression *mapsto = expr->identifierref.resolved_to_expr;
         if (mapsto != NULL && mapsto->type != H64EXPRTYPE_IMPORT_STMT) {
             if (!mapsto->storage.set) {
@@ -293,7 +295,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                     mapsto->type != H64EXPRTYPE_FUNCDEF_STMT) ||
                     !funcdef_has_parameter_with_name(
                     mapsto, expr->identifierref.value
-                    )) {  // not a func param that may have no storage
+                    )) {  // not a func param, so it must have storage
                 // -> check if it properly has storage set:
                 if (!mapsto->storage.set &&
                         (!rinfo->pr->resultmsg->success ||
@@ -334,10 +336,6 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                     mapsto->funcdef.bytecode_func_id
                 );
                 assert(fsymbol != NULL);
-                int argtempoffset = (
-                    mapsto->funcdef._storageinfo->closureboundvars_count +
-                    (fsymbol->has_self_arg ? 1 : 0)
-                );
                 int _found = 0;
                 int i = 0;
                 while (i < mapsto->funcdef.arguments.arg_count) {
@@ -345,7 +343,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                                expr->identifierref.value) == 0) {
                         expr->storage.set = 1;
                         expr->storage.ref.type = H64STORETYPE_STACKSLOT;
-                        expr->storage.ref.id = argtempoffset + i;
+                        expr->storage.ref.id = i;
                         _found = 1;
                         break;
                     }
@@ -353,6 +351,24 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 }
                 assert(_found != 0 && expr->storage.set);
             }
+        }
+    } else if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
+            strcmp(expr->identifierref.value, "self") == 0) {
+        if (!expr->storage.set) {
+            h64expression *func = surroundingfunc(expr);
+            h64expression *cls = surroundingclass(expr, 1);
+            assert(cls != NULL);
+            #ifndef NDEBUG
+            h64expression *directcls = surroundingclass(expr, 0);
+            if (directcls == NULL) {
+                assert(func->funcdef._storageinfo->closure_with_self);
+            }
+            #endif
+            expr->storage.set = 1;
+            expr->storage.ref.type = H64STORETYPE_STACKSLOT;
+            expr->storage.ref.id = (
+                func->funcdef.arguments.arg_count
+            );
         }
     }
     // If we had no errors so far, resolve self.X fully at compile time:

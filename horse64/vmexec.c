@@ -2001,7 +2001,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 i++;
             }
         }
-        // Ok, now we rearrange the stack to be what is actually needed:
+        // Ok, now we resize the stack to be what is actually needed:
         {
             // Increase to total amount required for target func:
             int result = 1;
@@ -2042,40 +2042,18 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 }
                 goto triggeroom;
             }
-            // Make space below positional arguments for closure args:
-            if (unlikely(closure_arg_count > 0)) {
-                int old_bottom = stack_args_bottom;
-                int new_bottom = (
-                    old_bottom + closure_arg_count
-                );
-                assert(new_bottom + pr->func[target_func_id].kwarg_count +
-                       func_posargs <= STACK_TOP(stack));
-                assert(
-                    leftalone_args <=
-                    pr->func[target_func_id].kwarg_count + func_posargs
-                );
-                if (leftalone_args > 0)
-                    memmove(
-                        STACK_ENTRY(stack, new_bottom),
-                        STACK_ENTRY(stack, old_bottom),
-                        leftalone_args * sizeof(valuecontent)
-                    );
-                memset(
-                    STACK_ENTRY(stack, old_bottom),
-                    0, sizeof(valuecontent) * (new_bottom - old_bottom)
-                );
-            }
+        }
+        // Copy in stuff from our previous temporary reorder & closure args:
+        if (unlikely(!noargreorder || closure_arg_count > 0)) {
             // Place reordered positional args on stack as needed:
             if (unlikely(!noargreorder)) {
-                int stackslot = stack_args_bottom + closure_arg_count +
-                                leftalone_args;
+                int stackslot = stack_args_bottom + leftalone_args;
                 int reorderslot = 0;
                 int posarg = leftalone_args;
                 while (posarg < func_posargs) {
                     assert(posarg < inst_posargs || _expandlastposarg);
                     assert(
-                        stackslot - (stack_args_bottom + closure_arg_count)
-                        < func_posargs
+                        stackslot - (stack_args_bottom) < func_posargs
                     );
                     assert(reorderslot < reformat_argslots);
                     memcpy(
@@ -2113,10 +2091,13 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
             }
 
-            // Set closure args:
-            int i = stack_args_bottom;
+            // Add closure args on top:
+            int i = stack_args_bottom + (
+                func_posargs +
+                pr->func[target_func_id].kwarg_count
+            );
             if (cinfo && cinfo->closure_self) {
-                // Insert self argument:
+                // Add self argument:
                 assert(STACK_ENTRY(stack, i)->type == H64VALTYPE_NONE);
                 valuecontent *closurearg = (
                     STACK_ENTRY(stack, i)
