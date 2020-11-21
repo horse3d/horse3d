@@ -372,7 +372,18 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
             #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
             fprintf(stderr,
                 "horsevm: warning: sockets_NewPair() failure: "
-                "te.recv_server bind() failed\n"
+                "te.recv_server bind() failed%s\n",
+                #if defined(__linux__) || defined(__LINUX__)
+                (errno == EACCES ? " (EACCES)" :
+                 (errno == EADDRINUSE ? " (EADDRINUSE)" :
+                 (errno == EBADF ? " (EBADF)" :
+                 (errno == EINVAL ? " (EINVAL) " : (
+                 (errno == ENOTSOCK ? " (ENOTSOCK)" : (
+                 (" (UNKNOWN ERRNO)")
+                 )))))))
+                #else
+                ""
+                #endif
             );
             #endif
             return 0;
