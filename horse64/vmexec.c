@@ -1663,12 +1663,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         int64_t stacktop = STACK_TOP(stack);
         valuecontent *vc = STACK_ENTRY(stack, inst->slotcalledfrom);
-        if (vc->type != H64VALTYPE_FUNCREF && (
+
+        // Check if what we're calling is callable:
+        if (unlikely(
+                vc->type != H64VALTYPE_FUNCREF && (
                 vc->type != H64VALTYPE_GCVAL ||
                 ((h64gcvalue *)vc->ptr_value)->type !=
                 H64GCVALUETYPE_FUNCREF_CLOSURE ||
                 ((h64gcvalue *)vc->ptr_value)->closure_info == NULL
-                )) {
+                ))) {
             if (!vmthread_ResetCallTempStack(vmthread)) {
                 if (returneduncaughterror)
                     *returneduncaughterror = 0;
@@ -1687,6 +1690,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             p += sizeof(h64instruction_call);
             goto *jumptable[((h64instructionany *)p)->type];
         }
+
+        // Extract more info about what we're calling:
         int64_t target_func_id = -1;
         h64closureinfo *cinfo = NULL;
         if (vc->type == H64VALTYPE_FUNCREF) {
@@ -1699,7 +1704,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         // Validate that the positional argument count fits:
         int effective_posarg_count = inst->posargs;
-        if (inst->flags & CALLFLAG_EXPANDLASTPOSARG) {
+        if (unlikely(inst->flags & CALLFLAG_EXPANDLASTPOSARG)) {
             effective_posarg_count--;
             valuecontent *lastposarg = (
                 STACK_ENTRY(stack, stacktop - 1 - inst->kwargs)
@@ -1720,35 +1725,39 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vmlist_Count(((h64gcvalue *)vc->ptr_value)->list_values)
             );
         }
+        int closure_arg_count = (
+            cinfo ? (cinfo->closure_self ? 1 : 0) +
+            cinfo->closure_vbox_count :
+            0);
         int func_posargs = pr->func[target_func_id].input_stack_size - (
             pr->func[target_func_id].kwarg_count +
-            (cinfo ? cinfo->closure_vbox_count : 0) +
-            (cinfo && cinfo->closure_self != NULL ? 1 : 0)
+            closure_arg_count
         );
         assert(func_posargs >= 0);
-        if (effective_posarg_count < func_posargs) {
-            if (!vmthread_ResetCallTempStack(vmthread)) {
-                if (returneduncaughterror)
-                    *returneduncaughterror = 0;
-                return 0;
+        if (unlikely(effective_posarg_count != func_posargs)) {
+            if (effective_posarg_count < func_posargs) {
+                if (!vmthread_ResetCallTempStack(vmthread)) {
+                    if (returneduncaughterror)
+                        *returneduncaughterror = 0;
+                    return 0;
+                }
+                RAISE_ERROR(
+                    H64STDERROR_ARGUMENTERROR,
+                    "called func requires more positional arguments"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            } else {
+                if (!vmthread_ResetCallTempStack(vmthread)) {
+                    if (returneduncaughterror)
+                        *returneduncaughterror = 0;
+                    return 0;
+                }
+                RAISE_ERROR(
+                    H64STDERROR_ARGUMENTERROR,
+                    "called func requires less positional arguments"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
             }
-            RAISE_ERROR(
-                H64STDERROR_ARGUMENTERROR,
-                "called func requires more positional arguments"
-            );
-            goto *jumptable[((h64instructionany *)p)->type];
-        }
-        if (effective_posarg_count > func_posargs) {
-            if (!vmthread_ResetCallTempStack(vmthread)) {
-                if (returneduncaughterror)
-                    *returneduncaughterror = 0;
-                return 0;
-            }
-            RAISE_ERROR(
-                H64STDERROR_ARGUMENTERROR,
-                "called func cannot take this many positional arguments"
-            );
-            goto *jumptable[((h64instructionany *)p)->type];
         }
 
         // See where stack part we care about starts:
@@ -1761,8 +1770,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         // Make sure keyword arguments are actually known to target,
         // and do assert()s that keyword args are sorted:
         {
-            if (vmthread->kwarg_index_track_count <
-                    pr->func[target_func_id].kwarg_count) {
+            if (unlikely(vmthread->kwarg_index_track_count <
+                    pr->func[target_func_id].kwarg_count)) {
                 int oldcount = vmthread->kwarg_index_track_count;
                 int32_t *new_track_slots = realloc(
                     vmthread->kwarg_index_track_map,
@@ -1835,6 +1844,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         int reformat_slots_used = 0;
         const int inst_posargs = inst->posargs;
         if (unlikely(!noargreorder)) {
+            // Ok, so we need to copy out part of the stack to reorder it.
             // Compute what slots exactly we need to shift around:
             leftalone_args = func_posargs;
             if (inst->posargs - (
@@ -1949,7 +1959,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 valuecontent *kwarg_value = (
                      STACK_ENTRY(
                         stack, (int64_t)i * 2 + // * 2 for nameidx, value pairs
-                        1 + // we want the value, not the nameidx
+                        1 + // -> we want the value, but not the nameidx
                         (inst->posargs + stack_args_bottom) // base offset
                     )
                 );
@@ -1972,7 +1982,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
             assert(result != 0);  // shrinks, so shouldn't fail
         } else if (unlikely(inst->kwargs > 0)) {
-            // (Almost) no re-order, but gotta strip out name indexes.
+            // No re-order, but gotta strip out kw arg name indexes.
             int64_t base = (
                 stack_args_bottom + inst->posargs +
                 stack->current_func_floor
@@ -2007,8 +2017,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     stack->current_func_floor, 0
                 );
             }
-            if (!result) {
-                oom_with_sortinglist:
+            if (unlikely(!result)) {
                 // Free our temporary sorting space:
                 if (unlikely(!noargreorder)) {
                     int z = 0;
@@ -2034,11 +2043,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 goto triggeroom;
             }
             // Make space below positional arguments for closure args:
-            int closure_arg_count = (
-                cinfo ? (cinfo->closure_self ? 1 : 0) +
-                cinfo->closure_vbox_count :
-                0);
-            if (closure_arg_count > 0) {
+            if (unlikely(closure_arg_count > 0)) {
                 int old_bottom = stack_args_bottom;
                 int new_bottom = (
                     old_bottom + closure_arg_count
@@ -2060,7 +2065,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     0, sizeof(valuecontent) * (new_bottom - old_bottom)
                 );
             }
-            // Place positional arguments on stack as needed:
+            // Place reordered positional args on stack as needed:
             if (unlikely(!noargreorder)) {
                 int stackslot = stack_args_bottom + closure_arg_count +
                                 leftalone_args;
