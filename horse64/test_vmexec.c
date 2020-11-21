@@ -83,9 +83,11 @@ void runprog(
     moptions.vmscheduler_debug = 1;
     moptions.vmscheduler_verbose_debug = 1;
     printf("test_vmexec.c: running \"%s\"\n", progname);
+    fflush(stdout);
     int resultcode = vmschedule_ExecuteProgram(
         project->program, &moptions
-    );
+    );\
+    fflush(stdout); fflush(stderr);  // flush program output
     compileproject_Free(project);
     if (resultcode != expected_result)
         fprintf(
