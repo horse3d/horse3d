@@ -320,23 +320,14 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
 
     // Get socket pair:
     te.recv_server = sockets_NewBlockingRaw(1);
-    if (!te.recv_server) {
-        sockets_FreeSocketPairSetupData(&te);
-        #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
-        fprintf(stderr,
-            "horsevm: warning: sockets_NewPair() failure: "
-            "te.recv_server creation failed\n"
-        );
-        #endif
-        return 0;
-    }
     te.trigger_client = sockets_NewBlockingRaw(1);
-    if (!te.trigger_client) {
+    if (!te.recv_server || !te.trigger_client) {
         sockets_FreeSocketPairSetupData(&te);
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
         fprintf(stderr,
             "horsevm: warning: sockets_NewPair() failure: "
-            "te.trigger_client creation failed\n"
+            "te.recv_server or te.trigger_client creation "
+            "failed\n"
         );
         #endif
         return 0;
@@ -364,7 +355,23 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     int v4bindused = 0;
     if (bind(te.recv_server->fd, (struct sockaddr *)&servaddr,
              sizeof(servaddr)) < 0) {
-        // See if falling back to IPv4 helps with anything:
+        // See if falling back to IPv4 helps with anything.
+        // For that, first recreate our sockets for IPv4:
+        sockets_Destroy(te.recv_server);
+        sockets_Destroy(te.trigger_client);
+        te.recv_server = sockets_NewBlockingRaw(0);
+        te.trigger_client = sockets_NewBlockingRaw(0);
+        if (!te.recv_server || !te.trigger_client) {
+            sockets_FreeSocketPairSetupData(&te);
+            #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
+            fprintf(stderr,
+                "horsevm: warning: sockets_NewPair() failure: "
+                "te.recv_server or te.trigger_client re-creation "
+                "(v4 fallback) failed\n"
+            );
+            #endif
+            return 0;
+        }
         v4bindused = 1;
         if (bind(te.recv_server->fd, (struct sockaddr *)&servaddr4,
                  sizeof(servaddr4)) < 0) {
