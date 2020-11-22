@@ -59,20 +59,26 @@ h64socket *sockets_NewBlockingRaw(int v6capable) {
     #if defined(_WIN32) || defined(_WIN64)
     // SECURITY RELEVANT, default Windows sockets to be address exclusive
     // to match the Linux/BSD/macOS defaults:
-    int val = 1;
-    if (setsockopt(sock->fd, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
-            (char *)&val, sizeof(val)) != 0) {
-        closesocket(sock->fd);
-        free(sock);
-        return NULL;
+    {
+        int val = 1;
+        if (setsockopt(sock->fd, SOL_SOCKET, SO_EXCLUSIVEADDRUSE,
+                (char *)&val, sizeof(val)) != 0) {
+            closesocket(sock->fd);
+            free(sock);
+            return NULL;
+        }
     }
     #endif
     // Enable dual stack:
     if (v6capable) {
-        val = 0;
+        int val = 0;
         if (setsockopt(sock->fd, IPPROTO_IPV6, IPV6_V6ONLY,
                 (char *)&val, sizeof(val)) != 0) {
+            #if defined(_WIN32) || defined(_WIN64)
             closesocket(sock->fd);
+            #else
+            close(sock->fd);
+            #endif
             free(sock);
             return NULL;
         }
