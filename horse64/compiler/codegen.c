@@ -858,8 +858,10 @@ int codegen_FinalBytecodeTransform(
                     break;
                 }
                 default:
-                    fprintf(stderr, "horsec: error: internal error in "
-                        "codegen jump translation: unhandled jump type\n");
+                    h64fprintf(
+                        stderr, "horsec: error: internal error in "
+                        "codegen jump translation: unhandled jump type\n"
+                    );
                     free(jump_info);
                     return 0;
                 }
@@ -885,8 +887,10 @@ int codegen_FinalBytecodeTransform(
                     break;
                 }
                 default:
-                    fprintf(stderr, "horsec: error: internal error in "
-                        "codegen jump translation: unhandled jump type\n");
+                    h64fprintf(
+                        stderr, "horsec: error: internal error in "
+                        "codegen jump translation: unhandled jump type\n"
+                    );
                     free(jump_info);
                     return 0;
                 }
@@ -1330,7 +1334,7 @@ int _codegencallback_DoCodegen_visit_out(
         }
         if (idx < 0) {
             // FIXME: hard-code an error raise
-            fprintf(stderr, "fix invalid member\n");
+            h64fprintf(stderr, "fix invalid member\n");
         } else {
             h64instruction_getattributebyname inst_getattr = {0};
             inst_getattr.type = H64INST_GETATTRIBUTEBYNAME;
@@ -1496,7 +1500,7 @@ int _codegencallback_DoCodegen_visit_out(
                     char *s = ast_ExpressionToJSONStr(
                         expr, rinfo->ast->fileuri
                     );
-                    fprintf(
+                    h64fprintf(
                         stderr, "horsec: error: invalid expr "
                         "with func storage with negative id: "
                         "%s -> id %" PRId64 "\n",
@@ -3299,7 +3303,7 @@ int codegen_GenerateBytecodeForFile(
         return 0;
 
     if (miscoptions->compiler_stage_debug) {
-        fprintf(
+        h64fprintf(
             stderr, "horsec: debug: codegen_GenerateBytecodeForFile "
                 "start on %s (pr->resultmsg.success: %d)\n",
             resolved_ast->fileuri, project->resultmsg->success
@@ -3369,7 +3373,7 @@ int codegen_GenerateBytecodeForFile(
     }
 
     if (miscoptions->compiler_stage_debug) {
-        fprintf(
+        h64fprintf(
             stderr, "horsec: debug: codegen_GenerateBytecodeForFile "
                 "completed on %s (pr->resultmsg.success: %d)\n",
             resolved_ast->fileuri, project->resultmsg->success

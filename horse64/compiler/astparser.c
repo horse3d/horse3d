@@ -26,6 +26,7 @@
 #include "compiler/globallimits.h"
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
+#include "nonlocale.h"
 #include "poolalloc.h"
 #include "uri.h"
 
@@ -1803,7 +1804,9 @@ int ast_ParseExprInline(
                 // Nothing to copy over
             } else {
                 // Should be impossible to reach!
-                fprintf(stderr, "horsec: error: UNHANDLED LITERAL TYPE\n");
+                h64fprintf(
+                    stderr, "horsec: error: UNHANDLED LITERAL TYPE\n"
+                );
                 ast_MarkExprDestroyed(expr);
                 if (outofmemory) *outofmemory = 1;
                 return 0;
@@ -2142,7 +2145,7 @@ int ast_ParseExprInline(
                     expr->constructorvector.entry = new_entries;
                 } else {
                     // Should never be reached
-                    fprintf(stderr, "horsec: error: unreachable "
+                    h64fprintf(stderr, "horsec: error: unreachable "
                         "code path reached (map/vector/list/set parser)");
                     _exit(1);
                 }
@@ -2785,7 +2788,7 @@ const char *_identifierdeclarationname(
     } else if (expr->type == H64EXPRTYPE_DO_STMT) {
         deftype = _defnamecatch;
     } else {
-        fprintf(stderr, "horsec: error: internal error: "
+        h64fprintf(stderr, "horsec: error: internal error: "
             "what is this type: %d\n", expr->type);
         assert(0 && "unrecognized scope definition type");
     }

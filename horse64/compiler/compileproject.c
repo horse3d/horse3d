@@ -290,7 +290,7 @@ void compileproject_Free(h64compileproject *pr) {
             _free_fakevarinitexpr_cb, NULL
         );
         if (!result)
-            fprintf(stderr,
+            h64fprintf(stderr,
                 "horsec: warning: out of memory during "
                 "iteration in compileproject_Free, "
                 "likely memory leaking\n"

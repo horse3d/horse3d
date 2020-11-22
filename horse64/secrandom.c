@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +19,8 @@
 #include <sys/random.h>
 #endif
 #endif
+
+#include "nonlocale.h"
 #include "secrandom.h"
 
 
@@ -94,13 +98,13 @@ static void _secrandom_initProvider() {
             NULL, GetLastError(), 0, (LPSTR)&s, 0, NULL
         );
         char buf[1024];
-        snprintf(
+        h64snprintf(
             buf, sizeof(buf) - 1,
             "Couldn't acquire HCRYPTPROV: %s", s
         );
         if (s)
             LocalFree(s);
-        fprintf(
+        h64fprintf(
             stderr, "horse64/secrandom.c: error: %s\n", buf
         );
         int msgboxID = MessageBox(

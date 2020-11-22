@@ -12,6 +12,7 @@
 #include "compiler/scope.h"
 #include "hash.h"
 #include "json.h"
+#include "nonlocale.h"
 
 
 int scope_Init(h64scope *scope, h64expression *expr) {
@@ -178,7 +179,7 @@ int scope_AddItem(
         } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
             expr->importstmt.foundinscope = scope;
         } else {
-            fprintf(stderr, "horsecc: warning: "
+            h64fprintf(stderr, "horsecc: warning: "
                 "unexpected add to scope of expr type %d\n",
                 expr->type);
             assert(0 && "abort for invalid item to add");

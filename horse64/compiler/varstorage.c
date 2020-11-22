@@ -15,6 +15,7 @@
 #include "compiler/asttransform.h"
 #include "compiler/compileproject.h"
 #include "compiler/varstorage.h"
+#include "nonlocale.h"
 
 
 int _resolver_EnsureParamStoreAssign(
@@ -291,14 +292,14 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                     char *s = ast_ExpressionToJSONStr(
                         mapsto, rinfo->ast->fileuri
                     );
-                    fprintf(stderr,
+                    h64fprintf(stderr,
                         "horsec: error: unexpectedly no storage on "
                         "resolved-to expr: %s\n", (s ? s : "<oom>"));
                     free(s);
                     s = ast_ExpressionToJSONStr(
                         expr, rinfo->ast->fileuri
                     );
-                    fprintf(stderr,
+                    h64fprintf(stderr,
                         "horsec: error: identifier that was resolved to "
                         "expr: %s\n", (s ? s : "<oom>"));
                     free(s);

@@ -50,7 +50,8 @@ int timelib_sleep(
     if (vcamount->type == H64VALTYPE_INT64) {
         if (unlikely(vcamount->int_value < 0)) {
             sleepms = 0;
-        } else if (vcamount->int_value < INT64_MAX / 1000000LL) {
+        } else if (vcamount->int_value <
+                ((int64_t)(INT64_MAX / 1000000LL))) {
             sleepms = vcamount->int_value * 1000LL;
         } else {
             sleepms = INT64_MAX / 1000LL;
@@ -60,7 +61,9 @@ int timelib_sleep(
         long double val = vcamount->float_value * 1000.0;
         if (val <= 0) {
             sleepms = 0;
-        } else if (val < (long double)(INT64_MAX / 1000LL) - 5.0f) {
+        } else if (val <
+                (long double)((int64_t)(INT64_MAX / 1000LL)) - 5.0f
+                ) {
             // (-5.0f for some rounding margin)
             sleepms = roundl(val);
         } else {
@@ -103,8 +106,8 @@ int timelib_ticks(
     }
 
     int64_t tickms = datetime_Ticks();
-    double seconds = (double)((int64_t)tickms / 1000LL);
-    double fraction = ((double)((int64_t)tickms % 1000LL)) / 1000.0;
+    double seconds = (double)((int64_t)(tickms / 1000LL));
+    double fraction = ((double)((int64_t)(tickms % 1000LL))) / 1000.0;
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);

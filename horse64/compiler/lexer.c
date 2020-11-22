@@ -1476,7 +1476,7 @@ jsonvalue *lexer_TokenToJSON(h64token *t, const char *fileuri) {
         }
         free(typestr);
     } else {
-        fprintf(stderr, "horsec: error: internal error, "
+        h64fprintf(stderr, "horsec: error: internal error, "
             "fail of handling token type %d in lexer_TokenTypeToStr\n",
             t->type);
         fail = 1;

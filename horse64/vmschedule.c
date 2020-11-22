@@ -13,6 +13,7 @@
 #include "bytecode.h"
 #include "datetime.h"
 #include "debugsymbols.h"
+#include "nonlocale.h"
 #include "osinfo.h"
 #include "pipe.h"
 #include "stack.h"
@@ -37,14 +38,14 @@ static const char *_classnamelookup(h64program *pr, int64_t classid) {
 static void _printuncaughterror(
         h64program *pr, h64errorinfo *einfo
         ) {
-    fprintf(stderr, "Uncaught %s: ",
+    h64fprintf(stderr, "Uncaught %s: ",
         (pr->symbols ?
          _classnamelookup(pr, einfo->error_class_id) :
          "Error"));
     if (einfo->msg) {
         char *buf = malloc(einfo->msglen * 5 + 2);
         if (!buf) {
-            fprintf(stderr, "<utf8 buf alloc failure>");
+            h64fprintf(stderr, "<utf8 buf alloc failure>");
         } else {
             int64_t outlen = 0;
             int result = utf32_to_utf8(
@@ -53,17 +54,17 @@ static void _printuncaughterror(
                 &outlen, 1
             );
             if (!result) {
-                fprintf(stderr, "<utf8 conversion failure>");
+                h64fprintf(stderr, "<utf8 conversion failure>");
             } else {
                 buf[outlen] = '\0';
-                fprintf(stderr, "%s", buf);
+                h64fprintf(stderr, "%s", buf);
             }
             free(buf);
         }
     } else {
-        fprintf(stderr, "<no message>");
+        h64fprintf(stderr, "<no message>");
     }
-    fprintf(stderr, "\n");
+    h64fprintf(stderr, "\n");
 }
 
 int vmschedule_AsyncScheduleFunc(
@@ -124,7 +125,7 @@ int vmschedule_AsyncScheduleFunc(
     mutex_Lock(access_mutex);
     #ifndef NDEBUG
     if (newthread->vmexec_owner->moptions.vmscheduler_debug)
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: debug: vmschedule.c: "
             "[t%p] SCHEDASYNC doing async call of func %" PRId64
             " on t%p\n",
@@ -225,7 +226,7 @@ static int vmschedule_RunMainThreadLaunchFunc(
         mainthread->run_by_worker = worker;
         #ifndef NDEBUG
         if (worker->moptions->vmscheduler_debug)
-            fprintf(stderr, "horsevm: debug: vmschedule.c: "
+            h64fprintf(stderr, "horsevm: debug: vmschedule.c: "
                 "[w%d] RUN f%" PRId64
                 " (%s func)...\n", worker->no,
                 (int64_t)func_id, debug_func_name);
@@ -237,7 +238,7 @@ static int vmschedule_RunMainThreadLaunchFunc(
                 &hadsuspendevent, &sinfo,
                 &haduncaughterror, &einfo, &rval
                 )) {
-            fprintf(stderr, "horsevm: error: vmschedule.c: "
+            h64fprintf(stderr, "horsevm: error: vmschedule.c: "
                 " fatal error in %s, "
                 "out of memory?\n", debug_func_name);
             vmthread_Free(mainthread);
@@ -275,7 +276,7 @@ void vmschedule_WorkerRun(void *userdata) {
             // thread:
             #ifndef NDEBUG
             if (worker->moptions->vmscheduler_debug)
-                fprintf(
+                h64fprintf(
                     stderr, "horsevm: debug: vmschedule.c: "
                     "[w%d] WAIT finding main thread...\n",
                     worker->no
@@ -295,7 +296,7 @@ void vmschedule_WorkerRun(void *userdata) {
             }
             mutex_Release(access_mutex);
             if (!mainthread) {
-                fprintf(
+                h64fprintf(
                     stderr, "horsevm: error: "
                     "vmschedule.c: main worker failed to find "
                     "main thread...?\n"
@@ -399,7 +400,7 @@ void vmschedule_WorkerRun(void *userdata) {
         // See if we can run anything:
         #ifndef NDEBUG
         if (worker->moptions->vmscheduler_verbose_debug)
-            fprintf(
+            h64fprintf(
                 stderr, "horsevm: debug: vmschedule.c: "
                 "[w%d] CHECK looking for work...\n",
                 worker->no
@@ -424,7 +425,7 @@ void vmschedule_WorkerRun(void *userdata) {
                     )) {
                 #ifndef NDEBUG
                 if (worker->moptions->vmscheduler_debug)
-                    fprintf(
+                    h64fprintf(
                         stderr, "horsevm: debug: vmschedule.c: "
                         "[w%d] RESUME picking up vm thread %p\n",
                         worker->no, vt
@@ -446,7 +447,7 @@ void vmschedule_WorkerRun(void *userdata) {
                         ) || haduncaughterror) {
                     // Mutex will be locked again, here.
                     if (!haduncaughterror) {
-                        fprintf(stderr,
+                        h64fprintf(stderr,
                             "horsevm: error: vmschedule.c: "
                             " fatal error in function, "
                             "out of memory?\n"
@@ -473,7 +474,7 @@ void vmschedule_WorkerRun(void *userdata) {
             // We reached the end of the program.
             #ifndef NDEBUG
             if (worker->moptions->vmscheduler_debug)
-                fprintf(
+                h64fprintf(
                     stderr, "horsevm: debug: vmschedule.c: "
                     "[w%d] END no jobs left, assuming program end\n",
                     worker->no
@@ -485,7 +486,7 @@ void vmschedule_WorkerRun(void *userdata) {
             break;  // could have changed right before threadevent_Unset()
         #ifndef NDEBUG
         if (worker->moptions->vmscheduler_verbose_debug)
-            fprintf(
+            h64fprintf(
                 stderr, "horsevm: debug: vmschedule.c: "
                 "[w%d] WAIT sleeping until wakeup event...\n",
                 worker->no
@@ -497,7 +498,7 @@ void vmschedule_WorkerRun(void *userdata) {
         if (result) {
             #ifndef NDEBUG
             if (worker->moptions->vmscheduler_debug)
-                fprintf(
+                h64fprintf(
                     stderr, "horsevm: debug: vmschedule.c: "
                     "[w%d] AWOKEN by thread event set\n",
                     worker->no
@@ -528,7 +529,7 @@ int vmschedule_ExecuteProgram(
         ) {
     h64vmexec *mainexec = vmexec_New();
     if (!mainexec) {
-        fprintf(stderr, "horsevm: error: vmschedule.c: "
+        h64fprintf(stderr, "horsevm: error: vmschedule.c: "
             " out of memory in vmexec_New() during setup\n");
         return -1;
     }
@@ -538,7 +539,7 @@ int vmschedule_ExecuteProgram(
             mutex_Create()
         );
         if (!mainexec->worker_overview->worker_mutex) {
-             fprintf(stderr, "horsevm: error: vmschedule.c: "
+             h64fprintf(stderr, "horsevm: error: vmschedule.c: "
                 " out of memory in mutex_Create() during setup\n");
             return -1;
         }
@@ -546,7 +547,7 @@ int vmschedule_ExecuteProgram(
 
     h64vmthread *mainthread = vmthread_New(mainexec);
     if (!mainthread) {
-        fprintf(stderr, "horsevm: error: vmschedule.c: "
+        h64fprintf(stderr, "horsevm: error: vmschedule.c: "
             "out of memory in vmthread_New() during setup\n");
         return -1;
     }
@@ -562,7 +563,7 @@ int vmschedule_ExecuteProgram(
     int worker_count = vmschedule_WorkerCount();
     #ifndef NDEBUG
     if (mainexec->moptions.vmscheduler_debug)
-        fprintf(stderr, "horsevm: debug: vmschedule.c: "
+        h64fprintf(stderr, "horsevm: debug: vmschedule.c: "
             "using %d workers\n", worker_count);
     #endif
     if (mainexec->worker_overview->worker_count < worker_count) {
@@ -571,7 +572,7 @@ int vmschedule_ExecuteProgram(
             sizeof(*new_workers) * (worker_count)
         );
         if (!new_workers) {
-            fprintf(stderr, "horsevm: error: vmschedule.c: "
+            h64fprintf(stderr, "horsevm: error: vmschedule.c: "
                 "out of memory of new worker array "
                 "alloc during setup\n");
             return -1;
@@ -583,7 +584,7 @@ int vmschedule_ExecuteProgram(
                 sizeof(**new_workers)
             );
             if (!mainexec->worker_overview->worker[k]) {
-                fprintf(
+                h64fprintf(
                     stderr, "horsevm: error: vmschedule.c: out of memory "
                     "of worker %d/%d info during setup\n", k, worker_count
                 );
@@ -598,7 +599,7 @@ int vmschedule_ExecuteProgram(
                 threadevent_Create()
             );
             if (!mainexec->worker_overview->worker[k]->wakeupevent) {
-                fprintf(
+                h64fprintf(
                     stderr, "horsevm: error: vmschedule.c: out of "
                     "memory when creating worker %d/%d's threadevent "
                     "during setup\n",
@@ -631,7 +632,7 @@ int vmschedule_ExecuteProgram(
     }
     if (threaderror) {
         mainexec->worker_overview->fatalerror = 1;
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: error: vmschedule.c: out of memory "
             "spawning workers\n"
         );
@@ -645,7 +646,7 @@ int vmschedule_ExecuteProgram(
         );
     if (!threaderror && !supervisor_thread) {
         threaderror = 1;
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: error: vmschedule.c: out of memory "
             "spawning supervisor\n"
         );
@@ -663,7 +664,7 @@ int vmschedule_ExecuteProgram(
     // Wait until other threads are done:
     #ifndef NDEBUG
     if (moptions->vmscheduler_debug)
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: debug: vmschedule.c: "
             "[w0] END sending termination to all threads...\n"
         );
@@ -676,7 +677,7 @@ int vmschedule_ExecuteProgram(
             );
             #ifndef NDEBUG
             if (moptions->vmscheduler_debug)
-                fprintf(
+                h64fprintf(
                     stderr, "horsevm: debug: vmschedule.c: "
                     "[w0] END waiting for shutdown of w%d\n", i
                 );

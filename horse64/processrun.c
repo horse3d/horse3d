@@ -2,7 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
-#include "widechar.h"
+#include "compileconfig.h"
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -14,9 +15,11 @@
 pid_t vfork(void);
 #endif
 
+#include "nonlocale.h"
 #include "poolalloc.h"
 #include "processrun.h"
 #include "threading.h"
+#include "widechar.h"
 
 
 typedef int64_t h64pid_t;
@@ -37,7 +40,7 @@ poolalloc *processrun_struct_alloc = NULL;
 __attribute__((constructor)) static void _processrun_CreateMutex() {
     _processrun_mutex = mutex_Create();
     if (!_processrun_mutex) {
-        fprintf(stderr, "horsevm: error: OOM creeating process mutex\n");
+        h64fprintf(stderr, "horsevm: error: OOM creeating process mutex\n");
         exit(1);
     }
 }

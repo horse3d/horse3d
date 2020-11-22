@@ -19,6 +19,7 @@
 #include <windows.h>
 #endif
 
+#include "nonlocale.h"
 #include "osinfo.h"
 
 static int cpu_thread_count = 0;
@@ -203,12 +204,12 @@ __attribute__((constructor)) void _init_osinfo() {
         return;
     _osinfo_inited = 1;
     if (!_init_cpu_thread_count())
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: warning: "
             "_init_cpu_thread_count() unexpectedly failed, memory issue?\n"
         );
     if (!_init_cpu_core_count())
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: warning: "
             "_init_cpu_core_count() unexpectedly failed, memory issue?\n"
         );

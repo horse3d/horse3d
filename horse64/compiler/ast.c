@@ -19,6 +19,7 @@
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
 #include "compiler/varstorage.h"
+#include "nonlocale.h"
 
 
 h64scope *ast_GetScope(
@@ -475,7 +476,7 @@ int ast_VisitExpression(
         }
         break;
     default:
-        fprintf(stderr, "horsec: warning: internal issue, "
+        h64fprintf(stderr, "horsec: warning: internal issue, "
             "unhandled expression in ast_VisitExpression(): "
             "type=%d, LIKELY BREAKAGE AHEAD.\n", expr->type);
     }
@@ -699,7 +700,7 @@ void ast_FreeExprNonpoolMembers(
         break;
     }
     default: {
-        fprintf(stderr, "horsec: warning: internal issue, "
+        h64fprintf(stderr, "horsec: warning: internal issue, "
             "unhandled expression in "
             "ast_FreeExprNonpoolMembers(): "
             "type=%d, LIKELY MEMORY LEAK.\n", expr->type
@@ -735,7 +736,7 @@ static int _collect_free_expr_cb(
             );
         }
         if (!new_list) {
-            fprintf(stderr,
+            h64fprintf(stderr,
                 "horsec: warning: oom collecting expr children free list, "
                 "will likely leak..."
             );
@@ -949,7 +950,7 @@ jsonvalue *ast_ExpressionToJSON(
         }
         free(typestr);
     } else {
-        fprintf(stderr, "horsec: error: internal error, "
+        h64fprintf(stderr, "horsec: error: internal error, "
             "fail of handling expression type %d in "
             "ast_ExpressionTypeToStr\n",
             e->type);

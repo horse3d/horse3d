@@ -38,8 +38,10 @@
         valuecontent *v2 = STACK_ENTRY(stack, inst->arg2slotfrom);
         #ifndef NDEBUG
         if (!op_jumptable[inst->optype]) {
-            fprintf(stderr, "binop %d missing in jump table\n",
-                    inst->optype);
+            h64fprintf(
+                stderr, "binop %d missing in jump table\n",
+                inst->optype
+            );
             return 0;
         }
         #endif
@@ -341,7 +343,7 @@
                     (v2->type != H64VALTYPE_INT64 &&
                     v2->type != H64VALTYPE_FLOAT64))) {
                 // generic case:
-                fprintf(stderr, "equality case not implemented\n");
+                h64fprintf(stderr, "equality case not implemented\n");
                 return 0;
             } else {
                 invalidtypes = 0;
@@ -371,7 +373,7 @@
             goto binop_done;
         }
         binop_cmp_notequal: {
-            fprintf(stderr, "oopsie daisy\n");
+            h64fprintf(stderr, "oopsie daisy\n");
             return 0;
         }
         binop_cmp_largerorequal: {
@@ -575,6 +577,6 @@
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_unop: {
-        fprintf(stderr, "unop not implemented\n");
+        h64fprintf(stderr, "unop not implemented\n");
         return 0;
     }

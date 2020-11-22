@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,6 +12,7 @@
 #include <unistd.h>
 
 #include "hash.h"
+#include "nonlocale.h"
 #include "secrandom.h"
 
 
@@ -491,7 +494,7 @@ __attribute__((constructor)) static void hashSetHashSecrets() {
     if (!secrandom_GetBytes(
             global_hashsecret, sizeof(global_hashsecret)
             )) {
-        fprintf(stderr,
+        h64fprintf(stderr,
             "hash.c: FAILED TO INITIALIZE GLOBAL "
             "HASH SECRETS. ABORTING.\n"
         );

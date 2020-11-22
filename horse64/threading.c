@@ -35,6 +35,7 @@
 #endif
 
 #include "datetime.h"
+#include "nonlocale.h"
 #include "secrandom.h"
 #include "sockets.h"
 #include "threading.h"
@@ -404,7 +405,7 @@ threadevent *threadevent_Create() {
     threadevent *te = malloc(sizeof(*te));
     if (!te) {
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
-        fprintf(stderr,
+        h64fprintf(stderr,
             "horsevm: warning: malloc() failure "
             "in threadevent_Create() of 'te' struct, "
             "returning NULL\n"
@@ -415,7 +416,7 @@ threadevent *threadevent_Create() {
     memset(te, 0, sizeof(*te));
     if (!sockets_NewPair(&te->_sourceside, &te->_targetside)) {
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
-        fprintf(stderr,
+        h64fprintf(stderr,
             "horsevm: warning: sockets_NewPair() failure "
             "in threadevent_Create(), returning NULL\n"
         );
@@ -426,7 +427,7 @@ threadevent *threadevent_Create() {
     te->datalock = mutex_Create();
     if (!te->datalock) {
         #if !defined(NDEBUG) && defined(DEBUG_SOCKETPAIR)
-        fprintf(stderr,
+        h64fprintf(stderr,
             "horsevm: warning: mutex creation failure "
             "in threadevent_Create(), returning NULL\n"
         );

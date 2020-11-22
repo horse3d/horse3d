@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "compiler/operator.h"
+#include "nonlocale.h"
 
 
 static char h64opprinted_invalid[] = "H64OP_INVALID";
@@ -201,7 +202,7 @@ __attribute__((constructor)) void _init_precedences() {
     );
     if (!operators_by_precedence) {
         allocfail:
-        fprintf(stderr, "horsec: error: FATAL: "
+        h64fprintf(stderr, "horsec: error: FATAL: "
             "operator precedence table alloc fail");
         _exit(1);
         return;

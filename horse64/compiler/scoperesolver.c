@@ -789,9 +789,11 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 #ifndef NDEBUG
                 if (func->funcdef._storageinfo == NULL) {
                     char *s = ast_ExpressionToJSONStr(func, NULL);
-                    fprintf(stderr, "horsec: error: internal error: "
-                            "invalid missing storage info on "
-                            "closure: %s\n", s);
+                    h64fprintf(
+                        stderr, "horsec: error: internal error: "
+                        "invalid missing storage info on "
+                        "closure: %s\n", s
+                    );
                     free(s);
                 }
                 #endif
@@ -1401,7 +1403,7 @@ int scoperesolver_BuildASTGlobalStorage(
         return 1;
 
     if (miscoptions->compiler_stage_debug) {
-        fprintf(
+        h64fprintf(
             stderr, "horsec: debug: scoperesolver_BuildASTGlobalStorage "
                 "start on %s (pr->resultmsg.success: %d)\n",
             unresolved_ast->fileuri, pr->resultmsg->success
@@ -1725,7 +1727,7 @@ int scoperesolver_BuildASTGlobalStorage(
     }
 
     if (miscoptions->compiler_stage_debug) {
-        fprintf(
+        h64fprintf(
             stderr, "horsec: debug: scoperesolver_BuildASTGlobalStorage "
                 "completed on %s (pr->resultmsg.success: %d)\n",
             unresolved_ast->fileuri, pr->resultmsg->success

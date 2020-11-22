@@ -443,8 +443,10 @@ void vfs_Init(const char *argv0) {
         execdir = _s;
     }
     if (!execdir) {
-        fprintf(stderr, "horse64/vfs.c: warning: "
-                "failed to locate binary directory");
+        h64fprintf(
+            stderr, "horse64/vfs.c: warning: "
+            "failed to locate binary directory"
+        );
         return;
     }
     char *coreapipath = filesys_Join(
@@ -453,8 +455,10 @@ void vfs_Init(const char *argv0) {
     free(execdir);
     execdir = NULL;
     if (!coreapipath) {
-        fprintf(stderr, "horse64/vfs.c: warning: "
-                "failed to allocate coreapi path");
+        h64fprintf(
+            stderr, "horse64/vfs.c: warning: "
+            "failed to allocate coreapi path"
+        );
         return;
     }
     vfs_AddPak(coreapipath);

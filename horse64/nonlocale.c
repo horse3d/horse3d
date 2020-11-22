@@ -33,7 +33,7 @@ __attribute__((constructor)) static inline void _genlocale() {
         );
         #endif
         if (h64locale == (locale_t) 0) {
-            fprintf(stderr, "failed to generate locale\n");
+            h64fprintf(stderr, "failed to generate locale\n");
             _exit(1);
         }
         h64localeset = 1;
