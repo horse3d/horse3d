@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #define _FILE_OFFSET_BITS 64
 #define __USE_LARGEFILE64
 #define _LARGEFILE_SOURCE
@@ -37,6 +39,7 @@
 
 
 #include "filesys.h"
+#include "nonlocale.h"
 #include "secrandom.h"
 #include "stringhelpers.h"
 #include "widechar.h"
@@ -1444,6 +1447,7 @@ FILE *filesys_TempFile(
             tempbufwsize - 1, tempbufw
         );
         if (rval >= (unsigned int)tempbufwsize - 1) {
+            tempbufwsize *= 2;
             free(tempbuf);
             tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
             if (!tempbufw)
@@ -1452,8 +1456,9 @@ FILE *filesys_TempFile(
         }
         if (rval == 0)
             return NULL;
+        break;
     }
-    tempbuf = malloc(tempbufwsize * 5 + 1);
+    tempbuf = malloc(tempbufwsize * 5 + 2);
     if (!tempbuf)
         return NULL;
     int result = utf16_to_utf8(
@@ -1461,6 +1466,7 @@ FILE *filesys_TempFile(
         (char*)tempbuf, tempbufwsize * 5 + 1,
         &tempbuffill, 1
     );
+    tempbuf[tempbufwsize * 5 + 1] = '\0';
     free(tempbufw);
     if (!result) {
         free(tempbuf);

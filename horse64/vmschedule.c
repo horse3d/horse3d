@@ -659,7 +659,7 @@ int vmschedule_ExecuteProgram(
 
     // Run main thread:
     if (!threaderror)
-        vmschedule_WorkerRun( mainexec->worker_overview->worker[0]);
+        vmschedule_WorkerRun(mainexec->worker_overview->worker[0]);
 
     // Wait until other threads are done:
     #ifndef NDEBUG
