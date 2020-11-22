@@ -66,17 +66,17 @@ h64socket *sockets_NewBlockingRaw(int v6capable) {
         free(sock);
         return NULL;
     }
+    #endif
     // Enable dual stack:
     if (v6capable) {
         val = 0;
-        if (setsockopt(sock->fd, SOL_SOCKET, IPV6_V6ONLY,
+        if (setsockopt(sock->fd, IPPROTO_IPV6, IPV6_V6ONLY,
                 (char *)&val, sizeof(val)) != 0) {
             closesocket(sock->fd);
             free(sock);
             return NULL;
         }
     }
-    #endif
     return sock;
 }
 
