@@ -17,25 +17,6 @@
 #include "compiler/varstorage.h"
 
 
-static int nosideffectsvalue(h64expression *expr) {
-    if (expr->type == H64EXPRTYPE_IDENTIFIERREF) {
-        return 1;
-    } else if (expr->type == H64EXPRTYPE_LITERAL) {
-        return 1;
-    }
-    return 0;
-}
-
-static int nosideeffectsdef(h64expression *expr) {
-    if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
-        if (expr->vardef.value == NULL)
-            return 1;
-        if (nosideffectsvalue(expr->vardef.value))
-            return 1;
-    }
-    return 0;
-}
-
 int _resolver_EnsureParamStoreAssign(
         asttransforminfo *rinfo, h64expression *expr
         ) {
