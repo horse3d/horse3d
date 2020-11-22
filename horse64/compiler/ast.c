@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
 #else

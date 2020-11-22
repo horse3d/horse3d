@@ -2,7 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
-#include "corelib/system.h"
+#include "compileconfig.h"
+
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
 #else
@@ -18,6 +19,7 @@
 #include "corelib/errors.h"
 #include "corelib/io.h"
 #include "corelib/moduleless.h"
+#include "corelib/system.h"
 #include "corelib/time.h"
 #include "gcvalue.h"
 #include "hash.h"
@@ -191,7 +193,7 @@ static int _corelib_printvalue(
                             }
                             if (likely(entry_offset + 1 <
                                     total_entry_count)) {
-                                printf(", ");
+                                h64printf(", ");
                             }
                             k++;
                         }
@@ -286,7 +288,7 @@ int corelib_print(  // $$builtin.print
         return 0;  // error raised
     if (sinfo.seen)
         hashset_Free(sinfo.seen);
-    printf("\n");
+    h64printf("\n");
     return 1;
 }
 

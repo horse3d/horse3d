@@ -13,4 +13,11 @@
 
 #define DEBUG_SOCKETPAIR
 
+#if defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(__WIN32__)
+#define _WIN32_WINNT 0x0601
+#if defined __MINGW_H
+#define _WIN32_IE 0x0400
+#endif
+#endif
+
 #endif  // HORSE64_COMPILECONFIG_H_

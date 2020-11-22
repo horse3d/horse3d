@@ -1,3 +1,6 @@
+// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// also see LICENSE.md file.
+// SPDX-License-Identifier: BSD-2-Clause
 
 #ifndef HORSE64_NONLOCALE_H_
 #define HORSE64_NONLOCALE_H_
@@ -13,6 +16,8 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 #define locale_t _locale_t
+#include <windows.h>
+extern HANDLE *h64stdout, *h64stderr;
 #endif
 extern locale_t h64locale;
 
@@ -126,21 +131,104 @@ ATTR_UNUSED static inline int h64snprintf(
     #endif
 }
 
-ATTR_UNUSED static inline int h64printf(const char *format, ...) {
-    va_list vl;
-    va_start(vl, format);
+ATTR_UNUSED static inline void _windows_ForceTerminalMode() {
     #if defined(_WIN32) || defined(_WIN64)
-    return _vprintf_l(format, h64locale, vl);
+    // Attach to a terminal:
+    if (!AttachConsole(-1)) {
+        if (!AllocConsole()) {
+            // nothing useful to do if this also fails
+        }
+    }
+
+    // Update stderr/stdin so they use the new window:
+    h64stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+    h64stderr = GetStdHandle(STD_ERROR_HANDLE);
+    #endif
+}
+
+ATTR_UNUSED static inline int _doprintf(
+        FILE *printfile, const char *format, va_list vl
+        ) {
+    #if defined(_WIN32) || defined(_WIN64)
+    if (!h64stdout)
+        h64stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (!h64stderr)
+        h64stderr = GetStdHandle(STD_ERROR_HANDLE);
+    char _stackbuf[256] = "";
+    char *buf = _stackbuf;
+    int bufheap = 0;
+    int buflen = 256;
+    while (1) {
+        int result = _vsnprintf_l(buf, buflen - 1, format, h64locale, vl);
+        buf[buflen - 1] = '\0';
+        if (result >= buflen - 1) {
+            buflen *= 2;
+            char *bufnew = malloc(buflen);
+            if (!bufnew) {
+                if (bufheap)
+                    free(buf);
+                return -1;
+            }
+            if (bufheap)
+                free(buf);
+            buf = bufnew;
+            bufheap = 1;
+        } else if (result < 0) {
+            if (bufheap)
+                free(buf);
+            return result;
+        } else {
+            break;
+        }
+    }
+    uint32_t written = 0;
+    if (printfile == stdout || printfile == stderr) {
+        if (!WriteConsole(
+                (printfile == stdout ?
+                h64stdout : h64stderr),
+                buf, strlen(buf), (LPDWORD)&written, NULL
+                )) {
+            if (bufheap)
+                free(buf);
+            return -1;
+        }
+    } else {
+        int result = -1;
+        if ((result = fprintf(printfile, "%s", buf)) < 0) {
+            if (bufheap)
+                free(buf);
+        }
+        written = result;
+    }
+    if (bufheap)
+        free(buf);
+    if (written < strlen(buf))
+        return written;
+    return strlen(buf);
     #else
     #if defined(__LINUX__) || defined(__linux__)
     locale_t old = uselocale(h64locale);
-    int result = vprintf(format, vl);
+    int result = vfprintf(printfile, format, vl);
     uselocale(old);
     return result;
     #else
-    return vprintf_l(h64locale, format, vl);
+    return vprintf_l(printfile, h64locale, format, vl);
     #endif
     #endif
+}
+
+ATTR_UNUSED static inline int h64printf(const char *format, ...) {
+    va_list vl;
+    va_start(vl, format);
+    return _doprintf(stdout, format, vl);
+}
+
+ATTR_UNUSED static inline int h64fprintf(
+        FILE *tgfd, const char *format, ...
+        ) {
+    va_list vl;
+    va_start(vl, format);
+    return _doprintf(tgfd, format, vl);
 }
 
 ATTR_UNUSED static inline int h64casecmp(

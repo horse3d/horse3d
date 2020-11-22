@@ -15,8 +15,8 @@
 #include <time.h>
 
 #include "corelib/errors.h"
+#include "corelib/time.h"
 #include "datetime.h"
-#include "process.h"
 #include "stack.h"
 #include "vmexec.h"
 

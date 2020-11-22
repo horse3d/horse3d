@@ -2439,7 +2439,7 @@ int ast_ParseExprInline(
 
     #if defined(H64AST_DEBUG)
     char describebuf[64];
-    printf("horsec: debug: GREEDY PARSE FROM %d %s\n", 0,
+    h64printf("horsec: debug: GREEDY PARSE FROM %d %s\n", 0,
          _describetoken(describebuf,
              context->tokenstreaminfo, tokens, 0));
     #endif
@@ -5213,11 +5213,13 @@ int ast_ParseExprStmt(
             #ifdef H64AST_DEBUG
             char dbuf[64];
             char *lhandside = ast_ExpressionToJSONStr(innerexpr, NULL);
-            printf("horsec: debug: checking statement with lvalue %s, "
-                   "we're at token %d -> %s\n",
-                   lhandside, i,
-                   _describetoken(dbuf,
-                        context->tokenstreaminfo, tokens, i));
+            h64printf(
+                "horsec: debug: checking statement with lvalue %s, "
+                "we're at token %d -> %s\n",
+                lhandside, i,
+                _describetoken(dbuf,
+                        context->tokenstreaminfo, tokens, i)
+            );
             if (lhandside) free(lhandside);
             #endif
 

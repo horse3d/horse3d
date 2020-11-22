@@ -9,10 +9,10 @@
 #include <string.h>
 
 #include "corelib/errors.h"
+#include "corelib/system.h"
 #include "osinfo.h"
 #include "poolalloc.h"
 #include "stack.h"
-#include "system.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
 #include "vmstrings.h"

@@ -4,47 +4,34 @@
 
 #include "compileconfig.h"
 
-#include <stdint.h>
 #ifndef ISWIN
 #if defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(__WIN32__)
 #define ISWIN
-#define _WIN32_WINNT 0x0501
-#if defined __MINGW_H
-#define _WIN32_IE 0x0400
-#endif
 #endif
 #endif
 
+#include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <inttypes.h>
 #if defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
-#else
-#include <sys/socket.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <sched.h>
-#endif
-#if defined(__linux__) || defined(linux) || defined(__linux)
-#include <linux/sched.h>
-#endif
-
-
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
-#ifdef ISWIN
 #include <process.h>
 #include <winsock2.h>
 #include <windows.h>
 #else
 #include <errno.h>
 #include <pthread.h>
+#include <unistd.h>
+#include <sched.h>
 #include <semaphore.h>
+#include <sys/socket.h>
+#include <sys/syscall.h>
+#endif
+#if defined(__linux__) || defined(linux) || defined(__linux)
+#include <linux/sched.h>
 #endif
 
 #include "datetime.h"

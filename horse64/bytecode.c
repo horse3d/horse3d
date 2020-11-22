@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stddef.h>
@@ -16,6 +18,7 @@
 #include "corelib/moduleless.h"
 #include "gcvalue.h"
 #include "hash.h"
+#include "nonlocale.h"
 #include "uri.h"
 
 
@@ -138,7 +141,7 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
     case H64INST_HASATTRJUMP:
         return _name_itype_hasattrjump;
     default:
-        fprintf(stderr, "bytecode_InstructionTypeToStr: called "
+        h64fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
         return _name_itype_invalid;
     }
@@ -431,11 +434,11 @@ attridx_t h64program_LookupClassAttributeByName(
 
 void h64program_PrintBytecodeStats(h64program *p) {
     char _prefix[] = "horsec: info:";
-    printf("%s bytecode func count: %" PRId64 "\n",
+    h64printf("%s bytecode func count: %" PRId64 "\n",
            _prefix, (int64_t)p->func_count);
-    printf("%s bytecode global vars count: %" PRId64 "\n",
+    h64printf("%s bytecode global vars count: %" PRId64 "\n",
            _prefix, (int64_t)p->globals_count);
-    printf("%s bytecode class count: %" PRId64 "\n",
+    h64printf("%s bytecode class count: %" PRId64 "\n",
            _prefix, (int64_t)p->classes_count);
     {
         funcid_t i = 0;
@@ -454,18 +457,18 @@ void h64program_PrintBytecodeStats(h64program *p) {
             }
             char associatedclass[64] = "";
             if (p->func[i].associated_class_index >= 0) {
-                snprintf(
+                h64snprintf(
                     associatedclass, sizeof(associatedclass) - 1,
                     " (CLASS: %d)", p->func[i].associated_class_index
                 );
             }
             char instructioninfo[64] = "";
             if (!p->func[i].iscfunc && p->func[i].instructions_bytes > 0) {
-                snprintf(instructioninfo, sizeof(instructioninfo),
+                h64snprintf(instructioninfo, sizeof(instructioninfo),
                     " code: %" PRId64 "B",
                     (int64_t)p->func[i].instructions_bytes);
             }
-            printf(
+            h64printf(
                 "%s bytecode func id=%" PRId64 " "
                 "name: \"%s\" cfunction: %d%s%s%s\n",
                 _prefix, (int64_t)i, name, p->func[i].iscfunc,
@@ -489,7 +492,7 @@ void h64program_PrintBytecodeStats(h64program *p) {
                 assert(csymbol != NULL && csymbol->name != NULL);
                 name = csymbol->name;
             }
-            printf(
+            h64printf(
                 "%s bytecode class id=%" PRId64 " "
                 "name: \"%s\"\n",
                 _prefix, (int64_t)i, name
@@ -606,7 +609,7 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
     case H64INST_HASATTRJUMP:
         return sizeof(h64instruction_hasattrjump);
     default:
-        fprintf(
+        h64fprintf(
             stderr, "Invalid inst type for "
             "h64program_PtrToInstructionSize: %d\n",
             (int)inst->type

@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #define _FILE_OFFSET_BITS 64
 #define __USE_LARGEFILE64
 #define _LARGEFILE_SOURCE
@@ -22,6 +24,7 @@
 #include <string.h>
 
 #include "filesys.h"
+#include "nonlocale.h"
 #include "vfs.h"
 
 //#define DEBUG_VFS
@@ -213,11 +216,11 @@ int vfs_AddPak(const char *path) {
                    ".h64pak", strlen(".h64pak")) != 0)
         return 0;
     #if defined(DEBUG_VFS) && !defined(NDEBUG)
-    printf("horse64/vfs.c: debug: "
+    h64printf("horse64/vfs.c: debug: "
            "adding resource pack: %s\n", path);
     #endif
     if (!PHYSFS_mount(path, "/", 1)) {
-        fprintf(stderr,
+        h64fprintf(stderr,
             "horse64/vfs.c: warning: "
             "failed to add resource pack: %s\n", path
         );

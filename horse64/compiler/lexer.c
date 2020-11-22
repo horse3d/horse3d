@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -1530,20 +1532,20 @@ jsonvalue *lexer_TokenToJSON(h64token *t, const char *fileuri) {
 }
 
 void lexer_DebugPrintTokens(h64token *t, int count) {
-    printf("horsec: debug: tokens:");
+    h64printf("horsec: debug: tokens:");
     int i = 0;
     while (i < count) {
-        printf(" %s", lexer_TokenTypeToStr(t[i].type));
+        h64printf(" %s", lexer_TokenTypeToStr(t[i].type));
         if (t[i].type == H64TK_CONSTANT_INT) {
-            printf("(%" PRId64 ")", t[i].int_value);
+            h64printf("(%" PRId64 ")", t[i].int_value);
         } else if (t[i].type == H64TK_CONSTANT_STRING) {
-            printf("(\"%s\")", t[i].str_value);
+            h64printf("(\"%s\")", t[i].str_value);
         } else if (t[i].type == H64TK_IDENTIFIER) {
-            printf("(%s)", t[i].str_value);
+            h64printf("(%s)", t[i].str_value);
         } else if (t[i].type == H64TK_BINOPSYMBOL) {
-            printf("(\"%s\")", operator_OpPrintedAsStr(t[i].int_value));
+            h64printf("(\"%s\")", operator_OpPrintedAsStr(t[i].int_value));
         }
         i++;
     }
-    printf("\n");
+    h64printf("\n");
 }

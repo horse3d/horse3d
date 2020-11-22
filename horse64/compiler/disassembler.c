@@ -17,6 +17,7 @@
 #include "compiler/disassembler.h"
 #include "compiler/globallimits.h"
 #include "compiler/operator.h"
+#include "nonlocale.h"
 #include "widechar.h"
 
 typedef struct dinfo dinfo;
@@ -40,7 +41,7 @@ static inline int disassembler_Write(
     buffer[buflen - 1] = '\0';
     va_end(args);
     if (di->tostdout) {
-        printf("%s", buffer);
+        h64printf("%s", buffer);
     } else if (di->pr) {
         if (!di->pr(di, buffer, di->userdata)) {
             free(buffer);

@@ -5,6 +5,7 @@
 
 #include "compileconfig.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -15,11 +16,20 @@
 #include "horse64/compiler/main.h"
 #include "horse64/packageversion.h"
 #include "filesys.h"
+#include "nonlocale.h"
 #include "vfs.h"
 #include "widechar.h"
 
 
 #define NOBETTERARGPARSE 1
+
+int main_TryRunAttachedProgram(
+        int *wasrun,
+        int argc, const char **argv
+        ) {
+    *wasrun = 0;
+    return 0;
+}
 
 #if defined(_WIN32) || defined(_WIN64)
 int _actualmain(int argc, const char **argv) {
@@ -29,9 +39,20 @@ int main(int argc, const char **argv) {
     #if defined(_WIN32) || defined(_WIN64)
     _setmode(_fileno(stdin), O_BINARY);
     #endif
+    char *exepath = filesys_GetOwnExecutable();
+    vfs_Init(exepath ? exepath : argv[0]);
+    free(exepath);
 
-    vfs_Init(argv[0]);
+    // See if we have a program attached to run:
+    int wasrun = 0;
+    int result = main_TryRunAttachedProgram(
+        &wasrun, argc, argv
+    );
+    if (wasrun)
+        return result;
 
+    // Ok, run as standalone horsec instead:
+    _windows_ForceTerminalMode();
     int doubledash_seen = 0;
     const char *action = NULL;
     int action_offset = -1;
@@ -47,32 +68,32 @@ int main(int argc, const char **argv) {
                     strcmp(argv[i], "--help") == 0 ||
                     strcmp(argv[i], "-?") == 0 ||
                     strcmp(argv[i], "/?") == 0) {
-                printf("Usage: horsec [action] "
-                       "[...options + arguments...]\n");
-                printf("\n");
-                printf("Available actions:\n");
-                printf("  - \"codeinfo\"          "
-                       "Compile .h64 code and "
-                       "show overview info of bytecode.\n");
-                printf("  - \"compile\"           "
-                       "Compile .h64 code "
-                       "and output executable.\n");
-                printf("  - \"get_asm\"           "
-                       "Translate to .hasm\n");
-                printf("  - \"get_ast\"           "
-                       "Get AST of code\n");
-                printf("  - \"get_resolved_ast\"  "
-                       "Get AST of code with resolved identifiers\n");
-                printf("  - \"get_tokens\"        "
-                       "Get Tokenization of code\n");
-                printf("  - \"run\"               "
-                       "Compile .h64 code, and "
-                       "run it immediately.\n");
+                h64printf("Usage: horsec [action] "
+                          "[...options + arguments...]\n");
+                h64printf("\n");
+                h64printf("Available actions:\n");
+                h64printf("  - \"codeinfo\"          "
+                          "Compile .h64 code and "
+                          "show overview info of bytecode.\n");
+                h64printf("  - \"compile\"           "
+                          "Compile .h64 code "
+                          "and output executable.\n");
+                h64printf("  - \"get_asm\"           "
+                          "Translate to .hasm\n");
+                h64printf("  - \"get_ast\"           "
+                          "Get AST of code\n");
+                h64printf("  - \"get_resolved_ast\"  "
+                          "Get AST of code with resolved identifiers\n");
+                h64printf("  - \"get_tokens\"        "
+                          "Get Tokenization of code\n");
+                h64printf("  - \"run\"               "
+                          "Compile .h64 code, and "
+                          "run it immediately.\n");
                 return 0;
             }
             if (strcmp(argv[i], "--version") == 0 ||
                     strcmp(argv[i], "-V") == 0) {
-                printf(
+                h64printf(
                     "org.horse64.core with horsec/horsevm\n"
                     "\n"
                     "   Corelib version:   %s\n"
@@ -102,15 +123,17 @@ int main(int argc, const char **argv) {
                 break;
             } else if (!action && argv[i][0] != '-' &&
                        argv[i][0] != '/') {
-                fprintf(stderr, "horsecc: error: unknown action, "
-                    "try --help: \"%s\"\n", argv[i]);
+                h64fprintf(
+                    stderr, "horsecc: error: unknown action, "
+                    "try --help: \"%s\"\n", argv[i]
+                );
                 return -1;
             }
         }
         i++;
     }
     if (!action) {
-        fprintf(stderr, "horsecc: error: need action, "
+        h64fprintf(stderr, "horsecc: error: need action, "
             "like horsecc run. See horsecc --help\n");
         return -1;
     }
@@ -146,7 +169,6 @@ int main(int argc, const char **argv) {
     return return_value;
 }
 
-
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 static int str_is_spaces(const char *s) {
@@ -162,7 +184,6 @@ static int str_is_spaces(const char *s) {
     return 1;
 }
 
-
 int WINAPI WinMain(
         ATTR_UNUSED HINSTANCE hInst, ATTR_UNUSED HINSTANCE hPrev,
         ATTR_UNUSED LPSTR szCmdLine, ATTR_UNUSED int sw
@@ -171,26 +192,13 @@ int WINAPI WinMain(
 
     // Shoddy argument splitting based on GetCommandLineW()
 
-    int argc = 1;
+    int argc = 0;
     LPWSTR *_winSplitList = NULL;
     int _winSplitCount = 0;
     char **argv = malloc(sizeof(*argv));
     if (!argv)
         return 1;
-    char *execfullpath = filesys_GetOwnExecutable();
-    char *execname = NULL;
-    if (execfullpath) {
-        char *execname = filesys_Basename(execfullpath);
-        free(execfullpath);
-        execfullpath = NULL;
-    }
-    if (execname) {
-        argv[0] = strdup(execname);
-    } else {
-        argv[0] = strdup("horsec.exe");
-    }
-    if (!argv[0])
-        goto oom;
+    argv[0] = NULL;
 
     _winSplitList = CommandLineToArgvW(
         GetCommandLineW(), &_winSplitCount
@@ -204,25 +212,25 @@ int WINAPI WinMain(
             i++;
         }
         free(argv);
-        fprintf(stderr, "horsevm: error: arg alloc or convert "
-            "failure");
+        h64fprintf(
+            stderr, "horsevm: error: arg alloc or convert "
+            "failure"
+        );
         return 1;
     }
     if (_winSplitCount > 0) {
         char **argv_new = realloc(
-            argv, sizeof(*argv) * (_winSplitCount + 1)
+            argv, sizeof(*argv) * (_winSplitCount)
         );
         if (!argv_new)
             goto oom;
         argv = argv_new;
-        memset(argv[1], 0, sizeof(*argv) * (_winSplitCount));
+        memset(&argv[0], 0, sizeof(*argv) * (_winSplitCount));
         argc += _winSplitCount;
         int k = 0;
         while (k < _winSplitCount) {
             int argbuflen = wcslen(_winSplitList[k]) * 10 + 1;
-            char *argbuf = malloc(
-                argbuflen
-            );
+            char *argbuf = malloc(argbuflen);
             if (!argbuf)
                 goto oom;
             int64_t out_len = 0;
@@ -231,14 +239,14 @@ int WINAPI WinMain(
                     argbuf, argbuflen - 1, &out_len, 1
                    ) || out_len >= argbuflen)
                 goto oom;
-            argbuf[argbuflen] = '\0';
-            argv[k + 1] = argbuf;
+            argbuf[argbuflen - 1] = '\0';
+            assert(k < argc);
+            argv[k] = argbuf;
             k++;
         }
     }
     LocalFree(_winSplitList);
     _winSplitList = NULL;
-
     int result = _actualmain(argc, (const char**) argv);
     int k = 0;
     while (k < argc) {
@@ -249,12 +257,12 @@ int WINAPI WinMain(
     return result;
     #else
 
-    // Unix-style arg parsing
+    // Unix-style arg parsing:
 
     char **argv = malloc(sizeof(*argv));
     if (!argv) {
         oom:
-        fprintf(stderr, "horsevm: error: arg alloc or convert "
+        h64fprintf(stderr, "horsevm: error: arg alloc or convert "
             "failure");
         return 1;
     }
@@ -284,7 +292,7 @@ int WINAPI WinMain(
                 goto oom;
             int64_t out_len = 0;
             if (!utf16_to_utf8(
-                    _winSplitList[k], strlen(_winSplitList[k]),
+                    wcharCmdLine, wcslen(wcharCmdLine),
                     argline, arglinebytes - 1, &out_len, 1
                     ) || out_len >= arglinebytes)
                 goto oom;

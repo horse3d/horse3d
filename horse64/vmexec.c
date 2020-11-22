@@ -20,6 +20,7 @@
 #include "datetime.h"
 #include "debugsymbols.h"
 #include "gcvalue.h"
+#include "nonlocale.h"
 #include "poolalloc.h"
 #include "stack.h"
 #include "vmexec.h"
@@ -39,7 +40,7 @@ void vmthread_SetSuspendState(
     assert(vmthread->vmexec_owner != NULL);
     #ifndef NDEBUG
     if (vmthread->vmexec_owner->moptions.vmscheduler_debug)
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: debug: vmschedule.c: "
             "[t%p:%s] STATE of thread suspend "
             "changed %d -> %d"
@@ -84,13 +85,13 @@ void vmthread_SetSuspendState(
     }
     #ifndef NDEBUG
     if (vmthread->vmexec_owner->moptions.vmscheduler_verbose_debug) {
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: debug: vmschedule.c: THREAD STATES:"
         );
         int i = 0;
         while (i < vmthread->vmexec_owner->thread_count) {
             h64vmthread *vth = vmthread->vmexec_owner->thread[i];
-            fprintf(stderr,
+            h64fprintf(stderr,
                 " [t%p:%s]->%d(arg: %" PRId64 ","
                 "resume ptr:%p,"
                 "resume->func_id:%" PRId64 ","
@@ -105,7 +106,7 @@ void vmthread_SetSuspendState(
             );
             i++;
         }
-        fprintf(stderr, "\n");
+        h64fprintf(stderr, "\n");
     }
     #endif
 }
@@ -321,7 +322,7 @@ static int vmthread_PrintExec(
         ) {
     char *_s = disassembler_InstructionToStr(inst);
     if (!_s) return 0;
-    fprintf(
+    h64fprintf(
         stderr, "horsevm: debug: vmexec [t%p:%s] "
         "f:%" PRId64 " "
         "o:%" PRId64 " st:%" PRId64 "/%" PRId64 " %s\n",
@@ -371,7 +372,7 @@ static inline int popfuncframe(
     if (!dontresizestack) {
         #if defined(DEBUGVMEXEC)
         if (moptions->vmexec_debug)
-            fprintf(
+            h64fprintf(
                 stderr, "horsevm: debug: vmexec [t%p:%s] (stack "
                 "resize back to old func frame %" PRId64 " at %p: "
                 "%" PRId64 ", with restore_stack_size %" PRId64
@@ -402,7 +403,7 @@ static inline int popfuncframe(
     vt->funcframe_count -= 1;
     #ifndef NDEBUG
     if (vt->vmexec_owner->moptions.vmexec_debug) {
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: debug: vmexec popfuncframe %d -> %d\n",
             vt->funcframe_count + 1, vt->funcframe_count
         );
@@ -422,7 +423,7 @@ static inline int pushfuncframe(
     h64vmexec *vmexec = vt->vmexec_owner;
     #ifndef NDEBUG
     if (vmexec->moptions.vmexec_debug) {
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: debug: vmexec [t%p:%s] "
             "pushfuncframe %d -> %d\n",
             vt, (vt->is_main_thread ? "main" : "nonmain"),
@@ -468,7 +469,7 @@ static inline int pushfuncframe(
     vt->call_settop_reverse = -1;
     #ifndef NDEBUG
     if (vmexec->moptions.vmexec_debug) {
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: debug: vmexec [t%p:%s] "
             "   (return stack size on frame %" PRId64 " at %p: "
             "%" PRId64 ")\n",
@@ -709,7 +710,7 @@ static int vmthread_errors_Raise(
     }
     #ifndef NDEBUG
     if (vmthread->vmexec_owner->moptions.vmexec_debug) {
-        fprintf(stderr,
+        h64fprintf(stderr,
             "horsevm: debug: vmexec vmthread_errors_Raise -> "
             "error class %" PRId64 " with msglen=%d "
             "storemsg=%d (u32str=%d)\n",
@@ -965,19 +966,19 @@ static void vmexec_PrintPreErrorInfo(
             "%s", stderrorclassnames[class_id]
         );
     }
-    fprintf(stderr,
+    h64fprintf(stderr,
         "horsevm: debug: vmexec ** RAISING ERROR %" PRId64
         " (%s) in func %" PRId64 " at offset %" PRId64 "\n",
         class_id, buf, func_id,
         (int64_t)offset
     );
-    fprintf(stderr,
+    h64fprintf(stderr,
         "horsevm: debug: vmexec ** stack total entries: %" PRId64
         ", func stack bottom: %" PRId64 "\n",
         vmthread->stack->entry_count,
         vmthread->stack->current_func_floor
     );
-    fprintf(stderr,
+    h64fprintf(stderr,
         "horsevm: debug: vmexec ** func frame count: %d\n",
         vmthread->funcframe_count
     );
@@ -987,7 +988,7 @@ static void vmexec_PrintPostErrorInfo(
         ATTR_UNUSED h64vmthread *vmthread, ATTR_UNUSED int64_t class_id,
         int64_t func_id, int64_t offset
         ) {
-    fprintf(stderr,
+    h64fprintf(stderr,
         "horsevm: debug: vmexec ** ERROR raised, resuming. (it was in "
         " in func %" PRId64 " at offset %" PRId64 ")\n",
         func_id,
@@ -1029,7 +1030,7 @@ static void vmexec_PrintPostErrorInfo(
         );\
     }\
     if (!raiseresult) {\
-        fprintf(stderr, "Out of memory raising OutOfMemoryError.\n");\
+        h64fprintf(stderr, "Out of memory raising OutOfMemoryError.\n");\
         _exit(1);\
         return 0;\
     }\
@@ -1092,7 +1093,7 @@ static void vmexec_PrintPostErrorInfo(
     DELREF_NONHEAP(suspend_valuecontent); \
     valuecontent_Free(suspend_valuecontent); \
     if (vmexec->moptions.vmscheduler_debug) \
-        fprintf( \
+        h64fprintf( \
             stderr, "horsevm: debug: vmschedule.c: " \
             "[t%p] SUSPEND in func %" PRId64 "\n", \
             start_thread, (int64_t)func_id\
@@ -1113,7 +1114,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     int64_t func_id = rinfo->func_id;
     #ifndef NDEBUG
     if (vmexec->moptions.vmexec_debug)
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: debug: vmexec call "
             "C->h64 func %" PRId64 "\n",
             func_id
@@ -1124,7 +1125,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         isresume = 1;
         #ifndef NDEBUG
         if (vmexec->moptions.vmscheduler_debug) \
-            fprintf( \
+            h64fprintf( \
                 stderr, "horsevm: debug: vmschedule.c: " \
                 "[t%p] %s in func %" PRId64 "\n", \
                 start_thread,
@@ -1174,7 +1175,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     }
     #ifndef NDEBUG
     if (vmexec->moptions.vmexec_debug)
-        fprintf(
+        h64fprintf(
             stderr, "horsevm: debug: vmexec call "
             "C->h64 has stack floor %" PRId64 "\n",
             stack->current_func_floor
@@ -1187,12 +1188,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     goto setupinterpreter;
 
     inst_invalid: {
-        fprintf(stderr, "invalid instruction\n");
+        h64fprintf(stderr, "invalid instruction\n");
         return 0;
     }
     triggeroom: {
         #if defined(DEBUGVMEXEC)
-        fprintf(stderr, "horsevm: debug: vmexec triggeroom\n");
+        h64fprintf(stderr, "horsevm: debug: vmexec triggeroom\n");
         #endif
         RAISE_ERROR(H64STDERROR_OUTOFMEMORYERROR,
                         "Allocation failure");
@@ -1211,7 +1212,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 inst->slot < stack->entry_count -
                 stack->current_func_floor &&
                 stack->alloc_count >= stack->entry_count)) {
-            fprintf(
+            h64fprintf(
                 stderr, "horsevm: error: "
                 "invalid setconst outside of stack, "
                 "stack func floor: %" PRId64
@@ -2172,7 +2173,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             stack->current_func_floor = new_func_floor;
             #ifndef NDEBUG
             if (vmthread->vmexec_owner->moptions.vmexec_debug)
-                fprintf(
+                h64fprintf(
                     stderr, "horsevm: debug: vmexec jump into cfunc "
                     "%" PRId64 "/addr=%p with floor %" PRId64
                     " (via call)\n",
@@ -2288,7 +2289,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             funcnestdepth++;
             #ifndef NDEBUG
             if (vmthread->vmexec_owner->moptions.vmexec_debug)
-                fprintf(
+                h64fprintf(
                     stderr, "horsevm: debug: vmexec jump into "
                     "h64 func %" PRId64 " (via call)\n",
                     (int64_t)target_func_id
@@ -2372,7 +2373,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #ifndef NDEBUG
         if (funcnestdepth <= 1 &&
                 stack->entry_count - current_stack_size != 0) {
-            fprintf(
+            h64fprintf(
                 stderr, "horsevm: error: "
                 "stack total count %" PRId64 " before return, "
                 "current func's input+inner stack %d+%d, "
@@ -2442,7 +2443,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             // We cannot really recover from this.
             if (returneduncaughterror)
                 *returneduncaughterror = 0;
-            fprintf(
+            h64fprintf(
                 stderr,
                 "horsevm: error: unexpectedly failed to remove "
                 "function frame - out of memory?\n"
@@ -2473,7 +2474,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug) {
-            fprintf(
+            h64fprintf(
                 stderr, "horsevm: debug: vmexec "
                 "left func %" PRId64
                 " -> to func %" PRId64 " with stack size %" PRId64 " "
@@ -2487,7 +2488,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_jumptarget: {
-        fprintf(stderr, "jumptarget instruction "
+        h64fprintf(stderr, "jumptarget instruction "
             "not valid in final bytecode\n");
         return 0;
     }
@@ -2538,11 +2539,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_newiterator: {
-        fprintf(stderr, "newiterator not implemented\n");
+        h64fprintf(stderr, "newiterator not implemented\n");
         return 0;
     }
     inst_iterate: {
-        fprintf(stderr, "iterate not implemented\n");
+        h64fprintf(stderr, "iterate not implemented\n");
         return 0;
     }
     inst_pushrescueframe: {
@@ -2640,11 +2641,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_addrescuetypebyref: {
-        fprintf(stderr, "INVALID isolated addrescuetypebyref!!\n");
+        h64fprintf(stderr, "INVALID isolated addrescuetypebyref!!\n");
         return 0;
     }
     inst_addrescuetype: {
-        fprintf(stderr, "INVALID isolated addrescuetype!!\n");
+        h64fprintf(stderr, "INVALID isolated addrescuetype!!\n");
         return 0;
     }
     inst_poprescueframe: {
@@ -3064,15 +3065,15 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_newset: {
-        fprintf(stderr, "newset not implemented\n");
+        h64fprintf(stderr, "newset not implemented\n");
         return 0;
     }
     inst_newmap: {
-        fprintf(stderr, "newmap not implemented\n");
+        h64fprintf(stderr, "newmap not implemented\n");
         return 0;
     }
     inst_newvector: {
-        fprintf(stderr, "newvector not implemented\n");
+        h64fprintf(stderr, "newvector not implemented\n");
         return 0;
     }
     {
@@ -3200,7 +3201,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 // Enter function:
                 #ifndef NDEBUG
                 if (vmthread->vmexec_owner->moptions.vmexec_debug)
-                    fprintf(
+                    h64fprintf(
                         stderr, "horsevm: debug: vmexec jump into "
                         "h64 func %" PRId64 " (via %s/$$varinit)\n",
                         (int64_t)varinit_func_id,
@@ -3298,11 +3299,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_awaititem: {
-        fprintf(stderr, "awaititem not implemented\n");
+        h64fprintf(stderr, "awaititem not implemented\n");
         return 0;
     }
     inst_createpipe: {
-        fprintf(stderr, "createpipe not implemented\n");
+        h64fprintf(stderr, "createpipe not implemented\n");
         return 0;
     }
     inst_hasattrjump: {

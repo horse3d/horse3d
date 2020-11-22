@@ -83,7 +83,7 @@ h64compileproject *compileproject_New(
     }
 
     #ifdef DEBUG_COMPILEPROJECT
-    printf("horsec: debug: compileproject_New -> %p\n", pr);
+    h64printf("horsec: debug: compileproject_New -> %p\n", pr);
     #endif
 
     return pr;
@@ -201,8 +201,8 @@ int compileproject_GetAST(
     }
 
     #ifdef DEBUG_COMPILEPROJECT
-    printf("horsec: debug: compileproject_GetAST -> parsing %s\n",
-           absfilepath);
+    h64printf("horsec: debug: compileproject_GetAST -> parsing %s\n",
+              absfilepath);
     #endif
 
     h64ast *result = codemodule_GetASTUncached(

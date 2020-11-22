@@ -21,6 +21,7 @@
 #include "compiler/varstorage.h"
 #include "corelib/errors.h"
 #include "hash.h"
+#include "nonlocale.h"
 #include "widechar.h"
 
 
@@ -535,13 +536,13 @@ static int _codegen_call_to(
             _reachedkwargs = 1;
         #ifndef NDEBUG
         if (callexpr->inlinecall.arguments.arg_value == NULL) {
-            printf(
+            h64printf(
                 "horsec: error: internal error: "
                 "invalid call expression with arg count > 0, "
                 "but arg_value array is NULL\n"
             );
             char *s = ast_ExpressionToJSONStr(callexpr, NULL);
-            printf(
+            h64printf(
                 "horsec: error: internal error: "
                 "expr is: %s\n", s
             );

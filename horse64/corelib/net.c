@@ -2,9 +2,11 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #include <assert.h>
 
-#include "process.h"
+#include "corelib/net.h"
 #include "stack.h"
 #include "vmexec.h"
 

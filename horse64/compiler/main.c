@@ -19,6 +19,7 @@
 #include "compiler/scoperesolver.h"
 #include "filesys.h"
 #include "json.h"
+#include "nonlocale.h"
 #include "uri.h"
 #include "vmexec.h"
 #include "vmschedule.h"
@@ -76,38 +77,53 @@ static int _compileargparse(
                 *fileuriorexec = strdup(argv[i]);
             }
             if (!*fileuriorexec) {
-                fprintf(stderr, "horsec: error: "
+                h64fprintf(stderr, "horsec: error: "
                     "out of memory parsing arguments");
                 return 0;
             }
         } else if (strcmp(argv[i], "--") == 0) {
             doubledashed = 1;
         } else if (strcmp(argv[i], "--help") == 0) {
-            printf("horsec %s [options] file-path\n", cmd);
-            printf("   with file-path referring to a .h64 file.\n");
-            printf("\n");
-            printf("Available options:\n");
+            h64printf("horsec %s [options] %s\n", cmd,
+                (strcmp(cmd, "exec") != 0 ? "file-path" : "code"));
+            if (strcmp(cmd, "exec") != 0) {
+                h64printf("   with file-path referring to a .h64 file.\n");
+            } else {
+                h64printf("   with code being literal horse64 code.\n");
+            }
+            h64printf("\n");
+            h64printf("Available options:\n");
             if (strcmp(cmd, "get_tokens") != 0 &&
                     strcmp(cmd, "get_ast") != 0) {
-                printf("  --import-debug:          Print details on import "
-                       "resolution\n");
+                h64printf(
+                    "  --import-debug:          Print details on import "
+                    "resolution\n"
+                );
             }
-            printf(    "  --compiler-stage-debug:  "
+            h64printf(    "  --compiler-stage-debug:  "
                 "Print compiler stages info\n");
             if (strcmp(cmd, "run") == 0 || strcmp(cmd, "exec") == 0) {
-                printf("  --vmexec-debug:          Print instructions "
-                       "as they run\n");
-                printf("  --vmsched-debug:         Print info about "
-                       "horsevm scheduling\n");
-                printf("  --vmsched-verbose-debug: Extra detailed horsevm "
-                       "scheduler info\n");
+                h64printf(
+                    "  --vmexec-debug:          Print instructions "
+                    "as they run\n"
+                );
+                h64printf(
+                    "  --vmsched-debug:         Print info about "
+                    "horsevm scheduling\n"
+                );
+                h64printf(
+                    "  --vmsched-verbose-debug: Extra detailed horsevm "
+                    "scheduler info\n"
+                );
             }
             if (strcmp(cmd, "run") == 0 || strcmp(cmd, "exec") == 0 ||
                     strcmp(cmd, "compile") == 0 ||
                     strcmp(cmd, "get_asm") == 0 ||
                     strcmp(cmd, "codeinfo") == 0) {
-                printf("  --from-stdin:            Take code input from stdin "
-                       "instead\n");
+                h64printf(
+                    "  --from-stdin:            Take code input from stdin "
+                    "instead\n"
+                );
             }
             if (*fileuriorexec)
                 free(*fileuriorexec);
@@ -122,7 +138,7 @@ static int _compileargparse(
                 )) {
             if (*fileuriorexec != NULL) {
                 invalidbothfileargandfromstdin:
-                fprintf(stderr, "horsec: error: %s: "
+                h64fprintf(stderr, "horsec: error: %s: "
                     "cannot specify file argument but also "
                     "--from-stdin\n", cmd);
                 if (*fileuriorexec)
@@ -140,16 +156,20 @@ static int _compileargparse(
                 strcmp(argv[i], "--vmexec-debug") == 0) {
             miscoptions->vmexec_debug = 1;
             #ifdef NDEBUG
-            fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
-                "output for --vmexec-debug not compiled in\n", cmd);
+            h64fprintf(
+                stderr, "horsec: warning: %s: compiled with NDEBUG, "
+                "output for --vmexec-debug not compiled in\n", cmd
+            );
             #endif
         } else if ((strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0) &&
                 strcmp(argv[i], "--vmsched-debug") == 0) {
             miscoptions->vmscheduler_debug = 1;
             #ifdef NDEBUG
-            fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
-                "output for --vmsched-debug not compiled in\n", cmd);
+            h64fprintf(
+                stderr, "horsec: warning: %s: compiled with NDEBUG, "
+                "output for --vmsched-debug not compiled in\n", cmd
+            );
             #endif
         } else if ((strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0) &&
@@ -157,8 +177,10 @@ static int _compileargparse(
             miscoptions->vmscheduler_debug = 1;
             miscoptions->vmscheduler_verbose_debug = 1;
             #ifdef NDEBUG
-            fprintf(stderr, "horsec: warning: %s: compiled with NDEBUG, "
-                "output for --vmsched-verbose-debug not compiled in\n", cmd);
+            h64fprintf(
+                stderr, "horsec: warning: %s: compiled with NDEBUG, "
+                "output for --vmsched-verbose-debug not compiled in\n", cmd
+            );
             #endif
         } else if (strcmp(argv[i], "--compiler-stage-debug") == 0) {
             miscoptions->compiler_stage_debug = 1;
@@ -166,14 +188,18 @@ static int _compileargparse(
                 argv[i][1] == 'W') {
             if (!warningconfig_CheckOption(
                     wconfig, argv[i])) {
-                fprintf(stderr, "horsec: warning: %s: unrecognized warning "
-                    "option: %s\n", cmd, argv[i]);
+                h64fprintf(
+                    stderr, "horsec: warning: %s: unrecognized warning "
+                    "option: %s\n", cmd, argv[i]
+                );
             }
             i++;
             continue;
         } else {
-            fprintf(stderr, "horsec: error: %s: unrecognized option: %s\n",
-                    cmd, argv[i]);
+            h64fprintf(
+                stderr, "horsec: error: %s: unrecognized option: %s\n",
+                cmd, argv[i]
+            );
             if (*fileuriorexec)
                 free(*fileuriorexec);
             *fileuriorexec = NULL;
@@ -182,8 +208,9 @@ static int _compileargparse(
         i++;
     }
     if (!*fileuriorexec && !miscoptions->from_stdin) {
-        fprintf(stderr,
-            "horsec: error: %s: need argument \"file\"\n", cmd);
+        h64fprintf(stderr,
+            "horsec: error: %s: need argument \"file\"\n", cmd
+        );
         return 0;
     }
     return 1;
@@ -203,7 +230,7 @@ static void printmsg(
     FILE *output_fd = stderr;
     if (msg->type == H64MSG_INFO)
         output_fd = stdout;
-    fprintf(output_fd,
+    h64fprintf(output_fd,
         "horsec: %s: ", verb
     );
     const char *fileuri = (msg->fileuri ? msg->fileuri : result->fileuri);
@@ -227,15 +254,15 @@ static void printmsg(
         }
     }
     if (fileuri) {
-        fprintf(output_fd, "%s", fileuri);
+        h64fprintf(output_fd, "%s", fileuri);
         if (msg->line >= 0) {
-            fprintf(output_fd, ":%" PRId64, msg->line);
+            h64fprintf(output_fd, ":%" PRId64, msg->line);
             if (msg->column >= 0)
-                fprintf(output_fd, ":%" PRId64, msg->column);
+                h64fprintf(output_fd, ":%" PRId64, msg->column);
         }
-        fprintf(output_fd, ": ");
+        h64fprintf(output_fd, ": ");
     }
-    fprintf(output_fd, "%s\n", msg->message);
+    h64fprintf(output_fd, "%s\n", msg->message);
 }
 
 #define COMPILEEX_MODE_COMPILE 1
@@ -283,7 +310,9 @@ int compiler_command_CompileEx(
             char *buf = malloc(bufsize);
             if (!buf) {
                 free(fileuriorexec);
-                fprintf(stderr, "horsec: error: OOM reading from stdin\n");
+                h64fprintf(
+                    stderr, "horsec: error: OOM reading from stdin\n"
+                );
                 return 0;
             }
             while (!feof(stdin) && !ferror(stdin)) {
@@ -292,7 +321,7 @@ int compiler_command_CompileEx(
                     char *newbuf = realloc(buf, newbufsize);
                     if (!newbuf) {
                         free(fileuriorexec);
-                        fprintf(stderr, "horsec: error: "
+                        h64fprintf(stderr, "horsec: error: "
                             "OOM reading from stdin\n");
                         return 0;
                     }
@@ -315,7 +344,7 @@ int compiler_command_CompileEx(
         if (!tempfile) {
             assert(tempfilefolder == NULL);
             free(fileuriorexec);
-            fprintf(stderr, "horsec: error: out of memory or "
+            h64fprintf(stderr, "horsec: error: out of memory or "
                 "internal error with temporary file\n");
             return 0;
         }
@@ -324,7 +353,7 @@ int compiler_command_CompileEx(
         );
         if (written < (ssize_t)strlen(execarg)) {
             fclose(tempfile);
-            fprintf(stderr, "horsec: error: input/output error "
+            h64fprintf(stderr, "horsec: error: input/output error "
                 "with temporary file\n");
             goto freeanderrorquit;
         }
@@ -333,7 +362,7 @@ int compiler_command_CompileEx(
             tempfilepath, 1
         );
         if (!fileuri) {
-            fprintf(stderr, "horsec: error: out of memory or "
+            h64fprintf(stderr, "horsec: error: out of memory or "
                 "internal error with temporary file\n");
             freeanderrorquit:
             if (tempfilepath) {
@@ -361,22 +390,22 @@ int compiler_command_CompileEx(
         project_folder_uri = strdup(tempfilefolder);
     }
     if (!project_folder_uri) {
-        fprintf(stderr, "horsec: error: %s: %s\n",
-                command, (error ? error : "out of memory"));
+        h64fprintf(stderr, "horsec: error: %s: %s\n",
+                   command, (error ? error : "out of memory"));
         goto freeanderrorquit;
     }
     h64compileproject *project = compileproject_New(project_folder_uri);
     free(project_folder_uri);
     project_folder_uri = NULL;
     if (!project) {
-        fprintf(stderr, "horsec: error: %s: alloc failure\n",
-                command);
+        h64fprintf(stderr, "horsec: error: %s: alloc failure\n",
+                   command);
         goto freeanderrorquit;
     }
     h64ast *ast = NULL;
     if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
-        fprintf(stderr, "horsec: error: %s: %s\n",
-                command, error);
+        h64fprintf(stderr, "horsec: error: %s: %s\n",
+                   command, error);
         free(error);
         compileproject_Free(project);
         goto freeanderrorquit;
@@ -384,8 +413,8 @@ int compiler_command_CompileEx(
     if (!compileproject_CompileAllToBytecode(
             project, &moptions, fileuri, &error
             )) {
-        fprintf(stderr, "horsec: error: %s: %s\n",
-                command, error);
+        h64fprintf(stderr, "horsec: error: %s: %s\n",
+                   command, error);
         free(error);
         compileproject_Free(project);
         goto freeanderrorquit;
@@ -451,11 +480,11 @@ int compiler_command_CompileEx(
                 *return_int = resultcode;
             return 1;
         } else {
-            fprintf(stderr, "horsec: error: "
+            h64fprintf(stderr, "horsec: error: "
                 "not running program due to compile errors\n");
         }
     } else {
-        fprintf(stderr, "horsec: error: internal error: "
+        h64fprintf(stderr, "horsec: error: internal error: "
             "unhandled compile mode %d\n", mode);
     }
     compileproject_Free(project);  // This indirectly frees 'ast'!
@@ -645,12 +674,12 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
     );
     free(fileuri);
     if (!v) {
-        printf("{\"errors\":[{\"message\":\"internal error, "
+        h64printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
         return 0;
     }
     char *s = json_Dump(v);
-    printf("%s\n", s);
+    h64printf("%s\n", s);
     free(s);
     json_Free(v);
     return 1;
@@ -672,12 +701,12 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
     );
     free(fileuri);
     if (!v) {
-        printf("{\"errors\":[{\"message\":\"internal error, "
+        h64printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
         return 0;
     }
     char *s = json_Dump(v);
-    printf("%s\n", s);
+    h64printf("%s\n", s);
     free(s);
     json_Free(v);
     return 1;
@@ -701,12 +730,12 @@ int compiler_command_GetResolvedAST(
     );
     free(fileuri);
     if (!v) {
-        printf("{\"errors\":[{\"message\":\"internal error, "
+        h64printf("{\"errors\":[{\"message\":\"internal error, "
                "JSON construction failed\"}]}\n");
         return 0;
     }
     char *s = json_Dump(v);
-    printf("%s\n", s);
+    h64printf("%s\n", s);
     free(s);
     json_Free(v);
     return 1;
