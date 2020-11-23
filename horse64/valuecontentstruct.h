@@ -31,8 +31,8 @@ typedef enum valuetype {
     H64VALTYPE_TOTAL
 } valuetype;
 
-#define VALUECONTENT_SHORTSTRLEN 3
-#define VALUECONTENT_SHORTBYTESLEN 6
+#define VALUECONTENT_SHORTSTRLEN 2
+#define VALUECONTENT_SHORTBYTESLEN 7
 
 typedef struct h64errorinfo h64errorinfo;
 typedef struct valuecontent valuecontent;
@@ -42,43 +42,38 @@ typedef struct vectorentry vectorentry;
 typedef struct valuecontent {
     uint8_t type;
     union {
-        int64_t int_value;
-        double float_value;
-        void *ptr_value;
-        struct {
+        int64_t int_value;  // 8 bytes
+        double float_value;   // 8 bytes
+        void *ptr_value;   // 4 or 8 bytes
+        struct {   // 9 bytes
             uint8_t shortstr_len;
             h64wchar shortstr_value[
                 VALUECONTENT_SHORTSTRLEN
             ];  // should be 2byte/16bit aligned
         } __attribute__((packed));
-        struct {
+        struct {   // 8 bytes
             uint8_t shortbytes_len;
             h64wchar shortbytes_value[
                 VALUECONTENT_SHORTBYTESLEN
             ];  // should be 2byte/16bit aligned
         } __attribute__((packed));
-        struct {
+        struct {   // 12 bytes
             h64wchar *constpreallocstr_value;
             int32_t constpreallocstr_len;
         } __attribute__((packed));
-        struct {
+        struct {   // 12 bytes
             h64wchar *constpreallocbytes_value;
             int32_t constpreallocbytes_len;
         } __attribute__((packed));
-        struct {
+        struct {   // 12 bytes
             classid_t error_class_id;
             h64errorinfo *einfo;
         } __attribute__((packed));
-        struct {
-            classid_t class_id;
-            int16_t varattr_count;
-            valuecontent *varattr;
-        } __attribute__((packed));
-        struct {
+        struct {  // 12 bytes
             int32_t vector_len;
             vectorentry *vector_values;
         } __attribute__((packed));
-        struct {
+        struct {  // 12 bytes
             int suspend_type;
             int64_t suspend_intarg;
         } __attribute__((packed));

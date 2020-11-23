@@ -1174,12 +1174,18 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         assert(rinfo->funcnestdepth <= 0);
     }
     #ifndef NDEBUG
-    if (vmexec->moptions.vmexec_debug)
+    if (vmexec->moptions.vmexec_debug) {
+        char nd[32];
+        snprintf(nd, sizeof(nd) - 1, "%d", funcnestdepth);
         h64fprintf(
-            stderr, "horsevm: debug: vmexec call "
-            "C->h64 has stack floor %" PRId64 "\n",
-            stack->current_func_floor
+            stderr, "horsevm: debug: vmexec %s "
+            "C->h64 has stack floor %" PRId64 "%s%s\n",
+            (isresume ? "resume" : "call"),
+            stack->current_func_floor,
+            (isresume ? " with resume nest depth " : ""),
+            (isresume ? nd : "")
         );
+    }
     #endif
     h64vmthread *vmthread = start_thread;
     vmexec->active_thread = vmthread;
