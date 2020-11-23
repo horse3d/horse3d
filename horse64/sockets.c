@@ -192,13 +192,9 @@ static void _threadEventAccepter(void *userdata) {
     int conns_count = 0;
     int conns_onheap = 0;
     while (!te->failure) {
-        struct sockaddr_in acceptaddr;
         int acceptfd = -1;
-        socklen_t size = sizeof(acceptaddr);
         if ((acceptfd = accept(
-                te->recv_server->fd,
-                (struct sockaddr*)&acceptaddr,
-                &size
+                te->recv_server->fd, NULL, NULL
                 )) >= 0) {
             if (conns_count + 1 > conns_alloc) {
                 if (conns_onheap) {
@@ -234,7 +230,12 @@ static void _threadEventAccepter(void *userdata) {
             c->fd = acceptfd;
         } else {
             #if defined(_WIN32) || defined(_WIN64)
-
+            uint32_t err = WSAGetLastError();
+            if (err == WSAEFAULT || err == WSANOTINITIALISED ||
+                    err == WSAEINVAL || err == WSAENOTSOCK ||
+                    err == WSAEOPNOTSUPP) {
+                goto failure;
+            }
             #else
             if (errno == EINVAL || errno == ENOMEM ||
                     errno == ENOBUFS || errno == ENOTSOCK) {
