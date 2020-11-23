@@ -22,9 +22,9 @@
 #include "nonlocale.h"
 #include "osinfo.h"
 
-static int cpu_thread_count = 0;
-static int cpu_core_count = 0;
-static int _osinfo_inited = 0;
+static volatile int cpu_thread_count = 0;
+static volatile int cpu_core_count = 0;
+static volatile int _osinfo_inited = 0;
 
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -81,7 +81,7 @@ int _init_cpu_thread_count() {
     while (remainingbytes > 0) {
         SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *cpuinfo =
             (SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*)p;
-        if (cpuinfo->Relationship == 0)
+        if (cpuinfo->Relationship == 3)
             count++;
         p += cpuinfo->Size;
         remainingbytes -= cpuinfo->Size;
@@ -105,7 +105,7 @@ int _init_cpu_core_count() {
     DWORD size = allocsize;
     while (1) {
         if (!GetLogicalProcessorInformationEx(
-                3, (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buf,
+                0, (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buf,
                 &size
                 )) {
             if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)

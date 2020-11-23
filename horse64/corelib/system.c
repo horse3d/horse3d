@@ -99,8 +99,9 @@ int systemlib_cores(
      * @func cores
      * @param physical=false
      *    Whether to return the logical cores of the CPU
-     *    (physical=false, the default), or the physical ones
-     *    (physical=true).
+     *    (physical=false, the default) often referred to
+     *    as CPU threads, or the physical
+     *    ones (physical=true).
      * @returns the processor cores as a @see{number}.
      */
     assert(STACK_TOP(vmthread->stack) >= 1);
