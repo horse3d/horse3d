@@ -572,7 +572,7 @@ int iolib_fileread(
      */
     assert(STACK_TOP(vmthread->stack) >= 2);
 
-    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);  // first closure arg
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
@@ -602,7 +602,7 @@ int iolib_fileread(
         );
     }
 
-    valuecontent *vcamount = STACK_ENTRY(vmthread->stack, 1);
+    valuecontent *vcamount = STACK_ENTRY(vmthread->stack, 0);
     if ((vcamount->type != H64VALTYPE_INT64 &&
             vcamount->type != H64VALTYPE_FLOAT64) &&
             vcamount->type != H64VALTYPE_UNSPECIFIED_KWARG) {
@@ -871,7 +871,7 @@ int iolib_fileseek(
      */
     assert(STACK_TOP(vmthread->stack) >= 2);
 
-    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);  // first closure arg
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
@@ -897,7 +897,7 @@ int iolib_fileseek(
         );
     }
 
-    valuecontent *vcoffset = STACK_ENTRY(vmthread->stack, 1);
+    valuecontent *vcoffset = STACK_ENTRY(vmthread->stack, 0);
     if (vcoffset->type != H64VALTYPE_INT64 &&
             vcoffset->type != H64VALTYPE_FLOAT64) {
         return vmexec_ReturnFuncError(
@@ -950,7 +950,7 @@ int iolib_fileoffset(
      */
     assert(STACK_TOP(vmthread->stack) >= 1);
 
-    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);  // first closure arg
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
@@ -1008,7 +1008,7 @@ int iolib_fileclose(
      */
     assert(STACK_TOP(vmthread->stack) >= 1);
 
-    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);  // first closure arg
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
