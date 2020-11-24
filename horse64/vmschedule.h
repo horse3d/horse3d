@@ -69,7 +69,8 @@ void vmschedule_FreeWorkerSet(
 
 int vmschedule_AsyncScheduleFunc(
     h64vmexec *vmexec, h64vmthread *vmthread,
-    int64_t new_func_floor, int64_t func_id
+    int64_t new_func_floor, int64_t func_id,
+    int parallel
 );
 
 int vmschedule_SuspendFunc(

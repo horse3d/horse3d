@@ -69,17 +69,25 @@ static void _printuncaughterror(
 
 int vmschedule_AsyncScheduleFunc(
         h64vmexec *vmexec, h64vmthread *vmthread,
-        int64_t new_func_floor, int64_t func_id
+        int64_t new_func_floor, int64_t func_id,
+        int parallel
         ) {
     mutex *access_mutex = (
         vmexec->worker_overview->worker_mutex
     );
     mutex_Lock(access_mutex);
-    h64vmthread *newthread = vmthread_New(vmexec);
+    h64vmthread *newthread = vmthread_New(vmexec, !parallel);
     mutex_Release(access_mutex);
     if (!newthread) {
         return 0;
     }
+    assert(
+        func_id >= 0 &&
+        func_id < vmexec->program->func_count
+    );
+    assert(
+        !parallel || vmexec->program->func[func_id].is_threadable
+    );
     int64_t func_slots = STACK_TOTALSIZE(vmthread->stack) - new_func_floor;
     if (!stack_ToSize(
             newthread->stack, func_slots, 0)) {
@@ -285,7 +293,7 @@ void vmschedule_WorkerRun(void *userdata) {
             mutex_Lock(access_mutex);
             int i = 0;
             while (i < worker->vmexec->thread_count) {
-                if (worker->vmexec->thread[i]->is_main_thread) {
+                if (worker->vmexec->thread[i]->is_original_main) {
                     mainthread = worker->vmexec->thread[i];
                     assert(mainthread->run_by_worker == NULL ||
                            mainthread->run_by_worker == worker);
@@ -416,7 +424,7 @@ void vmschedule_WorkerRun(void *userdata) {
             if (likely(vt->suspend_info->suspendtype !=
                        SUSPENDTYPE_DONE))
                 have_notdone_thread = 1;
-            if (worker->no != 0 && vt->is_main_thread) {
+            if (worker->no != 0 && vt->is_on_main_thread) {
                 i++;
                 continue;
             }
@@ -545,14 +553,15 @@ int vmschedule_ExecuteProgram(
         }
     }
 
-    h64vmthread *mainthread = vmthread_New(mainexec);
+    h64vmthread *mainthread = vmthread_New(mainexec, 0);
     if (!mainthread) {
         h64fprintf(stderr, "horsevm: error: vmschedule.c: "
             "out of memory in vmthread_New() during setup\n");
         return -1;
     }
     mainexec->program = pr;
-    mainthread->is_main_thread = 1;
+    mainthread->is_on_main_thread = 1;
+    mainthread->is_original_main = 1;
     vmthread_SetSuspendState(
         mainthread, SUSPENDTYPE_ASYNCCALLSCHEDULED, -1
     );

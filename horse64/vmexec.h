@@ -59,7 +59,7 @@ typedef struct h64vmworker h64vmworker;
 typedef struct h64vmthread {
     h64vmexec *vmexec_owner;
     h64vmworker *_Atomic volatile run_by_worker;
-    uint8_t is_main_thread;
+    uint8_t is_on_main_thread, is_original_main;
 
     int kwarg_index_track_count;
     int32_t *kwarg_index_track_map;
@@ -106,7 +106,7 @@ ATTR_UNUSED static inline int VMTHREAD_FUNCSTACKBOTTOM(
 
 void vmthread_WipeFuncStack(h64vmthread *vmthread);
 
-h64vmthread *vmthread_New(h64vmexec *owner);
+h64vmthread *vmthread_New(h64vmexec *owner, int is_on_main_thread);
 
 h64vmexec *vmexec_New();
 

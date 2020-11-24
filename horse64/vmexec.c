@@ -46,7 +46,7 @@ void vmthread_SetSuspendState(
             "changed %d -> %d"
             " (arg: %" PRId64 ")\n",
             vmthread,
-            (vmthread->is_main_thread ? "main" : "nonmain"),
+            (vmthread->is_on_main_thread ? "main" : "nonmain"),
             (int)vmthread->suspend_info->suspendtype,
             (int)suspend_type, (int64_t)suspend_arg
         );
@@ -97,7 +97,7 @@ void vmthread_SetSuspendState(
                 "resume->func_id:%" PRId64 ","
                 "resume->offset:%" PRId64 ")",
                 vth,
-                (vth->is_main_thread ? "main" : "nonmain"),
+                (vth->is_on_main_thread ? "main" : "nonmain"),
                 (int)vth->suspend_info->suspendtype,
                 (int64_t)vth->suspend_info->suspendarg,
                 vth->upcoming_resume_info,
@@ -111,7 +111,7 @@ void vmthread_SetSuspendState(
     #endif
 }
 
-h64vmthread *vmthread_New(h64vmexec *owner) {
+h64vmthread *vmthread_New(h64vmexec *owner, int is_on_main_thread) {
     h64vmthread *vmthread = malloc(sizeof(*vmthread));
     if (!vmthread)
         return NULL;
@@ -129,7 +129,7 @@ h64vmthread *vmthread_New(h64vmexec *owner) {
         return NULL;
     }
     vmthread->call_settop_reverse = -1;
-    vmthread->is_main_thread = 0;
+    vmthread->is_on_main_thread = 0;
 
     vmthread->upcoming_resume_info = malloc(
         sizeof(*vmthread->upcoming_resume_info)
@@ -326,7 +326,7 @@ static int vmthread_PrintExec(
         stderr, "horsevm: debug: vmexec [t%p:%s] "
         "f:%" PRId64 " "
         "o:%" PRId64 " st:%" PRId64 "/%" PRId64 " %s\n",
-        vt, (vt->is_main_thread ? "main" : "nonmain"),
+        vt, (vt->is_on_main_thread ? "nonparallel" : "parallel"),
         (int64_t)fid,
         (int64_t)((char*)inst - (char*)vt->vmexec_owner->
                   program->func[fid].instructions),
@@ -377,7 +377,7 @@ static inline int popfuncframe(
                 "resize back to old func frame %" PRId64 " at %p: "
                 "%" PRId64 ", with restore_stack_size %" PRId64
                 ", stack_space_for_this_func %" PRId64 ")\n",
-                vt, (vt->is_main_thread ? "main" : "nonmain"),
+                vt, (vt->is_on_main_thread ? "nonparallel" : "parallel"),
                 (int64_t)vt->funcframe_count - 1,
                 (void*)&vt->funcframe[vt->funcframe_count - 1],
                 new_top,
@@ -426,7 +426,7 @@ static inline int pushfuncframe(
         h64fprintf(
             stderr, "horsevm: debug: vmexec [t%p:%s] "
             "pushfuncframe %d -> %d\n",
-            vt, (vt->is_main_thread ? "main" : "nonmain"),
+            vt, (vt->is_on_main_thread ? "nonparallel" : "parallel"),
             vt->funcframe_count, vt->funcframe_count + 1
         );
     }
@@ -473,7 +473,7 @@ static inline int pushfuncframe(
             stderr, "horsevm: debug: vmexec [t%p:%s] "
             "   (return stack size on frame %" PRId64 " at %p: "
             "%" PRId64 ")\n",
-            vt, (vt->is_main_thread ? "main" : "nonmain"),
+            vt, (vt->is_on_main_thread ? "nonparallel" : "parallel"),
             (int64_t)vt->funcframe_count,
             (void*)&vt->funcframe[vt->funcframe_count],
             vt->funcframe[vt->funcframe_count].restore_stack_size
@@ -1308,10 +1308,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
 
-        if (!vmthread->is_main_thread) {
+        if (!vmthread->is_on_main_thread) {
             RAISE_ERROR(
                 H64STDERROR_INVALIDNOASYNCRESOURCEERROR,
-                "cannot access globals from noasync function"
+                "cannot access globals from nonparallel function"
             );
             goto *jumptable[((h64instructionany *)p)->type];
         }
@@ -1337,11 +1337,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
 
-        if (!vmthread->is_main_thread &&
+        if (!vmthread->is_on_main_thread &&
                 !pr->globalvar[inst->globalfrom].is_simple_constant) {
             RAISE_ERROR(
                 H64STDERROR_INVALIDNOASYNCRESOURCEERROR,
-                "cannot access globals from noasync function"
+                "cannot access globals from nonparallel function"
             );
             goto *jumptable[((h64instructionany *)p)->type];
         }
@@ -2266,11 +2266,27 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if ((inst->flags & CALLFLAG_ASYNC) != 0) {
                 // Async call. Need to set it up as separate execution
                 // thread instead.
+                if ((inst->flags & CALLFLAG_PARALLELASYNC) &&
+                        !vmexec->program->func[target_func_id].
+                        is_threadable) {
+                    // Abort, this is not allowed (due to heap separation)
+                    if (!vmthread_ResetCallTempStack(vmthread)) {
+                        goto triggeroom;
+                    }
+                    RAISE_ERROR(
+                        H64STDERROR_TYPEERROR,
+                        "cannot call nonparallel func via async parallel"
+                    );
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+                // Schedule call:
                 int result = vmschedule_AsyncScheduleFunc(
                     vmexec, vmthread,
-                    new_func_floor, target_func_id
+                    new_func_floor, target_func_id,
+                    (inst->flags & CALLFLAG_PARALLELASYNC)
                 );
                 if (!result) {
+                    vmthread_ResetCallTempStack(vmthread);
                     goto triggeroom;
                 }
                 // Reset stack size again:
