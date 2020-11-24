@@ -46,7 +46,7 @@ void vmthread_SetSuspendState(
             "changed %d -> %d"
             " (arg: %" PRId64 ")\n",
             vmthread,
-            (vmthread->is_on_main_thread ? "main" : "nonmain"),
+            (vmthread->is_on_main_thread ? "nonparallel" : "parallel"),
             (int)vmthread->suspend_info->suspendtype,
             (int)suspend_type, (int64_t)suspend_arg
         );
@@ -97,7 +97,7 @@ void vmthread_SetSuspendState(
                 "resume->func_id:%" PRId64 ","
                 "resume->offset:%" PRId64 ")",
                 vth,
-                (vth->is_on_main_thread ? "main" : "nonmain"),
+                (vth->is_on_main_thread ? "nonparallel" : "parallel"),
                 (int)vth->suspend_info->suspendtype,
                 (int64_t)vth->suspend_info->suspendarg,
                 vth->upcoming_resume_info,
