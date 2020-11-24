@@ -5,3 +5,4 @@
 [submodule "vendor/openssl"]
 	path = vendor/openssl
 	url = https://github.com/openssl/openssl
+    ignore = untracked
