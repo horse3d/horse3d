@@ -179,7 +179,7 @@ int scope_AddItem(
         } else if (expr->type == H64EXPRTYPE_IMPORT_STMT) {
             expr->importstmt.foundinscope = scope;
         } else {
-            h64fprintf(stderr, "horsecc: warning: "
+            h64fprintf(stderr, "horsec: warning: "
                 "unexpected add to scope of expr type %d\n",
                 expr->type);
             assert(0 && "abort for invalid item to add");

@@ -124,7 +124,7 @@ int main(int argc, const char **argv) {
             } else if (!action && argv[i][0] != '-' &&
                        argv[i][0] != '/') {
                 h64fprintf(
-                    stderr, "horsecc: error: unknown action, "
+                    stderr, "horsec: error: unknown action, "
                     "try --help: \"%s\"\n", argv[i]
                 );
                 return -1;
@@ -133,8 +133,8 @@ int main(int argc, const char **argv) {
         i++;
     }
     if (!action) {
-        h64fprintf(stderr, "horsecc: error: need action, "
-            "like horsecc run. See horsecc --help\n");
+        h64fprintf(stderr, "horsec: error: need action, "
+            "like horsec run. See horsec --help\n");
         return -1;
     }
 
