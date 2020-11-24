@@ -3674,6 +3674,9 @@ int vmthread_RunFunctionWithReturnInt(
             int64_t v = vc->int_value;
             *out_returnint = ((v != 0) ? 0 : -1);
             return result;
+        } else if (vc->type == H64VALTYPE_NONE) {
+            *out_returnint = 0;
+            return result;
         }
         *out_returnint = 0;
     }

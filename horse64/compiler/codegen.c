@@ -255,6 +255,7 @@ void codegen_CalculateFinalFuncStack(
     h64funcsymbol *fsymbol = h64debugsymbols_GetFuncSymbolById(
         program->symbols, expr->funcdef.bytecode_func_id
     );
+    assert(fsymbol != NULL);
     expr->funcdef._storageinfo->lowest_guaranteed_free_temp +=
         expr->funcdef._storageinfo->codegen.max_extra_stack;
     fsymbol->closure_bound_count =
@@ -284,7 +285,9 @@ h64expression *_fakeclassinitfunc(
         classidx >= 0 &&
         classidx < rinfo->pr->program->classes_count
     );
-    assert(rinfo->pr->program->classes[classidx].hasvarinitfunc);
+    assert(
+        rinfo->pr->program->classes[classidx].hasvarinitfunc
+    );
 
     // Make sure the map for registering it by class exists:
     if (!rinfo->pr->_tempclassesfakeinitfunc_map) {
@@ -961,16 +964,35 @@ int _codegencallback_DoCodegen_visit_out(
     if (!func) {
         h64expression *sclass = surroundingclass(expr, 0);
         if (sclass != NULL) {
-            func = _fakeclassinitfunc(rinfo, sclass);
+            // It's inside a class, but outside a func. All expressions
+            // that evaluate here need to happen in $$clsinit.
+            if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                    rinfo->pr->program->classes[
+                        sclass->classdef.bytecode_class_id
+                    ].varattr_count == 0
+                    ) {
+                // This is unrelated to var initialization, and/or
+                // we have no var attributes anyway.
+                // Since this means no $$clsinit func, don't attempt
+                // to get it.
+                func = NULL;
+            } else {
+                func = _fakeclassinitfunc(rinfo, sclass);
+                if (!func) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
         } else {
+            // Inside global space. -> any expression initializing something
+            // needs to go into the global init func.
             func = _fakeglobalinitfunc(rinfo);
-        }
-        if (!func) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
+            if (!func) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
         }
     }
-
     if (expr->type == H64EXPRTYPE_LIST ||
             expr->type == H64EXPRTYPE_SET) {
         int isset = (expr->type == H64EXPRTYPE_SET);
@@ -2012,7 +2034,7 @@ int _codegencallback_DoCodegen_visit_out(
         return 1;
     }
 
-    if (IS_STMT(expr->type))
+    if (IS_STMT(expr->type) && func != NULL)
         free1linetemps(func);
 
     return 1;
@@ -3288,6 +3310,7 @@ static int _codegen_calc_tempclassfakeinitfuncstack_cb(
     memcpy(&classidx, bytes, byteslen);
     h64expression *func = (h64expression *)(uintptr_t)number;
     assert(func != NULL);
+    assert(func->type == H64EXPRTYPE_FUNCDEF_STMT);
     assert(fiterinfo->pr->program != NULL);
     codegen_CalculateFinalFuncStack(
         fiterinfo->pr->program, func

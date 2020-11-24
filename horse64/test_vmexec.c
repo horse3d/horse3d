@@ -86,7 +86,7 @@ void runprog(
     fflush(stdout);
     int resultcode = vmschedule_ExecuteProgram(
         project->program, &moptions
-    );\
+    );
     fflush(stdout); fflush(stderr);  // flush program output
     compileproject_Free(project);
     if (resultcode != expected_result)
@@ -119,5 +119,16 @@ START_TEST (test_fibonacci)
 }
 END_TEST
 
-TESTS_MAIN(test_fibonacci)
+START_TEST (test_simpleclass)
+{
+    runprog(
+        "test_simpleclass",
+        "class bla {func bla{print('Hello')}} "
+        "func main{var blaobj = new bla()  blaobj.bla()}",
+        0
+    );
+}
+END_TEST
+
+TESTS_MAIN(test_fibonacci, test_simpleclass)
 
