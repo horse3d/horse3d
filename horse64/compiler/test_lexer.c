@@ -59,9 +59,10 @@ START_TEST (test_unaryminus)
         h64tokenizedfile tfile = lexer_ParseFromFile(
             ".testdata.txt", &wconfig, 0
         );
-        ck_assert(tfile.token_count == 1);
-        ck_assert(tfile.token[0].type == H64TK_CONSTANT_INT);
-        ck_assert(tfile.token[0].int_value == -10);
+        ck_assert(tfile.token_count == 2);
+        ck_assert(tfile.token[0].type == H64TK_UNOPSYMBOL);
+        ck_assert(tfile.token[1].type == H64TK_CONSTANT_INT);
+        ck_assert(tfile.token[1].int_value == 10);
         lexer_FreeFileTokens(&tfile);
         result_FreeContents(&tfile.resultmsg);
     }
