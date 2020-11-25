@@ -130,5 +130,15 @@ START_TEST (test_simpleclass)
 }
 END_TEST
 
-TESTS_MAIN(test_fibonacci, test_simpleclass)
+START_TEST (test_attributeerrors)
+{
+    runprog(
+        "test_attributeerrors",
+        "class bla {func bla{self.x()  print('Hello')}} "
+        "func main{var blaobj = new bla()  blaobj.blargh()}",
+        -1
+    );
+}
+
+TESTS_MAIN(test_fibonacci, test_simpleclass, test_attributeerrors)
 

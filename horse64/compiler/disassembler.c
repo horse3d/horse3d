@@ -619,6 +619,19 @@ int disassembler_PrintInstruction(
         }
         break;
     }
+    case H64INST_RAISE: {
+        h64instruction_raise *inst_raise =
+            (h64instruction_raise *)inst;
+        if (!disassembler_Write(di,
+                "    %s c%" PRId64 " t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (int64_t)inst_raise->error_class_id,
+                (int)inst_raise->sloterrormsgobj
+                )) {
+            return 0;
+        }
+        break;
+    }
     default:
         if (!disassembler_Write(di,
                 "    %s <unknownargs>",
@@ -821,7 +834,7 @@ int disassembler_Dump(
             );
         char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
         snprintf(linebuf, sizeof(linebuf) - 1,
-            "BEGINCLASS %" PRId64 " %s %d %d",
+            "BEGINCLASS f%" PRId64 " %s %d %d",
             (int64_t)i, baseclass_str,
             (int)p->classes[i].varattr_count,
             p->classes[i].is_error
@@ -870,7 +883,8 @@ int disassembler_Dump(
         }
         char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
         snprintf(linebuf, sizeof(linebuf) - 1,
-            "BEGINFUNC%s %" PRId64 " %d %d%s%s",
+            "%sFUNC%s f%" PRId64 " %d %d%s%s",
+            (p->func[i].iscfunc ? "" : "BEGIN"),
             (p->func[i].iscfunc ? "CREF" : ""),
             (int64_t)i,
             p->func[i].input_stack_size,

@@ -229,26 +229,6 @@ int _resolver_EnsureLocalDefStorage(
     return 1;
 }
 
-int _resolver_IsPossiblyGuardedInvalidMember(
-        h64expression *expr
-        ) {
-    h64expression *child = NULL;
-    while (expr) {
-        if (child != NULL &&
-                expr->type == H64EXPRTYPE_IF_STMT) {
-            int got_is_a = guarded_by_is_a(expr);
-            int got_has_attr = guarded_by_has_attr(expr);
-            if (got_is_a || got_has_attr)
-                return 1;
-        }
-        if (expr->type == H64EXPRTYPE_FUNCDEF_STMT)
-            return 0;
-        child = expr;
-        expr = expr->parent;
-    }
-    return 0;
-}
-
 int _resolvercallback_AssignNonglobalStorage_visit_out(
         h64expression *expr, ATTR_UNUSED h64expression *parent,
         void *ud
@@ -338,10 +318,10 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             strcmp(expr->identifierref.value, "self") == 0) {
         if (!expr->storage.set) {
             h64expression *func = surroundingfunc(expr);
-            h64expression *cls = surroundingclass(expr, 1);
+            h64expression *cls = surroundingclass(func, 1);
             assert(cls != NULL);
             #ifndef NDEBUG
-            h64expression *directcls = surroundingclass(expr, 0);
+            h64expression *directcls = surroundingclass(func, 0);
             if (directcls == NULL) {
                 assert(func->funcdef._storageinfo->closure_with_self);
             }
@@ -428,7 +408,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 namebuf[sizeof(namebuf) - 1] = '\0';
             }
             int instance_of_guarded = (
-                _resolver_IsPossiblyGuardedInvalidMember(expr)
+                guarded_by_is_a_or_has_attr(expr)
             );
             if (!instance_of_guarded) {
                 char buf[256];

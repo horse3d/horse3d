@@ -453,6 +453,7 @@ h64tokenizedfile lexer_ParseFromFile(
         if (c == '"' || c == '\'' ||
                 (c == 'b' && i < (int)size &&
                  (buffer[i + 1] == '"' || buffer[i + 1] == '\''))) {
+            // This is a string or bytes literal.
             post_identifier_is_likely_func = 0;
             unsigned char startc = c;
             int startcolumn = column;
@@ -677,10 +678,7 @@ h64tokenizedfile lexer_ParseFromFile(
             }
             result.token_count++;
             continue;
-        } else if ((could_be_unary_op && c == '-' &&
-                i + 1 < (int)size &&
-                nexttokenisdigit(buffer + i + 1, ((int)size) - i - 1)) ||
-                (c >= '0' && c <= '9')) {
+        } else if (c >= '0' && c <= '9') {
             // This is a number literal
             post_identifier_is_likely_func = 0;
             int64_t startline = line;

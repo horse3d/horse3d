@@ -22,6 +22,7 @@
 #include "corelib/errors.h"
 #include "hash.h"
 #include "nonlocale.h"
+#include "valuecontentstruct.h"
 #include "widechar.h"
 
 
@@ -1355,8 +1356,42 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         if (idx < 0) {
-            // FIXME: hard-code an error raise
-            h64fprintf(stderr, "fix invalid member\n");
+            const char errmsg[] = (
+                "given attribute not present on this value"
+            );
+            h64wchar *msg = NULL;
+            int64_t msglen = 0;
+            msg = utf8_to_utf32(
+                errmsg, strlen(errmsg), NULL, NULL, &msglen
+            );
+            if (!msg) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            int temp2 = new1linetemp(func, expr, 0);
+            h64instruction_setconst inst_str = {0};
+            inst_str.type = H64INST_SETCONST;
+            inst_str.slot = temp2;
+            inst_str.content.type = H64VALTYPE_CONSTPREALLOCSTR;
+            inst_str.content.constpreallocstr_len = msglen;
+            inst_str.content.constpreallocstr_value = msg;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_str, sizeof(inst_str))) {
+                rinfo->hadoutofmemory = 1;
+                free(msg);
+                return 0;
+            }
+            h64instruction_raise inst_raise = {0};
+            inst_raise.type = H64INST_RAISE;
+            inst_raise.error_class_id = H64STDERROR_ATTRIBUTEERROR;
+            inst_raise.sloterrormsgobj = temp2;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_raise, sizeof(inst_raise))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
         } else {
             h64instruction_getattributebyname inst_getattr = {0};
             inst_getattr.type = H64INST_GETATTRIBUTEBYNAME;

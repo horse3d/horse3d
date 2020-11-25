@@ -59,6 +59,26 @@ h64expression *find_expr_by_tokenindex_ex(
     return sinfo.result;
 }
 
+int guarded_by_is_a_or_has_attr(
+        h64expression *expr
+        ) {
+    h64expression *child = NULL;
+    while (expr) {
+        if (child != NULL &&
+                expr->type == H64EXPRTYPE_IF_STMT) {
+            int got_is_a = guarded_by_is_a(expr);
+            int got_has_attr = guarded_by_has_attr(expr);
+            if (got_is_a || got_has_attr)
+                return 1;
+        }
+        if (expr->type == H64EXPRTYPE_FUNCDEF_STMT)
+            return 0;
+        child = expr;
+        expr = expr->parent;
+    }
+    return 0;
+}
+
 h64expression *find_expr_by_tokenindex(
         h64expression *search_in,
         int64_t searchindex

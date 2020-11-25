@@ -1374,20 +1374,32 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
         }
     }
 
-    // Resolve attribute by identifier names to ids:
+    // Make sure to resolve attribute by identifier names to ids
+    // in case it's a built-in one:
     if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
             parent != NULL &&
             parent->type == H64EXPRTYPE_BINARYOP &&
             parent->op.value2 == expr &&
-            parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
-            !expr->storage.set) {
-        int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
-            atinfo->pr->program->symbols,
-            expr->identifierref.value, 1
-        );
-        if (idx < 0) {
-            atinfo->hadoutofmemory = 1;
-            return 0;
+            parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER
+            ) {
+        if (strcmp(expr->identifierref.value, "as_str") == 0 ||
+                strcmp(expr->identifierref.value, "len") == 0 ||
+                strcmp(expr->identifierref.value, "init") == 0 ||
+                strcmp(expr->identifierref.value, "on_destroy") == 0 ||
+                strcmp(expr->identifierref.value, "equals") == 0 ||
+                strcmp(expr->identifierref.value, "to_hash") == 0 ||
+                strcmp(expr->identifierref.value, "add") == 0 ||
+                strcmp(expr->identifierref.value, "del") == 0 ||
+                strcmp(expr->identifierref.value, "is_a") == 0) {
+            // Enforce identifier registration:
+            int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
+                atinfo->pr->program->symbols,
+                expr->identifierref.value, 1
+            );
+            if (idx < 0) {
+                atinfo->hadoutofmemory = 1;
+                return 0;
+            }
         }
     }
 

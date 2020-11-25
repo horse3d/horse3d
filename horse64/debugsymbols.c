@@ -11,6 +11,7 @@
 #include "bytecode.h"
 #include "debugsymbols.h"
 #include "hash.h"
+#include "nonlocale.h"
 #include "uri.h"
 
 

@@ -59,6 +59,8 @@ typedef enum instructiontype {
     H64INST_AWAITITEM,
     H64INST_CREATEPIPE,
     H64INST_HASATTRJUMP,
+    H64INST_RAISE,
+    H64INST_RAISEBYREF,
     H64INST_TOTAL_COUNT
 } instructiontype;
 
@@ -307,17 +309,24 @@ typedef struct h64instruction_awaititem {
     int16_t objslotawait;
 } __attribute__ ((packed)) h64instruction_awaititem;
 
-typedef struct h64instruction_createpipe {
-    uint8_t type;
-    int16_t objpipeto;
-} __attribute__ ((packed)) h64instruction_createpipe;
-
 typedef struct h64instruction_hasattrjump {
     uint8_t type;
     jumpoffset_t jumpbytesoffset;
     int16_t slotvaluecheck;
     int64_t nameidxcheck;
 } __attribute__ ((packed)) h64instruction_hasattrjump;
+
+typedef struct h64instruction_raise {
+    uint8_t type;
+    classid_t error_class_id;
+    int16_t sloterrormsgobj;
+} __attribute__ ((packed)) h64instruction_raise;
+
+typedef struct h64instruction_raisebyref {
+    uint8_t type;
+    int16_t sloterrorobj;
+    int16_t sloterrormsgobj;
+} __attribute__ ((packed)) h64instruction_raisebyref;
 
 
 #define H64CLASS_HASH_SIZE 32

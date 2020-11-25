@@ -23,6 +23,7 @@
 #include "nonlocale.h"
 #include "poolalloc.h"
 #include "stack.h"
+#include "valuecontentstruct.h"
 #include "vmexec.h"
 #include "vmlist.h"
 #include "vmschedule.h"
@@ -1190,6 +1191,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     h64vmthread *vmthread = start_thread;
     vmexec->active_thread = vmthread;
     int callignoreifnone = 0;
+    classid_t _raise_error_class_id = -1;
+    int32_t _raise_msg_stack_slot = -1;
 
     goto setupinterpreter;
 
@@ -3324,10 +3327,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64fprintf(stderr, "awaititem not implemented\n");
         return 0;
     }
-    inst_createpipe: {
-        h64fprintf(stderr, "createpipe not implemented\n");
-        return 0;
-    }
     inst_hasattrjump: {
         h64instruction_hasattrjump *inst = (
             (h64instruction_hasattrjump *)p
@@ -3394,6 +3393,98 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
         goto *jumptable[((h64instructionany *)p)->type];
     }
+    inst_raise: {
+        h64instruction_raise *inst = (
+            (h64instruction_raise *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+                goto triggeroom;
+        #endif
+        assert(
+            inst->error_class_id >= 0 &&
+            inst->error_class_id < vmexec->program->classes_count
+        );
+
+        _raise_error_class_id = inst->error_class_id;
+        _raise_msg_stack_slot = inst->sloterrormsgobj;
+        goto inst_raise_do;
+    }
+    inst_raisebyref: {
+        h64instruction_raisebyref *inst = (
+            (h64instruction_raisebyref *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+                goto triggeroom;
+        #endif
+        assert(
+            inst->sloterrorobj >= 0 &&
+            inst->sloterrorobj < (int64_t)vmthread->stack->entry_count -
+                (int64_t)vmthread->stack->current_func_floor
+        );
+
+        valuecontent *vobj = STACK_ENTRY(stack, inst->sloterrorobj);
+        if (vobj->type != H64VALTYPE_ERROR) {
+            RAISE_ERROR(
+                H64STDERROR_TYPEERROR,
+                "cannot raise from a non-error class"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        _raise_error_class_id = (
+            vobj->error_class_id
+        );
+        _raise_msg_stack_slot = inst->sloterrormsgobj;
+        goto inst_raise_do;
+    }
+    inst_raise_do: {
+        assert(
+            _raise_msg_stack_slot >= 0 &&
+            _raise_msg_stack_slot < (int64_t)vmthread->stack->entry_count -
+                (int64_t)vmthread->stack->current_func_floor
+        );
+        valuecontent *vmsg = STACK_ENTRY(stack, _raise_msg_stack_slot);
+        if (vmsg->type != H64VALTYPE_CONSTPREALLOCSTR &&
+                (vmsg->type != H64VALTYPE_GCVAL ||
+                 ((h64gcvalue *)vmsg->ptr_value)->type !=
+                    H64GCVALUETYPE_STRING)) {
+            RAISE_ERROR(
+                H64STDERROR_TYPEERROR,
+                "error message must be a string"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+
+        // Extract error message:
+        char *errmsgbuf = NULL;
+        int64_t errmsglen = 0;
+        if (vmsg->type == H64VALTYPE_CONSTPREALLOCSTR) {
+            errmsgbuf = (char *)vmsg->constpreallocstr_value;
+            errmsglen = vmsg->constpreallocstr_len;
+        } else if (vmsg->type == H64VALTYPE_SHORTBYTES) {
+            errmsgbuf = (char *)vmsg->shortstr_value;
+            errmsglen = vmsg->shortstr_len;
+        } else if (vmsg->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)vmsg->ptr_value)->type ==
+                    H64GCVALUETYPE_STRING) {
+            errmsgbuf = (char *)(
+                ((h64gcvalue *)vmsg->ptr_value)->str_val.s
+            );
+            errmsglen = (
+                ((h64gcvalue *)vmsg->ptr_value)->str_val.len
+            );
+        }
+
+        // Do error raise as instructed:
+        RAISE_ERROR_U32(
+            _raise_error_class_id,
+            errmsgbuf, errmsglen
+        );
+        goto *jumptable[((h64instructionany *)p)->type];
+    }
 
     setupinterpreter:
     jumptable[H64INST_INVALID] = &&inst_invalid;
@@ -3432,8 +3523,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_NEWINSTANCE] = &&inst_newinstance;
     jumptable[H64INST_GETCONSTRUCTOR] = &&inst_getconstructor;
     jumptable[H64INST_AWAITITEM] = &&inst_awaititem;
-    jumptable[H64INST_CREATEPIPE] = &&inst_createpipe;
     jumptable[H64INST_HASATTRJUMP] = &&inst_hasattrjump;
+    jumptable[H64INST_RAISE] = &&inst_raise;
+    jumptable[H64INST_RAISEBYREF] = &&inst_raisebyref;
     op_jumptable[H64OP_MATH_DIVIDE] = &&binop_divide;
     op_jumptable[H64OP_MATH_ADD] = &&binop_add;
     op_jumptable[H64OP_MATH_SUBSTRACT] = &&binop_substract;

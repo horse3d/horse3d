@@ -58,8 +58,9 @@ static char _name_itype_newinstancebyref[] = "newinstancebyref";
 static char _name_itype_newinstance[] = "newinstance";
 static char _name_itype_getconstructor[] = "getconstructor";
 static char _name_itype_awaititem[] = "awaititem";
-static char _name_itype_createpipe[] = "createpipe";
 static char _name_itype_hasattrjump[] = "hasattrjump";
+static char _name_itype_raise[] = "raise";
+static char _name_itype_raisebyref[] = "raisebyref";
 
 
 const char *bytecode_InstructionTypeToStr(instructiontype itype) {
@@ -136,10 +137,12 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_getconstructor;
     case H64INST_AWAITITEM:
         return _name_itype_awaititem;
-    case H64INST_CREATEPIPE:
-        return _name_itype_createpipe;
     case H64INST_HASATTRJUMP:
         return _name_itype_hasattrjump;
+    case H64INST_RAISE:
+        return _name_itype_raise;
+    case H64INST_RAISEBYREF:
+        return _name_itype_raisebyref;
     default:
         h64fprintf(stderr, "bytecode_InstructionTypeToStr: called "
                 "on invalid value %d\n", itype);
@@ -604,10 +607,12 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_getconstructor);
     case H64INST_AWAITITEM:
         return sizeof(h64instruction_awaititem);
-    case H64INST_CREATEPIPE:
-        return sizeof(h64instruction_createpipe);
     case H64INST_HASATTRJUMP:
         return sizeof(h64instruction_hasattrjump);
+    case H64INST_RAISE:
+        return sizeof(h64instruction_raise);
+    case H64INST_RAISEBYREF:
+        return sizeof(h64instruction_raisebyref);
     default:
         h64fprintf(
             stderr, "Invalid inst type for "

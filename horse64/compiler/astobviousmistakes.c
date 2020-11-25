@@ -78,6 +78,42 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
             }
         }
     }
+    // Check for attribute by identifier with unknown identifiers:
+    if (expr->type == H64EXPRTYPE_IDENTIFIERREF &&
+            parent != NULL &&
+            parent->type == H64EXPRTYPE_BINARYOP &&
+            parent->op.value2 == expr &&
+            parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER
+            ) {
+        int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
+            rinfo->pr->program->symbols,
+            expr->identifierref.value, 0
+        );
+        if (idx < 0) {
+            int guarded = (
+                guarded_by_is_a_or_has_attr(expr)
+            );
+            if (!guarded) {
+                char buf[256];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unknown identifier \"%s\" "
+                    "will cause AttributeError, wrap in conditional with "
+                    "has_attr() or .is_a() if intended for API "
+                    "compat",
+                    expr->identifierref.value
+                );
+                if (!result_AddMessage(
+                        &rinfo->ast->resultmsg,
+                        H64MSG_WARNING, buf, rinfo->ast->fileuri,
+                        expr->line,
+                        expr->column
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+            }
+        }
+    }
     return 1;
 }
 

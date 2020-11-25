@@ -94,6 +94,9 @@ h64expression *get_containing_statement(
     h64ast *ast, h64expression *expr
 );
 
+int guarded_by_is_a_or_has_attr(
+    h64expression *expr
+);
 
 int is_simple_constant_expr(h64expression *expr);
 
