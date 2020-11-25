@@ -167,7 +167,7 @@ typedef struct h64instruction_unop {
     int16_t slotto, argslotfrom;
 } __attribute__((packed)) h64instruction_unop;
 
-#define CALLFLAG_EXPANDLASTPOSARG 1
+#define CALLFLAG_UNPACKLASTPOSARG 1
 #define CALLFLAG_ASYNC 2
 #define CALLFLAG_PARALLELASYNC 4
 

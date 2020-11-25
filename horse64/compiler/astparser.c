@@ -365,14 +365,14 @@ int _ast_ParseFunctionArgList_Ex(
         int *outofmemory,
         h64funcargs *out_funcargs,
         int *out_tokenlen,
-        int *out_expandargcall,
+        int *out_unpackargcall,
         int nestingdepth
         ) {
     assert(is_call == (funcdefexpr == NULL));
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
     const char *fileuri = context->fileuri;
-    if (out_expandargcall) *out_expandargcall = 0;
+    if (out_unpackargcall) *out_unpackargcall = 0;
 
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
@@ -405,7 +405,7 @@ int _ast_ParseFunctionArgList_Ex(
          tokens[0].char_value == '(') ||
         (tokens[0].type == H64TK_BINOPSYMBOL &&
          tokens[0].int_value == H64OP_CALL));
-    int had_expandarg = 0;
+    int had_unpackarg = 0;
     i++;
     while (1) {
         if (i < max_tokens_touse &&
@@ -414,14 +414,14 @@ int _ast_ParseFunctionArgList_Ex(
             i++;
             break;
         }
-        int isexpandarg = 0;
+        int isunpackarg = 0;
         if (i < max_tokens_touse && is_call &&
                 tokens[i].type == H64TK_KEYWORD &&
-                strcmp(tokens[i].str_value, "expandarg") == 0) {
-            if (had_expandarg) {
+                strcmp(tokens[i].str_value, "unpack") == 0) {
+            if (had_unpackarg) {
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, "unexpected expandarg, "
+                        H64MSG_ERROR, "unexpected unpack, "
                         "can only be applied to last "
                         "positional argument", fileuri,
                         -1, -1
@@ -429,9 +429,9 @@ int _ast_ParseFunctionArgList_Ex(
                     goto oom;
                 }
             }
-            isexpandarg = 1;
-            had_expandarg = 1;
-            if (out_expandargcall) *out_expandargcall = 1;
+            isunpackarg = 1;
+            had_unpackarg = 1;
+            if (out_unpackargcall) *out_unpackargcall = 1;
             i++;
         }
         char **new_arg_names = realloc(
@@ -467,10 +467,10 @@ int _ast_ParseFunctionArgList_Ex(
             if (!kwarg_name)
                 goto oom;
             i += 2;
-            if (isexpandarg) {
+            if (isunpackarg) {
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, "unexpected expandarg, "
+                        H64MSG_ERROR, "unexpected unpack, "
                         "can only be applied to last "
                         "positional argument", fileuri,
                         -1, -1
@@ -491,10 +491,10 @@ int _ast_ParseFunctionArgList_Ex(
             out_funcargs->arg_name[out_funcargs->arg_count] = arg_name;
             out_funcargs->arg_value[out_funcargs->arg_count] = NULL;
             out_funcargs->arg_count++;
-            if (!isexpandarg && had_expandarg) {
+            if (!isunpackarg && had_unpackarg) {
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, "unexpected expandarg, "
+                        H64MSG_ERROR, "unexpected unpack, "
                         "can only be applied to last "
                         "positional argument", fileuri,
                         -1, -1
@@ -651,13 +651,13 @@ int ast_ParseFuncCallArgs(
         int *outofmemory,
         h64funcargs *out_funcargs,
         int *out_tokenlen,
-        int *out_expandarg,
+        int *out_unpackarg,
         int nestingdepth
         ) {
     return _ast_ParseFunctionArgList_Ex(
         context, parsethis, NULL,
         1, parsefail, outofmemory,
-        out_funcargs, out_tokenlen, out_expandarg,
+        out_funcargs, out_tokenlen, out_unpackarg,
         nestingdepth
     );
 }
@@ -1164,7 +1164,7 @@ int ast_ParseExprInlineOperator_Recurse(
         callexpr->inlinecall.value = op1;
         int tlen = 0;
         int inneroom = 0;
-        int argsuseexpandarg = 0;
+        int argsuseunpackarg = 0;
         int innerparsefail = 0;
         h64parsethis _buf;
         if (!ast_ParseFuncCallArgs(
@@ -1174,7 +1174,7 @@ int ast_ParseExprInlineOperator_Recurse(
                 ),
                 &innerparsefail, &inneroom,
                 &callexpr->inlinecall.arguments,
-                &tlen, &argsuseexpandarg, nestingdepth
+                &tlen, &argsuseunpackarg, nestingdepth
                 )) {
             ast_MarkExprDestroyed(callexpr);
             if (inneroom) {
@@ -1202,7 +1202,7 @@ int ast_ParseExprInlineOperator_Recurse(
             return 0;
         }
         callexpr->inlinecall.expand_last_posarg = (
-            argsuseexpandarg
+            argsuseunpackarg
         );
         assert(tlen <= op2_len && tlen > 0);
         assert(tokens[op2_start + tlen - 1].type == H64TK_BRACKET);

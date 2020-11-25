@@ -441,11 +441,13 @@ h64tokenizedfile lexer_ParseFromFile(
                     (prevtype == H64TK_KEYWORD &&
                      (strcmp(prevtok->str_value, "return") == 0 ||
                       strcmp(prevtok->str_value, "if") == 0 ||
+                      strcmp(prevtok->str_value, "async") == 0 ||
+                      strcmp(prevtok->str_value, "await") == 0 ||
                       strcmp(prevtok->str_value, "elseif") == 0 ||
                       strcmp(prevtok->str_value, "while") == 0 ||
                       strcmp(prevtok->str_value, "for") == 0 ||
                       strcmp(prevtok->str_value, "except") == 0 ||
-                      strcmp(prevtok->str_value, "expandarg") == 0)))
+                      strcmp(prevtok->str_value, "unpack") == 0)))
                 could_be_unary_op = 1;
         }
 

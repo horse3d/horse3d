@@ -200,6 +200,11 @@ This sequence is resumed by more utf-8 characters of that same set of
 choices, or additionally 4. `0-9` any digit, and terminated once
 the character falls out of that range.
 
+For any `callexpr`, the last positional argument (the last item
+in the comma separated list preceding optional following keyword
+arguments) may be prefixed by `unpack`.
+
+
 ### Whitespace rules
 
 Whitespace in Horse64 must be inserted wherever

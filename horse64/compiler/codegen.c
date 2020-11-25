@@ -654,7 +654,7 @@ static int _codegen_call_to(
         inst_call.returnto = temp;
         inst_call.slotcalledfrom = calledexprstoragetemp;
         inst_call.flags = 0 | (
-            expandlastposarg ? CALLFLAG_EXPANDLASTPOSARG : 0
+            expandlastposarg ? CALLFLAG_UNPACKLASTPOSARG : 0
         ) | (callexpr->inlinecall.is_async ? CALLFLAG_ASYNC : 0) |
         (callexpr->inlinecall.is_async && callexpr->inlinecall.is_parallel ?
          CALLFLAG_PARALLELASYNC : 0);
@@ -674,7 +674,7 @@ static int _codegen_call_to(
         inst_call.posargs = posargcount;
         inst_call.kwargs = kwargcount;
         inst_call.flags = 0 | (
-            expandlastposarg ? CALLFLAG_EXPANDLASTPOSARG : 0
+            expandlastposarg ? CALLFLAG_UNPACKLASTPOSARG : 0
         ) | (callexpr->inlinecall.is_async ? CALLFLAG_ASYNC : 0);
         if (!appendinst(
                 rinfo->pr->program, func, callexpr,

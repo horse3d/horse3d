@@ -1714,7 +1714,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         // Validate that the positional argument count fits:
         int effective_posarg_count = inst->posargs;
-        if (unlikely(inst->flags & CALLFLAG_EXPANDLASTPOSARG)) {
+        if (unlikely(inst->flags & CALLFLAG_UNPACKLASTPOSARG)) {
             effective_posarg_count--;
             valuecontent *lastposarg = (
                 STACK_ENTRY(stack, stacktop - 1 - inst->kwargs)
@@ -1727,8 +1727,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         *returneduncaughterror = 0;
                     return 0;
                 }
-                RAISE_ERROR(H64STDERROR_TYPEERROR,
-                                "expandarg parameter must be a list");
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "unpack parameter must be a list"
+                );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
             effective_posarg_count += (
@@ -1837,11 +1839,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
 
         // Evaluate fast-track:
-        const int _expandlastposarg = (
-            inst->flags & CALLFLAG_EXPANDLASTPOSARG
+        const int _unpacklastposarg = (
+            inst->flags & CALLFLAG_UNPACKLASTPOSARG
         );
         const int noargreorder = (likely(
-            !_expandlastposarg &&
+            !_unpacklastposarg &&
             inst->posargs == func_posargs &&
             inst->kwargs ==
                 pr->func[target_func_id].kwarg_count
@@ -1858,10 +1860,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             // Compute what slots exactly we need to shift around:
             leftalone_args = func_posargs;
             if (inst->posargs - (
-                    _expandlastposarg ? 1 : 0) <
+                    _unpacklastposarg ? 1 : 0) <
                     leftalone_args)
                 leftalone_args = inst->posargs -
-                                 (_expandlastposarg ? 1 : 0);
+                                 (_unpacklastposarg ? 1 : 0);
             if (leftalone_args < 0)
                 leftalone_args = 0;
             reformat_argslots = (
@@ -1891,7 +1893,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             int i = leftalone_args;
             assert(i >= 0);
             while (i < inst->posargs) {
-                if (i == inst->posargs - 1 && _expandlastposarg) {
+                if (i == inst->posargs - 1 && _unpacklastposarg) {
                     // Remaining args are squished into a list, extract:
                     valuecontent *vlist = STACK_ENTRY(
                         stack, (int64_t)i + stack_args_bottom
@@ -2061,7 +2063,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 int reorderslot = 0;
                 int posarg = leftalone_args;
                 while (posarg < func_posargs) {
-                    assert(posarg < inst_posargs || _expandlastposarg);
+                    assert(posarg < inst_posargs || _unpacklastposarg);
                     assert(
                         stackslot - (stack_args_bottom) < func_posargs
                     );

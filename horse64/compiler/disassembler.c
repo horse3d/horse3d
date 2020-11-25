@@ -592,18 +592,6 @@ int disassembler_PrintInstruction(
         }
         break;
     }
-    case H64INST_CREATEPIPE: {
-         h64instruction_createpipe *inst_createpipe =
-            (h64instruction_createpipe *)inst;
-        if (!disassembler_Write(di,
-                "    %s t%d",
-                bytecode_InstructionTypeToStr(inst->type),
-                (int)inst_createpipe->objpipeto
-                )) {
-            return 0;
-        }
-        break;
-    }
     case H64INST_HASATTRJUMP: {
          h64instruction_hasattrjump *inst_hattrj =
             (h64instruction_hasattrjump *)inst;
