@@ -139,6 +139,7 @@ START_TEST (test_attributeerrors)
         -1
     );
 }
+END_TEST
 
 TESTS_MAIN(test_fibonacci, test_simpleclass, test_attributeerrors)
 
