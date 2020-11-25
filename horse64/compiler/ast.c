@@ -569,10 +569,10 @@ void ast_FreeExprNonpoolMembers(
                 isfirst = 0;
             else
                 free(current_clause);
+            current_clause->followup_clause = NULL;
+            current_clause->stmt_count = 0;
             current_clause = next_clause;
         }
-        current_clause->followup_clause = NULL;
-        current_clause->stmt_count = 0;
         break;
     }
     case H64EXPRTYPE_WHILE_STMT: {
