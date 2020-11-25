@@ -63,7 +63,8 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
                 h64snprintf(
                     buf, sizeof(buf) - 1,
                     "calling a class type will cause TypeError, "
-                    "use \"new\" or wrap in conditional with "
+                    "use \"new\", or "
+                    "put it in if statement with "
                     ".is_a() if intended for API compat"
                 );
                 if (!result_AddMessage(
@@ -83,7 +84,13 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
             parent != NULL &&
             parent->type == H64EXPRTYPE_BINARYOP &&
             parent->op.value2 == expr &&
-            parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER
+            parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER && (
+              parent->op.value1->type != H64EXPRTYPE_IDENTIFIERREF ||
+              strcmp(parent->op.value1->identifierref.value, "self") != 0
+              // ^ self.X stuff that will likely error is handled earlier
+              // where the scope is resolved, so we just care about
+              // any other type of attribute access here.
+            )
             ) {
         int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
             rinfo->pr->program->symbols,
@@ -97,7 +104,8 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
                     "unknown identifier \"%s\" "
-                    "will cause AttributeError, wrap in conditional with "
+                    "will cause AttributeError, put it "
+                    "in if statement with "
                     "has_attr() or .is_a() if intended for API "
                     "compat",
                     expr->identifierref.value

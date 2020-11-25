@@ -414,7 +414,9 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
                     "unknown identifier \"%s\" on self "
-                    "will cause AttributeError, wrap in conditional with "
+                    "will cause AttributeError, "
+                    "put it "
+                    "in if statement with "
                     "has_attr() or .is_a() if intended for API "
                     "compat",
                     namebuf
