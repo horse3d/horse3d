@@ -188,7 +188,7 @@ h64program *h64program_New() {
 
     {
         funcid_t idx = h64program_RegisterCFunction(
-            p, "has_attr", NULL, NULL, 1,
+            p, "has_attr", NULL, NULL, 2,
             NULL, NULL, NULL, 1, -1
         );
         if (idx < 0) {
@@ -196,6 +196,14 @@ h64program *h64program_New() {
             return NULL;
         }
         p->has_attr_func_idx = idx;
+        assert(p->func[idx].cfunclookup == NULL);
+        p->func[idx].cfunclookup = strdup(
+            "$$builtin.has_attr"
+        );
+        if (!p->func[idx].cfunclookup) {
+            h64program_Free(p);
+            return NULL;
+        }
     }
 
     return p;
