@@ -141,5 +141,29 @@ START_TEST (test_attributeerrors)
 }
 END_TEST
 
-TESTS_MAIN(test_fibonacci, test_simpleclass, test_attributeerrors)
+START_TEST (test_hasattr)
+{
+    runprog(
+        "test_hasattr",
+        "class bla {\n"
+        "    func bla{\n"
+        "        if has_attr(self, 'x') {\n"
+        "            self.x()\n"
+        "        }\n"
+        "        print('Hello')\n"
+        "    }\n"
+        "}\n"
+        "\n"
+        "func main{\n"
+        "    var blaobj = new bla()\n"
+        "    blaobj.bla()\n"
+        "}\n",
+        0
+    );
+}
+END_TEST
+
+TESTS_MAIN(
+    test_fibonacci, test_simpleclass, test_attributeerrors, test_hasattr
+)
 
