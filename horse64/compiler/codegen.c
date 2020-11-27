@@ -17,6 +17,7 @@
 #include "compiler/asttransform.h"
 #include "compiler/codegen.h"
 #include "compiler/compileproject.h"
+#include "compiler/lexer.h"
 #include "compiler/main.h"
 #include "compiler/varstorage.h"
 #include "corelib/errors.h"
@@ -1475,6 +1476,15 @@ int _codegencallback_DoCodegen_visit_out(
         }
         expr->storage.eval_temp_id = temp;
     } else if (expr->type == H64EXPRTYPE_CALL) {
+        if (expr->inlinecall.value->type == H64EXPRTYPE_IDENTIFIERREF &&
+                expr->inlinecall.value->storage.set &&
+                expr->inlinecall.value->storage.ref.type ==
+                    H64STORETYPE_GLOBALFUNCSLOT &&
+                expr->inlinecall.value->storage.ref.id ==
+                    rinfo->pr->program->has_attr_func_idx) {
+            // Already handled in visit in.
+            return 1;
+        }
         int calledexprstoragetemp = (
             expr->inlinecall.value->storage.eval_temp_id
         );
@@ -3110,6 +3120,157 @@ int _codegencallback_DoCodegen_visit_in(
 
         free1linetemps(func);
         rinfo->dont_descend_visitation = 1;
+        return 1;
+    } else if (expr->type == H64EXPRTYPE_CALL &&
+            expr->inlinecall.value->type == H64EXPRTYPE_IDENTIFIERREF &&
+            expr->inlinecall.value->storage.set &&
+            expr->inlinecall.value->storage.ref.type ==
+                H64STORETYPE_GLOBALFUNCSLOT &&
+            expr->inlinecall.value->storage.ref.id ==
+                rinfo->pr->program->has_attr_func_idx) {
+        rinfo->dont_descend_visitation = 1;
+
+        int resulttmp = new1linetemp(
+            func, expr, 1
+        );
+        assert(resulttmp >= 0);
+
+        if (expr->inlinecall.arguments.arg_count != 2 || (
+                expr->inlinecall.arguments.arg_name != NULL && (
+                expr->inlinecall.arguments.arg_name[0] != NULL ||
+                expr->inlinecall.arguments.arg_name[1] != NULL))) {
+            result_AddMessage(
+                rinfo->pr->resultmsg, H64MSG_ERROR,
+                "unexpected call to has_attr() with not "
+                "exactly two positional arguments",
+                rinfo->ast->fileuri, expr->line, expr->column
+            );
+            rinfo->hadunexpectederror = 1;
+            return 0;
+        }
+        if (expr->inlinecall.arguments.arg_value[1]->type !=
+                H64EXPRTYPE_LITERAL ||
+                expr->inlinecall.arguments.arg_value[1]->
+                    literal.type != H64TK_CONSTANT_STRING
+                ) {
+            result_AddMessage(
+                rinfo->pr->resultmsg, H64MSG_ERROR,
+                "unexpected call to has_attr() with non-trivial "
+                "attribute argument. must be plain string literal "
+                "since has_attr() is not a normal function",
+                rinfo->ast->fileuri, expr->line, expr->column
+            );
+            rinfo->hadunexpectederror = 1;
+            return 0;
+        }
+        int64_t nameidx = -1;
+        if ((int)strlen(expr->inlinecall.arguments.arg_value[1]->
+                literal.str_value) ==
+                expr->inlinecall.arguments.arg_value[1]->
+                literal.str_value_len) {  // no null byte
+            nameidx = (
+                h64debugsymbols_AttributeNameToAttributeNameId(
+                    rinfo->pr->program->symbols,
+                    expr->inlinecall.arguments.arg_value[1]->
+                        literal.str_value,
+                    isbuiltinattrname(
+                        expr->inlinecall.arguments.arg_value[1]->
+                        literal.str_value)
+                )
+            );
+        }
+        if (nameidx < 0) {
+            h64instruction_setconst inst_setconst = {0};
+            inst_setconst.type = H64INST_SETCONST;
+            inst_setconst.slot = resulttmp;
+            inst_setconst.content.type = H64VALTYPE_BOOL;
+            inst_setconst.content.int_value = 0;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_setconst, sizeof(inst_setconst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        } else {
+            rinfo->dont_descend_visitation = 0;
+            expr->inlinecall.arguments.arg_value[0]->
+                storage.eval_temp_id = -1;
+            int result = ast_VisitExpression(
+                expr->inlinecall.arguments.arg_value[0], expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+            if (!result) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            rinfo->dont_descend_visitation = 1;
+            if (expr->inlinecall.arguments.arg_value[0]->
+                    storage.eval_temp_id < 0) {
+                rinfo->hadunexpectederror = 1;
+                return 0;
+            }
+            assert(
+                expr->inlinecall.arguments.arg_value[0]->
+                storage.eval_temp_id != resulttmp
+            );
+            h64instruction_setconst inst_setconst = {0};
+            inst_setconst.type = H64INST_SETCONST;
+            inst_setconst.slot = resulttmp;
+            inst_setconst.content.type = H64VALTYPE_BOOL;
+            inst_setconst.content.int_value = 1;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_setconst, sizeof(inst_setconst))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            int32_t jumpid_pastset = (
+                func->funcdef._storageinfo->jump_targets_used
+            );
+            func->funcdef._storageinfo->jump_targets_used++;
+            
+            h64instruction_hasattrjump inst_haj = {0};
+            inst_haj.type = H64INST_HASATTRJUMP;
+            inst_haj.jumpbytesoffset = jumpid_pastset;
+            inst_haj.nameidxcheck = nameidx;
+            inst_haj.slotvaluecheck = (
+                expr->inlinecall.arguments.arg_value[0]->
+                storage.eval_temp_id
+            );
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_haj, sizeof(inst_haj))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            h64instruction_setconst inst_setconst2 = {0};
+            inst_setconst2.type = H64INST_SETCONST;
+            inst_setconst2.slot = resulttmp;
+            inst_setconst2.content.type = H64VALTYPE_BOOL;
+            inst_setconst2.content.int_value = 0;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_setconst2, sizeof(inst_setconst2))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+
+            h64instruction_jumptarget inst_jumpppastset = {0};
+            inst_jumpppastset.type = H64INST_JUMPTARGET;
+            inst_jumpppastset.jumpid = jumpid_pastset;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_jumpppastset, sizeof(inst_jumpppastset))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+
+        rinfo->dont_descend_visitation = 1;
+        expr->storage.eval_temp_id = resulttmp;
         return 1;
     } else if (expr->type == H64EXPRTYPE_FOR_STMT) {
         rinfo->dont_descend_visitation = 1;

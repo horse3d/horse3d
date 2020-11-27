@@ -1382,15 +1382,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             parent->op.value2 == expr &&
             parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER
             ) {
-        if (strcmp(expr->identifierref.value, "as_str") == 0 ||
-                strcmp(expr->identifierref.value, "len") == 0 ||
-                strcmp(expr->identifierref.value, "init") == 0 ||
-                strcmp(expr->identifierref.value, "on_destroy") == 0 ||
-                strcmp(expr->identifierref.value, "equals") == 0 ||
-                strcmp(expr->identifierref.value, "to_hash") == 0 ||
-                strcmp(expr->identifierref.value, "add") == 0 ||
-                strcmp(expr->identifierref.value, "del") == 0 ||
-                strcmp(expr->identifierref.value, "is_a") == 0) {
+        if (isbuiltinattrname(expr->identifierref.value)) {
             // Enforce identifier registration:
             int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
                 atinfo->pr->program->symbols,

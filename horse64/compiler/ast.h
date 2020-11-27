@@ -43,14 +43,6 @@ typedef enum h64expressiontype {
 
 typedef struct h64funcstorageextrainfo h64funcstorageextrainfo;
 
-typedef enum h64literaltype {
-    H64LITERAL_INVALID = 0,
-    H64LITERAL_INTEGER = 1,
-    H64LITERAL_FLOAT,
-    H64LITERAL_STRING,
-    H64LITERAL_BYTES,
-    H64LITERAL_BOOLEAN
-} h64literaltype;
 
 typedef struct h64expression h64expression;
 typedef struct h64scope h64scope;

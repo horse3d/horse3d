@@ -10,6 +10,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "compiler/globallimits.h"
 
@@ -418,6 +419,21 @@ typedef struct h64program {
 
     h64debugsymbols *symbols;
 } h64program;
+
+ATTR_UNUSED static char *builtin_type_attributes[] = {
+    "as_str", "to_str", "len", "init", "on_destroy",
+    "equals", "to_hash", "add", "del", "is_a", NULL
+};
+
+ATTR_UNUSED static int isbuiltinattrname(const char *name) {
+    int i = 0;
+    while (builtin_type_attributes[i]) {
+        if (strcmp(builtin_type_attributes[i], name) == 0)
+            return 1;
+        i++;
+    }
+    return 0;
+}
 
 h64program *h64program_New();
 
