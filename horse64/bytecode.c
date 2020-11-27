@@ -161,6 +161,7 @@ h64program *h64program_New() {
     p->globalinit_func_index = -1;
     p->print_func_index = -1;
     p->containeradd_func_index = -1;
+    p->has_attr_func_idx = -1;
 
     p->as_str_name_index = -1;
     p->to_str_name_index = -1;
@@ -183,6 +184,18 @@ h64program *h64program_New() {
     if (!corelib_RegisterFuncsAndModules(p)) {
         h64program_Free(p);
         return NULL;
+    }
+
+    {
+        funcid_t idx = h64program_RegisterCFunction(
+            p, "has_attr", NULL, NULL, 1,
+            NULL, NULL, NULL, 1, -1
+        );
+        if (idx < 0) {
+            h64program_Free(p);
+            return NULL;
+        }
+        p->has_attr_func_idx = idx;
     }
 
     return p;

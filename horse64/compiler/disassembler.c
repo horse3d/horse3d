@@ -822,7 +822,7 @@ int disassembler_Dump(
             );
         char linebuf[1024 + H64LIMIT_IDENTIFIERLEN] = "";
         snprintf(linebuf, sizeof(linebuf) - 1,
-            "BEGINCLASS f%" PRId64 " %s %d %d",
+            "BEGINCLASS c%" PRId64 " %s %d %d",
             (int64_t)i, baseclass_str,
             (int)p->classes[i].varattr_count,
             p->classes[i].is_error
@@ -866,6 +866,9 @@ int disassembler_Dump(
         }
         char cfuncref[H64LIMIT_IDENTIFIERLEN * 2] = "";
         if (p->func[i].iscfunc) {
+            assert(
+                p->func[i].cfunclookup != NULL
+            );
             snprintf(cfuncref, sizeof(cfuncref) - 1,
                 " %s", p->func[i].cfunclookup);
         }
