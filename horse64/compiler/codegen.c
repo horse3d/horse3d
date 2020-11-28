@@ -3220,7 +3220,7 @@ int _codegencallback_DoCodegen_visit_in(
             inst_setconst.type = H64INST_SETCONST;
             inst_setconst.slot = resulttmp;
             inst_setconst.content.type = H64VALTYPE_BOOL;
-            inst_setconst.content.int_value = 1;
+            inst_setconst.content.int_value = 0;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
                     &inst_setconst, sizeof(inst_setconst))) {
@@ -3250,7 +3250,7 @@ int _codegencallback_DoCodegen_visit_in(
             inst_setconst2.type = H64INST_SETCONST;
             inst_setconst2.slot = resulttmp;
             inst_setconst2.content.type = H64VALTYPE_BOOL;
-            inst_setconst2.content.int_value = 0;
+            inst_setconst2.content.int_value = 1;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
                     &inst_setconst2, sizeof(inst_setconst2))) {

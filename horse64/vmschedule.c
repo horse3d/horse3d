@@ -532,6 +532,7 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
     h64vmexec *vmexec = (h64vmexec*) userdata;
 }
 
+
 int vmschedule_ExecuteProgram(
         h64program *pr, h64misccompileroptions *moptions
         ) {
@@ -573,7 +574,8 @@ int vmschedule_ExecuteProgram(
     #ifndef NDEBUG
     if (mainexec->moptions.vmscheduler_debug)
         h64fprintf(stderr, "horsevm: debug: vmschedule.c: "
-            "using %d workers\n", worker_count);
+            "using %d workers, valuecontent size: %d\n",
+            worker_count, (int)sizeof(valuecontent));
     #endif
     if (mainexec->worker_overview->worker_count < worker_count) {
         h64vmworker **new_workers = realloc(

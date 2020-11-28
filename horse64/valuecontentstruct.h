@@ -53,7 +53,7 @@ typedef struct valuecontent {
         } __attribute__((packed));
         struct {   // 8 bytes
             uint8_t shortbytes_len;
-            h64wchar shortbytes_value[
+            char shortbytes_value[
                 VALUECONTENT_SHORTBYTESLEN
             ];  // should be 2byte/16bit aligned
         } __attribute__((packed));

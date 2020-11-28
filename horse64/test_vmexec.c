@@ -178,8 +178,37 @@ START_TEST (test_callwithclass)
 }
 END_TEST
 
+START_TEST (test_hasattr2)
+{
+    runprog(
+        "test_hasattr2",
+        "class bla {\n"
+        "    var varattr = 5\n"
+        "    func funcattr{\n"
+        "        return 6\n"
+        "    }\n"
+        "}\n"
+        "func main{\n"
+        "    var result = 0\n"
+        "    var blaobj = new bla()\n"
+        "    if has_attr(blaobj, 'varattr') {\n"
+        "        result += blaobj.varattr\n"
+        "    }\n"
+        "    if has_attr(blaobj, 'funcattr') {\n"
+        "        result += blaobj.funcattr()\n"
+        "    }\n"
+        "    if has_attr(blaobj, 'invalidattr') {\n"
+        "        result = 0\n"
+        "    }\n"
+        "    return result\n"
+        "}\n",
+        11
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_simpleclass, test_attributeerrors,
-    test_hasattr, test_callwithclass
+    test_hasattr, test_callwithclass, test_hasattr2
 )
 
