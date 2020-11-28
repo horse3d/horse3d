@@ -733,8 +733,9 @@ int ast_ParseExprInlineOperator_Recurse(
     int operand_max_tokens_touse = max_tokens_touse;
     i = 0;
     while (i < max_tokens_touse) {
-        // End of statement handling:
+        // End of statement or obvious end of expression handling:
         if (bracket_depth <= 0 && i > 0) {
+            // (Closing brackets ending expressions are handled below)
             if (ast_TokenStartsStatementOutsideOfBrackets(
                     tokens, i
                     )) {
@@ -745,6 +746,13 @@ int ast_ParseExprInlineOperator_Recurse(
                     tokens[i].type == H64TK_UNOPSYMBOL) &&
                     IS_ASSIGN_OP(tokens[i].int_value)) {
                 // This is handled by the assignment statement parsing
+                operand_max_tokens_touse = i;
+                break;
+            }
+            if (tokens[i].type == H64TK_COMMA ||
+                    tokens[i].type == H64TK_MAPARROW ||
+                    tokens[i].type == H64TK_COLON ||
+                    tokens[i].type == H64TK_INLINEFUNC) {
                 operand_max_tokens_touse = i;
                 break;
             }

@@ -163,7 +163,23 @@ START_TEST (test_hasattr)
 }
 END_TEST
 
+START_TEST (test_callwithclass)
+{
+    runprog(
+        "test_callwithclass",
+        "func otherfunc(a1, a2) {return 5}\n"
+        "func main{\n"
+        "    var i = 5\n"
+        "    var i2 = otherfunc(i, 'abc' + 'def')\n"
+        "    return 5\n"
+        "}\n",
+        5
+    );
+}
+END_TEST
+
 TESTS_MAIN(
-    test_fibonacci, test_simpleclass, test_attributeerrors, test_hasattr
+    test_fibonacci, test_simpleclass, test_attributeerrors,
+    test_hasattr, test_callwithclass
 )
 
