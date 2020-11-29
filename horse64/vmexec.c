@@ -1096,8 +1096,13 @@ static void vmexec_PrintPostErrorInfo(
     if (vmexec->moptions.vmscheduler_debug) \
         h64fprintf( \
             stderr, "horsevm: debug: vmschedule.c: " \
-            "[t%p] SUSPEND in func %" PRId64 "\n", \
-            start_thread, (int64_t)func_id\
+            "[t%p] SUSPEND in func %" PRId64 \
+            " (stack floor: %" PRId64 ", total: %" PRId64\
+            ", call_settop_reverse: %" PRId64 ")\n", \
+            start_thread, (int64_t)func_id,\
+            start_thread->stack->current_func_floor,\
+            start_thread->stack->entry_count,\
+            start_thread->call_settop_reverse\
         );
 
 int _vmthread_RunFunction_NoPopFuncFrames(
@@ -1127,7 +1132,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #ifndef NDEBUG
         if (vmexec->moptions.vmscheduler_debug) \
             h64fprintf( \
-                stderr, "horsevm: debug: vmschedule.c: " \
+                stderr, "horsevm: debug: vmexec.c: " \
                 "[t%p] %s in func %" PRId64 "\n", \
                 start_thread,
                 (rinfo->run_from_start ?
@@ -1178,13 +1183,46 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     if (vmexec->moptions.vmexec_debug) {
         char nd[32];
         snprintf(nd, sizeof(nd) - 1, "%d", funcnestdepth);
+        char stackd[32];
+        snprintf(stackd, sizeof(stackd) - 1, "%" PRId64,
+                 stack->entry_count);
         h64fprintf(
             stderr, "horsevm: debug: vmexec %s "
-            "C->h64 has stack floor %" PRId64 "%s%s\n",
+            "C->h64 has stack floor %" PRId64 "%s%s%s%s\n",
             (isresume ? "resume" : "call"),
             stack->current_func_floor,
             (isresume ? " with resume nest depth " : ""),
-            (isresume ? nd : "")
+            (isresume ? nd : ""),
+            (isresume ? "/stack total " : ""),
+            (isresume ? stackd : "")
+        );
+    }
+    #endif
+    #ifndef NDEBUG
+    if (isresume) {
+        if (!(stack->current_func_floor +
+                pr->func[func_id].inner_stack_size +
+                pr->func[func_id].input_stack_size <
+                stack->entry_count ||
+                start_thread->call_settop_reverse >= 0))
+            h64fprintf(
+                stderr, "horsevm: debug: vmexec.c: [t%p] "
+                "ERROR, STACK TOO SMALL ON RESUME: "
+                "floor %" PRId64 " total %" PRId64
+                " input+inner=%" PRId64 "+%" PRId64
+                "\n",
+                start_thread,
+                stack->current_func_floor,
+                stack->entry_count,
+                pr->func[func_id].input_stack_size,
+                pr->func[func_id].inner_stack_size
+            );
+        assert(
+            stack->current_func_floor +
+            pr->func[func_id].inner_stack_size +
+            pr->func[func_id].input_stack_size <
+            stack->entry_count ||
+            start_thread->call_settop_reverse >= 0
         );
     }
     #endif
@@ -3541,7 +3579,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     op_jumptable[H64OP_CMP_SMALLER] = &&binop_cmp_smaller;
     op_jumptable[H64OP_INDEXBYEXPR] = &&binop_indexbyexpr;
     assert(stack != NULL);
-    if (!pushfuncframe(vmthread, func_id, -1, -1, 0, 0)) {
+    if (!isresume && !pushfuncframe(vmthread, func_id, -1, -1, 0, 0)) {
         goto triggeroom;
     }
     vmthread->funcframe[vmthread->funcframe_count - 1].stack_func_floor = (
