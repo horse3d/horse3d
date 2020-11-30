@@ -242,7 +242,7 @@ static int vmschedule_RunMainThreadLaunchFunc(
         if (!vmthread_RunFunctionWithReturnInt(
                 worker, mainthread,
                 1,  // assume locked mutex, will return LOCKED, too
-                func_id,
+                func_id, 0,
                 &hadsuspendevent, &sinfo,
                 &haduncaughterror, &einfo, &rval
                 )) {
@@ -450,6 +450,7 @@ void vmschedule_WorkerRun(void *userdata) {
                         worker, vt,
                         1,  // assume locked mutex & will return LOCKED
                         -1,  // func_id = -1 since we resume
+                        worker->no,
                         &hadsuspendevent, &sinfo,
                         &haduncaughterror, &einfo, &rval
                         ) || haduncaughterror) {

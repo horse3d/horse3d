@@ -120,6 +120,7 @@ int vmthread_RunFunctionWithReturnInt(
     h64vmthread *start_thread,
     int already_locked_in,
     int64_t func_id,
+    int worker_no,
     int *returnedsuspend,
     vmthreadsuspendinfo *suspendinfo,
     int *returneduncaughterror,

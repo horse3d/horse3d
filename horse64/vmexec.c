@@ -1096,10 +1096,14 @@ static void vmexec_PrintPostErrorInfo(
     if (vmexec->moptions.vmscheduler_debug) \
         h64fprintf( \
             stderr, "horsevm: debug: vmschedule.c: " \
-            "[t%p] SUSPEND in func %" PRId64 \
+            "[t%p:%s:W%d] SUSPEND in func %" PRId64 \
             " (stack floor: %" PRId64 ", total: %" PRId64\
             ", call_settop_reverse: %" PRId64 ")\n", \
-            start_thread, (int64_t)func_id,\
+            start_thread,\
+            (start_thread->is_on_main_thread ?\
+             "nonparallel" : "parallel"),\
+            worker_no,\
+            (int64_t)func_id,\
             start_thread->stack->current_func_floor,\
             start_thread->stack->entry_count,\
             start_thread->call_settop_reverse\
@@ -1107,7 +1111,7 @@ static void vmexec_PrintPostErrorInfo(
 
 int _vmthread_RunFunction_NoPopFuncFrames(
         h64vmexec *vmexec, h64vmthread *start_thread,
-        vmthreadresumeinfo *rinfo,
+        vmthreadresumeinfo *rinfo, int worker_no,
         int *returneduncaughterror,
         h64errorinfo *einfo,
         int *returnedsuspend,
@@ -1121,23 +1125,28 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     #ifndef NDEBUG
     if (vmexec->moptions.vmexec_debug)
         h64fprintf(
-            stderr, "horsevm: debug: vmexec call "
-            "C->h64 func %" PRId64 "\n",
-            func_id
+            stderr, "horsevm: debug: vmexec [t%p:%s:W%d] "
+            "call C->h64 func %" PRId64 "\n",
+            start_thread,
+            (start_thread->is_on_main_thread ?
+             "nonparallel" : "parallel"),
+            (int)worker_no, func_id
         );
     #endif
     int isresume = 0;
     if (!rinfo->run_from_start) {
         isresume = 1;
         #ifndef NDEBUG
-        if (vmexec->moptions.vmscheduler_debug) \
-            h64fprintf( \
-                stderr, "horsevm: debug: vmexec.c: " \
-                "[t%p] %s in func %" PRId64 "\n", \
+        if (vmexec->moptions.vmscheduler_debug)
+            h64fprintf(
+                stderr, "horsevm: debug: vmexec.c: "
+                "[t%p:%s] %s in func %" PRId64 "\n",
                 start_thread,
+                (start_thread->is_on_main_thread ?
+                 "nonparallel" : "parallel"),
                 (rinfo->run_from_start ?
                  "ASYNCCALL" : "RESUME"),
-                (int64_t)func_id\
+                (int64_t)func_id
             );
         #endif
         assert(start_thread->funcframe_count > 0);
@@ -1172,11 +1181,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         );
     }
     #endif
-    stack->current_func_floor = original_stack_size;
     int funcnestdepth = 0;
     if (isresume) {
         funcnestdepth = rinfo->funcnestdepth;
     } else {
+        stack->current_func_floor = original_stack_size;
         assert(rinfo->funcnestdepth <= 0);
     }
     #ifndef NDEBUG
@@ -1202,7 +1211,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     if (isresume) {
         if (!(stack->current_func_floor +
                 pr->func[func_id].inner_stack_size +
-                pr->func[func_id].input_stack_size <
+                pr->func[func_id].input_stack_size <=
                 stack->entry_count ||
                 start_thread->call_settop_reverse >= 0))
             h64fprintf(
@@ -1220,7 +1229,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         assert(
             stack->current_func_floor +
             pr->func[func_id].inner_stack_size +
-            pr->func[func_id].input_stack_size <
+            pr->func[func_id].input_stack_size <=
             stack->entry_count ||
             start_thread->call_settop_reverse >= 0
         );
@@ -3579,21 +3588,23 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     op_jumptable[H64OP_CMP_SMALLER] = &&binop_cmp_smaller;
     op_jumptable[H64OP_INDEXBYEXPR] = &&binop_indexbyexpr;
     assert(stack != NULL);
-    if (!isresume && !pushfuncframe(vmthread, func_id, -1, -1, 0, 0)) {
-        goto triggeroom;
-    }
-    vmthread->funcframe[vmthread->funcframe_count - 1].stack_func_floor = (
-        original_stack_size
-    );
-
-    if (!isresume)
+    if (!isresume) {
+        // Final set-up before we go:
+        if (!pushfuncframe(vmthread, func_id, -1, -1, 0, 0))
+            goto triggeroom;
+        vmthread->funcframe[vmthread->funcframe_count - 1].
+            stack_func_floor = (
+                original_stack_size
+            );
         funcnestdepth++;
+    }
+
     goto *jumptable[((h64instructionany *)p)->type];
 }
 
 int vmthread_RunFunction(
         h64vmexec *vmexec, h64vmthread *start_thread,
-        vmthreadresumeinfo *rinfo,
+        vmthreadresumeinfo *rinfo, int worker_no,
         int *returnedsuspend,
         vmthreadsuspendinfo *suspendinfo,
         int *returneduncaughterror,
@@ -3639,7 +3650,7 @@ int vmthread_RunFunction(
     int inneruncaughterror = 0;
     int innersuspend = 0;
     int result = _vmthread_RunFunction_NoPopFuncFrames(
-        vmexec, start_thread, rinfo,
+        vmexec, start_thread, rinfo, worker_no,
         &inneruncaughterror, einfo,
         &innersuspend, suspendinfo
     );  // ^ run actual function
@@ -3701,7 +3712,7 @@ int vmthread_RunFunctionWithReturnInt(
         h64vmworker *worker,
         h64vmthread *start_thread,
         int already_locked_in,
-        int64_t func_id,
+        int64_t func_id, int worker_no,
         int *returnedsuspend,
         vmthreadsuspendinfo *suspendinfo,
         int *returneduncaughterror,
@@ -3768,7 +3779,7 @@ int vmthread_RunFunctionWithReturnInt(
     assert(storedresumeinfo.run_from_start ||
            storedresumeinfo.precall_old_stack >= 0);
     int result = vmthread_RunFunction(
-        vmexec, start_thread, &storedresumeinfo,
+        vmexec, start_thread, &storedresumeinfo, worker_no,
         &innerreturnedsuspend, suspendinfo,
         &innerreturneduncaughterror, einfo
     );
