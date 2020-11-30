@@ -3646,6 +3646,7 @@ int vmthread_RunFunction(
     start_thread->upcoming_resume_info->precall_errorframesbefore = (
         errorframesbefore
     );
+    start_thread->upcoming_resume_info->func_id = -1;
 
     int inneruncaughterror = 0;
     int innersuspend = 0;
@@ -3763,6 +3764,11 @@ int vmthread_RunFunctionWithReturnInt(
     int innerreturnedsuspend = 0;
     int innerreturneduncaughterror = 0;
     int64_t old_stack_size = start_thread->stack->entry_count;
+    if (storedresumeinfo.func_id >= 0) {
+        old_stack_size = (
+            storedresumeinfo.precall_old_stack
+        );
+    }
     assert(
         (func_id >= 0 && storedresumeinfo.func_id < 0) ||
         (func_id < 0 && storedresumeinfo.func_id >= 0) ||
