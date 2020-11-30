@@ -34,6 +34,13 @@ func process_command(c) {
 }
 ```
 
+### Line length
+
+To facilitate work flows for multiple panes of code and to motivate
+keeping code nestings flat and simple, lines should not exceed 79
+characters in length.
+
+
 ### Whitespace in statements
 
 Any opposite-facing brackets should, outside of the call and indexing
