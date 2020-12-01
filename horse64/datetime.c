@@ -60,13 +60,15 @@ __attribute__((constructor)) void datetime_NoSuspendJumpMutex() {
 
 
 void datetime_Sleep(uint64_t sleepms) {
+    if (sleepms <= 0)
+        return;
     #if defined(_WIN32) || defined(_WIN64)
     Sleep(sleepms);
     #else
     #if _POSIX_C_SOURCE >= 199309L
     struct timespec ts;
     ts.tv_sec = sleepms / 1000LL;
-    ts.tv_nsec = (sleepms % 1000LL) * 1000LL;
+    ts.tv_nsec = (sleepms % 1000LL) * 1000000LL;
     nanosleep(&ts, NULL);
     #else
     if (sleepms >= 1000LL) {

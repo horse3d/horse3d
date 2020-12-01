@@ -531,6 +531,63 @@ void _wakeup_threads(h64vmexec *vmexec) {
 
 void vmschedule_WorkerSupervisorRun(void *userdata) {
     h64vmexec *vmexec = (h64vmexec*) userdata;
+    #ifndef NDEBUG
+    if (vmexec->moptions.vmscheduler_debug)
+        h64fprintf(
+            stderr, "horsevm: debug: vmschedule.c: "
+            "[SU] LAUNCH of supervisor\n"
+        );
+    #endif
+    mutex *access_mutex = vmexec->worker_overview->worker_mutex;
+    while (1) {
+        int64_t now = (int64_t)datetime_Ticks();
+        mutex_Lock(access_mutex);
+        int64_t timerwaitsmin = -1;
+        int i = 0;
+        while (i < vmexec->thread_count) {
+            h64vmthread *vt = vmexec->thread[i];
+            if (vt->suspend_info->suspendtype !=
+                    SUSPENDTYPE_ASYNCCALLSCHEDULED &&
+                    vt->suspend_info->suspendtype !=
+                    SUSPENDTYPE_DONE) {
+                if (vt->suspend_info->suspendtype ==
+                        SUSPENDTYPE_FIXEDTIME) {
+                    if (likely(!vt->suspend_info->suspenditemready)) {
+                        int64_t waititem = (
+                            vt->suspend_info->suspendarg - now
+                        );
+                        if (waititem < 1)
+                            waititem = 1;
+                        if (waititem < timerwaitsmin || timerwaitsmin < 0)
+                            timerwaitsmin = waititem + 1;
+                    }
+                }
+            }
+            i++;
+        }
+        mutex_Release(access_mutex);
+        #ifndef NDEBUG
+        if (vmexec->moptions.vmscheduler_debug)
+            h64fprintf(
+                stderr, "horsevm: debug: vmschedule.c: "
+                "[SU] EVENTWAIT timerms %" PRId64
+                "\n",
+                timerwaitsmin
+            );
+        #endif
+        if (timerwaitsmin >= 0) {
+            datetime_Sleep(timerwaitsmin + 5);
+        } else {
+            datetime_Sleep(5);
+        }
+        i = 0;
+        while (i < vmexec->worker_overview->worker_count) {
+            threadevent_Set(
+                vmexec->worker_overview->worker[i]->wakeupevent
+            );
+            i++;
+        }
+    }
 }
 
 
