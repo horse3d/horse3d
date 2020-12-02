@@ -688,7 +688,9 @@ int iolib_fileread(
                 readbuf = newbuf;
                 readbufsize = newreadbufsize;
             }
-            int64_t _didread = fread(readbuf + readbuffill, 1, readbytes, f);
+            int64_t _didread = fread(
+                readbuf + readbuffill, 1, readbytes, f
+            );
             if (_didread <= 0) {
                 if (feof(f)) {
                     break;
