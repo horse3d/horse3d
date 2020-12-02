@@ -87,6 +87,7 @@ typedef struct h64vmexec {
 
     vmsuspendoverview *suspend_overview;
     h64vmworkerset *worker_overview;
+    volatile int supervisor_stop_signal;
 
     h64vmthread **thread;
     int thread_count;

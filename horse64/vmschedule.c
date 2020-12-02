@@ -580,6 +580,8 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
         } else {
             datetime_Sleep(5);
         }
+        if (vmexec->supervisor_stop_signal)
+            break;
         i = 0;
         while (i < vmexec->worker_overview->worker_count) {
             threadevent_Set(
@@ -758,6 +760,7 @@ int vmschedule_ExecuteProgram(
         }
         i++;
     }
+    mainexec->supervisor_stop_signal = 1;
     thread_Join(
         supervisor_thread
     );
