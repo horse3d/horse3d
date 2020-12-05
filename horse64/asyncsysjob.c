@@ -4,18 +4,21 @@
 
 #include "compileconfig.h"
 
+#include <stdint.h>
+
+#include "asyncsysjob.h"
+#include "processrun.h"
 #include "threading.h"
 #include "vmexec.h"
 
 
-int hostlookup_RequestAsync(
+int asyncjob_RequestAsync(
         h64vmthread *request_thread,
-        const char *requested_host,
-        int *fail_nosuchhost,
-        int *fail_outofmemory,
-        char **resulting_host
+        h64asyncsysjob *job,
+        int *failurewasoom
         ) {
-    *fail_nosuchhost = 0;
-    *fail_outofmemory = 1;
-    return 0;
+    if (!request_thread || !job) {
+        if (failurewasoom) *failurewasoom = 1;
+        return 0;
+    }
 }

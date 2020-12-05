@@ -15,6 +15,11 @@
 
 /// @module net Networking streams to access the local network and internet.
 
+struct netlib_connect_asyncprogress {
+    char *utf8host;
+    int utf8hostlen;
+};
+
 int netlib_connect(
         h64vmthread *vmthread
         ) {
@@ -102,6 +107,9 @@ int netlib_RegisterFuncsAndModules(h64program *p) {
     );
     if (idx < 0)
         return 0;
+    p->func[idx].async_progress_struct_size = (
+        sizeof(struct netlib_connect_asyncprogress)
+    );
 
     return 1;
 }

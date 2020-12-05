@@ -1063,6 +1063,7 @@ funcid_t h64program_RegisterCFunction(
     p->func[p->func_count].associated_class_index = (
         associated_class_index
     );
+    p->func[p->func_count].async_progress_struct_size = -1;
     p->func[p->func_count].cfunclookup = cfunclookup;
     p->func[p->func_count].cfunc_ptr = func;
     p->func[p->func_count].kwarg_count = kwarg_count;

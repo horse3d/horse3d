@@ -363,6 +363,7 @@ typedef struct h64func {
     int iscfunc, is_threadable, user_set_parallel;
     int kwarg_count;
     int64_t *kwargnameindexes;
+    int16_t async_progress_struct_size;
 
     char *cfunclookup;  // path to identify C extension func
 

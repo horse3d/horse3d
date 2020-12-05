@@ -50,11 +50,16 @@ typedef struct h64vmrescueframe {
     int64_t *caught_types_more;
 } h64vmrescueframe;
 
+typedef enum leftover_async_work_type {
+    LEFTOVER_ASYNC_WORK_NONE = 0,
+    LEFTOVER_ASYNC_WORK_ASYNCSYSJOB = 1
+} leftover_async_work_type;
 
 
 typedef struct vmsuspendoverview vmsuspendoverview;
 typedef struct vmthreadsuspendinfo vmthreadsuspendinfo;
 typedef struct h64vmworker h64vmworker;
+typedef struct h64asyncsysjob h64asyncsysjob;
 
 typedef struct h64vmthread {
     h64vmexec *vmexec_owner;
@@ -68,12 +73,15 @@ typedef struct h64vmthread {
 
     int64_t call_settop_reverse;
     h64stack *stack;
-    poolalloc *heap, *str_pile;
+    poolalloc *heap, *str_pile, *cfunc_asyncdata_pile;
 
     int funcframe_count, funcframe_alloc;
     h64vmfunctionframe *funcframe;
     int errorframe_count, errorframe_alloc;
     h64vmrescueframe *errorframe;
+
+    int foreground_async_work_funcid;
+    void *foreground_async_work_dataptr;
 
     int execution_func_id;
     int execution_instruction_id;
@@ -142,5 +150,7 @@ int vmexec_SuspendFunc(
     h64vmthread *vmthread, suspendtype suspend_type,
     int64_t suspend_intarg
 );
+
+void vmthread_ClearAsyncForegroundWork(h64vmthread *vt);
 
 #endif  // HORSE64_VMEXEC_H_

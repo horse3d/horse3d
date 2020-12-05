@@ -117,6 +117,7 @@ h64vmthread *vmthread_New(h64vmexec *owner, int is_on_main_thread) {
     if (!vmthread)
         return NULL;
     memset(vmthread, 0, sizeof(*vmthread));
+    vmthread->foreground_async_work_funcid = -1;
 
     vmthread->heap = poolalloc_New(sizeof(h64gcvalue));
     if (!vmthread->heap) {
@@ -622,6 +623,9 @@ static int vmthread_errors_Raise(
     int jump_to_finally = 0;
     if (returneduncaughterror) *returneduncaughterror = 0;
 
+    // Clear out left over work of any kind:
+    vmthread_ClearAsyncForegroundWork(vmthread);
+
     // Figure out from top-most catch frame what to do:
     while (1) {
         if (vmthread->errorframe_count > 0) {
@@ -1085,7 +1089,6 @@ static void vmexec_PrintPostErrorInfo(
             suspend_valuecontent->suspend_intarg \
         ); \
     } \
-    p += sizeof(h64instruction_call); \
     vmthread->upcoming_resume_info->byteoffset = ( \
         p - pr->func[func_id].instructions \
     ); \
@@ -1251,6 +1254,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #if defined(DEBUGVMEXEC)
         h64fprintf(stderr, "horsevm: debug: vmexec triggeroom\n");
         #endif
+        vmthread_ClearAsyncForegroundWork(vmthread);
         RAISE_ERROR(H64STDERROR_OUTOFMEMORYERROR,
                         "Allocation failure");
         goto *jumptable[((h64instructionany *)p)->type];
@@ -2240,8 +2244,52 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             #endif
             int64_t oldtop = vmthread->call_settop_reverse;
 
+            // For calls with async progress, pre-allocate data if
+            // required:
+            if (vmthread->foreground_async_work_funcid != target_func_id) {
+                vmthread_ClearAsyncForegroundWork(vmthread);
+                vmthread->foreground_async_work_funcid = target_func_id;
+            }
+            assert(vmthread->foreground_async_work_funcid == target_func_id);
+            if (!vmthread->foreground_async_work_dataptr &&
+                    pr->func[target_func_id].async_progress_struct_size > 0) {
+                if (!vmthread->cfunc_asyncdata_pile) {
+                    vmthread->cfunc_asyncdata_pile = poolalloc_New(
+                        CFUNC_ASYNCDATA_DEFAULTITEMSIZE
+                    );
+                    if (!vmthread->cfunc_asyncdata_pile) {
+                        goto triggeroom;
+                    }
+                }
+                if (pr->func[target_func_id].
+                        async_progress_struct_size <=
+                        CFUNC_ASYNCDATA_DEFAULTITEMSIZE) {
+                    vmthread->foreground_async_work_dataptr = (
+                        poolalloc_malloc(
+                            vmthread->cfunc_asyncdata_pile, 0
+                        )
+                    );
+                } else {
+                    vmthread->foreground_async_work_dataptr = (
+                        malloc(pr->func[target_func_id].
+                            async_progress_struct_size));
+                }
+                if (!vmthread->foreground_async_work_dataptr)
+                    goto triggeroom;
+            }
+            assert(
+                pr->func[target_func_id].async_progress_struct_size > 0 ||
+                vmthread->foreground_async_work_dataptr == NULL
+            );
+
             // Call:
             int result = cfunc(vmthread);  // DO ACTUAL CALL
+
+            // See if we have unfinished async work, post call:
+            int unfinished_async_work = (
+                vmthread->foreground_async_work_dataptr != NULL
+            );
+            assert(!unfinished_async_work || !result);
 
             // Extract return value:
             int64_t return_value_gslot = new_func_floor + 0LL;
@@ -2261,23 +2309,52 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     )
                 );
             }
-            // Reset stack floor and size:
-            vmthread->call_settop_reverse = oldtop;
-            assert(vmthread->stack == stack);
-            stack->current_func_floor = old_floor;
-            if (!vmthread_ResetCallTempStack(vmthread)) {
-                if (returneduncaughterror)
-                    *returneduncaughterror = 0;
-                DELREF_NONHEAP(&retval);
-                valuecontent_Free(&retval);
-                goto triggeroom;
+            if (unfinished_async_work &&
+                    retval.type != H64VALTYPE_SUSPENDINFO) {
+                // Probably an error that prevented proper suspending,
+                // -> clear async data
+                vmthread_ClearAsyncForegroundWork(vmthread);
+                unfinished_async_work = 0;
             }
+            // Reset stack floor and size:
+            if (!unfinished_async_work) {
+                vmthread->call_settop_reverse = oldtop;
+                assert(vmthread->stack == stack);
+                stack->current_func_floor = old_floor;
+                if (!vmthread_ResetCallTempStack(vmthread)) {
+                    if (returneduncaughterror)
+                        *returneduncaughterror = 0;
+                    DELREF_NONHEAP(&retval);
+                    valuecontent_Free(&retval);
+                    goto triggeroom;
+                }
+            } else {
+                #ifndef NDEBUG
+                if (vmthread->vmexec_owner->moptions.vmscheduler_debug)
+                    h64fprintf(
+                        stderr, "horsevm: debug: vmschedule.c: "
+                        "[t%p:%s] cfunc %" PRId64 " is ASYNC/UNFINISHED,"
+                        " suspending with re-call\n",
+                        vmthread,
+                        (vmthread->is_on_main_thread ?
+                         "nonparallel" : "parallel"),
+                        target_func_id
+                    );
+                #endif
+            }
+            // Check if result is error, suspend, or regular return:
             if (!result) {
                 if (retval.type == H64VALTYPE_SUSPENDINFO) {
+                    // Handle suspend:
+                    if (!unfinished_async_work) {
+                        // Nothing unfinished, advance past call:
+                        p += sizeof(h64instruction_call);
+                    }
                     SUSPEND_VM((&retval));
                     return 1;
                 }
                 // Handle function call error
+                vmthread_ClearAsyncForegroundWork(vmthread);
                 valuecontent oome = {0};
                 oome.type = H64VALTYPE_ERROR;
                 oome.error_class_id = H64STDERROR_OUTOFMEMORYERROR;
@@ -2295,10 +2372,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 valuecontent_Free(&retval);
                 goto *jumptable[((h64instructionany *)p)->type];
             } else {
+                vmthread_ClearAsyncForegroundWork(vmthread);
+                // Copy return value:
                 if (return_value_gslot != stack->current_func_floor +
                         (int64_t)inst->returnto &&
                         inst->returnto >= 0) {
-                    // Copy over result:
                     assert(inst->returnto < STACK_TOP(stack));
                     DELREF_NONHEAP(STACK_ENTRY(stack, inst->returnto));
                     valuecontent_Free(STACK_ENTRY(stack, inst->returnto));
@@ -3602,6 +3680,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     goto *jumptable[((h64instructionany *)p)->type];
 }
 
+void vmthread_ClearAsyncForegroundWork(h64vmthread *vt) {
+    // FIXME
+    
+}
+
 int vmthread_RunFunction(
         h64vmexec *vmexec, h64vmthread *start_thread,
         vmthreadresumeinfo *rinfo, int worker_no,
@@ -3655,6 +3738,10 @@ int vmthread_RunFunction(
         &inneruncaughterror, einfo,
         &innersuspend, suspendinfo
     );  // ^ run actual function
+    if (!innersuspend) {
+        // This must be cleared for any exit path except suspend:
+        vmthread_ClearAsyncForegroundWork(start_thread);
+    }
     if (!inneruncaughterror && innersuspend) {
         // Special: we need to leave things as they are for resume.
         if (returnedsuspend)
