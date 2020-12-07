@@ -57,11 +57,11 @@ int utf32_to_utf16(
     int64_t *out_len, int surrogateunescape
 );
 
-int64_t utf16_letter_len(
+int64_t utf32_letter_len(
     h64wchar *sdata, int64_t sdata_len
 );
 
-int64_t utf16_letters_count(
+int64_t utf32_letters_count(
     h64wchar *sdata, int64_t sdata_len
 );
 

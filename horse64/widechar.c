@@ -38,12 +38,12 @@ int utf8_char_len(const unsigned char *p) {
     return 1;
 }
 
-int64_t utf16_letters_count(
+int64_t utf32_letters_count(
         h64wchar *sdata, int64_t sdata_len
         ) {
     int64_t len = 0;
     while (sdata_len > 0) {
-        int64_t letterlen = utf16_letter_len(sdata, sdata_len);
+        int64_t letterlen = utf32_letter_len(sdata, sdata_len);
         assert(letterlen > 0);
         len += letterlen;
         sdata += letterlen;
@@ -52,18 +52,33 @@ int64_t utf16_letters_count(
     return len;
 }
 
-int64_t utf16_letter_len(
+int64_t utf32_letter_len(
         h64wchar *sdata, int64_t sdata_len
         ) {
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wtype-limits"
     if (sdata_len <= 0)
         return 0;
-    int64_t len = 1;
+    int64_t len = 0;
     // Count modifiers in front as same letter:
     while (sdata_len > 1 && *sdata > 0 &&
             *sdata <= _widechartbl_highest_cp &&
             _widechartbl_ismodifier[*sdata]) {
+        sdata++;
+        len++;
+        sdata_len--;
+    }
+    // If this is a regional flag pair, count it as one thing:
+    if (sdata_len >= 2 && sdata[0] >= 0x1F1E6LL &&
+            sdata[0] <= 0x1F1FFLL &&
+            sdata[1] >= 0x1F1E6LL &&
+            sdata[1] <= 0x1F1FFLL) {
+        // -> two codepoint flag
+        sdata += 2;
+        len += 2;
+        sdata_len -= 2;
+    } else if (sdata_len >= 1) {
+        // Just a regular char.
         sdata++;
         len++;
         sdata_len--;
@@ -78,7 +93,8 @@ int64_t utf16_letter_len(
         while (sdata_len > 0 &&
                 *sdata >= 0 &&
                 *sdata <= _widechartbl_highest_cp &&
-                _widechartbl_istag[sdata[1]]) {
+                _widechartbl_istag[sdata[0]] &&
+                sdata[0] != 0xE007FLL) {
             sdata++;
             sdata_len--;
             len++;

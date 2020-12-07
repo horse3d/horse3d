@@ -22,7 +22,7 @@ ATTR_UNUSED static inline void vmstrings_RequireLetterLen(
         h64stringval *v
         ) {
     if (v->len != 0 && v->letterlen == 0) {
-        v->letterlen = utf16_letters_count(
+        v->letterlen = utf32_letters_count(
             v->s, v->len
         );
         assert(v->letterlen > 0);

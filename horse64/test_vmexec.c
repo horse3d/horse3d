@@ -207,8 +207,24 @@ START_TEST (test_hasattr2)
 }
 END_TEST
 
+START_TEST (test_unicodestrlen)
+{
+    runprog(
+        "test_unicodestrlen",
+        "func main {\n"
+        "    var s1 = 'us flag: \\u1F38\\u1F36'\n"
+        "    var s2 = 'english flag: \\u1F3F4\\uE0067\\uE0062"
+        "\\uE0065\\uE006E\\uE0067\\uE007F'\n"
+        "    return s1.len + s2.len\n"
+        "}\n",
+        15 + 10
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_simpleclass, test_attributeerrors,
-    test_hasattr, test_callwithclass, test_hasattr2
+    test_hasattr, test_callwithclass, test_hasattr2,
+    test_unicodestrlen
 )
 

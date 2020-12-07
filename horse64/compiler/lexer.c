@@ -75,6 +75,9 @@ char *lexer_ParseStringLiteral(
     char *p = strdup(
         literal + 1 + (isbinary ? 1 : 0)
     );
+    #ifndef NDEBUG
+    int plen = strlen(p);
+    #endif
     if (!p)
         return NULL;
     int k = 0;
@@ -93,6 +96,9 @@ char *lexer_ParseStringLiteral(
             }
             int j = 0;
             while (j < charlen) {
+                #ifndef NDEBUG
+                assert(k < plen);
+                #endif
                 p[k] = literal[i];
                 k++;
                 i++;
@@ -114,7 +120,75 @@ char *lexer_ParseStringLiteral(
                 p[k] = '"'; k++;
             } else if (literal[i] == '\'') {
                 p[k] = '\''; k++;
+            } else if (literal[i] == 'u') {
+                // Unicode literal, up to \uNNNNNNNN with
+                // the value being hex. (Unsigned 32bit int.)
+                char numdigits[9] = "";
+                while (i < (int)strlen(literal) - 1 &&
+                        ((literal[i] >= '0' &&
+                          literal[i] <= '9') ||
+                         (literal[i] >= 'a' &&
+                          literal[i] <= 'f') ||
+                         (literal[i] >= 'A' &&
+                          literal[i] <= 'F')) &&
+                        strlen(numdigits) < 8) {
+                    numdigits[strlen(numdigits) + 1] = '\0';
+                    numdigits[strlen(numdigits)] = literal[i];
+                    i++;
+                }
+                if (strlen(numdigits) < 4) {
+                    char buf[512];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "invalid escape \"\\u\" not followed "
+                        "by hex number of at least "
+                        "4 digits was ignored "
+                        "[-Wunrecognized-escape-sequences]");
+                    if (!result_AddMessage(
+                            result,
+                            H64MSG_WARNING, buf,
+                            fileuri, line, column
+                            )) {
+                        free(p);
+                        return NULL;
+                    }
+                } else {
+                    int64_t number = (int64_t)strtoll(numdigits, NULL, 16);
+                    assert(number >= 0 && number <= UINT32_MAX);
+                    char utf8buf[10] = "";
+                    int utf8buflen;
+                    int u8result = write_codepoint_as_utf8(
+                        number, 0, utf8buf, 9, &utf8buflen
+                    );
+                    if (!u8result || utf8buflen <= 0 ||
+                            utf8buflen >= 10) {
+                        char buf[512];
+                        snprintf(buf, sizeof(buf) - 1,
+                            "invalid escape \"\\u\" not followed "
+                            "by a valid unicode code point "
+                            "[-Wunrecognized-escape-sequences]");
+                        if (!result_AddMessage(
+                                result,
+                                H64MSG_WARNING, buf,
+                                fileuri, line, column
+                                )) {
+                            free(p);
+                            return NULL;
+                        }
+                    } else {
+                        int i2 = 0;
+                        while (i2 < utf8buflen) {
+                            #ifndef NDEBUG
+                            assert(k < plen);
+                            #endif
+                            p[k] = utf8buf[i2];
+                            k++;
+                            i2++;
+                        }
+                    }
+                }
             } else if (literal[i] == 'x') {
+                // Binary byte literal, up to \xNN with value
+                // being hex. (Unsigned 8bit int.)
                 char hexnum[3] = "";
                 if (i + 1 < (int)strlen(literal) - 1 &&
                         ((literal[i + 1] >= '0' &&
@@ -155,6 +229,9 @@ char *lexer_ParseStringLiteral(
                 } else {
                     int number = (int)strtol(hexnum, 0, 16);
                     assert(number >= 0 && number < 256);
+                    #ifndef NDEBUG
+                    assert(k < plen);
+                    #endif
                     p[k] = number;
                     k++;
                 }
@@ -189,6 +266,9 @@ char *lexer_ParseStringLiteral(
             column++;
             continue;
         } else {
+            #ifndef NDEBUG
+            assert(k < plen);
+            #endif
             p[k] = '\\'; k++;
         }
         if (i >= (int)strlen(literal) || (
@@ -201,6 +281,9 @@ char *lexer_ParseStringLiteral(
         }
         i++;
     }
+    #ifndef NDEBUG
+    assert(k <= plen);
+    #endif
     p[k] = '\0';
     *out_len = k;
     return p;
