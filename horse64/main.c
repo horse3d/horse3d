@@ -64,7 +64,7 @@ int main(int argc, const char **argv) {
             continue;
         }
         if (!doubledash_seen) {
-            if (strcasecmp(argv[i], "-h") == 0 ||
+            if (h64casecmp(argv[i], "-h") == 0 ||
                     strcmp(argv[i], "--help") == 0 ||
                     strcmp(argv[i], "-?") == 0 ||
                     strcmp(argv[i], "/?") == 0) {

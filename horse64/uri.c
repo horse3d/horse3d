@@ -230,7 +230,7 @@ uriinfo *uri_ParseEx(
         part += 3;
         lastdotindex = -1;
         part_start = part;
-        if (strcasecmp(result->protocol, "file") == 0) {
+        if (h64casecmp(result->protocol, "file") == 0) {
             result->path = uri_ParsePath(
                 part_start, 0
             );
@@ -334,7 +334,7 @@ uriinfo *uri_ParseEx(
         lastdotindex = -1;
     } else if ((*part == '/' || *part == '\0') &&
             result->protocol &&
-            strcasecmp(result->protocol, "file") != 0) {
+            h64casecmp(result->protocol, "file") != 0) {
         result->host = malloc(part - part_start + 1);
         if (!result->host) {
             uri_Free(result);
@@ -356,13 +356,13 @@ uriinfo *uri_ParseEx(
 
     result->path = uri_ParsePath(
         part_start,
-        (!result->protocol || strcasecmp(result->protocol, "file") != 0)
+        (!result->protocol || h64casecmp(result->protocol, "file") != 0)
     );
     if (!result->path) {
         uri_Free(result);
         return NULL;
     }
-    if (result->protocol && strcasecmp(result->protocol, "file") == 0) {
+    if (result->protocol && h64casecmp(result->protocol, "file") == 0) {
         char *path_cleaned = filesys_Normalize(result->path);
         free(result->path);
         result->path = path_cleaned;
@@ -444,7 +444,7 @@ char *uri_DumpEx(uriinfo *uinfo, int absolutefilepaths) {
         uri_Free(uinfo);
         return NULL;
     }
-    if (uinfo->protocol && strcasecmp(uinfo->protocol, "file") == 0 &&
+    if (uinfo->protocol && h64casecmp(uinfo->protocol, "file") == 0 &&
             !filesys_IsAbsolutePath(path) && absolutefilepaths &&
             uinfo->path) {
         char *newpath = filesys_ToAbsolutePath(path);

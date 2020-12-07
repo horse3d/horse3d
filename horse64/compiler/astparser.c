@@ -2811,7 +2811,7 @@ static int _importstmts_have_duplicate_path(
         return 0;
     int i = 0;
     while (i < expr1->importstmt.import_elements_count) {
-        if (strcasecmp(
+        if (h64casecmp(
                 expr1->importstmt.import_elements[i],
                 expr2->importstmt.import_elements[i]) != 0) {
             return 0;

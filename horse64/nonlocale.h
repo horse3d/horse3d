@@ -237,13 +237,11 @@ ATTR_UNUSED static inline int h64casecmp(
     while (1) {
         if (*s1 != *s2) {
             uint8_t c1 = *(uint8_t*)s1;
-            if ((c1 >= 'a' && c1 <= 'z') ||
-                    (c1 >= 'A' && c1 >= 'Z'))
-                c1 = toupper(c1);
+            if (c1 >= 'a' && c1 <= 'z')
+                c1 = (c1 - 'a') + 'A';
             uint8_t c2 = *(uint8_t*)s2;
-            if ((c2 >= 'a' && c2 <= 'z') ||
-                    (c2 >= 'A' && c2 >= 'Z'))
-                c2 = toupper(c2);
+            if (c2 >= 'a' && c2 <= 'z')
+                c2 = (c2 - 'a') + 'A';
             if (c1 != c2)
                 return ((int)c1) - ((int)c2);
         } else if (unlikely(*s1 == '\0')) {

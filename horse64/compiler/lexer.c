@@ -324,7 +324,7 @@ h64tokenizedfile lexer_ParseFromFile(
         );
         return result;
     }
-    if (strcasecmp(uinfo->protocol, "file") != 0) {
+    if (h64casecmp(uinfo->protocol, "file") != 0) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "URI protocol unsupported",

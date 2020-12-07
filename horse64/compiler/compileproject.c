@@ -43,7 +43,7 @@ h64compileproject *compileproject_New(
 
     uriinfo *uinfo = uri_ParseEx(basefolderuri, "https");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
-            strcasecmp(uinfo->protocol, "file") != 0) {
+            h64casecmp(uinfo->protocol, "file") != 0) {
         uri_Free(uinfo);
         free(pr);
         return NULL;
@@ -100,7 +100,7 @@ char *compileproject_URIRelPath(
 
     uriinfo *uinfo = uri_ParseEx(fileuri, "https");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
-            strcasecmp(uinfo->protocol, "file") != 0) {
+            h64casecmp(uinfo->protocol, "file") != 0) {
         uri_Free(uinfo);
         if (outofmemory) *outofmemory = 1;
         return NULL;
@@ -321,7 +321,7 @@ char *compileproject_GetFileSubProjectPath(
     // Parse sourcefileuri given to us:
     uriinfo *uinfo = uri_ParseEx(sourcefileuri, "https");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
-            strcasecmp(uinfo->protocol, "file") != 0) {
+            h64casecmp(uinfo->protocol, "file") != 0) {
         if (outofmemory && !uinfo) *outofmemory = 1;
         if (outofmemory && uinfo) *outofmemory = 0;
         uri_Free(uinfo);
@@ -362,7 +362,7 @@ char *compileproject_GetFileSubProjectPath(
                     defined(__ANDROID__)
                 strcmp(buf, hmodules_path) == 0
                 #else
-                strcasecmp(buf, hmodules_path) == 0
+                h64strcasecmp(buf, hmodules_path) == 0
                 #endif
                 && (relfilepath[strlen(hmodules_path)] == '/'
                 #if defined(_WIN32) || defined(_WIN64)
@@ -1018,7 +1018,7 @@ char *compileproject_FolderGuess(
     assert(fileuri != NULL);
     uriinfo *uinfo = uri_ParseEx(fileuri, "https");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
-            strcasecmp(uinfo->protocol, "file") != 0) {
+            h64casecmp(uinfo->protocol, "file") != 0) {
         uri_Free(uinfo);
         *error = strdup("failed to parse URI, invalid syntax "
             "or not file protocol");
@@ -1172,7 +1172,7 @@ int _resolveallcb(
         return 0;
     }
     #if defined(_WIN32) || defined(_WIN64)
-    fileismain = (strcasecmp(relfilepath_ast, relfilepath_main) == 0);
+    fileismain = (h64casecmp(relfilepath_ast, relfilepath_main) == 0);
     #else
     fileismain = (strcmp(relfilepath_ast, relfilepath_main) == 0);
     #endif
