@@ -207,6 +207,18 @@ START_TEST (test_hasattr2)
 }
 END_TEST
 
+START_TEST (test_memberaccesschain)
+{
+    runprog(
+        "test_unicodestrlen",
+        "func main {\n"
+        "    var s1 = 'a'  var s2 = 'bc'"
+        "    print(s1.len.as_str + ', ' + s2.len.as_str)\n"
+        "}\n",
+        0
+    );
+}
+
 START_TEST (test_unicodestrlen)
 {
     runprog(
@@ -225,6 +237,7 @@ END_TEST
 TESTS_MAIN(
     test_fibonacci, test_simpleclass, test_attributeerrors,
     test_hasattr, test_callwithclass, test_hasattr2,
+    test_memberaccesschain,
     test_unicodestrlen
 )
 

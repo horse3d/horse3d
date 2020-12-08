@@ -123,6 +123,7 @@ char *lexer_ParseStringLiteral(
             } else if (literal[i] == 'u') {
                 // Unicode literal, up to \uNNNNNNNN with
                 // the value being hex. (Unsigned 32bit int.)
+                i++;
                 char numdigits[9] = "";
                 while (i < (int)strlen(literal) - 1 &&
                         ((literal[i] >= '0' &&

@@ -3030,6 +3030,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
+            target->type = H64VALTYPE_INT64;
+            target->int_value = len;
         } else if (nameidx >= 0 &&
                 (nameidx == vmexec->program->init_name_index ||
                  nameidx == vmexec->program->to_str_name_index ||
