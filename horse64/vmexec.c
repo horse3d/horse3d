@@ -3022,6 +3022,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     len = ((h64gcvalue *)vc->ptr_value)->
                         bytes_val.len;
                 }
+            } else if (vc->type == H64VALTYPE_SHORTSTR) {
+                len = utf32_letters_count(
+                    vc->shortstr_value, vc->shortstr_len
+                );
+            } else if (vc->type == H64VALTYPE_SHORTBYTES) {
+                len = vc->shortbytes_len;
             }
             if (len < 0) {
                 RAISE_ERROR(
