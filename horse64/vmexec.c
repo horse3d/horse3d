@@ -3021,13 +3021,21 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         H64GCVALUETYPE_BYTES) {
                     len = ((h64gcvalue *)vc->ptr_value)->
                         bytes_val.len;
+                } else if (((h64gcvalue *)vc->ptr_value)->type ==
+                        H64GCVALUETYPE_LIST) {
+                    return vmlist_Count(
+                        ((h64gcvalue *)vc->ptr_value)->list_values
+                    );
                 }
             } else if (vc->type == H64VALTYPE_SHORTSTR) {
+                char *ptr = (char*)vc->shortstr_value;
                 len = utf32_letters_count(
-                    vc->shortstr_value, vc->shortstr_len
+                    (h64wchar*)ptr, vc->shortstr_len
                 );
             } else if (vc->type == H64VALTYPE_SHORTBYTES) {
                 len = vc->shortbytes_len;
+            } else if (vc->type == H64VALTYPE_VECTOR) {
+                len = vc->vector_len;
             }
             if (len < 0) {
                 RAISE_ERROR(
