@@ -45,7 +45,7 @@ int64_t utf32_letters_count(
     while (sdata_len > 0) {
         int64_t letterlen = utf32_letter_len(sdata, sdata_len);
         assert(letterlen > 0);
-        len += letterlen;
+        len += 1;
         sdata += letterlen;
         sdata_len -= letterlen;
     }
@@ -146,7 +146,7 @@ int write_codepoint_as_utf8(
         uint64_t byte2val = (codepoint & 0xFC0ULL) >> 6;
         uint64_t byte1val = (codepoint & 0xF000ULL) >> 12;
         if (outbuflen < 3) return 0;
-        out[0] = (int)(byte1val | 0xC0);
+        out[0] = (int)(byte1val | 0xE0);
         out[1] = (int)(byte2val | 0x80);
         out[2] = (int)(byte3val | 0x80);
         if (outbuflen >= 4)
@@ -159,7 +159,7 @@ int write_codepoint_as_utf8(
         uint64_t byte2val = (codepoint & 0x3F000ULL) >> 12;
         uint64_t byte1val = (codepoint & 0x1C0000ULL) >> 18;
         if (outbuflen < 4) return 0;
-        out[0] = (int)(byte1val | 0xC0);
+        out[0] = (int)(byte1val | 0xF0);
         out[1] = (int)(byte2val | 0x80);
         out[2] = (int)(byte3val | 0x80);
         out[3] = (int)(byte4val | 0x80);

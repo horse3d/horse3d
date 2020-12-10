@@ -123,7 +123,9 @@ char *lexer_ParseStringLiteral(
             } else if (literal[i] == 'u') {
                 // Unicode literal, up to \uNNNNNNNN with
                 // the value being hex. (Unsigned 32bit int.)
+                int _columnlen = 0;
                 i++;
+                _columnlen++;
                 char numdigits[9] = "";
                 while (i < (int)strlen(literal) - 1 &&
                         ((literal[i] >= '0' &&
@@ -136,6 +138,7 @@ char *lexer_ParseStringLiteral(
                     numdigits[strlen(numdigits) + 1] = '\0';
                     numdigits[strlen(numdigits)] = literal[i];
                     i++;
+                    _columnlen++;
                 }
                 if (strlen(numdigits) < 4) {
                     char buf[512];
@@ -187,9 +190,12 @@ char *lexer_ParseStringLiteral(
                         }
                     }
                 }
+                column += _columnlen;
+                continue;
             } else if (literal[i] == 'x') {
                 // Binary byte literal, up to \xNN with value
                 // being hex. (Unsigned 8bit int.)
+                int _columnextralen = 0;
                 char hexnum[3] = "";
                 if (i + 1 < (int)strlen(literal) - 1 &&
                         ((literal[i + 1] >= '0' &&
@@ -201,6 +207,7 @@ char *lexer_ParseStringLiteral(
                     hexnum[1] = '\0';
                     hexnum[0] = literal[i + 1];
                     i++;
+                    _columnextralen++;
                     if (i + 1 < (int)strlen(literal) - 1 &&
                              ((literal[i + 1] >= '0' &&
                                literal[i + 1] <= '9') ||
@@ -211,6 +218,7 @@ char *lexer_ParseStringLiteral(
                          hexnum[2] = '\0';
                          hexnum[1] = literal[i + 1];
                          i++;
+                         _columnextralen++;
                      }
                 }
                 if (strlen(hexnum) == 0) {
@@ -236,6 +244,7 @@ char *lexer_ParseStringLiteral(
                     p[k] = number;
                     k++;
                 }
+                column += _columnextralen;
             } else {
                 if (result && wconfig &&
                         wconfig->warn_unrecognized_escape_sequences) {

@@ -224,12 +224,27 @@ START_TEST (test_unicodestrlen)
     runprog(
         "test_unicodestrlen",
         "func main {\n"
-        "    var s1 = 'us flag: \\u1F38\\u1F36'\n"
+        "    var s1 = 'us flag: \\u1F1FA\\u1F1F8'\n"
         "    var s2 = 'english flag: \\u1F3F4\\uE0067\\uE0062"
         "\\uE0065\\uE006E\\uE0067\\uE007F'\n"
         "    return s1.len + s2.len\n"
         "}\n",
-        15 + 10
+        10 + 15
+    );
+}
+END_TEST
+
+START_TEST (test_numberslist)
+{
+    runprog(
+        "test_list",
+        "func main {\n"
+        "    var l = [1, 2, 3]\n"
+        "    var inlinel_len = [1, 2].len\n"
+        "    l.add(4)\n"
+        "    return l.len + inlinelen_len\n"
+        "}\n",
+        6
     );
 }
 END_TEST
@@ -238,6 +253,6 @@ TESTS_MAIN(
     test_fibonacci, test_simpleclass, test_attributeerrors,
     test_hasattr, test_callwithclass, test_hasattr2,
     test_memberaccesschain,
-    test_unicodestrlen
+    test_unicodestrlen, test_numberslist
 )
 
