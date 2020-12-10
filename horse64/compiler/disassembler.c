@@ -772,12 +772,6 @@ int disassembler_Dump(
                 p->to_hash_name_index))
             return 0;
     }
-    if (p->add_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " to_hash\n",
-                p->add_name_index))
-            return 0;
-    }
     if (p->del_name_index >= 0) {
         if (!disassembler_Write(di,
                 "NAMEIDX n%" PRId64 " del\n",
