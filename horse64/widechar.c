@@ -2,6 +2,8 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #include <assert.h>
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
@@ -61,46 +63,46 @@ int64_t utf32_letter_len(
         return 0;
     int64_t len = 0;
     // Count modifiers in front as same letter:
-    while (sdata_len > 1 && *sdata > 0 &&
+    while (unlikely(sdata_len > 1 && *sdata > 0 &&
             *sdata <= _widechartbl_highest_cp &&
-            _widechartbl_ismodifier[*sdata]) {
+            _widechartbl_ismodifier[*sdata])) {
         sdata++;
         len++;
         sdata_len--;
     }
     // If this is a regional flag pair, count it as one thing:
-    if (sdata_len >= 2 && sdata[0] >= 0x1F1E6LL &&
+    if (unlikely(sdata_len >= 2 && sdata[0] >= 0x1F1E6LL &&
             sdata[0] <= 0x1F1FFLL &&
             sdata[1] >= 0x1F1E6LL &&
-            sdata[1] <= 0x1F1FFLL) {
+            sdata[1] <= 0x1F1FFLL)) {
         // -> two codepoint flag
         sdata += 2;
         len += 2;
         sdata_len -= 2;
-    } else if (sdata_len >= 1) {
+    } else if (likely(sdata_len >= 1)) {
         // Just a regular char.
         sdata++;
         len++;
         sdata_len--;
     }
     // Count follow-up tags as same letter:
-    if (sdata_len > 1 && sdata[1] >= 0 &&
+    if (unlikely(sdata_len > 1 && sdata[1] >= 0 &&
             sdata[1] <= _widechartbl_highest_cp &&
-            _widechartbl_istag[sdata[1]]) {
+            _widechartbl_istag[sdata[1]])) {
         sdata += 2;
         sdata_len -= 2;
         len++;
-        while (sdata_len > 0 &&
+        while (unlikely(sdata_len > 0 &&
                 *sdata >= 0 &&
                 *sdata <= _widechartbl_highest_cp &&
                 _widechartbl_istag[sdata[0]] &&
-                sdata[0] != 0xE007FLL) {
+                sdata[0] != 0xE007FLL)) {
             sdata++;
             sdata_len--;
             len++;
         }
-        if (sdata_len > 0 &&
-                *sdata == 0xE007FLL) {  // cancel tag
+        if (likely(sdata_len > 0 &&
+                *sdata == 0xE007FLL)) {  // cancel tag
             sdata++;
             sdata_len--;
             len++;
