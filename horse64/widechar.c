@@ -217,8 +217,8 @@ int get_utf8_codepoint(
                 (int)(*(p + 3) & 0xC0) == (int)0x80) { // p[3] == 10xxxxxx
             return 0;
         }
-        h64wchar c = (   // 00011111 of first byte
-            (h64wchar)(*p) & (h64wchar)0x1FULL
+        h64wchar c = (   // 00001111 of first byte
+            (h64wchar)(*p) & (h64wchar)0xFULL
         ) << (h64wchar)12ULL;
         c += (  // 00111111 of second byte
             (h64wchar)(*(p + 1)) & (h64wchar)0x3FULL
@@ -251,8 +251,8 @@ int get_utf8_codepoint(
                 (int)(*(p + 4) & 0xC0) == (int)0x80) { // p[4] == 10xxxxxx
             return 0;
         }
-        h64wchar c = (   // 00011111 of first byte
-            (h64wchar)(*p) & (h64wchar)0x1FULL
+        h64wchar c = (   // 00000111 of first byte
+            (h64wchar)(*p) & (h64wchar)0x7ULL
         ) << (h64wchar)18ULL;
         c += (  // 00111111 of second byte
             (h64wchar)(*(p + 1)) & (h64wchar)0x3FULL

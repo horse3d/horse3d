@@ -242,7 +242,7 @@ START_TEST (test_numberslist)
         "    var l = [1, 2, 3]\n"
         "    var inlinel_len = [1, 2].len\n"
         "    l.add(4)\n"
-        "    return l.len + inlinelen_len\n"
+        "    return l.len + inlinel_len\n"
         "}\n",
         6
     );
