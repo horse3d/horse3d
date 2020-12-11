@@ -37,12 +37,12 @@ int corelib_containeradd(  // $$builtin.$$containeradd
         ) {
     assert(STACK_TOP(vmthread->stack) >= 2);
 
-    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     if (gcvalue->type == H64GCVALUETYPE_LIST) {
         if (!vmlist_Add(
-                gcvalue->list_values, STACK_ENTRY(vmthread->stack, 1)
+                gcvalue->list_values, STACK_ENTRY(vmthread->stack, 0)
                 )) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
