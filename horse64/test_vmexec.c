@@ -218,6 +218,7 @@ START_TEST (test_memberaccesschain)
         0
     );
 }
+END_TEST
 
 START_TEST (test_unicodestrlen)
 {
