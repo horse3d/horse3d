@@ -362,7 +362,7 @@ char *compileproject_GetFileSubProjectPath(
                     defined(__ANDROID__)
                 strcmp(buf, hmodules_path) == 0
                 #else
-                h64strcasecmp(buf, hmodules_path) == 0
+                h64casecmp(buf, hmodules_path) == 0
                 #endif
                 && (relfilepath[strlen(hmodules_path)] == '/'
                 #if defined(_WIN32) || defined(_WIN64)
