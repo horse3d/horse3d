@@ -3023,7 +3023,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         bytes_val.len;
                 } else if (((h64gcvalue *)vc->ptr_value)->type ==
                         H64GCVALUETYPE_LIST) {
-                    return vmlist_Count(
+                    len = vmlist_Count(
                         ((h64gcvalue *)vc->ptr_value)->list_values
                     );
                 }
