@@ -346,18 +346,33 @@ inst_binop: {
                     (v2->type != H64VALTYPE_INT64 &&
                     v2->type != H64VALTYPE_FLOAT64))) {
                 tmpresult->type = H64VALTYPE_BOOL;
-                // Strings:
                 if ((v1->type == H64VALTYPE_GCVAL &&
                         ((h64gcvalue*)v1->ptr_value)->type ==
                         H64GCVALUETYPE_STRING) ||
                         v1->type == H64VALTYPE_SHORTSTR ||
                         v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
+                    // Strings!
                     if ((v2->type == H64VALTYPE_GCVAL &&
                             ((h64gcvalue*)v1->ptr_value)->type ==
                             H64GCVALUETYPE_STRING) ||
                             v2->type == H64VALTYPE_SHORTSTR ||
                             v2->type == H64VALTYPE_CONSTPREALLOCSTR) {
                         tmpresult->int_value = vmstrings_Equality(v1, v2);
+                    } else {
+                        tmpresult->int_value = 0;
+                    }
+                } else if ((v1->type == H64VALTYPE_GCVAL &&
+                        ((h64gcvalue*)v1->ptr_value)->type ==
+                        H64GCVALUETYPE_BYTES) ||
+                        v1->type == H64VALTYPE_SHORTBYTES ||
+                        v1->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+                    // Bytes!
+                    if ((v2->type == H64VALTYPE_GCVAL &&
+                            ((h64gcvalue*)v1->ptr_value)->type ==
+                            H64GCVALUETYPE_BYTES) ||
+                            v2->type == H64VALTYPE_SHORTBYTES ||
+                            v2->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+                        tmpresult->int_value = vmbytes_Equality(v1, v2);
                     } else {
                         tmpresult->int_value = 0;
                     }

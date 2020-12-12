@@ -34,6 +34,10 @@ int vmstrings_Equality(
     valuecontent *v1, valuecontent *v2
 );
 
+int vmbytes_Equality(
+    valuecontent *v1, valuecontent *v2
+);
+
 int vmstrings_AllocBuffer(
     h64vmthread *vthread, h64stringval *v, uint64_t len
 );

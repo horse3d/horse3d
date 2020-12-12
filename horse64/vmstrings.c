@@ -83,6 +83,40 @@ void vmstrings_Free(h64vmthread *vthread, h64stringval *v) {
     v->len = 0;
 }
 
+int vmbytes_Equality(
+        valuecontent *v1, valuecontent *v2
+        ) {
+    char *s1v = NULL;
+    char *s2v = NULL;
+    int64_t s1l = 0;
+    int64_t s2l = 0;
+    if (v1->type == H64VALTYPE_SHORTBYTES) {
+        s1v = (char*) v1->shortbytes_value;
+        s1l = v1->shortbytes_len;
+    } else if (v1->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+        s1v = (char*) v1->constpreallocbytes_value;
+        s1l = v1->constpreallocbytes_len;
+    } else if (v1->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)v1->ptr_value)->type == H64GCVALUETYPE_BYTES) {
+        s1v = (char*) ((h64gcvalue*)v1->ptr_value)->bytes_val.s;
+        s1l = ((h64gcvalue*)v1->ptr_value)->bytes_val.len;
+    }
+    if (v2->type == H64VALTYPE_SHORTBYTES) {
+        s2v = (char*) v2->shortbytes_value;
+        s2l = v2->shortbytes_len;
+    } else if (v2->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+        s2v = (char*) v2->constpreallocbytes_value;
+        s2l = v2->constpreallocbytes_len;
+    } else if (v2->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)v2->ptr_value)->type == H64GCVALUETYPE_BYTES) {
+        s2v = (char*) ((h64gcvalue*)v2->ptr_value)->bytes_val.s;
+        s2l = ((h64gcvalue*)v2->ptr_value)->bytes_val.len;
+    }
+    if (!s1v || !s2v || s1l != s2l)
+        return 0;
+    return (memcmp(s1v, s2v, s1l) == 0);
+}
+
 int vmbytes_AllocBuffer(
         h64vmthread *vthread,
         h64bytesval *v, uint64_t len) {
