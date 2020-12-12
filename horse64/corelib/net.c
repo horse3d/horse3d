@@ -6,6 +6,7 @@
 
 #include <assert.h>
 
+#include "asyncsysjob.h"
 #include "corelib/errors.h"
 #include "corelib/net.h"
 #include "sockets.h"
@@ -16,9 +17,26 @@
 /// @module net Networking streams to access the local network and internet.
 
 struct netlib_connect_asyncprogress {
-    char *utf8host;
-    int utf8hostlen;
+    void (*abortfunc)(void *dataptr);
+    h64wchar *targethost;
+    int32_t targethostlen;
+    h64asyncsysjob *resolve_job;
+    h64socket *connection;
 };
+
+void _netlib_connect_abort(void *dataptr) {
+    struct netlib_connect_asyncprogress *adata = dataptr;
+    if (adata->resolve_job) {
+        asyncjob_AbandonJob(adata->resolve_job);
+        adata->resolve_job = NULL;
+    }
+    free(adata->targethost);
+    adata->targethost = NULL;
+    if (adata->connection) {
+        sockets_Destroy(adata->connection);
+        adata->connection = NULL;
+    }
+}
 
 int netlib_connect(
         h64vmthread *vmthread

@@ -61,6 +61,10 @@ typedef struct vmthreadsuspendinfo vmthreadsuspendinfo;
 typedef struct h64vmworker h64vmworker;
 typedef struct h64asyncsysjob h64asyncsysjob;
 
+struct asyncprogress_base_struct {
+    void (*abortfunc)(void *dataptr);
+};
+
 typedef struct h64vmthread {
     h64vmexec *vmexec_owner;
     h64vmworker *_Atomic volatile run_by_worker;
@@ -123,6 +127,10 @@ void vmthread_SetSuspendState(
     h64vmthread *vmthread,
     suspendtype suspend_type, int64_t suspend_arg
 );
+
+void vmthread_FreeAsyncForegroundWorkWithoutAbort(h64vmthread *vt);
+
+void vmthread_AbortAsyncForegroundWork(h64vmthread *vt);
 
 int vmthread_RunFunctionWithReturnInt(
     h64vmworker *worker,

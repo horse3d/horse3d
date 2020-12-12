@@ -17,6 +17,7 @@
 #include "compiler/disassembler.h"
 #include "compiler/operator.h"
 #include "corelib/errors.h"
+#include "corelib/moduleless.h"
 #include "datetime.h"
 #include "debugsymbols.h"
 #include "gcvalue.h"
@@ -624,7 +625,7 @@ static int vmthread_errors_Raise(
     if (returneduncaughterror) *returneduncaughterror = 0;
 
     // Clear out left over work of any kind:
-    vmthread_ClearAsyncForegroundWork(vmthread);
+    vmthread_AbortAsyncForegroundWork(vmthread);
 
     // Figure out from top-most catch frame what to do:
     while (1) {
@@ -1254,7 +1255,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         #if defined(DEBUGVMEXEC)
         h64fprintf(stderr, "horsevm: debug: vmexec triggeroom\n");
         #endif
-        vmthread_ClearAsyncForegroundWork(vmthread);
+        vmthread_AbortAsyncForegroundWork(vmthread);
         RAISE_ERROR(H64STDERROR_OUTOFMEMORYERROR,
                         "Allocation failure");
         goto *jumptable[((h64instructionany *)p)->type];
@@ -2161,7 +2162,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
             if (cinfo && cinfo->closure_self) {
                 // Add self argument:
-                assert(STACK_ENTRY(stack, i)->type == H64VALTYPE_NONE);
+                assert(
+                    STACK_ENTRY(stack, i)->type ==
+                    H64VALTYPE_NONE
+                );
                 valuecontent *closurearg = (
                     STACK_ENTRY(stack, i)
                 );
@@ -2247,7 +2251,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             // For calls with async progress, pre-allocate data if
             // required:
             if (vmthread->foreground_async_work_funcid != target_func_id) {
-                vmthread_ClearAsyncForegroundWork(vmthread);
+                vmthread_AbortAsyncForegroundWork(vmthread);
+                assert(vmthread->foreground_async_work_dataptr == NULL);
                 vmthread->foreground_async_work_funcid = target_func_id;
             }
             assert(vmthread->foreground_async_work_funcid == target_func_id);
@@ -2313,7 +2318,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     retval.type != H64VALTYPE_SUSPENDINFO) {
                 // Probably an error that prevented proper suspending,
                 // -> clear async data
-                vmthread_ClearAsyncForegroundWork(vmthread);
+                vmthread_AbortAsyncForegroundWork(vmthread);
+                assert(vmthread->foreground_async_work_dataptr == NULL);
                 unfinished_async_work = 0;
             }
             // Reset stack floor and size:
@@ -2354,7 +2360,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     return 1;
                 }
                 // Handle function call error
-                vmthread_ClearAsyncForegroundWork(vmthread);
+                vmthread_AbortAsyncForegroundWork(vmthread);
                 valuecontent oome = {0};
                 oome.type = H64VALTYPE_ERROR;
                 oome.error_class_id = H64STDERROR_OUTOFMEMORYERROR;
@@ -2372,7 +2378,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 valuecontent_Free(&retval);
                 goto *jumptable[((h64instructionany *)p)->type];
             } else {
-                vmthread_ClearAsyncForegroundWork(vmthread);
+                vmthread_AbortAsyncForegroundWork(vmthread);
                 // Copy return value:
                 if (return_value_gslot != stack->current_func_floor +
                         (int64_t)inst->returnto &&
@@ -2894,83 +2900,25 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     p += sizeof(*inst);
                     goto *jumptable[((h64instructionany *)p)->type];
                 }
-            } else if (vc->type == H64VALTYPE_INT64) {
-                // Int to utf-8 string:
-                char intvalue[128];
-                snprintf(
-                    intvalue, sizeof(intvalue) - 1,
-                    "%" PRId64, vc->int_value
+            } else if (vc->type != H64VALTYPE_GCVAL) {
+                // Handle this with core lib:
+                int64_t slen = 0;
+                h64wchar *sresult = corelib_value_to_str(
+                    vmthread, vc,
+                    (h64wchar *) strvalue,
+                    sizeof(strvalue) / sizeof(h64wchar), &slen
                 );
-                const int len = strlen(intvalue);
-                // Conversion to utf-32:
-                int i = 0;
-                while (i < len) {
-                    strvalue[i] = (
-                        (h64wchar)(uint8_t)intvalue[i]
+                if (!sresult)
+                    goto triggeroom;
+                if (sresult != strvalue) {
+                    memcpy(
+                        strvalue, sresult,
+                        sizeof(strvalue)
                     );
-                    i++;
-                }
-                strvaluelen = len;
-            } else if (vc->type == H64VALTYPE_FLOAT64) {
-                // Float to utf-8 string:
-                char floatvalue[128];
-                snprintf(
-                    floatvalue, sizeof(floatvalue) - 1,
-                    "%f", vc->float_value
-                );
-                int len = strlen(floatvalue);
-
-                // If we have trailing zeroes only, cut fractions off:
-                int dotpos = -1;
-                int nonzero_pastdot_digit = 0;
-                int i = 0;
-                while (i < len) {
-                    if (floatvalue[i] == '.') {
-                        assert(i > 0);
-                        dotpos = i;
-                    }
-                    if (dotpos >= 0 && floatvalue[i] >= '1') {
-                        nonzero_pastdot_digit = 1;
-                        break;
-                    }
-                    i++;
-                }
-                if (dotpos >= 0 && !nonzero_pastdot_digit) {
-                    // Confirmed fractional with only zeros -> remove
-                    floatvalue[dotpos] = '\0';
-                    len = dotpos;
-                }
-
-                // Conversion to utf-32:
-                i = 0;
-                while (i < len) {
-                    strvalue[i] = (
-                        (h64wchar)(uint8_t)floatvalue[i]
-                    );
-                    i++;
-                }
-                strvaluelen = len;
-            } else if (vc->type == H64VALTYPE_BOOL) {
-                if (vc->int_value != 0) {
-                    strvalue[0] = (h64wchar)'t';
-                    strvalue[1] = (h64wchar)'r';
-                    strvalue[2] = (h64wchar)'u';
-                    strvalue[3] = (h64wchar)'e';
-                    strvaluelen = 4;
+                    strvaluelen = sizeof(strvalue);
                 } else {
-                    strvalue[0] = (h64wchar)'f';
-                    strvalue[1] = (h64wchar)'a';
-                    strvalue[2] = (h64wchar)'l';
-                    strvalue[3] = (h64wchar)'s';
-                    strvalue[4] = (h64wchar)'e';
-                    strvaluelen = 5;
+                    strvaluelen = slen;
                 }
-            } else if (vc->type == H64VALTYPE_NONE) {
-                strvalue[0] = (h64wchar)'n';
-                strvalue[1] = (h64wchar)'o';
-                strvalue[2] = (h64wchar)'n';
-                strvalue[3] = (h64wchar)'e';
-                strvaluelen = 4;
             }
             // If .as_str failed to run, abort with an error:
             if (strvaluelen < 0) {
@@ -3696,9 +3644,35 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     goto *jumptable[((h64instructionany *)p)->type];
 }
 
-void vmthread_ClearAsyncForegroundWork(h64vmthread *vt) {
-    // FIXME
-    
+void vmthread_FreeAsyncForegroundWorkWithoutAbort(h64vmthread *vt) {
+    if (!vt->foreground_async_work_dataptr)
+        return;
+    int64_t func_id = vt->foreground_async_work_funcid;
+    assert(func_id >= 0);
+    size_t struct_size = (
+        vt->vmexec_owner->program->func[func_id].async_progress_struct_size
+    );
+    if (struct_size <= CFUNC_ASYNCDATA_DEFAULTITEMSIZE) {
+        poolalloc_free(
+            vt->cfunc_asyncdata_pile,
+            vt->foreground_async_work_dataptr
+        );
+    } else {
+        free(vt->foreground_async_work_dataptr);
+    }
+    vt->foreground_async_work_dataptr = NULL;
+}
+
+void vmthread_AbortAsyncForegroundWork(h64vmthread *vt) {
+    if (!vt->foreground_async_work_dataptr)
+        return;
+    struct asyncprogress_base_struct *aprogress = (
+        vt->foreground_async_work_dataptr
+    );
+    if (aprogress && aprogress->abortfunc) {
+        aprogress->abortfunc(aprogress);
+    }
+    vmthread_FreeAsyncForegroundWorkWithoutAbort(vt);
 }
 
 int vmthread_RunFunction(
@@ -3756,7 +3730,7 @@ int vmthread_RunFunction(
     );  // ^ run actual function
     if (!innersuspend) {
         // This must be cleared for any exit path except suspend:
-        vmthread_ClearAsyncForegroundWork(start_thread);
+        vmthread_AbortAsyncForegroundWork(start_thread);
     }
     if (!inneruncaughterror && innersuspend) {
         // Special: we need to leave things as they are for resume.

@@ -63,103 +63,146 @@ struct _printvalue_seeninfo {
     hashset *seen;
 };
 
-static void _corelib_printbytes(
-        char *bytesref, int64_t byteslen
+static h64wchar *_corelib_printbytes(
+        char *bytesref, int64_t byteslen,
+        int64_t *outlen
         ) {
-    h64printf("b\"");
+    int buflen = 16 + byteslen * 1.5;
+    h64wchar *buf = malloc(buflen * sizeof(h64wchar));
+    if (!buf)
+        return NULL;
+    int buffill = 2;
+    buf[0] = 'b';
+    buf[1] = '"';
     int64_t i = 0;
     while (i < byteslen) {
+        if (buffill + 16 > buflen) {
+            h64wchar *bufnew = realloc(
+                buf, (buffill + 64)  * sizeof(h64wchar)
+            );
+            if (!bufnew) {
+                free(buf);
+                return NULL;
+            }
+            buf = bufnew;
+            buflen = buffill + 64;
+        }
         uint8_t byte = ((uint8_t*)bytesref)[i];
         if ((byte >= 'a' && byte <= 'z') ||
                 (byte >= 'A' && byte <= 'Z') ||
                 byte == ' ' || (byte >= '!' && byte <= '~' &&
                 byte != '\\')) {
-            h64printf("%c", byte);
+            buf[buffill] = byte;
+            buffill++;
         } else if (byte == '"') {
-            h64printf("\\\"");
+            buf[buffill] = '\\';
+            buf[buffill + 1] = '"';
+            buffill += 2;
         } else if (byte == '\\') {
-            h64printf("\\\\");
+            buf[buffill] = '\\';
+            buf[buffill + 1] = '\\';
+            buffill += 2;
         } else if (byte == '\r') {
-            h64printf("\\r");
+            buf[buffill] = '\\';
+            buf[buffill + 1] = 'r';
+            buffill += 2;
         } else if (byte == '\n') {
-            h64printf("\\n");
+            buf[buffill] = '\\';
+            buf[buffill + 1] = 'n';
+            buffill += 2;
         } else {
             char hexval[5] = {0};
             h64snprintf(hexval, sizeof(hexval) - 1, "%x", (int)byte);
-            h64printf("\\x");
-            if (strlen(hexval) < 2)
-                h64printf("0");
-            h64printf("%s", hexval);
+            buf[buffill] = '\\';
+            buf[buffill + 1] = 'x';
+            buffill += 2;
+            if (strlen(hexval) < 2) {
+                buf[buffill] = '0';
+                buffill++;
+            }
+            unsigned int k = 0;
+            while (k < strlen(hexval)) {
+                buf[buffill] = hexval[k];
+                buffill++;
+                k++;
+            }
         }
         i++;
     }
-    h64printf("\"");
+    buf[buffill] = '"';
+    buffill += 1;
+    *outlen = buffill;
+    return buf;
 }
 
-static int _corelib_printvalue(
+static h64wchar *_corelib_value_to_str_do(
         h64vmthread *vmthread,
-        valuecontent *c, struct _printvalue_seeninfo *sinfo
+        valuecontent *c, struct _printvalue_seeninfo *sinfo,
+        h64wchar *tempbuf, int tempbuflen, int currentnesting,
+        int64_t *outlen
         ) {
-    char *buf = alloca(256);
-    uint64_t buflen = 256;
+    h64wchar *buf = tempbuf;
+    uint64_t buflen = tempbuflen;
     int buffree = 0;
+    if (tempbuflen < 64) {
+        buf = malloc(64 * sizeof(h64wchar));
+        if (!buf)
+            return NULL;
+        buffree = 1;
+        buflen = 64;
+    }
     switch (c->type) {
         case H64VALTYPE_GCVAL: {
             h64gcvalue *gcval = c->ptr_value;
             switch (gcval->type) {
                 case H64GCVALUETYPE_STRING: {
-                    int allocfail = 0;
-                    if (buflen < gcval->str_val.len * 4 + 1) {
-                        char *newbuf = malloc(
-                            gcval->str_val.len * 4 + 1
+                    if (buflen < (gcval->str_val.len + 1)) {
+                        h64wchar *newbuf = malloc(
+                            (gcval->str_val.len + 1) * sizeof(h64wchar)
                         );
                         if (newbuf) {
                             if (buffree)
                                 free(buf);
                             buf = newbuf;
-                            buflen = gcval->str_val.len * 4 + 1;
+                            buflen = (
+                                (gcval->str_val.len + 1)
+                            );
                             buffree = 1;
                         } else {
-                            allocfail = 1;
+                            if (buffree)
+                                free(buf);
+                            return NULL;
                         }
                     }
-                    int64_t outlen = 0;
-                    int result = utf32_to_utf8(
-                        gcval->str_val.s, gcval->str_val.len,
-                        buf, buflen, &outlen, 1
+                    memcpy(
+                        buf, gcval->str_val.s,
+                        gcval->str_val.len * sizeof(h64wchar)
                     );
-                    if (!result) {
-                        assert(allocfail);
-                        if (buffree)
-                            free(buf);
-                        return vmexec_ReturnFuncError(
-                            vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                            "alloc failure printing string"
-                        );
-                    }
-                    if (outlen >= (int64_t)buflen)
-                        outlen = buflen - 1;
-                    buf[outlen] = '\0';
-                    h64printf("%s", buf);
-                    break;
+                    *outlen = gcval->str_val.len;
+                    return buf;
                 }
                 case H64GCVALUETYPE_BYTES: {
-                    _corelib_printbytes(
-                        gcval->bytes_val.s, gcval->bytes_val.len
+                    if (buffree)
+                        free(buf);
+                    return _corelib_printbytes(
+                        gcval->bytes_val.s, gcval->bytes_val.len, outlen
                     );
-                    break;
                 }
                 case H64GCVALUETYPE_LIST: {
                     if (!sinfo->seen) {
                         sinfo->seen = hashset_New(64);
                     }
 
-                    if (hashset_Contains(
+                    if (currentnesting >= 10 ||
+                            hashset_Contains(
                             sinfo->seen, &gcval->list_values,
                             sizeof(gcval->list_values)
                             )) {
-                        h64printf("...");
-                        break;
+                        buf[0] = '.';
+                        buf[1] = '.';
+                        buf[2] = '.';
+                        *outlen = 3;
+                        return buf;
                     }
                     if (!hashset_Add(
                             sinfo->seen, &gcval->list_values,
@@ -167,12 +210,10 @@ static int _corelib_printvalue(
                             )) {
                         if (buffree)
                             free(buf);
-                        return vmexec_ReturnFuncError(
-                            vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                            "alloc failure printing list"
-                        );
+                        return NULL;
                     }
-                    h64printf("[");
+                    int buffill = 1;
+                    buf[0] = '[';
                     int64_t entry_offset = -1;
                     int64_t total_entry_count = (
                         gcval->list_values->list_total_entry_count
@@ -183,30 +224,69 @@ static int _corelib_printvalue(
                         while (k < block->entry_count) {
                             entry_offset++;
                             assert(entry_offset < total_entry_count);
-                            if (!_corelib_printvalue(
+                            int64_t innerlen = 0;
+                            h64wchar *innerval = (
+                                _corelib_value_to_str_do(
                                     vmthread,
-                                    &block->entry_values[k], sinfo
-                                    )) {
+                                    &block->entry_values[k], sinfo,
+                                    NULL, 0, currentnesting + 1,
+                                    &innerlen
+                                )
+                            );
+                            if (!innerval) {
                                 if (buffree)
                                     free(buf);
                                 return 0;
                             }
+                            if (innerlen + 10 + buffill > (int64_t)buflen) {
+                                h64wchar *newbuf = malloc(
+                                    (innerlen + 512 + buffill) *
+                                    sizeof(h64wchar)
+                                );
+                                if (!newbuf) {
+                                    if (buffree)
+                                        free(buf);
+                                    return NULL;
+                                }
+                                memcpy(
+                                    newbuf, buf, buffill * sizeof(h64wchar)
+                                );
+                                if (buffree)
+                                    free(buf);
+                                buf = newbuf;
+                                buffree = 1;
+                                buflen = (innerlen + 512 + buffill);
+                            }
+                            memcpy(
+                                buf + buffill, innerval,
+                                innerlen * sizeof(h64wchar)
+                            );
+                            buffill += innerlen;
                             if (likely(entry_offset + 1 <
                                     total_entry_count)) {
-                                h64printf(", ");
+                                buf[buffill] = ',';
+                                buf[buffill + 1] = ' ';
+                                buffill += 2;
                             }
                             k++;
                         }
                         block = block->next_block;
                     }
-                    h64printf("]");
-                    break;
+                    buf[buffill] = ']';
+                    buffill++;
+                    *outlen = buffill;
+                    return buf;
                 }
-                default:
-                    h64printf(
-                        "<unhandled gc refvalue type=%d>",
-                        (int)gcval->type
-                    );
+                default: {
+                    char s[] = "<unhandled gc refvalue type>";
+                    int k = 0;
+                    while (k < (int)strlen(s)) {
+                        buf[k] = s[k];
+                        k++;
+                    }
+                    *outlen = strlen(s);
+                    return buf;
+                }
             }
             break;
         }
@@ -214,62 +294,109 @@ static int _corelib_printvalue(
             assert(buflen >= 25);
             assert(c->shortstr_len >= 0 &&
                    c->shortstr_len < 5);
-            h64wchar shortstr_value[
-                VALUECONTENT_SHORTSTRLEN + 1
-            ];
-            memcpy(&shortstr_value, c->shortstr_value,
-                   sizeof(h64wchar) * (VALUECONTENT_SHORTSTRLEN + 1));
-            int64_t outlen = 0;
-            int result = utf32_to_utf8(
-                shortstr_value, c->shortstr_len,
-                buf, 25, &outlen, 1
-            );
-            assert(result != 0 && outlen > 0 && outlen + 1 < 25);
-            buf[outlen] = '\0';
-            h64printf("%s", buf);
-            break;
+            memcpy(buf, c->shortstr_value, c->shortstr_len);
+            *outlen = c->shortstr_len;
+            return buf;
         }
         case H64VALTYPE_INT64: {
-            h64printf("%" PRId64, c->int_value);
-            break;
+            char nobuf[64];
+            h64snprintf(nobuf, 64, "%" PRId64, c->int_value);
+            nobuf[63] = 0;
+            assert((int)strlen(nobuf) <= (int)tempbuflen);
+            int k = 0;
+            while (k < (int)strlen(nobuf)) {
+                buf[k] = nobuf[k];
+                k++;
+            }
+            *outlen = strlen(nobuf);
+            return buf;
         }
         case H64VALTYPE_FLOAT64: {
-            char buf[256];
-            snprintf(buf, sizeof(buf) - 1, "%f", c->float_value);
+            char nobuf[64];
+            h64snprintf(nobuf, 64, "%f", c->float_value);
+            nobuf[63] = 0;
             // Cut off trailing zeroes if we got a fractional part:
             int gotdot = 0;
-            size_t len = strlen(buf);
+            size_t len = strlen(nobuf);
             size_t i = 0;
             while (i < len) {
-                if (buf[i] == '.') {
+                if (nobuf[i] == '.') {
                     gotdot = 1;
                     break;
                 }
                 i++;
             }
-            while (gotdot && len > 0 && buf[len - 1] == '0') {
-                buf[len - 1] = '\0';
+            while (gotdot && len > 0 && nobuf[len - 1] == '0') {
+                nobuf[len - 1] = '\0';
                 len--;
             }
-            if (len > 0 && buf[len - 1] == '.') {
-                buf[len - 1] = '\0';
+            if (len > 0 && nobuf[len - 1] == '.') {
+                nobuf[len - 1] = '\0';
                 len--;
             }
-            h64printf("%s", buf);
-            break;
+            assert((int)strlen(nobuf) <= (int)tempbuflen);
+            int k = 0;
+            while (k < (int)strlen(nobuf)) {
+                buf[k] = nobuf[k];
+                k++;
+            }
+            *outlen = strlen(nobuf);
+            return buf;
         }
         case H64VALTYPE_BOOL: {
-            h64printf("%s", (c->int_value != 0 ? "true" : "false"));
-            break;
+            char s[12];
+            if (c->int_value != 0)
+                memcpy(s, "true", strlen("true"));
+            else
+                memcpy(s, "false", strlen("false"));
+            int k = 0;
+            while (k < (int)strlen(s)) {
+                buf[k] = s[k];
+                k++;
+            }
+            *outlen = strlen(s);
+            return buf;
+        }
+        case H64VALTYPE_NONE: {
+            char s[] = "none";
+            int k = 0;
+            while (k < (int)strlen(s)) {
+                buf[k] = s[k];
+                k++;
+            }
+            *outlen = strlen(s);
+            return buf;
         }
         default: {
-            h64printf("<unhandled valuecontent type=%d>", (int)c->type);
-            break;
+            char s[] = "<unhandled valuecontent type>";
+            int k = 0;
+            while (k < (int)strlen(s)) {
+                buf[k] = s[k];
+                k++;
+            }
+            *outlen = strlen(s);
+            return buf;
         }
     }
     if (buffree)
         free(buf);
-    return 1;
+    return NULL;
+}
+
+h64wchar *corelib_value_to_str(
+        h64vmthread *vmthread,
+        valuecontent *c, h64wchar *tempbuf, int tempbuflen,
+        int64_t *outlen
+        ) {
+    struct _printvalue_seeninfo sinfo = {0};
+    h64wchar *result = _corelib_value_to_str_do(
+        vmthread, c, &sinfo,
+        tempbuf, tempbuflen, 0,
+        outlen
+    );
+    if (sinfo.seen)
+        hashset_Free(sinfo.seen);
+    return result;
 }
 
 int corelib_print(  // $$builtin.print
@@ -283,11 +410,39 @@ int corelib_print(  // $$builtin.print
     assert(STACK_TOP(vmthread->stack) == 1);
     valuecontent *c = STACK_ENTRY(vmthread->stack, 0);
     assert(c != NULL);
-    struct _printvalue_seeninfo sinfo = {0};
-    if (!_corelib_printvalue(vmthread, c, &sinfo))
-        return 0;  // error raised
-    if (sinfo.seen)
-        hashset_Free(sinfo.seen);
+    int64_t slen = 0;
+    h64wchar *s = NULL;
+    if ((s = corelib_value_to_str(vmthread, c, NULL, 0, &slen)) == NULL) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "alloc failure while printing value"
+        );
+    }
+    char *outbuf = malloc(slen * 5 + 1);
+    if (!outbuf) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "alloc failure while printing value"
+        );
+    }
+    int64_t utf8len = 0;
+    int outbufsize = slen * 5 + 1;
+    int result = utf32_to_utf8(
+        s, slen, outbuf, outbufsize, &utf8len, 1
+    );
+    if (!result) {
+        free(outbuf);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "alloc failure while printing value"
+        );
+    }
+    assert(utf8len <= outbufsize);
+    outbuf[outbufsize - 1] = '\0';
+    if (utf8len < outbufsize)
+        outbuf[utf8len] = '\0';
+    h64printf("%s", outbuf);
+    free(outbuf);
     h64printf("\n");
     return 1;
 }

@@ -9,7 +9,9 @@
 // It was split up here to make this code easier to work with,
 // given how giant the source function is in vmexec.c.
 
-    inst_binop: {
+    #include "gcvalue.h"
+#include "valuecontentstruct.h"
+inst_binop: {
         h64instruction_binop *inst = (h64instruction_binop *)p;
         #ifndef NDEBUG
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
@@ -338,15 +340,47 @@
             goto binop_done;
         }
         binop_cmp_equal: {
+            invalidtypes = 0;
             if (likely((v1->type != H64VALTYPE_INT64 &&
                     v1->type != H64VALTYPE_FLOAT64) ||
                     (v2->type != H64VALTYPE_INT64 &&
                     v2->type != H64VALTYPE_FLOAT64))) {
-                // generic case:
-                h64fprintf(stderr, "equality case not implemented\n");
-                return 0;
+                tmpresult->type = H64VALTYPE_BOOL;
+                // Strings:
+                if ((v1->type == H64VALTYPE_GCVAL &&
+                        ((h64gcvalue*)v1->ptr_value)->type ==
+                        H64GCVALUETYPE_STRING) ||
+                        v1->type == H64VALTYPE_SHORTSTR ||
+                        v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
+                    if ((v2->type == H64VALTYPE_GCVAL &&
+                            ((h64gcvalue*)v1->ptr_value)->type ==
+                            H64GCVALUETYPE_STRING) ||
+                            v2->type == H64VALTYPE_SHORTSTR ||
+                            v2->type == H64VALTYPE_CONSTPREALLOCSTR) {
+                        tmpresult->int_value = vmstrings_Equality(v1, v2);
+                    } else {
+                        tmpresult->int_value = 0;
+                    }
+                } else {
+                    // Remaining cases:
+                    if (v1->type != v2->type) {
+                        tmpresult->type = H64VALTYPE_BOOL;
+                        tmpresult->int_value = 0;
+                    } else if (v1->type == H64VALTYPE_BOOL) {
+                        tmpresult->type = H64VALTYPE_BOOL;
+                        tmpresult->int_value = (
+                            (v1->int_value != 0) == (v2->int_value != 0)
+                        );
+                    } else if (v1->type == H64VALTYPE_NONE) {
+                        tmpresult->type = H64VALTYPE_BOOL;
+                        tmpresult->int_value = 1;
+                    } else {
+                        h64fprintf(stderr, "unimplemented eq case\n");
+                        return 0;
+                    }
+                }
             } else {
-                invalidtypes = 0;
+                // Numbers.
                 if (v1->type == H64VALTYPE_FLOAT64 ||
                         v2->type == H64VALTYPE_FLOAT64) {
                     double v1no = 1;

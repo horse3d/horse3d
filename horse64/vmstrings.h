@@ -14,6 +14,7 @@
 
 typedef uint32_t h64wchar;
 typedef struct h64vmthread h64vmthread;
+typedef struct valuecontent valuecontent;
 
 #include "vmstringsstruct.h"
 
@@ -28,6 +29,10 @@ ATTR_UNUSED static inline void vmstrings_RequireLetterLen(
         assert(v->letterlen > 0);
     }
 }
+
+int vmstrings_Equality(
+    valuecontent *v1, valuecontent *v2
+);
 
 int vmstrings_AllocBuffer(
     h64vmthread *vthread, h64stringval *v, uint64_t len
