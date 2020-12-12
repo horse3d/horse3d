@@ -23,6 +23,7 @@
 #include "compiler/scope.h"
 #include "compiler/varstorage.h"
 #include "corelib/errors.h"
+#include "debugsymbols.h"
 #include "filesys.h"
 #include "hash.h"
 #include "nonlocale.h"
@@ -230,7 +231,23 @@ static int scoperesolver_ComputeItemStorage(
                 if (outofmemory) *outofmemory = 1;
                 return 0;
             }
+            h64classsymbol *csymbol = (
+                h64debugsymbols_GetClassSymbolById(
+                    program->symbols, owningclassindex
+                ));
             assert(!expr->storage.set);
+            if (expr->vardef.is_const)
+                program->classes[csymbol->global_id].varattr_flags[
+                    attrindex
+                ] |= VARATTR_FLAGS_CONST;
+            if (expr->vardef.is_protected)
+                program->classes[csymbol->global_id].varattr_flags[
+                    attrindex
+                ] |= VARATTR_FLAGS_PROTECT;
+            if (expr->vardef.is_equals)
+                program->classes[csymbol->global_id].varattr_flags[
+                    attrindex
+                ] |= VARATTR_FLAGS_EQUALS;
             expr->storage.set = 1;
             expr->storage.ref.type = H64STORETYPE_VARATTRSLOT;
             expr->storage.ref.id = attrindex;

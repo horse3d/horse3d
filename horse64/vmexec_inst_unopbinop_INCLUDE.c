@@ -341,83 +341,15 @@ inst_binop: {
         }
         binop_cmp_equal: {
             invalidtypes = 0;
-            if (likely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                tmpresult->type = H64VALTYPE_BOOL;
-                if ((v1->type == H64VALTYPE_GCVAL &&
-                        ((h64gcvalue*)v1->ptr_value)->type ==
-                        H64GCVALUETYPE_STRING) ||
-                        v1->type == H64VALTYPE_SHORTSTR ||
-                        v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
-                    // Strings!
-                    if ((v2->type == H64VALTYPE_GCVAL &&
-                            ((h64gcvalue*)v1->ptr_value)->type ==
-                            H64GCVALUETYPE_STRING) ||
-                            v2->type == H64VALTYPE_SHORTSTR ||
-                            v2->type == H64VALTYPE_CONSTPREALLOCSTR) {
-                        tmpresult->int_value = vmstrings_Equality(v1, v2);
-                    } else {
-                        tmpresult->int_value = 0;
-                    }
-                } else if ((v1->type == H64VALTYPE_GCVAL &&
-                        ((h64gcvalue*)v1->ptr_value)->type ==
-                        H64GCVALUETYPE_BYTES) ||
-                        v1->type == H64VALTYPE_SHORTBYTES ||
-                        v1->type == H64VALTYPE_CONSTPREALLOCBYTES) {
-                    // Bytes!
-                    if ((v2->type == H64VALTYPE_GCVAL &&
-                            ((h64gcvalue*)v1->ptr_value)->type ==
-                            H64GCVALUETYPE_BYTES) ||
-                            v2->type == H64VALTYPE_SHORTBYTES ||
-                            v2->type == H64VALTYPE_CONSTPREALLOCBYTES) {
-                        tmpresult->int_value = vmbytes_Equality(v1, v2);
-                    } else {
-                        tmpresult->int_value = 0;
-                    }
-                } else {
-                    // Remaining cases:
-                    if (v1->type != v2->type) {
-                        tmpresult->type = H64VALTYPE_BOOL;
-                        tmpresult->int_value = 0;
-                    } else if (v1->type == H64VALTYPE_BOOL) {
-                        tmpresult->type = H64VALTYPE_BOOL;
-                        tmpresult->int_value = (
-                            (v1->int_value != 0) == (v2->int_value != 0)
-                        );
-                    } else if (v1->type == H64VALTYPE_NONE) {
-                        tmpresult->type = H64VALTYPE_BOOL;
-                        tmpresult->int_value = 1;
-                    } else {
-                        h64fprintf(stderr, "unimplemented eq case\n");
-                        return 0;
-                    }
-                }
-            } else {
-                // Numbers.
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no == v2no);
-                } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value == v2->int_value
-                    );
-                }
+            tmpresult->type = H64VALTYPE_BOOL;
+            int result = 0;
+            int success = (
+                vmexec_ValueEqualityCheck(
+                    vmthread, v1, v2, &result
+                )
+            );
+            if (!success) {
+                goto triggeroom;
             }
             goto binop_done;
         }

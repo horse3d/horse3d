@@ -93,7 +93,7 @@ typedef struct h64expression {
     } knownvalue;
     union {
         struct vardef {
-            uint8_t is_deprecated, is_const, is_protected;
+            uint8_t is_deprecated, is_const, is_protected, is_equals;
             char *identifier;
             h64expression *value;
             h64scope *foundinscope;

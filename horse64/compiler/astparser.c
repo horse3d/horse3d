@@ -3237,6 +3237,10 @@ int ast_ParseExprStmt(
                 protectindex = i;
                 i++;
                 continue;
+            } else if (strcmp(tokens[i].str_value, "equals") == 0) {
+                expr->vardef.is_equals = 1;
+                i++;
+                continue;
             }
             break;
         }
@@ -3244,6 +3248,29 @@ int ast_ParseExprStmt(
             char buf[512];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected use of protect on const"
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(
+                        context->tokenstreaminfo, tokens, protectindex),
+                    _refcol(
+                        context->tokenstreaminfo, tokens, protectindex)
+                    )) {
+                if (outofmemory) *outofmemory = 1;
+                scope_RemoveItem(
+                    parsethis->scope, expr->vardef.identifier
+                );
+                if (parsefail) *parsefail = 0;
+                *out_expr = NULL;
+                return 0;
+            }
+        }
+        if (expr->vardef.is_equals && expr->vardef.is_protected) {
+            char buf[512];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected combination of equals and protect, "
+                "the equals keyword already implies protect"
             );
             if (!result_AddMessage(
                     context->resultmsg,

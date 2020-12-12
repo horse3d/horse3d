@@ -339,7 +339,8 @@ typedef struct h64classattributeinfo {
 } h64classattributeinfo;
 
 #define VARATTR_FLAGS_CONST 0x1
-#define VARATTR_FLAGS_READONLY 0x2
+#define VARATTR_FLAGS_PROTECT 0x2
+#define VARATTR_FLAGS_EQUALS 0x4
 
 typedef struct h64class {
     classid_t base_class_global_id;

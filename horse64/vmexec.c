@@ -113,6 +113,111 @@ void vmthread_SetSuspendState(
     #endif
 }
 
+int _vmexec_ValueEqualityCheck_Do(
+        h64vmthread *vt, valuecontent *v1,
+        valuecontent *v2, int *result
+        ) {
+    if (likely((v1->type != H64VALTYPE_INT64 &&
+            v1->type != H64VALTYPE_FLOAT64) ||
+            (v2->type != H64VALTYPE_INT64 &&
+            v2->type != H64VALTYPE_FLOAT64))) {
+        if (v1->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue*)v1->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE && (
+                v2->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue*)v2->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE ||
+                ((h64gcvalue*)v1->ptr_value)->classid !=
+                ((h64gcvalue*)v2->ptr_value)->classid)) {
+            // Special case: quick fail, don't let an expensive
+            // custom .equals() run when these aren't even both
+            // object instances or same class.
+            *result = 0;
+            return 1;
+        } else if ((v1->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue*)v1->ptr_value)->type ==
+                H64GCVALUETYPE_STRING) ||
+                v1->type == H64VALTYPE_SHORTSTR ||
+                v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
+            // Strings!
+            if ((v2->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue*)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_STRING) ||
+                    v2->type == H64VALTYPE_SHORTSTR ||
+                    v2->type == H64VALTYPE_CONSTPREALLOCSTR) {
+                *result = vmstrings_Equality(v1, v2);
+            } else {
+                *result = 0;
+            }
+            return 1;
+        } else if ((v1->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue*)v1->ptr_value)->type ==
+                H64GCVALUETYPE_BYTES) ||
+                v1->type == H64VALTYPE_SHORTBYTES ||
+                v1->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+            // Bytes!
+            if ((v2->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue*)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_BYTES) ||
+                    v2->type == H64VALTYPE_SHORTBYTES ||
+                    v2->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+                *result = vmbytes_Equality(v1, v2);
+            } else {
+                *result = 0;
+            }
+            return 1;
+        } else {
+            // Remaining cases:
+            if (v1->type != v2->type) {
+                *result = 0;
+            } else if (v1->type == H64VALTYPE_BOOL) {
+                *result = (
+                    (v1->int_value != 0) == (v2->int_value != 0)
+                );
+            } else if (v1->type == H64VALTYPE_NONE) {
+                *result = 1;
+            } else {
+                fprintf(stderr, "UNIMPLEMENTED EQ CASE");
+                return 0;
+            }
+            return 1;
+        }
+    } else {
+        // Numbers.
+        if (v1->type == H64VALTYPE_FLOAT64 ||
+                v2->type == H64VALTYPE_FLOAT64) {
+            double v1no = 1;
+            if (v1->type == H64VALTYPE_FLOAT64) {
+                v1no = v1->float_value;
+            } else {
+                v1no = v1->int_value;
+            }
+            double v2no = 1;
+            if (v2->type == H64VALTYPE_FLOAT64) {
+                v2no = v2->float_value;
+            } else {
+                v2no = v2->int_value;
+            }
+            *result = (v1no == v2no);
+        } else {
+            *result = (
+                v1->int_value == v2->int_value
+            );
+        }
+        return 1;
+    }
+    return 0;
+}
+
+int vmexec_ValueEqualityCheck(
+        h64vmthread *vt, valuecontent *v1,
+        valuecontent *v2, int *result
+        ) {
+    return _vmexec_ValueEqualityCheck_Do(
+        vt, v1, v2, result
+    );
+}
+
 h64vmthread *vmthread_New(h64vmexec *owner, int is_on_main_thread) {
     h64vmthread *vmthread = malloc(sizeof(*vmthread));
     if (!vmthread)
