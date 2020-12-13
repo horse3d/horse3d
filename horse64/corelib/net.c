@@ -12,6 +12,7 @@
 #include "sockets.h"
 #include "stack.h"
 #include "vmexec.h"
+#include "vmschedule.h"
 #include "widechar.h"
 
 /// @module net Networking streams to access the local network and internet.
@@ -38,9 +39,7 @@ void _netlib_connect_abort(void *dataptr) {
     }
 }
 
-int netlib_connect(
-        h64vmthread *vmthread
-        ) {
+int netlib_connect(h64vmthread *vmthread) {
     /**
      * Connect to a different host using a TCP/IP connection, optionally
      * using a TLS/SSL encryption.
@@ -53,56 +52,84 @@ int netlib_connect(
      */
     assert(STACK_TOP(vmthread->stack) >= 3);
 
+    struct netlib_connect_asyncprogress *asprogress = (
+        vmthread->foreground_async_work_dataptr
+    );
+    assert(asprogress != NULL);
+
     valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
-    char *pathstr = NULL;
-    int64_t pathlen = 0;
-    int pathu32 = 0;
+    char *hoststr = NULL;
+    int64_t hostlen = 0;
     if (vcpath->type == H64VALTYPE_GCVAL &&
-            ((h64gcvalue *)vcpath->ptr_value)->type == H64GCVALUETYPE_STRING) {
-        pathstr = (char *)((h64gcvalue *)vcpath->ptr_value)->str_val.s;
-        pathlen = ((h64gcvalue *)vcpath->ptr_value)->str_val.len;
-        pathu32 = 1;
+            ((h64gcvalue *)vcpath->ptr_value)->type ==
+            H64GCVALUETYPE_STRING) {
+        hoststr = (char *)((h64gcvalue *)vcpath->ptr_value)->str_val.s;
+        hostlen = ((h64gcvalue *)vcpath->ptr_value)->str_val.len;
     } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
-        pathstr = (char *)vcpath->shortstr_value;
-        pathlen = vcpath->shortstr_len;
-        pathu32 = 1;
+        hoststr = (char *)vcpath->shortstr_value;
+        hostlen = vcpath->shortstr_len;
     } else {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
             "host or ip must be a string"
         );
     }
-    char *utf8host = malloc(pathlen * 6 + 1);
-    if (!utf8host) {
-        return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OUTOFMEMORYERROR,
-            "out of memory on host utf32 to utf8 conversion"
+
+    if (asprogress->targethost == NULL &&
+            asprogress->resolve_job == NULL) {
+        asprogress->resolve_job = (
+            asyncjob_CreateEmpty()
         );
-    }
-    int64_t utf8hostbuflen = pathlen * 6 + 1;
-    int64_t utf8hostlen = 0;
-    if (!utf32_to_utf8(
-            (h64wchar *)pathstr, pathlen,
-            utf8host, utf8hostbuflen,
-            &utf8hostlen, 1
-            )) {
-        free(utf8host);
-        return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OUTOFMEMORYERROR,
-            "out of memory on host utf32 to utf8 conversion"
+        if (!asprogress->resolve_job) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory during host lookup"
+            );
+        }
+        asprogress->resolve_job->type = (
+            ASYNCSYSJOB_HOSTLOOKUP
         );
-    }
-    if (utf8hostlen >= utf8hostbuflen) {
-        free(utf8host);
-        return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OUTOFMEMORYERROR,
-            "out of memory on host utf32 to utf8 conversion"
+        asprogress->resolve_job->hostlookup.host = (
+            malloc(hostlen)
+        );
+        if (!asprogress->resolve_job->hostlookup.host) {
+            asyncjob_Free(asprogress->resolve_job);  /// still owned by us
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory during host lookup"
+            );
+        }
+        memcpy(
+            asprogress->resolve_job->hostlookup.host,
+            hoststr, hostlen
+        );
+        asprogress->resolve_job->hostlookup.hostlen = hostlen;
+        int result = asyncjob_RequestAsync(
+            vmthread, asprogress->resolve_job
+        );
+        if (!result) {
+            asyncjob_Free(asprogress->resolve_job);  /// still owned by us
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory during host lookup"
+            );
+        }
+        // Note: async job handling owns asprogress->resolved_job now.
+        return vmschedule_SuspendFunc(
+            vmthread, SUSPENDTYPE_ASYNCSYSJOBWAIT,
+            (uintptr_t)(asprogress->resolve_job)
+        );
+    } else if (asprogress->targethost == NULL &&
+            asprogress->resolve_job != NULL &&
+            !asyncjob_IsDone(asprogress->resolve_job)) {
+        return vmschedule_SuspendFunc(
+            vmthread, SUSPENDTYPE_ASYNCSYSJOBWAIT,
+            (uintptr_t)(asprogress->resolve_job)
         );
     }
 
     h64socket *sock = sockets_New(1, 1);
     if (!sock) {
-        free(utf8host);
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OUTOFMEMORYERROR,
             "out of memory during socket creation"

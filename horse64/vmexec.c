@@ -114,7 +114,7 @@ void vmthread_SetSuspendState(
 }
 
 int _vmexec_ValueEqualityCheck_Do(
-        h64vmthread *vt, valuecontent *v1,
+        ATTR_UNUSED h64vmthread *vt, valuecontent *v1,
         valuecontent *v2, int *result
         ) {
     if (likely((v1->type != H64VALTYPE_INT64 &&

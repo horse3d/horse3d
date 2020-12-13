@@ -226,11 +226,10 @@ void mutex_Lock(mutex* m) {
 #ifdef ISWIN
     WaitForSingleObject(m->m, INFINITE);
 #else
-#ifndef NDEBUG
-    assert(pthread_mutex_lock(&m->m) == 0);
-#else
-    pthread_mutex_lock(&m->m);
-#endif
+    ATTR_UNUSED int result = -1;
+    while (result != 0) {
+        result = pthread_mutex_lock(&m->m);
+    }
 #endif
 }
 
@@ -455,10 +454,22 @@ h64socket *threadevent_WaitForSocket(threadevent *te) {
 }
 
 
+void _threadevent_FlushSocket(threadevent *te) {
+    int fd = te->_targetside->fd;
+    char c;
+    ssize_t recvbytes = 1;
+    while (recvbytes > 0) {
+        recvbytes = recv(
+            fd, &c, 1, 0
+        );
+    }
+}
+
 void threadevent_Unset(threadevent *te) {
     assert(te != NULL);
     mutex_Lock(te->datalock);
     te->set = 0;
+    _threadevent_FlushSocket(te);
     mutex_Release(te->datalock);
 }
 
@@ -487,13 +498,19 @@ void threadevent_Set(threadevent *te) {
             #endif
                 break;
             }
-            fd_set write_fds = {0};
-            FD_ZERO(&write_fds);
-            FD_SET(te->_sourceside->fd, &write_fds);
-            select(
-                FD_SETSIZE, NULL, &write_fds,
-                NULL, NULL
-            );
+            h64sockset writeset = {0};
+            sockset_Init(&writeset);
+            if (!sockset_Add(
+                    &writeset, te->_sourceside->fd,
+                    H64SOCKSET_WAITWRITE | H64SOCKSET_WAITERROR
+                    )) {
+                // out of memory??? wait tiny bit and retry:
+                sockset_Uninit(&writeset);
+                datetime_Sleep(10);
+                continue;
+            }
+            sockset_Wait(&writeset, 0);
+            sockset_Uninit(&writeset);
             continue;
         } else {
             break;
@@ -506,8 +523,6 @@ int threadevent_WaitUntilSet(
         int unsetifset
         ) {
     int fd = te->_targetside->fd;
-    fd_set read_fds = {0};
-
     mutex_Lock(te->datalock);
     if (te->set) {
         if (unsetifset)
@@ -530,14 +545,19 @@ int threadevent_WaitUntilSet(
             tv.tv_sec = (timeremain_ms / 1000ULL);
             tv.tv_usec = (timeremain_ms % 1000ULL) * 1000ULL;
         }
-        FD_ZERO(&read_fds);
-        FD_SET(fd, &read_fds);
-        assert(FD_ISSET(fd, &read_fds));
-        int result = select(
-            FD_SETSIZE,
-            &read_fds, NULL, NULL,
-            (timeremain_ms == 0 ? NULL : &tv)
-        );
+        h64sockset readset = {0};
+        sockset_Init(&readset);
+        if (!sockset_Add(
+                &readset, fd,
+                H64SOCKSET_WAITREAD | H64SOCKSET_WAITERROR
+                )) {
+            // out of memory??? wait tiny bit and retry:
+            sockset_Uninit(&readset);
+            datetime_Sleep(10);
+            continue;
+        }
+        int result = sockset_Wait(&readset, timeremain_ms);
+        sockset_Uninit(&readset);
         if (result > 0) {
             char c;
             ssize_t recvbytes = 1;

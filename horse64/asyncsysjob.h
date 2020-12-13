@@ -19,11 +19,15 @@ typedef enum h64asyncsysjobtype {
 
 typedef struct h64asyncsysjob {
     h64vmthread *request_thread;
-    volatile uint8_t done, failed_oom, failed_other, abandoned;
+    int type;
+    volatile uint8_t done, inprogress, failed_oomorinternal;
+    volatile uint8_t failed_external, abandoned;
     union {
         struct hostlookup {
             h64wchar *host;
-            int64_t len;
+            int64_t hostlen;
+            h64wchar *resultip;
+            int64_t resultiplen;
         } hostlookup;
         struct runcmd {
             h64wchar *cmd;
@@ -35,18 +39,21 @@ typedef struct h64asyncsysjob {
     };
 } h64asyncsysjob;
 
-h64asyncsysjob *asyncjob_Alloc();
+h64asyncsysjob *asyncjob_CreateEmpty();
 
 void asyncjob_Free(h64asyncsysjob *job);
 
 int asyncjob_RequestAsync(
     h64vmthread *request_thread,
-    h64asyncsysjob *job,
-    int *failurewasoom
+    h64asyncsysjob *job
 );
+
+int asyncjob_IsDone(h64asyncsysjob *job);
 
 void asyncjob_AbandonJob(
     h64asyncsysjob *job
 );
+
+int _asyncjob_GetSupervisorWaitFD();
 
 #endif  // HORSE64_HOSTLOOKUP_H_

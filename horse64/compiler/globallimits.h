@@ -19,6 +19,7 @@
 #define H64LIMIT_MAX_CLASS_FUNCATTRS ((INT16_MAX / 4) - 2)
 
 #define CFUNC_ASYNCDATA_DEFAULTITEMSIZE 64
+#define ASYNCSYSJOB_WORKER_COUNT 6
 
 typedef int16_t attridx_t;
 typedef int32_t classid_t;
