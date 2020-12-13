@@ -74,7 +74,7 @@ ATTR_UNUSED static inline void sockset_Init(h64sockset *set) {
 #if defined(_WIN32) || defined(_WIN64)
 #define H64SOCKSET_WAITREAD 0x1
 #define H64SOCKSET_WAITWRITE 0x2
-#define H64SOCKSET_WAITERR 0x4
+#define H64SOCKSET_WAITERROR 0x4
 #else
 #define H64SOCKSET_WAITREAD POLLIN
 #define H64SOCKSET_WAITWRITE POLLOUT
