@@ -539,12 +539,7 @@ int threadevent_WaitUntilSet(
         timeremain_ms = timeout_ms;
     int64_t origtimeremain_ms = timeremain_ms;
     uint64_t start = datetime_Ticks();
-    struct timeval tv = {0};
     while (1) {
-        if (timeremain_ms > 0) {
-            tv.tv_sec = (timeremain_ms / 1000ULL);
-            tv.tv_usec = (timeremain_ms % 1000ULL) * 1000ULL;
-        }
         h64sockset readset = {0};
         sockset_Init(&readset);
         if (!sockset_Add(

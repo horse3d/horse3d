@@ -20,6 +20,6 @@
 #endif
 #endif
 
-#define USE_POLL_ON_UNIX 0
+#define USE_POLL_ON_UNIX 1
 
 #endif  // HORSE64_COMPILECONFIG_H_

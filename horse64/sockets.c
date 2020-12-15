@@ -559,3 +559,137 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     *s2 = sock_two;
     return 1;
 }
+
+void sockset_Remove(
+        h64sockset *set, int fd
+        ) {
+    #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
+    FD_CLR(fd, &set->readset);
+    FD_CLR(fd, &set->writeset);
+    FD_CLR(fd, &set->errorset);
+    return;
+    #else
+    int i = 0;
+    const int count = set->fill;
+    struct pollfd *delset = (
+        set->size == 0 ? (struct pollfd*)set->smallset : set->set
+    );
+    while (i < count) {
+        if (delset[i].fd == fd) {
+            if (i + 1 < count)
+                memcpy(
+                    &delset[i],
+                    &delset[i + 1],
+                    sizeof(*set->set) * (count - i - 1)
+                );
+            set->fill--;
+            return;
+        }
+        i++;
+    }
+    #endif
+}
+
+int sockset_Wait(
+        h64sockset *set, int64_t timeout_ms
+        ) {
+    #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
+    struct timeval ts = {0};
+    if (timeout_ms > 0) {
+        ts.tv_sec = (timeout_ms / 1000LL);
+        ts.tv_usec = (timeout_ms % 1000LL) * 1000LL;
+    }
+    int result = select(
+        FD_SETSIZE, &set->readset, &set->writeset,
+        &set->errorset, (timeout_ms != 0 ? &ts : NULL)
+    );
+    return (result > 0 ? result : 0);
+    #else
+    if (timeout_ms <= 0)
+        timeout_ms = -1;
+    set->resultfill = 0;
+    struct pollfd *pollset = (
+        set->size == 0 ? (struct pollfd*)set->smallset : set->set
+    );
+    struct pollfd *resultset = (
+        set->size == 0 ? (struct pollfd*)set->smallresult : set->result
+    );
+    int timeouti32 = (
+        (int64_t)timeout_ms > (int64_t)INT32_MAX ?
+        (int32_t)INT32_MAX : (int32_t)timeout_ms
+    );
+    int result = poll(pollset, set->fill, timeouti32);
+    set->resultfill = 0;
+    if (result > 0) {
+        int i = 0;
+        while (i < set->fill) {
+            if (pollset[i].revents != 0) {
+                memcpy(
+                    &resultset[set->resultfill],
+                    &pollset[i],
+                    sizeof(*set->set)
+                );
+                set->resultfill++;
+            }
+            i++;
+        }
+        assert(set->resultfill > 0);
+    }
+    return (result > 0 ? result : 0);
+    #endif
+}
+
+int _sockset_Expand(
+        ATTR_UNUSED h64sockset *set
+        ) {
+    #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
+    return 0;
+    #else
+    int oldsize = _pollsmallsetsize;
+    if (set->size != 0)
+        oldsize = set->size;
+    int newsize = set->fill + 16;
+    if (newsize < set->size * 2)
+        newsize = set->size * 2;
+    if (set->size == 0) {
+        if (newsize < _pollsmallsetsize * 2)
+            newsize = _pollsmallsetsize * 2;
+        set->set = malloc(
+            sizeof(*set->set) * newsize
+        );
+        if (set->set) {
+            memcpy(
+                set->set, set->smallset,
+                sizeof(*set->set) * _pollsmallsetsize
+            );
+        } else {
+            return 0;
+        }
+    } else {
+        struct pollfd *newresult = malloc(
+            sizeof(*set->result) * newsize
+        );
+        if (!newresult)
+            return 0;
+        free(set->result);
+        set->result = newresult;
+        struct pollfd *newset = realloc(
+            set->set, sizeof(*set->set) * newsize
+        );
+        if (!newset) {
+            if (set->set == NULL) {
+                free(set->result);
+                set->result = NULL;
+            }
+            return 0;
+        }
+        set->set = newset;
+    }
+    set->size = newsize;
+    memset(
+        &set->set[oldsize], 0,
+        sizeof(*set->set) * (newsize - oldsize)
+    );
+    #endif
+    return 1;
+}
