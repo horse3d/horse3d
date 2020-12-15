@@ -156,6 +156,7 @@ void asyncsysjobworker_Do(void *userdata) {
                 ourjob->inprogress = 0;
                 ourjob->done = 1;
                 mutex_Release(asyncsysjob_schedule_lock);
+                threadevent_Set(job_done_supervisor_waitevent);
                 continue;
             }
             struct addrinfo* lookupresult = NULL;
@@ -167,6 +168,7 @@ void asyncsysjobworker_Do(void *userdata) {
                 ourjob->inprogress = 0;
                 ourjob->done = 1;
                 mutex_Release(asyncsysjob_schedule_lock);
+                threadevent_Set(job_done_supervisor_waitevent);
                 continue;
             }
             char ipresult[NI_MAXHOST] = "";
@@ -208,6 +210,7 @@ void asyncsysjobworker_Do(void *userdata) {
             ourjob->inprogress = 0;
             ourjob->done = 1;
             mutex_Release(asyncsysjob_schedule_lock);
+            threadevent_Set(job_done_supervisor_waitevent);
             continue;
         }
         threadevent_WaitUntilSet(
@@ -215,6 +218,12 @@ void asyncsysjobworker_Do(void *userdata) {
             5000, 1
         );
     }
+}
+
+void asyncjob_FlushSupervisorWakeupEvents() {
+    threadevent_FlushWakeUpEvents(
+        job_done_supervisor_waitevent
+    );
 }
 
 int asyncjob_IsDone(h64asyncsysjob *job) {

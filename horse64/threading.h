@@ -75,4 +75,6 @@ int threadevent_WaitUntilSet(
     int unsetifset
 );
 
+void threadevent_FlushWakeUpEvents(threadevent *te);
+
 #endif  // HORSE64_THREADING_H_

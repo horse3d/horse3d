@@ -10,12 +10,14 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "asyncsysjob.h"
 #include "bytecode.h"
 #include "datetime.h"
 #include "debugsymbols.h"
 #include "nonlocale.h"
 #include "osinfo.h"
 #include "pipe.h"
+#include "sockets.h"
 #include "stack.h"
 #include "threading.h"
 #include "valuecontentstruct.h"
@@ -25,6 +27,9 @@
 
 
 static char _unexpectedlookupfail[] = "<unexpected lookup fail>";
+
+mutex *_waited_for_socklist_mutex = NULL;
+h64sockset _waited_for_socklist = {0};
 
 static const char *_classnamelookup(h64program *pr, int64_t classid) {
     h64classsymbol *csymbol = h64debugsymbols_GetClassSymbolById(
@@ -542,6 +547,8 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
     while (1) {
         int64_t now = (int64_t)datetime_Ticks();
         mutex_Lock(access_mutex);
+
+        // See how long we can wait according to internal timer waits:
         int64_t timerwaitsmin = -1;
         int i = 0;
         while (i < vmexec->thread_count) {
@@ -575,13 +582,18 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
                 timerwaitsmin
             );
         #endif
+
+        // Wait for any socket events, up to max waiting time:
         if (timerwaitsmin >= 0) {
-            datetime_Sleep(timerwaitsmin + 5);
+            sockset_Wait(&_waited_for_socklist, timerwaitsmin + 5);
         } else {
-            datetime_Sleep(5);
+            sockset_Wait(&_waited_for_socklist, 5);
         }
+        asyncjob_FlushSupervisorWakeupEvents();
         if (vmexec->supervisor_stop_signal)
             break;
+
+        // Wake up workers to do work:
         i = 0;
         while (i < vmexec->worker_overview->worker_count) {
             threadevent_Set(
@@ -596,6 +608,14 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
 int vmschedule_ExecuteProgram(
         h64program *pr, h64misccompileroptions *moptions
         ) {
+    _waited_for_socklist_mutex = mutex_Create();
+    if (!_waited_for_socklist_mutex) {
+        h64fprintf(stderr, "horsevm: error: vmschedule.c: "
+            " out of memory creating _waited_for_socklist_mutex\n");
+        return -1;
+    }
+    sockset_Init(&_waited_for_socklist);
+
     h64vmexec *mainexec = vmexec_New();
     if (!mainexec) {
         h64fprintf(stderr, "horsevm: error: vmschedule.c: "
@@ -629,6 +649,22 @@ int vmschedule_ExecuteProgram(
 
     assert(pr->main_func_index >= 0);
     memcpy(&mainexec->moptions, moptions, sizeof(*moptions));
+
+    int asyncfd = _asyncjob_GetSupervisorWaitFD();
+    if (asyncfd < 0) {
+        h64fprintf(stderr, "horsevm: error: vmschedule.c: "
+            "didn't manage to get async fd, out of memory?\n");
+        return -1;
+    }
+    if (!sockset_Add(
+            &_waited_for_socklist, asyncfd,
+            H64SOCKSET_WAITREAD | H64SOCKSET_WAITERROR
+            )) {
+        h64fprintf(stderr, "horsevm: error: vmschedule.c: "
+            "out of memory registering async job fd socket for "
+            "waiting\n");
+        return -1;
+    }
 
     int worker_count = vmschedule_WorkerCount();
     #ifndef NDEBUG

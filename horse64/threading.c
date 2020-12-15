@@ -454,7 +454,7 @@ h64socket *threadevent_WaitForSocket(threadevent *te) {
 }
 
 
-void _threadevent_FlushSocket(threadevent *te) {
+void threadevent_FlushWakeUpEvents(threadevent *te) {
     int fd = te->_targetside->fd;
     char c;
     ssize_t recvbytes = 1;
@@ -469,7 +469,7 @@ void threadevent_Unset(threadevent *te) {
     assert(te != NULL);
     mutex_Lock(te->datalock);
     te->set = 0;
-    _threadevent_FlushSocket(te);
+    threadevent_FlushWakeUpEvents(te);
     mutex_Release(te->datalock);
 }
 

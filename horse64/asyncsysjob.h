@@ -56,4 +56,6 @@ void asyncjob_AbandonJob(
 
 int _asyncjob_GetSupervisorWaitFD();
 
+void asyncjob_FlushSupervisorWakeupEvents();
+
 #endif  // HORSE64_HOSTLOOKUP_H_
