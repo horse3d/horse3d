@@ -571,7 +571,9 @@ int threadevent_WaitUntilSet(
         }
         mutex_Release(te->datalock);
         if (timeremain_ms > 0) {
-            timeremain_ms = origtimeremain_ms - (datetime_Ticks() - start);
+            timeremain_ms = (
+                origtimeremain_ms - (datetime_Ticks() - start)
+            );
             if (timeremain_ms >= 1) {
                 continue;
             }
