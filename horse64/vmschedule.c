@@ -707,6 +707,18 @@ int vmschedule_ExecuteProgram(
             "waiting\n");
         return -1;
     }
+    if (!sockset_Add(
+            &_waited_for_socklist,
+            threadevent_WaitForSocket(
+                _waited_for_socklist_supervisorunlockevent
+            )->fd,
+        H64SOCKSET_WAITREAD | H64SOCKSET_WAITERROR
+            )) {
+        h64fprintf(stderr, "horsevm: error: vmschedule.c: "
+            "out of memory registering _waited_for_socklist "
+            "supervisor wakeup event\n");
+        return -1;
+    }
 
     int worker_count = vmschedule_WorkerCount();
     #ifndef NDEBUG
