@@ -29,7 +29,28 @@
 static char _unexpectedlookupfail[] = "<unexpected lookup fail>";
 
 mutex *_waited_for_socklist_mutex = NULL;
+mutex *_waited_for_socklist_supervisorPREmutex = NULL;
 h64sockset _waited_for_socklist = {0};
+threadevent *_waited_for_socklist_supervisorunlockevent = NULL;
+
+
+int _vmschedule_RegisterSocketForWaiting(
+        int fd, int waittypes
+        ) {
+    mutex_Lock(_waited_for_socklist_supervisorPREmutex);
+    threadevent_Set(_waited_for_socklist_supervisorunlockevent);
+    mutex_Lock(_waited_for_socklist_mutex);
+    if (!sockset_Add(
+            &_waited_for_socklist, fd, waittypes
+            )) {
+        mutex_Release(_waited_for_socklist_mutex);
+        mutex_Release(_waited_for_socklist_supervisorPREmutex);
+        return 0;
+    }
+    mutex_Release(_waited_for_socklist_mutex);
+    mutex_Release(_waited_for_socklist_supervisorPREmutex);
+    return 1;
+}
 
 static const char *_classnamelookup(h64program *pr, int64_t classid) {
     h64classsymbol *csymbol = h64debugsymbols_GetClassSymbolById(
@@ -583,12 +604,22 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
             );
         #endif
 
+        // Before we go into socket wait with our lock,
+        // catch the pre-lock which others can hold to prevent
+        // the supervisor from instantly stealing the sockset lock
+        // again (in case supervisor was just woken up for the very
+        // purpose of letting somebody else get the sockset lock).
+        mutex_Lock(_waited_for_socklist_supervisorPREmutex);
+        mutex_Release(_waited_for_socklist_supervisorPREmutex);
+
         // Wait for any socket events, up to max waiting time:
+        mutex_Lock(_waited_for_socklist_mutex);
         if (timerwaitsmin >= 0) {
             sockset_Wait(&_waited_for_socklist, timerwaitsmin + 5);
         } else {
             sockset_Wait(&_waited_for_socklist, 5);
         }
+        mutex_Release(_waited_for_socklist_mutex);
         asyncjob_FlushSupervisorWakeupEvents();
         if (vmexec->supervisor_stop_signal)
             break;
@@ -609,12 +640,23 @@ int vmschedule_ExecuteProgram(
         h64program *pr, h64misccompileroptions *moptions
         ) {
     _waited_for_socklist_mutex = mutex_Create();
+    _waited_for_socklist_supervisorPREmutex = mutex_Create();
     if (!_waited_for_socklist_mutex) {
         h64fprintf(stderr, "horsevm: error: vmschedule.c: "
-            " out of memory creating _waited_for_socklist_mutex\n");
+            " out of memory creating _waited_for_socklist_mutex "
+            "or _waited_for_socklist_mutex\n");
         return -1;
     }
     sockset_Init(&_waited_for_socklist);
+    _waited_for_socklist_supervisorunlockevent = (
+        threadevent_Create()
+    );
+    if (!_waited_for_socklist_supervisorunlockevent) {
+        h64fprintf(stderr, "horsevm: error: vmschedule.c: "
+            " out of memory creating "
+            "_waited_for_socklist_supervisorunlockevent\n");
+        return -1;
+    }
 
     h64vmexec *mainexec = vmexec_New();
     if (!mainexec) {

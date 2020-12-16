@@ -86,4 +86,8 @@ int vmschedule_CanThreadResume_UnguardedCheck(
     h64vmthread *vt, uint64_t now
 );
 
+int _vmschedule_RegisterSocketForWaiting(
+    int fd, int waittypes
+);
+
 #endif  // HORSE64_VMSCHEDULE_H_
