@@ -25,6 +25,7 @@ typedef int socklen_t;
 #include "secrandom.h"
 #include "sockets.h"
 #include "threading.h"
+#include "widechar.h"
 
 
 volatile _Atomic int winsockinitdone = 0;
@@ -692,4 +693,73 @@ int _sockset_Expand(
     );
     #endif
     return 1;
+}
+
+
+int sockets_IsIPv4(const h64wchar *s, int slen) {
+    int dots = 0;
+    int currentnumberlen = 0;
+    while (1) {
+        if (slen <= 0) {
+            if (currentnumberlen < 1 || dots != 3)
+                return 0;
+            return 1;
+        }
+        if (*s >= '0' && *s <= '9') {
+            currentnumberlen++;
+            if (currentnumberlen > 3)
+                return 0;
+        } else if (*s == '.') {
+            if (currentnumberlen < 1 || dots >= 3)
+                return 0;
+            dots++;
+            currentnumberlen = 0;
+        } else {
+            return 0;
+        }
+        s++;
+        slen--;
+    }
+}
+
+int sockets_IsIPv6(const h64wchar *s, int slen) {
+    int lastcolonwasdoublecolon = 0;
+    int doublecolons = 0;
+    int colons = 0;
+    int currentnumberlen = 0;
+    while (1) {
+        if (slen <= 0) {
+            if ((currentnumberlen < 1 && (doublecolons == 0 ||
+                    !lastcolonwasdoublecolon)) ||
+                    (colons != 7 && doublecolons == 0) ||
+                    (colons >= 7 && doublecolons != 0) ||
+                    (doublecolons != 0 && doublecolons != 1))
+                return 0;
+            return 1;
+        }
+        if ((*s >= '0' && *s <= '9') ||
+                (*s >= 'a' && *s <= 'f') ||
+                (*s >= 'A' && *s <= 'F')) {
+            currentnumberlen++;
+            if (currentnumberlen > 3)
+                return 0;
+        } else if (*s == ':' && slen > 1 && *(s + 1) == ':') {
+            if (doublecolons > 0 || colons >= 7)
+                return 0;
+            lastcolonwasdoublecolon = 1;
+            doublecolons++;
+            currentnumberlen = 0;
+        } else if (*s == ':' && (slen < 2 || *(s + 1) != ':')) {
+            if (currentnumberlen < 1 || colons >= 7 ||
+                    (colons >= 6 && doublecolons >= 0))
+                return 0;
+            lastcolonwasdoublecolon = 0;
+            colons++;
+            currentnumberlen = 0;
+        } else {
+            return 0;
+        }
+        s++;
+        slen--;
+    }
 }

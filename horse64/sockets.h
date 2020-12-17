@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "widechar.h"
+
 #define SOCKFLAG_TLS 0x1
 #define SOCKFLAG_SERVER 0x2
 
@@ -201,5 +203,9 @@ void sockets_Destroy(h64socket *sock);
 int sockets_NewPair(h64socket **s1, h64socket **s2);
 
 int sockets_SetNonblocking(h64socket *sock, int nonblocking);
+
+int sockets_IsIPv4(const h64wchar *s, int slen);
+
+int sockets_IsIPv6(const h64wchar *s, int slen);
 
 #endif  // HORSE64_SOCKETS_H_

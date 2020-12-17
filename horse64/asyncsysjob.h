@@ -26,8 +26,10 @@ typedef struct h64asyncsysjob {
         struct hostlookup {
             h64wchar *host;
             int64_t hostlen;
-            h64wchar *resultip;
-            int64_t resultiplen;
+            h64wchar *resultip4;
+            int64_t resultip4len;
+            h64wchar *resultip6;
+            int64_t resultip6len;
         } hostlookup;
         struct runcmd {
             h64wchar *cmd;

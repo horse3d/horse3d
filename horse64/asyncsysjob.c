@@ -74,8 +74,10 @@ void _asyncjob_FreeNoLock(h64asyncsysjob *job) {
     if (job->type == ASYNCSYSJOB_HOSTLOOKUP) {
         free(job->hostlookup.host);
         job->hostlookup.host = NULL;
-        free(job->hostlookup.resultip);
-        job->hostlookup.resultip = NULL;
+        free(job->hostlookup.resultip4);
+        job->hostlookup.resultip4 = NULL;
+        free(job->hostlookup.resultip6);
+        job->hostlookup.resultip6 = NULL;
     }
     poolalloc_free(asyncsysjob_allocator, job);
 }
@@ -140,29 +142,54 @@ void asyncsysjobworker_Do(void *userdata) {
         mutex_Release(asyncsysjob_schedule_lock);
         if (ourjob != NULL &&
                 ourjob->type == ASYNCSYSJOB_HOSTLOOKUP) {
-            int hostutf8size = ourjob->hostlookup.hostlen * 5 + 2;
-            char *hostutf8 = malloc(hostutf8size);
+            int hostutf8size = 0;
+            char *hostutf8 = NULL;
             int64_t hostutf8len = 0;
-            int result = utf32_to_utf8(
-                ourjob->hostlookup.host,
-                ourjob->hostlookup.hostlen,
-                hostutf8, hostutf8size,
-                &hostutf8len, 1
-            );
-            if (!result) {
-                lookupoom:
-                mutex_Lock(asyncsysjob_schedule_lock);
-                ourjob->failed_oomorinternal = 1;
-                ourjob->inprogress = 0;
-                ourjob->done = 1;
-                mutex_Release(asyncsysjob_schedule_lock);
-                threadevent_Set(job_done_supervisor_waitevent);
-                continue;
+
+            // Special case: it's already an ip:
+            if (sockets_IsIPv4(
+                    ourjob->hostlookup.host, ourjob->hostlookup.hostlen
+                    )) {
+                ourjob->hostlookup.resultip4 = malloc(
+                    ourjob->hostlookup.hostlen * sizeof(h64wchar)
+                );
+                if (!ourjob->hostlookup.resultip4)
+                    goto lookupoom;
+            } else if (sockets_IsIPv6(
+                    ourjob->hostlookup.host, ourjob->hostlookup.hostlen
+                    )) {
+                ourjob->hostlookup.resultip6 = malloc(
+                    ourjob->hostlookup.hostlen * sizeof(h64wchar)
+                );
+                if (!ourjob->hostlookup.resultip4)
+                    goto lookupoom;
             }
-            struct addrinfo* lookupresult = NULL;
-            result = getaddrinfo(hostutf8, NULL, NULL, &lookupresult);
-            if (result != 0) {
-                lookupfail:
+            // Special case: obviously invalid host:
+            int dots = 0;
+            int i = 0;
+            while (i < ourjob->hostlookup.hostlen) {
+                if (ourjob->hostlookup.host[i] == '.') {
+                    if (i == 0 || i == ourjob->hostlookup.hostlen - 1)
+                        goto invalidhost;
+                    dots++;
+                } else if (ourjob->hostlookup.host[i] == '\0') {
+                    goto invalidhost;
+                } else if (ourjob->hostlookup.host[i] <= 127 &&
+                        (ourjob->hostlookup.host[i] < 'a' ||
+                        ourjob->hostlookup.host[i] > 'z') &&
+                        (ourjob->hostlookup.host[i] < 'A' ||
+                        ourjob->hostlookup.host[i] > 'Z') &&
+                        (ourjob->hostlookup.host[i] < '0' ||
+                        ourjob->hostlookup.host[i] > '9') &&
+                        ourjob->hostlookup.host[i] != '-') {
+                    goto invalidhost;
+                }
+                i++;
+            }
+            if (ourjob->hostlookup.hostlen == 0 || dots <= 0) {
+                invalidhost:
+                if (hostutf8)
+                    free(hostutf8);
                 mutex_Lock(asyncsysjob_schedule_lock);
                 ourjob->failed_external = 1;
                 ourjob->inprogress = 0;
@@ -171,41 +198,122 @@ void asyncsysjobworker_Do(void *userdata) {
                 threadevent_Set(job_done_supervisor_waitevent);
                 continue;
             }
-            char ipresult[NI_MAXHOST] = "";
-            struct addrinfo* resultiter = lookupresult;
-            while (resultiter != NULL) {
-                result = getnameinfo(
-                    resultiter->ai_addr,
-                    resultiter->ai_addrlen,
-                    ipresult, NI_MAXHOST, NULL, 0, 0
-                );
-                if (result != 0) {
-                    freeaddrinfo(lookupresult);
-                    goto lookupfail;
+            // Convert to utf-8 for system APIs:
+            hostutf8size = ourjob->hostlookup.hostlen * 5 + 2;
+            hostutf8 = malloc(hostutf8size);
+            hostutf8len = 0;
+            int result = utf32_to_utf8(
+                ourjob->hostlookup.host,
+                ourjob->hostlookup.hostlen,
+                hostutf8, hostutf8size,
+                &hostutf8len, 1
+            );
+            if (!result) {
+                lookupoom:
+                if (hostutf8)
+                    free(hostutf8);
+                mutex_Lock(asyncsysjob_schedule_lock);
+                ourjob->failed_oomorinternal = 1;
+                ourjob->inprogress = 0;
+                ourjob->done = 1;
+                mutex_Release(asyncsysjob_schedule_lock);
+                threadevent_Set(job_done_supervisor_waitevent);
+                continue;
+            }
+
+            // IPv4:
+            struct addrinfo* lookupresult = NULL;
+            struct addrinfo hints = {0};
+            hints.ai_socktype = SOCK_STREAM;
+            hints.ai_family = AF_INET;
+            result = getaddrinfo(hostutf8, NULL, &hints, &lookupresult);
+            if (result == 0) {
+                char ipresult[NI_MAXHOST] = "";
+                struct addrinfo* resultiter = lookupresult;
+                while (resultiter != NULL) {
+                    result = getnameinfo(
+                        resultiter->ai_addr,
+                        resultiter->ai_addrlen,
+                        ipresult, NI_MAXHOST, NULL, 0, 0
+                    );
+                    if (result != 0) {
+                        freeaddrinfo(lookupresult);
+                        break;
+                    }
+                    if (strlen(ipresult) > 0) {
+                        break;
+                    }
+                    resultiter = resultiter->ai_next;
                 }
+                freeaddrinfo(lookupresult);
                 if (strlen(ipresult) > 0) {
-                    break;
+                    int wasinvalid = 0;
+                    int wasoom = 0;
+                    ourjob->hostlookup.resultip4 = utf8_to_utf32_ex(
+                        ipresult, strlen(ipresult),
+                        NULL, 0, NULL, NULL,
+                        &ourjob->hostlookup.resultip4len,
+                        0, 1, &wasinvalid, &wasoom
+                    );
+                    if (!ourjob->hostlookup.resultip4) {
+                        if (wasoom)
+                            goto lookupoom;
+                    }
                 }
-                resultiter = resultiter->ai_next;
             }
-            freeaddrinfo(lookupresult);
-            if (strlen(ipresult) > 0) {
-                int wasinvalid = 0;
-                int wasoom = 0;
-                ourjob->hostlookup.resultip = utf8_to_utf32_ex(
-                    ipresult, strlen(ipresult),
-                    NULL, 0, NULL, NULL,
-                    &ourjob->hostlookup.resultiplen,
-                    0, 1, &wasinvalid, &wasoom
-                );
-                if (!ourjob->hostlookup.resultip) {
-                    if (wasoom)
-                        goto lookupoom;
-                    goto lookupfail;
+            // IPv6:
+            lookupresult = NULL;
+            hints.ai_family = AF_INET6;
+            result = getaddrinfo(hostutf8, NULL, &hints, &lookupresult);
+            if (result == 0) {
+                char ipresult[NI_MAXHOST] = "";
+                struct addrinfo* resultiter = lookupresult;
+                while (resultiter != NULL) {
+                    result = getnameinfo(
+                        resultiter->ai_addr,
+                        resultiter->ai_addrlen,
+                        ipresult, NI_MAXHOST, NULL, 0, 0
+                    );
+                    if (result != 0) {
+                        freeaddrinfo(lookupresult);
+                        break;
+                    }
+                    if (strlen(ipresult) > 0) {
+                        break;
+                    }
+                    resultiter = resultiter->ai_next;
                 }
-            } else {
-                goto lookupfail;
+                freeaddrinfo(lookupresult);
+                if (strlen(ipresult) > 0) {
+                    int wasinvalid = 0;
+                    int wasoom = 0;
+                    ourjob->hostlookup.resultip6 = utf8_to_utf32_ex(
+                        ipresult, strlen(ipresult),
+                        NULL, 0, NULL, NULL,
+                        &ourjob->hostlookup.resultip6len,
+                        0, 1, &wasinvalid, &wasoom
+                    );
+                    if (!ourjob->hostlookup.resultip6) {
+                        if (wasoom)
+                            goto lookupoom;
+                    }
+                }
             }
+            free(hostutf8);
+            hostutf8 = NULL;
+            // Bail out on failure (=> neither ipv4 nor ipv6 resolved):
+            if (ourjob->hostlookup.resultip4len == 0 &&
+                    ourjob->hostlookup.resultip6len == 0) {
+                mutex_Lock(asyncsysjob_schedule_lock);
+                ourjob->failed_oomorinternal = 0;
+                ourjob->failed_external = 1;
+                ourjob->inprogress = 0;
+                ourjob->done = 1;
+                mutex_Release(asyncsysjob_schedule_lock);
+                threadevent_Set(job_done_supervisor_waitevent);
+                continue;
+            }
+            // Mark done on success:
             mutex_Lock(asyncsysjob_schedule_lock);
             ourjob->inprogress = 0;
             ourjob->done = 1;
