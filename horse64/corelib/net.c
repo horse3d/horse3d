@@ -29,7 +29,7 @@ struct netlib_connect_asyncprogress {
     void (*abortfunc)(void *dataptr);
     h64asyncsysjob *resolve_job;
     h64socket *connection;
-    uint8_t triedv6connect, connecting;
+    uint8_t failedv6connect, connecting;
 };
 
 void _netlib_connect_abort(void *dataptr) {
@@ -197,8 +197,13 @@ int netlib_connect(h64vmthread *vmthread) {
         }
     }
 
-    if (!asprogress->triedv6connect &&
+    if (!asprogress->failedv6connect &&
             asprogress->resolve_job->hostlookup.resultip6len > 0) {
+        if (asprogress->connecting) {
+            // We must have arrived here due to EINPROGRESS.
+            // Check if we actually connected:
+            goto connectionmustbedone;
+        }
         struct sockaddr_in6 targetaddr = {0};
         targetaddr.sin6_family = AF_INET6;
         targetaddr.sin6_addr = in6addr_loopback;
@@ -231,12 +236,12 @@ int netlib_connect(h64vmthread *vmthread) {
                     vmthread, H64STDERROR_OSERROR,
                     "connection failed"
                 );
-            asprogress->triedv6connect = 1;
+            asprogress->failedv6connect = 1;
         } else {
-            goto connectiondone;
+            goto connectionmustbedone;
         }
     }
-    if (asprogress->triedv6connect &&
+    if (asprogress->failedv6connect &&
             asprogress->resolve_job->hostlookup.resultip4len > 0) {
         struct sockaddr_in targetaddr = {0};
         targetaddr.sin_family = AF_INET;
@@ -270,7 +275,31 @@ int netlib_connect(h64vmthread *vmthread) {
                 "connection failed"
             );
         } else {
-            connectiondone: ;
+            connectionmustbedone: ;
+            // Ensure we're actually connected:
+            int connected = 0;
+            if (asprogress->failedv6connect) {
+                struct sockaddr_in v4addr;
+                socklen_t v4size = sizeof(v4addr);
+                connected = (getpeername(
+                    asprogress->connection->fd,
+                    (struct sockaddr *)&v4addr, &v4size
+                ) == 0);
+            } else {
+                struct sockaddr_in6 v6addr;
+                socklen_t v6size = sizeof(v6addr);
+                connected = (getpeername(
+                    asprogress->connection->fd,
+                    (struct sockaddr *)&v6addr, &v6size
+                ) == 0);
+            }
+            if (!connected) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_OSERROR,
+                    "connection failed"
+                );
+            }
+            // Return connection:
             valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
             DELREF_NONHEAP(vc);
             valuecontent_Free(vc);
