@@ -42,13 +42,6 @@ typedef struct h64gcvalue {
     int32_t heapreferencecount, externalreferencecount;
     union {
         struct {
-            classid_t classid;
-            union {
-                valuecontent *membervars;
-                void *cdata;
-            };
-        };
-        struct {
             h64stringval str_val;
         };
         struct {
@@ -68,8 +61,12 @@ typedef struct h64gcvalue {
         };
         struct {
             classid_t class_id;
-            int16_t varattr_count;
-            valuecontent *varattr;
+            union {
+                struct {
+                    valuecontent *varattr;
+                };
+                void *cdata;
+            };
         };
     };
 } h64gcvalue;

@@ -511,7 +511,7 @@ int iolib_open(
     fileobj->type = H64GCVALUETYPE_OBJINSTANCE;
     fileobj->heapreferencecount = 0;
     fileobj->externalreferencecount = 1;
-    fileobj->classid = vmthread->vmexec_owner->program->_io_file_class_idx;
+    fileobj->class_id = vmthread->vmexec_owner->program->_io_file_class_idx;
     fileobj->cdata = malloc(sizeof(_fileobj_cdata));
     if (!fileobj->cdata) {
         #if defined(_WIN32) || defined(_WIN64)
@@ -576,7 +576,7 @@ int iolib_fileread(
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
-    assert(gcvalue->classid ==
+    assert(gcvalue->class_id ==
            vmthread->vmexec_owner->program->_io_file_class_idx);
     _fileobj_cdata *cdata = (gcvalue->cdata);
     FILE *f = cdata->file_handle;
@@ -877,7 +877,7 @@ int iolib_fileseek(
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
-    assert(gcvalue->classid ==
+    assert(gcvalue->class_id ==
            vmthread->vmexec_owner->program->_io_file_class_idx);
     _fileobj_cdata *cdata = (gcvalue->cdata);
 
@@ -956,7 +956,7 @@ int iolib_fileoffset(
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
-    assert(gcvalue->classid ==
+    assert(gcvalue->class_id ==
            vmthread->vmexec_owner->program->_io_file_class_idx);
     _fileobj_cdata *cdata = (gcvalue->cdata);
 
@@ -1014,7 +1014,7 @@ int iolib_fileclose(
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
-    assert(gcvalue->classid ==
+    assert(gcvalue->class_id ==
            vmthread->vmexec_owner->program->_io_file_class_idx);
     _fileobj_cdata *cdata = (gcvalue->cdata);
 

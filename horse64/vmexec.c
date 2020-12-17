@@ -127,8 +127,8 @@ int _vmexec_ValueEqualityCheck_Do(
                 v2->type != H64VALTYPE_GCVAL ||
                 ((h64gcvalue*)v2->ptr_value)->type ==
                 H64GCVALUETYPE_OBJINSTANCE ||
-                ((h64gcvalue*)v1->ptr_value)->classid !=
-                ((h64gcvalue*)v2->ptr_value)->classid)) {
+                ((h64gcvalue*)v1->ptr_value)->class_id !=
+                ((h64gcvalue*)v2->ptr_value)->class_id)) {
             // Special case: quick fail, don't let an expensive
             // custom .equals() run when these aren't even both
             // object instances or same class.
@@ -1675,7 +1675,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
             goto *jumptable[((h64instructionany *)p)->type];
         }
-        assert(aindex >= 0 && aindex < gcval->varattr_count);
+        assert(
+            aindex >= 0 &&
+            aindex < vmexec->program->classes[gcval->class_id].varattr_count
+        );
 
         DELREF_NONHEAP(&gcval->varattr[aindex]);
         valuecontent_Free(&gcval->varattr[aindex]);
@@ -1711,7 +1714,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
         attridx_t aindex = inst->varattrto;
-        if (aindex < 0 || aindex >= gcval->varattr_count) {
+        if (aindex < 0 || aindex >= (
+                vmexec->program->classes[gcval->class_id].varattr_count
+                )) {
             RAISE_ERROR(
                 H64STDERROR_ATTRIBUTEERROR,
                 "given attribute not present on this value"
@@ -3176,14 +3181,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 // A varattr, just copy the contents:
                 h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
                 assert(attr_index >= 0 &&
-                       gcv->varattr_count);
+                       vmexec->program->classes[gcv->class_id].varattr_count);
                 memcpy(target, &gcv->varattr[attr_index],
                        sizeof(*target));
                 ADDREF_NONHEAP(target);
             } else {
                 // It's a function attribute, return closure:
                 classid_t class_id = (
-                    ((h64gcvalue *)vc->ptr_value)->classid
+                    ((h64gcvalue *)vc->ptr_value)->class_id
                 );
                 assert(
                     attr_index - H64CLASS_METHOD_OFFSET <
@@ -3366,18 +3371,18 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             gcval->heapreferencecount = 0;
             gcval->externalreferencecount = 1;
             gcval->class_id = class_id;
-            gcval->varattr_count = (
+            int32_t varattr_count = (
                 vmexec->program->classes[class_id].varattr_count
             );
             gcval->varattr = malloc(
-                sizeof(valuecontent) * gcval->varattr_count
+                sizeof(valuecontent) * varattr_count
             );
             if (!gcval->varattr) {
                 gcval->type = H64VALTYPE_NONE;
                 goto triggeroom;
             }
             memset(gcval->varattr, 0, sizeof(*gcval->varattr) *
-                   gcval->varattr_count);
+                   varattr_count);
 
             // Call into $$varinit if it exists:
             if (pr->classes[class_id].varinitfuncidx >= 0) {
