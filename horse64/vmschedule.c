@@ -672,6 +672,7 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
 int vmschedule_ExecuteProgram(
         h64program *pr, h64misccompileroptions *moptions
         ) {
+    _vmsockets_debug = (moptions->vmsockets_debug != 0);
     _waited_for_socklist_mutex = mutex_Create();
     _waited_for_socklist_supervisorPREmutex = mutex_Create();
     if (!_waited_for_socklist_mutex) {
