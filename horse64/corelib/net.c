@@ -203,7 +203,7 @@ int netlib_connect(h64vmthread *vmthread) {
             ASYNCSYSJOB_HOSTLOOKUP
         );
         asprogress->resolve_job->hostlookup.host = (
-            malloc(hostlen)
+            malloc(hostlen * sizeof(h64wchar))
         );
         if (!asprogress->resolve_job->hostlookup.host) {
             asyncjob_Free(asprogress->resolve_job);  /// still owned by us
@@ -214,7 +214,7 @@ int netlib_connect(h64vmthread *vmthread) {
         }
         memcpy(
             asprogress->resolve_job->hostlookup.host,
-            hoststr, hostlen
+            hoststr, hostlen * sizeof(h64wchar)
         );
         asprogress->resolve_job->hostlookup.hostlen = hostlen;
         int result = asyncjob_RequestAsync(

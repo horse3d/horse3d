@@ -64,6 +64,8 @@ h64asyncsysjob *asyncjob_CreateEmpty() {
         asyncsysjob_allocator, 0
     );
     mutex_Release(asyncsysjob_schedule_lock);
+    if (!result)
+        return NULL;
     memset(result, 0, sizeof(*result));
     return result;
 }
@@ -405,7 +407,7 @@ int asyncjob_RequestAsync(
             i++;
         }
         while (async_worker_count < ASYNCSYSJOB_WORKER_COUNT) {
-            if (!async_worker_event[i])
+            if (!async_worker_event[async_worker_count])
                 break;
             async_worker[async_worker_count] = (
                 thread_SpawnWithPriority(
