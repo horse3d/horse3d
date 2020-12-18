@@ -214,7 +214,7 @@ int sockets_ConnectClient(
             #if defined(_WIN32) || defined(_WIN64)
             {
                 struct sockaddr_storage addrout = {0};
-                int addroutlen = sizeof(ss);
+                int addroutlen = sizeof(addrout);
                 char ipinputbuf[INET6_ADDRSTRLEN + 1] = "";
                 strncpy(ipinputbuf, ipu8, INET6_ADDRSTRLEN+1);
                 ipinputbuf[INET6_ADDRSTRLEN] = 0;
@@ -224,7 +224,7 @@ int sockets_ConnectClient(
                         == 0) {
                     memcpy(
                         &targetaddr,
-                        &((struct sockaddr_in *)&addrout)->sin_addr6,
+                        &((struct sockaddr_in6 *)&addrout)->sin6_addr,
                         sizeof(targetaddr)
                     );
                 } else {
@@ -246,7 +246,7 @@ int sockets_ConnectClient(
                 #if defined(_WIN32) || defined(_WIN64)
                 if (WSAGetLastError() == WSAEINPROGRESS)
                     return H64SOCKERROR_INPROGRESS;
-                if (WSAGetLastError() == WSAEAGAIN)
+                if (WSAGetLastError() == WSAEWOULDBLOCK)
                     return H64SOCKERROR_NEEDTOWRITE;
                 #else
                 if (errno == EAGAIN)
@@ -265,7 +265,7 @@ int sockets_ConnectClient(
             #if defined(_WIN32) || defined(_WIN64)
             {
                 struct sockaddr_storage addrout = {0};
-                int addroutlen = sizeof(ss);
+                int addroutlen = sizeof(addrout);
                 char ipinputbuf[INET6_ADDRSTRLEN + 1] = "";
                 strncpy(ipinputbuf, ipu8, INET6_ADDRSTRLEN+1);
                 ipinputbuf[INET6_ADDRSTRLEN] = 0;
@@ -297,7 +297,7 @@ int sockets_ConnectClient(
                 #if defined(_WIN32) || defined(_WIN64)
                 if (WSAGetLastError() == WSAEINPROGRESS)
                     return H64SOCKERROR_INPROGRESS;
-                if (WSAGetLastError() == WSAEAGAIN)
+                if (WSAGetLastError() == WSAEWOULDBLOCK)
                     return H64SOCKERROR_NEEDTOWRITE;
                 #else
                 if (errno == EAGAIN)

@@ -4,11 +4,16 @@
 
 #include "compileconfig.h"
 
+#if defined(_WIN32) || defined(_WIN64)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
 
 #include "asyncsysjob.h"
 #include "bytecode.h"

@@ -13,7 +13,8 @@
 
 #define DEBUG_SOCKETPAIR
 
-#if defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(__WIN32__)
+#if defined(_WIN32) || defined(_WIN64)
+// Require Windows 7 or newer:
 #define _WIN32_WINNT 0x0601
 #if defined __MINGW_H
 #define _WIN32_IE 0x0400
