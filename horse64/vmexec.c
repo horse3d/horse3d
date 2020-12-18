@@ -23,6 +23,7 @@
 #include "gcvalue.h"
 #include "nonlocale.h"
 #include "poolalloc.h"
+#include "sockets.h"
 #include "stack.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
@@ -54,11 +55,22 @@ void vmthread_SetSuspendState(
         );
     #endif
     suspendtype old_type = vmthread->suspend_info->suspendtype;
+    if (old_type == suspend_type)
+        return;
     if (old_type != SUSPENDTYPE_NONE) {
         vmthread->vmexec_owner->suspend_overview->
             waittypes_currently_active[old_type]--;
         assert(vmthread->vmexec_owner->suspend_overview->
             waittypes_currently_active[old_type] >= 0);
+    }
+    if (old_type == SUSPENDTYPE_SOCKWAIT_READABLEORERROR ||
+            old_type == SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR) {
+        int fd = (
+            (int)vmthread->suspend_info->suspendarg
+        );
+        _vmschedule_UnregisterSocketForWaiting(
+            fd, H64SOCKSET_WAITALL
+        );
     }
     vmthread->suspend_info->suspendtype = suspend_type;
     vmthread->suspend_info->suspendarg = suspend_arg;
@@ -84,6 +96,21 @@ void vmthread_SetSuspendState(
         vmthread->upcoming_resume_info->precall_funcframesbefore = -1;
         vmthread->upcoming_resume_info->precall_errorframesbefore = -1;
         #endif
+    }
+    if (suspend_type == SUSPENDTYPE_SOCKWAIT_READABLEORERROR) {
+        int fd = (
+            (int)vmthread->suspend_info->suspendarg
+        );
+        _vmschedule_RegisterSocketForWaiting(
+            fd, H64SOCKSET_WAITREAD | H64SOCKSET_WAITERROR
+        );
+    } else if (suspend_type == SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR) {
+        int fd = (
+            (int)vmthread->suspend_info->suspendarg
+        );
+        _vmschedule_RegisterSocketForWaiting(
+            fd, H64SOCKSET_WAITWRITE | H64SOCKSET_WAITERROR
+        );
     }
     #ifndef NDEBUG
     if (vmthread->vmexec_owner->moptions.vmscheduler_verbose_debug) {

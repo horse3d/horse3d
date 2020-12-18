@@ -90,4 +90,12 @@ int _vmschedule_RegisterSocketForWaiting(
     int fd, int waittypes
 );
 
+int _vmschedule_UnregisterSocketForWaiting(
+    int fd, int waittypes
+);
+
+#ifndef NDEBUG
+extern int _vmsockets_debug;
+#endif
+
 #endif  // HORSE64_VMSCHEDULE_H_

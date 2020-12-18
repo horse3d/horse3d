@@ -90,7 +90,8 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
               // ^ self.X stuff that will likely error is handled earlier
               // where the scope is resolved, so we just care about
               // any other type of attribute access here.
-            )
+            ) &&
+            !parent->op.value2->storage.set  // must be unresolved still
             ) {
         int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
             rinfo->pr->program->symbols,

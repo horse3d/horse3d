@@ -88,8 +88,8 @@ ATTR_UNUSED static inline void sockset_Init(h64sockset *set) {
 #define H64SOCKSET_WAITREAD POLLIN
 #define H64SOCKSET_WAITWRITE POLLOUT
 #define H64SOCKSET_WAITERROR (POLLERR | POLLHUP)
-
 #endif
+#define H64SOCKSET_WAITALL (H64SOCKSET_WAITREAD|H64SOCKSET_WAITWRITE|H64SOCKSET_WAITERROR)
 
 int _sockset_Expand(
     ATTR_UNUSED h64sockset *set
@@ -101,12 +101,12 @@ typedef enum h64sockerror {
     H64SOCKERROR_NEEDTOREAD = -2,
     H64SOCKERROR_NEEDTOWRITE = -3,
     H64SOCKERROR_OUTOFMEMORY = -4,
-    H64SOCKERROR_OPERATIONFAILED = -5,
-    H64SOCKERROR_INPROGRESS = -6
+    H64SOCKERROR_OPERATIONFAILED = -5
 } h64sockerror;
 
 int sockets_ConnectClient(
-    h64socket *sock, const h64wchar *ip, int64_t iplen
+    h64socket *sock, const h64wchar *ip,
+    int64_t iplen, int port
 );
 
 int sockets_WasEverConnected(h64socket *sock);
@@ -182,6 +182,10 @@ ATTR_UNUSED static inline int sockset_Add(
 
 void sockset_Remove(
     h64sockset *set, int fd
+);
+
+void sockset_RemoveWithMask(
+    h64sockset *set, int fd, int waittypes
 );
 
 ATTR_UNUSED static inline void sockset_Clear(

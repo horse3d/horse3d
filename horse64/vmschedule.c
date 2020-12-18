@@ -37,7 +37,9 @@ mutex *_waited_for_socklist_mutex = NULL;
 mutex *_waited_for_socklist_supervisorPREmutex = NULL;
 h64sockset _waited_for_socklist = {0};
 threadevent *_waited_for_socklist_supervisorunlockevent = NULL;
-
+#ifndef NDEBUG
+int _vmsockets_debug = 0;
+#endif
 
 int _vmschedule_RegisterSocketForWaiting(
         int fd, int waittypes
@@ -52,6 +54,32 @@ int _vmschedule_RegisterSocketForWaiting(
         mutex_Release(_waited_for_socklist_supervisorPREmutex);
         return 0;
     }
+    #ifndef NDEBUG
+    if (_vmsockets_debug)
+        fprintf(stderr, "horsevm: verbose: "
+            "_vmschedule_RegisterSocketForWaiting fd %d types %d\n",
+            fd, waittypes);
+    #endif
+    mutex_Release(_waited_for_socklist_mutex);
+    mutex_Release(_waited_for_socklist_supervisorPREmutex);
+    return 1;
+}
+
+int _vmschedule_UnregisterSocketForWaiting(
+        int fd, int waittypes
+        ) {
+    mutex_Lock(_waited_for_socklist_supervisorPREmutex);
+    threadevent_Set(_waited_for_socklist_supervisorunlockevent);
+    mutex_Lock(_waited_for_socklist_mutex);
+    sockset_RemoveWithMask(
+        &_waited_for_socklist, fd, waittypes
+    );
+    #ifndef NDEBUG
+    if (_vmsockets_debug)
+        fprintf(stderr, "horsevm: verbose: "
+            "_vmschedule_UnregisterSocketForWaiting fd %d types %d\n",
+            fd, waittypes);
+    #endif
     mutex_Release(_waited_for_socklist_mutex);
     mutex_Release(_waited_for_socklist_supervisorPREmutex);
     return 1;

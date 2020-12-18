@@ -569,46 +569,49 @@ static int _codegen_call_to(
             if (kwnameidx < 0) {
                 char buf[256];
                 snprintf(buf, sizeof(buf) - 1,
-                    "internal error: cannot map kw arg name: %s",
+                    "unknown keyword argument \"%s\" "
+                    "will cause runtime error with this function",
                     callexpr->inlinecall.arguments.arg_name[i]
                 );
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,
-                        H64MSG_ERROR, buf,
+                        H64MSG_WARNING, buf,
                         rinfo->ast->fileuri,
                         callexpr->line, callexpr->column
                         )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
-                return 1;
-            }
-            h64instruction_setconst inst_setconst = {0};
-            inst_setconst.type = H64INST_SETCONST;
-            inst_setconst.slot = _argtemp;
-            inst_setconst.content.type = H64VALTYPE_INT64;
-            inst_setconst.content.int_value = kwnameidx;
-            if (!appendinst(
-                    rinfo->pr->program, func, callexpr,
-                    &inst_setconst, sizeof(inst_setconst))) {
-                rinfo->hadoutofmemory = 1;
-                return 0;
-            }
-            _argtemp++;
-            _settop_inst(rinfo, func, callsettop_offset)->topto++;
-            h64instruction_valuecopy inst_vc = {0};
-            inst_vc.type = H64INST_VALUECOPY;
-            inst_vc.slotto = _argtemp;
-            inst_vc.slotfrom = (
-                callexpr->inlinecall.arguments.arg_value[i]->
-                    storage.eval_temp_id);
-            _argtemp++;
-            _settop_inst(rinfo, func, callsettop_offset)->topto++;
-            if (!appendinst(
-                    rinfo->pr->program, func, callexpr,
-                    &inst_vc, sizeof(inst_vc))) {
-                rinfo->hadoutofmemory = 1;
-                return 0;
+                // Unknown keyword arg, so hardcode an error:
+                assert(0);
+            } else {
+                h64instruction_setconst inst_setconst = {0};
+                inst_setconst.type = H64INST_SETCONST;
+                inst_setconst.slot = _argtemp;
+                inst_setconst.content.type = H64VALTYPE_INT64;
+                inst_setconst.content.int_value = kwnameidx;
+                if (!appendinst(
+                        rinfo->pr->program, func, callexpr,
+                        &inst_setconst, sizeof(inst_setconst))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                _argtemp++;
+                _settop_inst(rinfo, func, callsettop_offset)->topto++;
+                h64instruction_valuecopy inst_vc = {0};
+                inst_vc.type = H64INST_VALUECOPY;
+                inst_vc.slotto = _argtemp;
+                inst_vc.slotfrom = (
+                    callexpr->inlinecall.arguments.arg_value[i]->
+                        storage.eval_temp_id);
+                _argtemp++;
+                _settop_inst(rinfo, func, callsettop_offset)->topto++;
+                if (!appendinst(
+                        rinfo->pr->program, func, callexpr,
+                        &inst_vc, sizeof(inst_vc))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
         } else if (i + 1 < callexpr->inlinecall.arguments.arg_count &&
                 callexpr->inlinecall.arguments.arg_name[i]) {

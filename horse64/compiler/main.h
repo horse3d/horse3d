@@ -59,6 +59,7 @@ typedef struct h64misccompileroptions {
     int import_debug;
     int from_stdin;
     int vmscheduler_debug, vmscheduler_verbose_debug;
+    int vmsockets_debug;
 } h64misccompileroptions;
 
 #endif  // HORSE64_COMPILER_MAIN_H_

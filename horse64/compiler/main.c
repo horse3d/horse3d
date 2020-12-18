@@ -115,6 +115,10 @@ static int _compileargparse(
                     "  --vmsched-verbose-debug: Extra detailed horsevm "
                     "scheduler info\n"
                 );
+                h64printf(
+                    "  --vmsockets-debug:       Show debug info about "
+                    "horsevm sockets\n"
+                );
             }
             if (strcmp(cmd, "run") == 0 || strcmp(cmd, "exec") == 0 ||
                     strcmp(cmd, "compile") == 0 ||
@@ -151,6 +155,16 @@ static int _compileargparse(
                    strcmp(cmd, "get_ast") != 0 &&
                    strcmp(argv[i], "--import-debug") == 0) {
             miscoptions->import_debug = 1;
+        } else if ((strcmp(cmd, "run") == 0 ||
+                strcmp(cmd, "exec") == 0) &&
+                strcmp(argv[i], "--vmsockets-debug") == 0) {
+            miscoptions->vmsockets_debug = 1;
+            #ifdef NDEBUG
+            h64fprintf(
+                stderr, "horsec: warning: %s: compiled with NDEBUG, "
+                "output for --vmsockets-debug not compiled in\n", cmd
+            );
+            #endif
         } else if ((strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0) &&
                 strcmp(argv[i], "--vmexec-debug") == 0) {

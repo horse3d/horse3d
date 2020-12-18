@@ -32,7 +32,7 @@ struct netlib_connect_asyncprogress {
     void (*abortfunc)(void *dataptr);
     h64asyncsysjob *resolve_job;
     h64socket *connection;
-    uint8_t failedv6connect, connecting, encrypted;
+    uint8_t failedv6connect;
 };
 
 void _netlib_connect_abort(void *dataptr) {
@@ -155,10 +155,10 @@ int netlib_connect(h64vmthread *vmthread) {
             "port must be a number"
         );
     }
-    valuecontent *vcencrypted = STACK_ENTRY(vmthread->stack, 2);
-    int32_t encrypted = 0;
-    if (vcport->type == H64VALTYPE_BOOL) {
-        encrypted = (vcport->int_value != 0);
+    valuecontent *vcencrypt = STACK_ENTRY(vmthread->stack, 2);
+    int32_t encrypt = 0;
+    if (vcencrypt->type == H64VALTYPE_BOOL) {
+        encrypt = (vcencrypt->int_value != 0);
     } else {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
@@ -167,6 +167,29 @@ int netlib_connect(h64vmthread *vmthread) {
     }
 
     if (asprogress->resolve_job == NULL) {
+        #ifndef NDEBUG
+        if (_vmsockets_debug) {
+            char *hosttmp = malloc(hostlen * 5 + 2);
+            if (hosttmp) {
+                int64_t hosttmpoutlen = 0;
+                int result = utf32_to_utf8(
+                    (h64wchar *)hoststr, hostlen,
+                    hosttmp, hostlen * 5 + 2,
+                    &hosttmpoutlen, 0
+                );
+                if (!result) {
+                    hosttmp[0] = '\0';
+                } else {
+                    hosttmp[hosttmpoutlen] = '\0';
+                }
+            }
+            fprintf(stderr, "horsevm: verbose: "
+                "net.connect: host %s port %d encrypted %d\n",
+                hosttmp, port, encrypt);
+            if (hosttmp)
+                free(hosttmp);
+        }
+        #endif
         asprogress->resolve_job = (
             asyncjob_CreateEmpty()
         );
@@ -197,6 +220,12 @@ int netlib_connect(h64vmthread *vmthread) {
         int result = asyncjob_RequestAsync(
             vmthread, asprogress->resolve_job
         );
+        #ifndef NDEBUG
+        if (_vmsockets_debug)
+            fprintf(stderr, "horsevm: verbose: "
+                "net.connect: posted resolve job -> %d\n",
+                result);
+        #endif
         if (!result) {
             asyncjob_Free(asprogress->resolve_job);  /// still owned by us
             return vmexec_ReturnFuncError(
@@ -227,34 +256,43 @@ int netlib_connect(h64vmthread *vmthread) {
     }
 
     if (!asprogress->connection) {
-        asprogress->connection = sockets_New(1, encrypted);
+        asprogress->connection = sockets_New(1, encrypt);
         if (!asprogress->connection) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
                 "out of memory during socket creation"
             );
         }
+        #ifndef NDEBUG
+        if (_vmsockets_debug)
+            fprintf(stderr, "horsevm: verbose: "
+                "net.connect: created socket -> fd %d\n",
+                asprogress->connection->fd);
+        #endif
     }
 
     if (!asprogress->failedv6connect &&
             asprogress->resolve_job->hostlookup.resultip6len > 0) {
-        if (asprogress->connecting) {
-            // We must have arrived here due to H64SOCKERROR_INPROGRESS.
-            // Check if we actually connected:
-            if (sockets_WasEverConnected(asprogress->connection))
-                goto connectionisdone;
-        }
+        #ifndef NDEBUG
+        if (_vmsockets_debug)
+            fprintf(stderr, "horsevm: verbose: "
+                "net.connect: fd %d connecting via IPv6...\n",
+                asprogress->connection->fd);
+        #endif
         int result = sockets_ConnectClient(
             asprogress->connection,
             asprogress->resolve_job->hostlookup.resultip6,
-            asprogress->resolve_job->hostlookup.resultip6len
+            asprogress->resolve_job->hostlookup.resultip6len,
+            port
         );
-        if (result == H64SOCKERROR_NEEDTOWRITE ||
-                result == H64SOCKERROR_INPROGRESS) {
-            if (result == H64SOCKERROR_INPROGRESS)
-                asprogress->connecting = 1;
+        if (result == H64SOCKERROR_NEEDTOWRITE) {
             return vmschedule_SuspendFunc(
                 vmthread, SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR,
+                (uintptr_t)(asprogress->connection->fd)
+            );
+        } else if (result == H64SOCKERROR_NEEDTOREAD) {
+            return vmschedule_SuspendFunc(
+                vmthread, SUSPENDTYPE_SOCKWAIT_READABLEORERROR,
                 (uintptr_t)(asprogress->connection->fd)
             );
         } else if (result == H64SOCKERROR_OUTOFMEMORY) {
@@ -275,17 +313,26 @@ int netlib_connect(h64vmthread *vmthread) {
     }
     if (asprogress->failedv6connect &&
             asprogress->resolve_job->hostlookup.resultip4len > 0) {
+        #ifndef NDEBUG
+        if (_vmsockets_debug)
+            fprintf(stderr, "horsevm: verbose: "
+                "net.connect: fd %d connecting via IPv4...\n",
+                asprogress->connection->fd);
+        #endif
         int result = sockets_ConnectClient(
             asprogress->connection,
             asprogress->resolve_job->hostlookup.resultip4,
-            asprogress->resolve_job->hostlookup.resultip4len
+            asprogress->resolve_job->hostlookup.resultip4len,
+            port
         );
-        if (result == H64SOCKERROR_NEEDTOWRITE ||
-                result == H64SOCKERROR_INPROGRESS) {
-            if (result == H64SOCKERROR_INPROGRESS)
-                asprogress->connecting = 1;
+        if (result == H64SOCKERROR_NEEDTOWRITE) {
             return vmschedule_SuspendFunc(
                 vmthread, SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR,
+                (uintptr_t)(asprogress->connection->fd)
+            );
+        } else if (result == H64SOCKERROR_NEEDTOREAD) {
+            return vmschedule_SuspendFunc(
+                vmthread, SUSPENDTYPE_SOCKWAIT_READABLEORERROR,
                 (uintptr_t)(asprogress->connection->fd)
             );
         } else if (result == H64SOCKERROR_OUTOFMEMORY) {
@@ -302,6 +349,12 @@ int netlib_connect(h64vmthread *vmthread) {
             asprogress->failedv6connect = 1;
         } else {
             connectionisdone: ;
+            #ifndef NDEBUG
+            if (_vmsockets_debug)
+                fprintf(stderr, "horsevm: verbose: "
+                    "net.connect: fd %d connected!\n",
+                    asprogress->connection->fd);
+            #endif
             // Return connection:
             valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
             DELREF_NONHEAP(vc);

@@ -182,7 +182,7 @@ h64socket *sockets_New(int ipv6capable, int tls) {
 }
 
 int sockets_ConnectClient(
-        h64socket *sock, const h64wchar *ip, int64_t iplen
+        h64socket *sock, const h64wchar *ip, int64_t iplen, int port
         ) {
     int isip6 = 0;
     if (sockets_IsIPv4(ip, iplen)) {
@@ -244,15 +244,21 @@ int sockets_ConnectClient(
                     (struct sockaddr *)&targetaddr,
                     sizeof(targetaddr)) < 0) {
                 #if defined(_WIN32) || defined(_WIN64)
-                if (WSAGetLastError() == WSAEINPROGRESS)
+                if (WSAGetLastError() == WSAEINPROGRESS) {
+                    if (WSAGetLastError() == WSAEWOULDBLOCK)
+                        sock->flags &= ~(
+                            (uint16_t)_SOCKFLAG_CONNECTCALLED
+                        );
                     return H64SOCKERROR_INPROGRESS;
-                if (WSAGetLastError() == WSAEWOULDBLOCK)
-                    return H64SOCKERROR_NEEDTOWRITE;
+                }
                 #else
-                if (errno == EAGAIN)
+                if (errno == EAGAIN || errno == EINPROGRESS) {
+                    if (errno == EAGAIN)  // must call connect again
+                        sock->flags &= ~(
+                            (uint16_t)_SOCKFLAG_CONNECTCALLED
+                        );
                     return H64SOCKERROR_NEEDTOWRITE;
-                if (errno == EINPROGRESS)
-                    return H64SOCKERROR_INPROGRESS;
+                }
                 #endif
                 return H64SOCKERROR_OPERATIONFAILED;
             } else {
@@ -295,15 +301,21 @@ int sockets_ConnectClient(
                     (struct sockaddr *)&targetaddr,
                     sizeof(targetaddr)) < 0) {
                 #if defined(_WIN32) || defined(_WIN64)
-                if (WSAGetLastError() == WSAEINPROGRESS)
-                    return H64SOCKERROR_INPROGRESS;
-                if (WSAGetLastError() == WSAEWOULDBLOCK)
+                if (WSAGetLastError() == WSAEINPROGRESS) {
+                    if (WSAGetLastError() == WSAEWOULDBLOCK)
+                        sock->flags &= ~(
+                            (uint16_t)_SOCKFLAG_CONNECTCALLED
+                        );
                     return H64SOCKERROR_NEEDTOWRITE;
+                }
                 #else
-                if (errno == EAGAIN)
+                if (errno == EAGAIN || errno == EINPROGRESS) {
+                    if (errno == EAGAIN)  // must call connect again
+                        sock->flags &= ~(
+                            (uint16_t)_SOCKFLAG_CONNECTCALLED
+                        );
                     return H64SOCKERROR_NEEDTOWRITE;
-                if (errno == EINPROGRESS)
-                    return H64SOCKERROR_INPROGRESS;
+                }
                 #endif
                 return H64SOCKERROR_OPERATIONFAILED;
             } else {
@@ -346,6 +358,18 @@ int sockets_ConnectClient(
                 return H64SOCKERROR_OUTOFMEMORY;
             }
         }
+        if (!SSL_set_fd(sock->sslobj, sock->fd)) {
+            return H64SOCKERROR_OUTOFMEMORY;
+        }
+        int retval = -1;
+        if ((retval = SSL_connect(sock->sslobj)) < 0) {
+            int err = SSL_get_error(sock->sslobj, retval);
+            if (err == SSL_ERROR_WANT_READ)
+                return H64SOCKERROR_NEEDTOREAD;
+            if (err == SSL_ERROR_WANT_WRITE)
+                return H64SOCKERROR_NEEDTOWRITE;
+            return H64SOCKERROR_OPERATIONFAILED;
+        }
     }
     return H64SOCKERROR_SUCCESS;
 }
@@ -357,6 +381,10 @@ int sockets_WasEverConnected(h64socket *sock) {
 void sockets_Destroy(h64socket *sock) {
     if (!sock)
         return;
+    if (sock->sslobj) {
+        SSL_free(sock->sslobj);
+        sock->sslobj = NULL;
+    }
     #if defined(_WIN32) || defined(_WIN64)
     closesocket(sock->fd);
     #else
@@ -822,6 +850,43 @@ void sockset_Remove(
                     sizeof(*set->set) * (count - i - 1)
                 );
             set->fill--;
+            return;
+        }
+        i++;
+    }
+    #endif
+}
+
+void sockset_RemoveWithMask(
+        h64sockset *set, int fd, int waittypes
+        ) {
+    #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
+    FD_CLR(fd, &set->readset);
+    FD_CLR(fd, &set->writeset);
+    FD_CLR(fd, &set->errorset);
+    return;
+    #else
+    int i = 0;
+    const int count = set->fill;
+    struct pollfd *delset = (
+        set->size == 0 ? (struct pollfd*)set->smallset : set->set
+    );
+    while (i < count) {
+        if (delset[i].fd == fd) {
+            delset[i].events = (
+                (unsigned int)delset[i].events & (~(
+                    (unsigned int)waittypes
+                ))
+            );
+            if (delset[i].events == 0) {
+                if (i + 1 < count)
+                    memcpy(
+                        &delset[i],
+                        &delset[i + 1],
+                        sizeof(*set->set) * (count - i - 1)
+                    );
+                set->fill--;
+            }
             return;
         }
         i++;
