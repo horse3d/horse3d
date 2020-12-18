@@ -223,7 +223,7 @@ int netlib_connect(h64vmthread *vmthread) {
         #ifndef NDEBUG
         if (_vmsockets_debug)
             fprintf(stderr, "horsevm: verbose: "
-                "net.connect: posted resolve job -> %d\n",
+                "net.connect: posted resolve job -> result: %d\n",
                 result);
         #endif
         if (!result) {
