@@ -115,6 +115,7 @@ h64socket *sockets_NewBlockingRaw(int v6capable) {
     h64socket *sock = malloc(sizeof(*sock));
     if (!sock)
         return NULL;
+    memset(sock, 0, sizeof(*sock));
     sock->fd = socket(
         (v6capable ? AF_INET6 : AF_INET), SOCK_STREAM, IPPROTO_TCP
     );

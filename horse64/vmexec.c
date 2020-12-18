@@ -2418,6 +2418,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 }
                 if (!vmthread->foreground_async_work_dataptr)
                     goto triggeroom;
+                memset(
+                    vmthread->foreground_async_work_dataptr, 0,
+                    pr->func[target_func_id].
+                        async_progress_struct_size
+                );
             }
             assert(
                 pr->func[target_func_id].async_progress_struct_size > 0 ||
