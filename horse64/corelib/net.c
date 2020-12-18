@@ -6,6 +6,8 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <math.h>
+#include <openssl/ssl.h>
 
 #include "asyncsysjob.h"
 #include "corelib/errors.h"
@@ -23,13 +25,14 @@
 
 typedef struct _connectionobj_cdata {
     h64socket *connection;
+    SSL *ssl;
 } __attribute__((packed)) _connectionobj_cdata;
 
 struct netlib_connect_asyncprogress {
     void (*abortfunc)(void *dataptr);
     h64asyncsysjob *resolve_job;
     h64socket *connection;
-    uint8_t failedv6connect, connecting;
+    uint8_t failedv6connect, connecting, encrypted;
 };
 
 void _netlib_connect_abort(void *dataptr) {
@@ -126,6 +129,42 @@ int netlib_connect(h64vmthread *vmthread) {
             "host or ip must be a string"
         );
     }
+    valuecontent *vcport = STACK_ENTRY(vmthread->stack, 1);
+    int32_t port = 0;
+    if (vcport->type == H64VALTYPE_INT64) {
+        int64_t no = vcport->int_value;
+        if (no < 1 || no > INT16_MAX) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_TYPEERROR,
+                "port number is out of range"
+            );
+        }
+        port = no;
+    } else if (vcport->type == H64VALTYPE_FLOAT64) {
+        int64_t no = round(vcport->int_value);
+        if (no < 1 || no > INT16_MAX) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_TYPEERROR,
+                "port number is out of range"
+            );
+        }
+        port = no;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "port must be a number"
+        );
+    }
+    valuecontent *vcencrypted = STACK_ENTRY(vmthread->stack, 2);
+    int32_t encrypted = 0;
+    if (vcport->type == H64VALTYPE_BOOL) {
+        encrypted = (vcport->int_value != 0);
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "encrypted must be a boolean"
+        );
+    }
 
     if (asprogress->resolve_job == NULL) {
         asprogress->resolve_job = (
@@ -188,7 +227,7 @@ int netlib_connect(h64vmthread *vmthread) {
     }
 
     if (!asprogress->connection) {
-        asprogress->connection = sockets_New(1, 1);
+        asprogress->connection = sockets_New(1, encrypted);
         if (!asprogress->connection) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
@@ -200,37 +239,30 @@ int netlib_connect(h64vmthread *vmthread) {
     if (!asprogress->failedv6connect &&
             asprogress->resolve_job->hostlookup.resultip6len > 0) {
         if (asprogress->connecting) {
-            // We must have arrived here due to EINPROGRESS.
+            // We must have arrived here due to H64SOCKERROR_INPROGRESS.
             // Check if we actually connected:
-            goto connectionmustbedone;
+            if (sockets_WasEverConnected(asprogress->connection))
+                goto connectionisdone;
         }
-        struct sockaddr_in6 targetaddr = {0};
-        targetaddr.sin6_family = AF_INET6;
-        targetaddr.sin6_addr = in6addr_loopback;
-        if (connect(
-                asprogress->connection->fd,
-                (struct sockaddr *)&targetaddr,
-                sizeof(targetaddr)) < 0) {
-            #if defined(_WIN32) || defined(_WIN64)
-            if (WSAGetLastError() == WSAEINPROGRESS ||
-                    WSAGetLastError() == WSAEAGAIN) {
-                if (WSAGetLastError() == WSAEINPROGRESS)
-                    asprogress->connecting = 1;
-                return vmschedule_SuspendFunc(
-                    vmthread, SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR,
-                    (uintptr_t)(asprogress->connection->fd)
-                );
-            }
-            #else
-            if (errno == EAGAIN || errno == EINPROGRESS) {
-                if (errno == EINPROGRESS)
-                    asprogress->connecting = 1;
-                return vmschedule_SuspendFunc(
-                    vmthread, SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR,
-                    (uintptr_t)(asprogress->connection->fd)
-                );
-            }
-            #endif
+        int result = sockets_ConnectClient(
+            asprogress->connection,
+            asprogress->resolve_job->hostlookup.resultip6,
+            asprogress->resolve_job->hostlookup.resultip6len
+        );
+        if (result == H64SOCKERROR_NEEDTOWRITE ||
+                result == H64SOCKERROR_INPROGRESS) {
+            if (result == H64SOCKERROR_INPROGRESS)
+                asprogress->connecting = 1;
+            return vmschedule_SuspendFunc(
+                vmthread, SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR,
+                (uintptr_t)(asprogress->connection->fd)
+            );
+        } else if (result == H64SOCKERROR_OUTOFMEMORY) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory during net.connect()"
+            );
+        } else if (result != H64SOCKERROR_SUCCESS) {
             if (asprogress->resolve_job->hostlookup.resultip4len <= 0)
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_OSERROR,
@@ -238,67 +270,38 @@ int netlib_connect(h64vmthread *vmthread) {
                 );
             asprogress->failedv6connect = 1;
         } else {
-            goto connectionmustbedone;
+            goto connectionisdone;
         }
     }
     if (asprogress->failedv6connect &&
             asprogress->resolve_job->hostlookup.resultip4len > 0) {
-        struct sockaddr_in targetaddr = {0};
-        targetaddr.sin_family = AF_INET;
-        targetaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        if (connect(
-                asprogress->connection->fd,
-                (struct sockaddr *)&targetaddr,
-                sizeof(targetaddr)) < 0) {
-            #if defined(_WIN32) || defined(_WIN64)
-            if (WSAGetLastError() == WSAEINPROGRESS ||
-                    WSAGetLastError() == WSAEAGAIN) {
-                if (WSAGetLastError() == WSAEINPROGRESS)
-                    asprogress->connecting = 1;
-                return vmschedule_SuspendFunc(
-                    vmthread, SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR,
-                    (uintptr_t)(asprogress->connection->fd)
-                );
-            }
-            #else
-            if (errno == EAGAIN || errno == EINPROGRESS) {
-                if (errno == EINPROGRESS)
-                    asprogress->connecting = 1;
-                return vmschedule_SuspendFunc(
-                    vmthread, SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR,
-                    (uintptr_t)(asprogress->connection->fd)
-                );
-            }
-            #endif
-            return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_OSERROR,
-                "connection failed"
+        int result = sockets_ConnectClient(
+            asprogress->connection,
+            asprogress->resolve_job->hostlookup.resultip4,
+            asprogress->resolve_job->hostlookup.resultip4len
+        );
+        if (result == H64SOCKERROR_NEEDTOWRITE ||
+                result == H64SOCKERROR_INPROGRESS) {
+            if (result == H64SOCKERROR_INPROGRESS)
+                asprogress->connecting = 1;
+            return vmschedule_SuspendFunc(
+                vmthread, SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR,
+                (uintptr_t)(asprogress->connection->fd)
             );
-        } else {
-            connectionmustbedone: ;
-            // Ensure we're actually connected:
-            int connected = 0;
-            if (asprogress->failedv6connect) {
-                struct sockaddr_in v4addr;
-                socklen_t v4size = sizeof(v4addr);
-                connected = (getpeername(
-                    asprogress->connection->fd,
-                    (struct sockaddr *)&v4addr, &v4size
-                ) == 0);
-            } else {
-                struct sockaddr_in6 v6addr;
-                socklen_t v6size = sizeof(v6addr);
-                connected = (getpeername(
-                    asprogress->connection->fd,
-                    (struct sockaddr *)&v6addr, &v6size
-                ) == 0);
-            }
-            if (!connected) {
+        } else if (result == H64SOCKERROR_OUTOFMEMORY) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory during net.connect()"
+            );
+        } else if (result != H64SOCKERROR_SUCCESS) {
+            if (asprogress->resolve_job->hostlookup.resultip4len <= 0)
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_OSERROR,
                     "connection failed"
                 );
-            }
+            asprogress->failedv6connect = 1;
+        } else {
+            connectionisdone: ;
             // Return connection:
             valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
             DELREF_NONHEAP(vc);

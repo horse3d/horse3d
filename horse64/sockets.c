@@ -5,11 +5,13 @@
 #include "compileconfig.h"
 
 #include <assert.h>
+#include <openssl/ssl.h>
 #if defined(_WIN32) || defined(_WIN64)
 #include <winsock2.h>
 #include <ws2tcpip.h>
 typedef int socklen_t;
 #else
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -28,25 +30,88 @@ typedef int socklen_t;
 #include "widechar.h"
 
 
-volatile _Atomic int winsockinitdone = 0;
+static volatile _Atomic int _sockinitdone = 0;
+static SSL_CTX *ssl_ctx = NULL;
 
-__attribute__((constructor)) void _winsockinit() {
-    #if defined(_WIN32) || defined(_WIN64)
-    if (winsockinitdone)
+__attribute__((constructor)) void _sockinit() {
+    if (_sockinitdone)
         return;
-    winsockinitdone = 1;
+    _sockinitdone = 1;
+    #if defined(_WIN32) || defined(_WIN64)
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
         h64fprintf(stderr, "horsevm: error: WSAStartup() failed\n");
         exit(1);
     }
     #endif
+    const SSL_METHOD *m = TLS_method();
+    if (m)
+        ssl_ctx = SSL_CTX_new(m);
+    if (!m || !ssl_ctx ||
+            !SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION)) {
+        h64fprintf(stderr, "horsevm: error: OpenSSL init failed\n");
+        exit(1);
+    }
+
+    // Configure pre-TLS 1.3 ciphers, and manually exclude a few:
+    STACK_OF(SSL_CIPHER) *stack;
+    if (!SSL_CTX_set_cipher_list(
+            ssl_ctx, "HIGH:!aNULL:!MD5:!SEED:!RC2:!RC4:!SHA1:!DES:!3DES"
+            )) {
+        h64fprintf(stderr, "horsevm: error: "
+            "OpenSSL SSL_CTX_set_cipher_list() failed\n");
+        exit(1);
+    }
+    char *filtered_cipher_list = NULL;
+    stack = SSL_CTX_get_ciphers(ssl_ctx);
+    int count = sk_SSL_CIPHER_num(stack);
+    int i = 0;
+    while (i < count) {
+        const SSL_CIPHER *ci = sk_SSL_CIPHER_value(stack, i);
+        const char *name = SSL_CIPHER_get_name(ci);
+        if ((strstr(name, "GCM") || strstr(name, "CCM")) &&
+                !strstr(name, "128")) {
+            int oldlen = (
+                filtered_cipher_list ? strlen(filtered_cipher_list) : 0
+            );
+            char *new_cipher_list = realloc(
+                filtered_cipher_list,
+                (filtered_cipher_list ?
+                 strlen(filtered_cipher_list) + 2 + strlen(name) :
+                 strlen(name) + 1)
+            );
+            if (!new_cipher_list) {
+                h64fprintf(stderr, "horsevm: error: OOM setting "
+                    "OpenSSL cipher list\n");
+                exit(1);
+            }
+            filtered_cipher_list = new_cipher_list;
+            if (oldlen > 0) {
+                filtered_cipher_list[oldlen] = ':';
+                oldlen++;
+            }
+            memcpy(
+                filtered_cipher_list + oldlen,
+                name, strlen(name) + 1
+            );
+        }
+        i++;
+    }
+    if (filtered_cipher_list) {
+        if (!SSL_CTX_set_cipher_list(
+                ssl_ctx, filtered_cipher_list
+                )) {
+            h64fprintf(stderr, "horsevm: error: "
+            "OpenSSL SSL_CTX_set_cipher_list() failed\n");
+            exit(1);
+        }
+    }
+
+    // Configure TLS 1.3 ciphers:
 }
 
 h64socket *sockets_NewBlockingRaw(int v6capable) {
-    #if defined(_WIN32) || defined(_WIN64)
-    _winsockinit();
-    #endif
+    _sockinit();
     h64socket *sock = malloc(sizeof(*sock));
     if (!sock)
         return NULL;
@@ -114,6 +179,179 @@ h64socket *sockets_New(int ipv6capable, int tls) {
     if (tls != 0)
         sock->flags |= SOCKFLAG_TLS;
     return sock;
+}
+
+int sockets_ConnectClient(
+        h64socket *sock, const h64wchar *ip, int64_t iplen
+        ) {
+    int isip6 = 0;
+    if (sockets_IsIPv4(ip, iplen)) {
+        isip6 = 0;
+        sock->flags &= ~((uint16_t)_SOCKFLAG_ISV6TARGET);
+    } else if (sockets_IsIPv6(ip, iplen)) {
+        isip6 = 1;
+        sock->flags |= _SOCKFLAG_ISV6TARGET;
+    } else {
+        return H64SOCKERROR_OPERATIONFAILED;
+    }
+    char *ipu8 = malloc(iplen * 5 + 2);
+    if (!ipu8) {
+        return H64SOCKERROR_OUTOFMEMORY;
+    }
+    int64_t ipu8len = 0;
+    if (!utf32_to_utf8(
+            ip, iplen, ipu8, iplen * 5 + 2,
+            &ipu8len, 1
+            ) || ipu8len >= iplen * 5 + 2) {
+        return H64SOCKERROR_OPERATIONFAILED;
+    }
+    ipu8[ipu8len] = '\0';
+    if ((sock->flags & _SOCKFLAG_CONNECTCALLED) == 0) {
+        if (isip6) {
+            struct sockaddr_in6 targetaddr = {0};
+            targetaddr.sin6_family = AF_INET6;
+            targetaddr.sin6_addr = in6addr_loopback;
+            #if defined(_WIN32) || defined(_WIN64)
+            {
+                struct sockaddr_storage addrout = {0};
+                int addroutlen = sizeof(ss);
+                char ipinputbuf[INET6_ADDRSTRLEN + 1] = "";
+                strncpy(ipinputbuf, ipu8, INET6_ADDRSTRLEN+1);
+                ipinputbuf[INET6_ADDRSTRLEN] = 0;
+                if (WSAStringToAddress(
+                        ipinputbuf, AF_INET6, NULL,
+                        (struct sockaddr *)&addrout, &addroutlen)
+                        == 0) {
+                    memcpy(
+                        &targetaddr,
+                        &((struct sockaddr_in *)&addrout)->sin_addr6,
+                        sizeof(targetaddr)
+                    );
+                } else {
+                    return H64SOCKERROR_OPERATIONFAILED;
+                }
+            }
+            #else
+            int result = (inet_pton(
+                    AF_INET6, ipu8,
+                    (struct sockaddr_in6 *) &targetaddr
+                ));
+            if (result != 1)
+                return H64SOCKERROR_OPERATIONFAILED;
+            #endif
+            sock->flags |= _SOCKFLAG_CONNECTCALLED;
+            if (connect(sock->fd,
+                    (struct sockaddr *)&targetaddr,
+                    sizeof(targetaddr)) < 0) {
+                #if defined(_WIN32) || defined(_WIN64)
+                if (WSAGetLastError() == WSAEINPROGRESS)
+                    return H64SOCKERROR_INPROGRESS;
+                if (WSAGetLastError() == WSAEAGAIN)
+                    return H64SOCKERROR_NEEDTOWRITE;
+                #else
+                if (errno == EAGAIN)
+                    return H64SOCKERROR_NEEDTOWRITE;
+                if (errno == EINPROGRESS)
+                    return H64SOCKERROR_INPROGRESS;
+                #endif
+                return H64SOCKERROR_OPERATIONFAILED;
+            } else {
+                goto connectionmustbedone;
+            }
+        } else {
+            struct sockaddr_in targetaddr = {0};
+            targetaddr.sin_family = AF_INET;
+            targetaddr.sin_addr.s_addr = INADDR_LOOPBACK;
+            #if defined(_WIN32) || defined(_WIN64)
+            {
+                struct sockaddr_storage addrout = {0};
+                int addroutlen = sizeof(ss);
+                char ipinputbuf[INET6_ADDRSTRLEN + 1] = "";
+                strncpy(ipinputbuf, ipu8, INET6_ADDRSTRLEN+1);
+                ipinputbuf[INET6_ADDRSTRLEN] = 0;
+                if (WSAStringToAddress(
+                        ipinputbuf, AF_INET, NULL,
+                        (struct sockaddr *)&addrout, &addroutlen)
+                        == 0) {
+                    memcpy(
+                        &targetaddr,
+                        &((struct sockaddr_in *)&addrout)->sin_addr,
+                        sizeof(targetaddr)
+                    );
+                } else {
+                    return H64SOCKERROR_OPERATIONFAILED;
+                }
+            }
+            #else
+            int result = (inet_pton(
+                    AF_INET, ipu8,
+                    (struct sockaddr_in *) &targetaddr
+                ));
+            if (result != 1)
+                return H64SOCKERROR_OPERATIONFAILED;
+            #endif
+            sock->flags |= _SOCKFLAG_CONNECTCALLED;
+            if (connect(sock->fd,
+                    (struct sockaddr *)&targetaddr,
+                    sizeof(targetaddr)) < 0) {
+                #if defined(_WIN32) || defined(_WIN64)
+                if (WSAGetLastError() == WSAEINPROGRESS)
+                    return H64SOCKERROR_INPROGRESS;
+                if (WSAGetLastError() == WSAEAGAIN)
+                    return H64SOCKERROR_NEEDTOWRITE;
+                #else
+                if (errno == EAGAIN)
+                    return H64SOCKERROR_NEEDTOWRITE;
+                if (errno == EINPROGRESS)
+                    return H64SOCKERROR_INPROGRESS;
+                #endif
+                return H64SOCKERROR_OPERATIONFAILED;
+            } else {
+                goto connectionmustbedone;
+            }
+        }
+    }
+    if ((sock->flags & _SOCKFLAG_CONNECTCALLED) != 0) {
+        if ((sock->flags & _SOCKFLAG_KNOWNCONNECTED) != 0) {
+            connectionmustbedone: ;
+            int connected = 0;
+            if ((sock->flags & _SOCKFLAG_ISV6TARGET) == 0) {
+                struct sockaddr_in v4addr;
+                socklen_t v4size = sizeof(v4addr);
+                connected = (getpeername(
+                    sock->fd,
+                    (struct sockaddr *)&v4addr, &v4size
+                ) == 0);
+            } else {
+                struct sockaddr_in6 v6addr;
+                socklen_t v6size = sizeof(v6addr);
+                connected = (getpeername(
+                    sock->fd,
+                    (struct sockaddr *)&v6addr, &v6size
+                ) == 0);
+            }
+            if (!connected) {
+                sock->flags &= ~((uint16_t)_SOCKFLAG_CONNECTCALLED);
+                return H64SOCKERROR_OPERATIONFAILED;
+            }
+            sock->flags |= _SOCKFLAG_KNOWNCONNECTED;
+        }
+        if ((sock->flags & SOCKFLAG_TLS) == 0)
+            return H64SOCKERROR_SUCCESS;
+        if ((sock->flags & _SOCKFLAG_OUTSTANDINGTLSCONNECT) == 0)
+            return H64SOCKERROR_OPERATIONFAILED;
+        if (!sock->sslobj) {
+            sock->sslobj = SSL_new(ssl_ctx);
+            if (!sock->sslobj) {
+                return H64SOCKERROR_OUTOFMEMORY;
+            }
+        }
+    }
+    return H64SOCKERROR_SUCCESS;
+}
+
+int sockets_WasEverConnected(h64socket *sock) {
+    return ((sock->flags & _SOCKFLAG_KNOWNCONNECTED) != 0);
 }
 
 void sockets_Destroy(h64socket *sock) {

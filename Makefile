@@ -28,8 +28,8 @@ CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -fno-associative-math -fno-finite-math
 endif
 OPENSSLHOSTOPTION:=linux-generic64
 CXXFLAGS:=-fexceptions
-CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -L"$(OPENSSLPATH)" -Wl,-Bdynamic
-LDFLAGS:= -Wl,-Bstatic -lphysfs -lh64openssl -Wl,-Bdynamic
+CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -I"$(OPENSSLPATH)/include/" -L"$(OPENSSLPATH)" -Wl,-Bdynamic
+LDFLAGS:= -Wl,-Bstatic -lphysfs -lh64openssl -lh64crypto -Wl,-Bdynamic
 TEST_OBJECTS:=$(patsubst %.c, %.o, $(wildcard ./horse64/test_*.c) $(wildcard ./horse64/compiler/test_*.c))
 ALL_OBJECTS:=$(filter-out ./horse64/vmexec_inst_unopbinop_INCLUDE.o, $(patsubst %.c, %.o, $(wildcard ./horse64/*.c) $(wildcard ./horse64/corelib/*.c) $(wildcard ./horse64/compiler/*.c)) vendor/siphash.o)
 TEST_BINARIES:=$(patsubst %.o, %.bin, $(TEST_OBJECTS))
@@ -126,7 +126,7 @@ physfs:
 	cd $(PHYSFSPATH) && rm -f libphysfs.a && make clean && make CC="$(CC)" CXX="$(CXX)"
 
 openssl:
-	cd $(OPENSSLPATH) && rm -f lib*.a && ./Configure $(OPENSSLHOSTOPTION) no-engine no-comp no-hw no-shared threads CC="$(CC)" && make clean && make CC="$(CC)" CXX="$(CXX)" && cp libssl.a libh64openssl.a
+	cd $(OPENSSLPATH) && rm -f lib*.a && ./Configure $(OPENSSLHOSTOPTION) no-engine no-comp no-hw no-shared threads CC="$(CC)" && make clean && make CC="$(CC)" CXX="$(CXX)" && cp libssl.a libh64openssl.a && cp libcrypto.a libh64crypto.a
 
 veryclean: clean
 	rm -f $(BINNAME)-*.exe $(BINNAME)-*.bin

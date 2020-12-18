@@ -18,6 +18,7 @@
 #include <poll.h>
 #endif
 #include <assert.h>
+#include <openssl/ssl.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,11 @@
 
 #define SOCKFLAG_TLS 0x1
 #define SOCKFLAG_SERVER 0x2
+#define _SOCKFLAG_CONNECTCALLED 0x4
+#define _SOCKFLAG_KNOWNCONNECTED 0x8
+#define _SOCKFLAG_OUTSTANDINGTLSCONNECT 0x10
+#define _SOCKFLAG_ISV6TARGET 0x20
+
 
 #if defined(USE_POLL_ON_UNIX) && USE_POLL_ON_UNIX != 0
 #define CANUSEPOLL
@@ -37,7 +43,8 @@
 
 typedef struct h64socket {
     int fd;
-    uint8_t flags;
+    uint16_t flags;
+    SSL *sslobj;
 #if defined(_WIN32) || defined(_WIN64)
     HANDLE sock_event_read, sock_event_write;
 #endif
@@ -87,6 +94,22 @@ ATTR_UNUSED static inline void sockset_Init(h64sockset *set) {
 int _sockset_Expand(
     ATTR_UNUSED h64sockset *set
 );
+
+typedef enum h64sockerror {
+    H64SOCKERROR_SUCCESS = 0,
+    H64SOCKERROR_CONNECTIONDISCONNECTED = -1,
+    H64SOCKERROR_NEEDTOREAD = -2,
+    H64SOCKERROR_NEEDTOWRITE = -3,
+    H64SOCKERROR_OUTOFMEMORY = -4,
+    H64SOCKERROR_OPERATIONFAILED = -5,
+    H64SOCKERROR_INPROGRESS = -6
+} h64sockerror;
+
+int sockets_ConnectClient(
+    h64socket *sock, const h64wchar *ip, int64_t iplen
+);
+
+int sockets_WasEverConnected(h64socket *sock);
 
 ATTR_UNUSED static inline int sockset_GetResult(
         h64sockset *set, int fd, int waittypes
