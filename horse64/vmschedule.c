@@ -257,6 +257,62 @@ int vmschedule_CanThreadResume_UnguardedCheck(
                 return 1;
             }
             return 0;
+        } else if (vt->suspend_info->suspendtype ==
+                SUSPENDTYPE_ASYNCSYSJOBWAIT) {
+            if (unlikely(vt->suspend_info->suspenditemready))
+                return 1;
+            h64asyncsysjob *job = (h64asyncsysjob *)(
+                (uintptr_t)vt->suspend_info->suspendarg
+            );
+            if (job->done) {
+                vt->suspend_info->suspenditemready = 1;
+                return 1;
+            }
+            return 0;
+        } else if (vt->suspend_info->suspendtype ==
+                SUSPENDTYPE_SOCKWAIT_READABLEORERROR) {
+            if (unlikely(vt->suspend_info->suspenditemready))
+                return 1;
+            int fd = (int)vt->suspend_info->suspendarg;
+            h64sockset s = {0};
+            sockset_Init(&s);
+            int result = sockset_Add(
+                &s, fd,
+                H64SOCKSET_WAITERROR | H64SOCKSET_WAITREAD
+            );
+            assert(result != 0);
+            sockset_Wait(&s, 0);
+            int isready = sockset_GetResult(
+                &s, fd, H64SOCKSET_WAITERROR | H64SOCKSET_WAITREAD
+            );
+            sockset_Uninit(&s);
+            if (isready != 0) {
+                vt->suspend_info->suspenditemready = 1;
+                return 1;
+            }
+            return 0;
+        } else if (vt->suspend_info->suspendtype ==
+                SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR) {
+            if (unlikely(vt->suspend_info->suspenditemready))
+                return 1;
+            int fd = (int)vt->suspend_info->suspendarg;
+            h64sockset s = {0};
+            sockset_Init(&s);
+            int result = sockset_Add(
+                &s, (int)vt->suspend_info->suspendarg,
+                H64SOCKSET_WAITERROR | H64SOCKSET_WAITWRITE
+            );
+            assert(result != 0);
+            sockset_Wait(&s, 0);
+            int isready = sockset_GetResult(
+                &s, fd, H64SOCKSET_WAITERROR | H64SOCKSET_WAITWRITE
+            );
+            sockset_Uninit(&s);
+            if (isready != 0) {
+                vt->suspend_info->suspenditemready = 1;
+                return 1;
+            }
+            return 0;
         }
         return 0;
     }

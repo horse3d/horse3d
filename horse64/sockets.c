@@ -906,11 +906,11 @@ int sockset_Wait(
     }
     int result = select(
         FD_SETSIZE, &set->readset, &set->writeset,
-        &set->errorset, (timeout_ms != 0 ? &ts : NULL)
+        &set->errorset, (timeout_ms >= 0 ? &ts : NULL)
     );
     return (result > 0 ? result : 0);
     #else
-    if (timeout_ms <= 0)
+    if (timeout_ms < 0)
         timeout_ms = -1;
     set->resultfill = 0;
     struct pollfd *pollset = (

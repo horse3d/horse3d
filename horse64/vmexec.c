@@ -36,6 +36,8 @@
 #define DEBUGVMEXEC
 
 
+poolalloc *mainthread_shared_heap = NULL;
+
 void vmthread_SetSuspendState(
         h64vmthread *vmthread,
         suspendtype suspend_type, int64_t suspend_arg
@@ -252,10 +254,20 @@ h64vmthread *vmthread_New(h64vmexec *owner, int is_on_main_thread) {
     memset(vmthread, 0, sizeof(*vmthread));
     vmthread->foreground_async_work_funcid = -1;
 
-    vmthread->heap = poolalloc_New(sizeof(h64gcvalue));
-    if (!vmthread->heap) {
-        vmthread_Free(vmthread);
-        return NULL;
+    if (is_on_main_thread) {
+        if (!mainthread_shared_heap)
+            mainthread_shared_heap = poolalloc_New(sizeof(h64gcvalue));
+        if (!mainthread_shared_heap) {
+            vmthread_Free(vmthread);
+            return NULL;
+        }
+        vmthread->heap = mainthread_shared_heap;
+    } else {
+        vmthread->heap = poolalloc_New(sizeof(h64gcvalue));
+        if (!vmthread->heap) {
+            vmthread_Free(vmthread);
+            return NULL;
+        }
     }
 
     vmthread->stack = stack_New();
@@ -410,7 +422,7 @@ void vmthread_Free(h64vmthread *vmthread) {
         i++;
     }
     free(vmthread->arg_reorder_space);
-    if (vmthread->heap) {
+    if (vmthread->heap && vmthread->heap != mainthread_shared_heap) {
         // Free items on heap, FIXME
 
         // Free heap:
