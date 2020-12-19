@@ -114,8 +114,8 @@ a short symbol for various operators.)*
 ### Design goal: Self-contained tooling over perfection:
 
 Having a less optimal implementation is preferred over adding in
-large dependencies to core tooling. This keeps the project lean,
-independently maintainable, and portable.
+large dependencies to core tooling. This keeps the project more
+technology independent, and therefore hopefully more portable.
 
 *(Large dependencies could be e.g. external GC libraries, LLVM, etc.
 Horse64's core avoids those.)*
@@ -124,6 +124,15 @@ Horse64's core avoids those.)*
 
 Everyone using Horse64 is encouraged to stick to the
 [Common Style Guide](./Common%20Style%20Guide.md).
+
+### Design goal: We shouldn't forget nothing is perfect
+
+Okay, this should be obvious and it's also more of a community goal,
+but I think it's important. Please don't give people a hard time if
+they disagree. Sometimes compromises might work even if suggestions
+seem outlandish compared to what was done so far. It's worth
+hearing people out, in hopefully a welcoming manner.
+
 
 ### Future design changes
 
