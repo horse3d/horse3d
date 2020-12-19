@@ -136,6 +136,12 @@ void asyncsysjobworker_Do(void *userdata) {
                     continue;
                 }
                 jobs[i]->inprogress = 1;
+                #ifndef NDEBUG
+                if (_vmasyncjobs_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "picking up job ptr=%p type=%d\n",
+                        jobs[i], (int)jobs[i]->type);
+                #endif
                 ourjob = jobs[i];
                 break;
             }
@@ -144,6 +150,12 @@ void asyncsysjobworker_Do(void *userdata) {
         mutex_Release(asyncsysjob_schedule_lock);
         if (ourjob != NULL &&
                 ourjob->type == ASYNCSYSJOB_HOSTLOOKUP) {
+            #ifndef NDEBUG
+            if (_vmasyncjobs_debug)
+                h64fprintf(stderr, "horsevm: debug: "
+                    "processing host lookup (job ptr=%p)\n",
+                    ourjob);
+            #endif
             int hostutf8size = 0;
             char *hostutf8 = NULL;
             int64_t hostutf8len = 0;
@@ -157,14 +169,52 @@ void asyncsysjobworker_Do(void *userdata) {
                 );
                 if (!ourjob->hostlookup.resultip4)
                     goto lookupoom;
+                memcpy(
+                    ourjob->hostlookup.resultip4, ourjob->hostlookup.host,
+                    ourjob->hostlookup.hostlen * sizeof(h64wchar)
+                );
+                ourjob->hostlookup.resultip4len = (
+                    ourjob->hostlookup.hostlen
+                );
+                mutex_Lock(asyncsysjob_schedule_lock);
+                ourjob->inprogress = 0;
+                ourjob->done = 1;
+                mutex_Release(asyncsysjob_schedule_lock);
+                threadevent_Set(job_done_supervisor_waitevent);
+                #ifndef NDEBUG
+                if (_vmasyncjobs_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "host lookup OK, ptr=%p -> host is already ip\n",
+                        ourjob);
+                #endif
+                continue;
             } else if (sockets_IsIPv6(
                     ourjob->hostlookup.host, ourjob->hostlookup.hostlen
                     )) {
                 ourjob->hostlookup.resultip6 = malloc(
                     ourjob->hostlookup.hostlen * sizeof(h64wchar)
                 );
-                if (!ourjob->hostlookup.resultip4)
+                if (!ourjob->hostlookup.resultip6)
                     goto lookupoom;
+                memcpy(
+                    ourjob->hostlookup.resultip6, ourjob->hostlookup.host,
+                    ourjob->hostlookup.hostlen * sizeof(h64wchar)
+                );
+                ourjob->hostlookup.resultip6len = (
+                    ourjob->hostlookup.hostlen
+                );
+                mutex_Lock(asyncsysjob_schedule_lock);
+                ourjob->inprogress = 0;
+                ourjob->done = 1;
+                mutex_Release(asyncsysjob_schedule_lock);
+                threadevent_Set(job_done_supervisor_waitevent);
+                #ifndef NDEBUG
+                if (_vmasyncjobs_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "host lookup OK, ptr=%p -> host is already ip\n",
+                        ourjob);
+                #endif
+                continue;
             }
             // Special case: obviously invalid host:
             int dots = 0;
@@ -198,6 +248,13 @@ void asyncsysjobworker_Do(void *userdata) {
                 ourjob->done = 1;
                 mutex_Release(asyncsysjob_schedule_lock);
                 threadevent_Set(job_done_supervisor_waitevent);
+                #ifndef NDEBUG
+                if (_vmasyncjobs_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "host lookup FAIL, ptr=%p -> "
+                        "host has invalid chars\n",
+                        ourjob);
+                #endif
                 continue;
             }
             // Convert to utf-8 for system APIs:
@@ -220,6 +277,13 @@ void asyncsysjobworker_Do(void *userdata) {
                 ourjob->done = 1;
                 mutex_Release(asyncsysjob_schedule_lock);
                 threadevent_Set(job_done_supervisor_waitevent);
+                #ifndef NDEBUG
+                if (_vmasyncjobs_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "host lookup FAIL, ptr=%p -> "
+                        "out of memory / unspecified internal error\n",
+                        ourjob);
+                #endif
                 continue;
             }
 
@@ -313,6 +377,12 @@ void asyncsysjobworker_Do(void *userdata) {
                 ourjob->done = 1;
                 mutex_Release(asyncsysjob_schedule_lock);
                 threadevent_Set(job_done_supervisor_waitevent);
+                #ifndef NDEBUG
+                if (_vmasyncjobs_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "host lookup FAIL, ptr=%p -> no such domain\n",
+                        ourjob);
+                #endif
                 continue;
             }
             // Mark done on success:
@@ -321,6 +391,12 @@ void asyncsysjobworker_Do(void *userdata) {
             ourjob->done = 1;
             mutex_Release(asyncsysjob_schedule_lock);
             threadevent_Set(job_done_supervisor_waitevent);
+            #ifndef NDEBUG
+            if (_vmasyncjobs_debug)
+                h64fprintf(stderr, "horsevm: debug: "
+                    "host lookup OK, ptr=%p -> success\n",
+                    ourjob);
+            #endif
             continue;
         }
         threadevent_WaitUntilSet(

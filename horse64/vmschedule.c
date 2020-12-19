@@ -39,6 +39,7 @@ h64sockset _waited_for_socklist = {0};
 threadevent *_waited_for_socklist_supervisorunlockevent = NULL;
 #ifndef NDEBUG
 int _vmsockets_debug = 0;
+int _vmasyncjobs_debug = 0;
 #endif
 
 int _vmschedule_RegisterSocketForWaiting(
@@ -56,7 +57,7 @@ int _vmschedule_RegisterSocketForWaiting(
     }
     #ifndef NDEBUG
     if (_vmsockets_debug)
-        fprintf(stderr, "horsevm: verbose: "
+        h64fprintf(stderr, "horsevm: verbose: "
             "_vmschedule_RegisterSocketForWaiting fd %d types %d\n",
             fd, waittypes);
     #endif
@@ -76,7 +77,7 @@ int _vmschedule_UnregisterSocketForWaiting(
     );
     #ifndef NDEBUG
     if (_vmsockets_debug)
-        fprintf(stderr, "horsevm: verbose: "
+        h64fprintf(stderr, "horsevm: verbose: "
             "_vmschedule_UnregisterSocketForWaiting fd %d types %d\n",
             fd, waittypes);
     #endif
@@ -648,9 +649,11 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
         // Wait for any socket events, up to max waiting time:
         mutex_Lock(_waited_for_socklist_mutex);
         if (timerwaitsmin >= 0) {
-            sockset_Wait(&_waited_for_socklist, timerwaitsmin + 5);
+            // Wait only roughly as long as we are allowed to, for timers:
+            sockset_Wait(&_waited_for_socklist, timerwaitsmin + 1);
         } else {
-            sockset_Wait(&_waited_for_socklist, 5);
+            // No immediate wake-up of us expected, take our time:
+            sockset_Wait(&_waited_for_socklist, 5000);
         }
         mutex_Release(_waited_for_socklist_mutex);
         asyncjob_FlushSupervisorWakeupEvents();
@@ -673,6 +676,7 @@ int vmschedule_ExecuteProgram(
         h64program *pr, h64misccompileroptions *moptions
         ) {
     _vmsockets_debug = (moptions->vmsockets_debug != 0);
+    _vmasyncjobs_debug = (moptions->vmasyncjobs_debug != 0);
     _waited_for_socklist_mutex = mutex_Create();
     _waited_for_socklist_supervisorPREmutex = mutex_Create();
     if (!_waited_for_socklist_mutex) {

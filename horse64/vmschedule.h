@@ -95,7 +95,7 @@ int _vmschedule_UnregisterSocketForWaiting(
 );
 
 #ifndef NDEBUG
-extern int _vmsockets_debug;
+extern int _vmsockets_debug, _vmasyncjobs_debug;
 #endif
 
 #endif  // HORSE64_VMSCHEDULE_H_

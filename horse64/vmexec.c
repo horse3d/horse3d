@@ -204,7 +204,7 @@ int _vmexec_ValueEqualityCheck_Do(
             } else if (v1->type == H64VALTYPE_NONE) {
                 *result = 1;
             } else {
-                fprintf(stderr, "UNIMPLEMENTED EQ CASE");
+                h64fprintf(stderr, "UNIMPLEMENTED EQ CASE");
                 return 0;
             }
             return 1;

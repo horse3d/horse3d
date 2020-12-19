@@ -13,6 +13,7 @@
 #include "corelib/errors.h"
 #include "corelib/net.h"
 #include "gcvalue.h"
+#include "nonlocale.h"
 #include "poolalloc.h"
 #include "sockets.h"
 #include "stack.h"
@@ -183,7 +184,7 @@ int netlib_connect(h64vmthread *vmthread) {
                     hosttmp[hosttmpoutlen] = '\0';
                 }
             }
-            fprintf(stderr, "horsevm: verbose: "
+            h64fprintf(stderr, "horsevm: debug: "
                 "net.connect: host %s port %d encrypted %d\n",
                 hosttmp, port, encrypt);
             if (hosttmp)
@@ -222,7 +223,7 @@ int netlib_connect(h64vmthread *vmthread) {
         );
         #ifndef NDEBUG
         if (_vmsockets_debug)
-            fprintf(stderr, "horsevm: verbose: "
+            h64fprintf(stderr, "horsevm: debug: "
                 "net.connect: posted resolve job -> result: %d\n",
                 result);
         #endif
@@ -265,7 +266,7 @@ int netlib_connect(h64vmthread *vmthread) {
         }
         #ifndef NDEBUG
         if (_vmsockets_debug)
-            fprintf(stderr, "horsevm: verbose: "
+            h64fprintf(stderr, "horsevm: debug: "
                 "net.connect: created socket -> fd %d\n",
                 asprogress->connection->fd);
         #endif
@@ -275,7 +276,7 @@ int netlib_connect(h64vmthread *vmthread) {
             asprogress->resolve_job->hostlookup.resultip6len > 0) {
         #ifndef NDEBUG
         if (_vmsockets_debug)
-            fprintf(stderr, "horsevm: verbose: "
+            h64fprintf(stderr, "horsevm: debug: "
                 "net.connect: fd %d connecting via IPv6...\n",
                 asprogress->connection->fd);
         #endif
@@ -315,7 +316,7 @@ int netlib_connect(h64vmthread *vmthread) {
             asprogress->resolve_job->hostlookup.resultip4len > 0) {
         #ifndef NDEBUG
         if (_vmsockets_debug)
-            fprintf(stderr, "horsevm: verbose: "
+            h64fprintf(stderr, "horsevm: debug: "
                 "net.connect: fd %d connecting via IPv4...\n",
                 asprogress->connection->fd);
         #endif
@@ -351,7 +352,7 @@ int netlib_connect(h64vmthread *vmthread) {
             connectionisdone: ;
             #ifndef NDEBUG
             if (_vmsockets_debug)
-                fprintf(stderr, "horsevm: verbose: "
+                h64fprintf(stderr, "horsevm: debug: "
                     "net.connect: fd %d connected!\n",
                     asprogress->connection->fd);
             #endif

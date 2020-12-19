@@ -104,6 +104,10 @@ static int _compileargparse(
                 "Print compiler stages info\n");
             if (strcmp(cmd, "run") == 0 || strcmp(cmd, "exec") == 0) {
                 h64printf(
+                    "  --vmasyncjobs-debug:     Print async job "
+                    "debug info\n"
+                );
+                h64printf(
                     "  --vmexec-debug:          Print instructions "
                     "as they run\n"
                 );
@@ -163,6 +167,16 @@ static int _compileargparse(
             h64fprintf(
                 stderr, "horsec: warning: %s: compiled with NDEBUG, "
                 "output for --vmsockets-debug not compiled in\n", cmd
+            );
+            #endif
+        } else if ((strcmp(cmd, "run") == 0 ||
+                strcmp(cmd, "exec") == 0) &&
+                strcmp(argv[i], "--vmasyncjobs-debug") == 0) {
+            miscoptions->vmasyncjobs_debug = 1;
+            #ifdef NDEBUG
+            h64fprintf(
+                stderr, "horsec: warning: %s: compiled with NDEBUG, "
+                "output for --vmasyncjobs-debug not compiled in\n", cmd
             );
             #endif
         } else if ((strcmp(cmd, "run") == 0 ||
