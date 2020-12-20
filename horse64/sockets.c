@@ -214,6 +214,12 @@ int sockets_ConnectClient(
         return H64SOCKERROR_OPERATIONFAILED;
     }
     ipu8[ipu8len] = '\0';
+    #ifndef NDEBUG
+    if (_vmsockets_debug)
+        h64fprintf(stderr, "horsevm: debug: "
+            "sockets_ConnectClient on fd %d -> ip %s\n",
+            sock->fd, ipu8);
+    #endif
     if ((sock->flags & _SOCKFLAG_CONNECTCALLED) == 0) {
         if (isip6) {
             struct sockaddr_in6 targetaddr = {0};

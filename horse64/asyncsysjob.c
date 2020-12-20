@@ -300,7 +300,8 @@ void asyncsysjobworker_Do(void *userdata) {
                     result = getnameinfo(
                         resultiter->ai_addr,
                         resultiter->ai_addrlen,
-                        ipresult, NI_MAXHOST, NULL, 0, 0
+                        ipresult, NI_MAXHOST, NULL, 0,
+                        NI_NUMERICHOST
                     );
                     if (result != 0) {
                         freeaddrinfo(lookupresult);
@@ -338,7 +339,8 @@ void asyncsysjobworker_Do(void *userdata) {
                     result = getnameinfo(
                         resultiter->ai_addr,
                         resultiter->ai_addrlen,
-                        ipresult, NI_MAXHOST, NULL, 0, 0
+                        ipresult, NI_MAXHOST, NULL, 0,
+                        NI_NUMERICHOST
                     );
                     if (result != 0) {
                         freeaddrinfo(lookupresult);
