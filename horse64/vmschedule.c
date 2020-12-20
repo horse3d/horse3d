@@ -533,6 +533,7 @@ void vmschedule_WorkerRun(void *userdata) {
         mutex_Lock(access_mutex);
         threadevent_Unset(worker->wakeupevent);
         int have_notdone_thread = 0;
+        int ransomething = 0;
         int tc = worker->vmexec->thread_count;
         int i = 0;
         while (i < tc) {
@@ -547,6 +548,7 @@ void vmschedule_WorkerRun(void *userdata) {
             if (vmschedule_CanThreadResume_UnguardedCheck(
                     vt, now
                     )) {
+                ransomething = 1;
                 #ifndef NDEBUG
                 if (worker->moptions->vmscheduler_debug)
                     h64fprintf(
@@ -609,6 +611,11 @@ void vmschedule_WorkerRun(void *userdata) {
         }
         if (worker->vmexec->worker_overview->fatalerror)
             break;  // could have changed right before threadevent_Unset()
+        if (ransomething) {
+            // We're still busy with work, so try to pick up next work
+            // immediately with no pause:
+            continue;
+        }
         #ifndef NDEBUG
         if (worker->moptions->vmscheduler_verbose_debug)
             h64fprintf(
@@ -945,6 +952,14 @@ int vmschedule_ExecuteProgram(
         i++;
     }
     mainexec->supervisor_stop_signal = 1;
+    #ifndef NDEBUG
+    if (moptions->vmscheduler_debug)
+        h64fprintf(
+            stderr, "horsevm: debug: vmschedule.c: "
+            "[w0] WAIT for supervisor shutdown...\n"
+        );
+    #endif
+    asyncjob_TriggerSupervisorWakeupEvent();
     thread_Join(
         supervisor_thread
     );
@@ -955,6 +970,14 @@ int vmschedule_ExecuteProgram(
         vmthread_Free(mainexec->thread[0]);
     }
     vmexec_Free(mainexec);
+    #ifndef NDEBUG
+    if (moptions->vmscheduler_debug)
+        h64fprintf(
+            stderr, "horsevm: debug: vmschedule.c: "
+            "[w0] TERMINATION everything is off, returning %d\n",
+            (int)retval
+        );
+    #endif
     return retval;
 }
 

@@ -1239,6 +1239,8 @@ static void vmexec_PrintPostErrorInfo(
     ); \
     vmthread->upcoming_resume_info->func_id = func_id; \
     vmthread->upcoming_resume_info->funcnestdepth = funcnestdepth; \
+    vmthread->upcoming_resume_info->\
+        cfunc_resume.needs_cfunc_resume = 0; \
     DELREF_NONHEAP(suspend_valuecontent); \
     valuecontent_Free(suspend_valuecontent); \
     if (vmexec->moptions.vmscheduler_debug) \
@@ -1864,6 +1866,26 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
         #endif
 
+        int64_t target_func_id = -1;
+        int64_t stacktop = -1;
+        valuecontent *vc = NULL;
+        h64closureinfo *cinfo = NULL;
+        int closure_arg_count = -1;
+        int func_posargs = -1;
+        int64_t stack_args_bottom = -1;
+        int is_cfunc_resume = 0;
+
+        // If we're resuming then all the follow-up stack reordering
+        // was already done, and we need to skip past this:
+        if (rinfo->cfunc_resume.needs_cfunc_resume) {
+            is_cfunc_resume = 1;
+            goto resumeasynccfunc;
+            // ^ This is a VERY DANGEROUS skip. Many local variables
+            // will not be initialized correctly. We set the ones we
+            // need again from vmthreadresumeinfo, but nevertheless,
+            // this goto is an unfortunate hack for now.
+        }
+
         // IMPORTANT: if no callsettop was used, we must return to
         // current stack size post call:
         if (vmthread->call_settop_reverse < 0) {
@@ -1872,8 +1894,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
         }
 
-        int64_t stacktop = STACK_TOP(stack);
-        valuecontent *vc = STACK_ENTRY(stack, inst->slotcalledfrom);
+        stacktop = STACK_TOP(stack);
+        vc = STACK_ENTRY(stack, inst->slotcalledfrom);
 
         // Check if what we're calling is callable:
         if (unlikely(
@@ -1903,8 +1925,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
 
         // Extract more info about what we're calling:
-        int64_t target_func_id = -1;
-        h64closureinfo *cinfo = NULL;
+        target_func_id = -1;
+        cinfo = NULL;
         if (vc->type == H64VALTYPE_FUNCREF) {
             target_func_id = vc->int_value;
         } else {
@@ -1938,11 +1960,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vmlist_Count(((h64gcvalue *)vc->ptr_value)->list_values)
             );
         }
-        int closure_arg_count = (
+        closure_arg_count = (
             cinfo ? (cinfo->closure_self ? 1 : 0) +
             cinfo->closure_vbox_count :
             0);
-        int func_posargs = pr->func[target_func_id].input_stack_size - (
+        func_posargs = pr->func[target_func_id].input_stack_size - (
             pr->func[target_func_id].kwarg_count +
             closure_arg_count
         );
@@ -1974,7 +1996,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
 
         // See where stack part we care about starts:
-        int64_t stack_args_bottom = (
+        stack_args_bottom = (
             stacktop - inst->posargs - inst->kwargs * 2
         );
         assert(stack->current_func_floor >= 0);
@@ -2395,7 +2417,31 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     target_func_id, cfunc, new_func_floor
                 );
             #endif
-            int64_t oldtop = vmthread->call_settop_reverse;
+            int64_t oldreverseto = vmthread->call_settop_reverse;
+
+            resumeasynccfunc: ;   // HMMMM how do we do this
+            if (is_cfunc_resume) {
+                old_floor = (
+                    vmthread->upcoming_resume_info->
+                        cfunc_resume.old_floor
+                );
+                target_func_id = (
+                    vmthread->upcoming_resume_info->
+                        cfunc_resume.target_func_id
+                );
+                oldreverseto = (
+                    vmthread->upcoming_resume_info->
+                        cfunc_resume.oldreverseto
+                );
+                new_func_floor = (
+                    vmthread->upcoming_resume_info->
+                        cfunc_resume.new_func_floor
+                );
+                cfunc = (
+                    (int (*)(h64vmthread *vmthread))
+                    pr->func[target_func_id].cfunc_ptr
+                );
+            }
 
             // For calls with async progress, pre-allocate data if
             // required:
@@ -2442,6 +2488,14 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             );
 
             // Call:
+            valuecontent preservedslot0 = {0};
+            if (STACK_TOP(stack) >= 1) {
+                memcpy(
+                    &preservedslot0, STACK_ENTRY(stack, 0),
+                    sizeof(preservedslot0)
+                );
+                ADDREF_NONHEAP(&preservedslot0);
+            }
             int result = cfunc(vmthread);  // DO ACTUAL CALL
 
             // See if we have unfinished async work, post call:
@@ -2478,9 +2532,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             }
             // Reset stack floor and size:
             if (!unfinished_async_work) {
-                vmthread->call_settop_reverse = oldtop;
+                vmthread->call_settop_reverse = oldreverseto;
                 assert(vmthread->stack == stack);
                 stack->current_func_floor = old_floor;
+                DELREF_NONHEAP(&preservedslot0);
+                memset(&preservedslot0, 0, sizeof(preservedslot0));
                 if (!vmthread_ResetCallTempStack(vmthread)) {
                     if (returneduncaughterror)
                         *returneduncaughterror = 0;
@@ -2489,6 +2545,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     goto triggeroom;
                 }
             } else {
+                assert(!result && retval.type == H64VALTYPE_SUSPENDINFO);
                 #ifndef NDEBUG
                 if (vmthread->vmexec_owner->moptions.vmscheduler_debug)
                     h64fprintf(
@@ -2510,7 +2567,29 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                         // Nothing unfinished, advance past call:
                         p += sizeof(h64instruction_call);
                     }
+                    // Restore possibly destroyed t0 slot:
+                    int64_t retvaldestroyedslot = stack->current_func_floor;
+                    if (retvaldestroyedslot >= 0 &&
+                            retvaldestroyedslot < stack->entry_count) {
+                        DELREF_NONHEAP(&stack->entry[retvaldestroyedslot]);
+                        memcpy(
+                            &stack->entry[retvaldestroyedslot],
+                            &preservedslot0, sizeof(preservedslot0)
+                        );
+                        memset(&preservedslot0, 0, sizeof(preservedslot0));
+                    }
+                    // Suspend VM with stuff left as-is:
                     SUSPEND_VM((&retval));
+                    vmthread->upcoming_resume_info->
+                        cfunc_resume.needs_cfunc_resume = 1;
+                    vmthread->upcoming_resume_info->
+                        cfunc_resume.old_floor = old_floor;
+                    vmthread->upcoming_resume_info->
+                        cfunc_resume.target_func_id = target_func_id;
+                    vmthread->upcoming_resume_info->
+                        cfunc_resume.oldreverseto = oldreverseto;
+                    vmthread->upcoming_resume_info->
+                        cfunc_resume.new_func_floor = new_func_floor;
                     return 1;
                 }
                 // Handle function call error

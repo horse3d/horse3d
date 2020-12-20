@@ -16,6 +16,8 @@ typedef struct h64misccompileroptions h64misccompileroptions;
 
 #include "vmsuspendtypeenum.h"
 
+typedef struct vminnercfuncresumeinfo vminnercfuncresumeinfo;
+
 typedef struct vmsuspendoverview {
     uint8_t *waittypes_currently_active;
 } vmsuspendoverview;
@@ -26,6 +28,12 @@ typedef struct vmthreadsuspendinfo {
     uint8_t suspenditemready;
 } vmthreadsuspendinfo;
 
+typedef struct vminnercfuncresumeinfo {
+    uint8_t needs_cfunc_resume;
+    int64_t target_func_id;
+    int64_t old_floor, oldreverseto, new_func_floor;
+} vminnercfuncresumeinfo;
+
 typedef struct vmthreadresumeinfo {
     int64_t byteoffset;
     funcid_t func_id;
@@ -35,6 +43,7 @@ typedef struct vmthreadresumeinfo {
     int precall_funcframesbefore;
     int precall_errorframesbefore;
     uint8_t run_from_start;
+    vminnercfuncresumeinfo cfunc_resume;
 } vmthreadresumeinfo;
 
 typedef struct h64vmworker {

@@ -406,6 +406,10 @@ void asyncsysjobworker_Do(void *userdata) {
     }
 }
 
+void asyncjob_TriggerSupervisorWakeupEvent() {
+    threadevent_Set(job_done_supervisor_waitevent);
+}
+
 void asyncjob_FlushSupervisorWakeupEvents() {
     threadevent_FlushWakeUpEvents(
         job_done_supervisor_waitevent
