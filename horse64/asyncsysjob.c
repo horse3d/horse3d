@@ -265,7 +265,7 @@ void asyncsysjobworker_Do(void *userdata) {
                 ourjob->hostlookup.host,
                 ourjob->hostlookup.hostlen,
                 hostutf8, hostutf8size,
-                &hostutf8len, 1
+                &hostutf8len, 1, 0
             );
             if (!result) {
                 lookupoom:

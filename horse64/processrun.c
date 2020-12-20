@@ -185,7 +185,7 @@ processrun *processrun_Launch(
     int64_t out_len = 0;
     int convertresult = utf32_to_utf8(
         path, path_len, process_converted_path, path_len * 5 + 1,
-        &out_len, 1
+        &out_len, 1, 1
     );
     if (!convertresult || out_len >= path_len * 5 + 1)
         goto oom;
@@ -201,7 +201,7 @@ processrun *processrun_Launch(
             out_len = 0;
             int convertresult = utf32_to_utf8(
                 arg_s[i], arg_len[i], process_converted_args[i],
-                arg_len[i] * 5 + 1, &out_len, 1
+                arg_len[i] * 5 + 1, &out_len, 1, 1
             );
             if (!convertresult || out_len >= arg_len[i] * 5 + 1)
                 goto oom;

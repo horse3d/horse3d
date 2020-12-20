@@ -20,6 +20,7 @@ int get_utf8_codepoint(
 
 int write_codepoint_as_utf8(
     uint64_t codepoint, int surrogateunescape,
+    int invalidquestionmarkescape,
     char *out, int outbuflen, int *outlen
 );
 
@@ -48,7 +49,8 @@ h64wchar *utf8_to_utf32(
 int utf32_to_utf8(
     const h64wchar *input, int64_t input_len,
     char *outbuf, int64_t outbuflen,
-    int64_t *out_len, int surrogateunescape
+    int64_t *out_len, int surrogateunescape,
+    int invalidquestionmarkescape
 );
 
 int utf32_to_utf16(

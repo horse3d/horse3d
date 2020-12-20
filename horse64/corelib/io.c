@@ -380,7 +380,7 @@ int iolib_open(
     int result = utf32_to_utf8(
         (h64wchar*)pathstr, pathlen,
         utf8buf, utf8bufsize,
-        &outlen, 1
+        &outlen, 1, 1
     );
     if (!result || outlen >= utf8bufsize) {
         if (freeutf8buf)

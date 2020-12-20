@@ -111,7 +111,7 @@ static void _printuncaughterror(
             int result = utf32_to_utf8(
                 einfo->msg, einfo->msglen,
                 buf, einfo->msglen * 5 + 1,
-                &outlen, 1
+                &outlen, 1, 1
             );
             if (!result) {
                 h64fprintf(stderr, "<utf8 conversion failure>");

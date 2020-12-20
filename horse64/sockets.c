@@ -30,6 +30,7 @@ typedef int socklen_t;
 #include "widechar.h"
 
 
+extern int _vmsockets_debug;
 static volatile _Atomic int _sockinitdone = 0;
 static SSL_CTX *ssl_ctx = NULL;
 
@@ -185,6 +186,12 @@ h64socket *sockets_New(int ipv6capable, int tls) {
 int sockets_ConnectClient(
         h64socket *sock, const h64wchar *ip, int64_t iplen, int port
         ) {
+    #ifndef NDEBUG
+    if (_vmsockets_debug)
+        h64fprintf(stderr, "horsevm: debug: "
+            "sockets_ConnectClient on fd %d\n",
+            sock->fd);
+    #endif
     int isip6 = 0;
     if (sockets_IsIPv4(ip, iplen)) {
         isip6 = 0;
@@ -202,7 +209,7 @@ int sockets_ConnectClient(
     int64_t ipu8len = 0;
     if (!utf32_to_utf8(
             ip, iplen, ipu8, iplen * 5 + 2,
-            &ipu8len, 1
+            &ipu8len, 1, 0
             ) || ipu8len >= iplen * 5 + 2) {
         return H64SOCKERROR_OPERATIONFAILED;
     }

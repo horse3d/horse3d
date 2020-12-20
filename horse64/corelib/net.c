@@ -58,12 +58,7 @@ int netlib_isip(h64vmthread *vmthread) {
      * @param hostorip the string for which to check whether it's an IP
      * @returns `true` if string is an IP, otherwise `false`
      */
-    assert(STACK_TOP(vmthread->stack) >= 3);
-
-    struct netlib_connect_asyncprogress *asprogress = (
-        vmthread->foreground_async_work_dataptr
-    );
-    assert(asprogress != NULL);
+    assert(STACK_TOP(vmthread->stack) >= 1);
 
     valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
     char *hoststr = NULL;
@@ -176,7 +171,7 @@ int netlib_connect(h64vmthread *vmthread) {
                 int result = utf32_to_utf8(
                     (h64wchar *)hoststr, hostlen,
                     hosttmp, hostlen * 5 + 2,
-                    &hosttmpoutlen, 0
+                    &hosttmpoutlen, 0, 0
                 );
                 if (!result) {
                     hosttmp[0] = '\0';
@@ -312,7 +307,8 @@ int netlib_connect(h64vmthread *vmthread) {
             goto connectionisdone;
         }
     }
-    if (asprogress->failedv6connect &&
+    if ((asprogress->failedv6connect ||
+            asprogress->resolve_job->hostlookup.resultip6len == 0) &&
             asprogress->resolve_job->hostlookup.resultip4len > 0) {
         #ifndef NDEBUG
         if (_vmsockets_debug)

@@ -114,6 +114,7 @@ int64_t utf32_letter_len(
 
 int write_codepoint_as_utf8(
         uint64_t codepoint, int surrogateunescape,
+        int questionmarkescape,
         char *out, int outbuflen, int *outlen
         ) {
     if (surrogateunescape &&
@@ -168,6 +169,15 @@ int write_codepoint_as_utf8(
         if (outbuflen >= 5)
             out[4] = '\0';
         if (outlen) *outlen = 4;
+        return 1;
+    } else if (questionmarkescape) {
+        if (outbuflen < 3) return 0;
+        out[0] = (int)0xEF;
+        out[1] = (int)0xBF;
+        out[2] = (int)0xBD;
+        if (outbuflen >= 4)
+            out[3] = '\0';
+        if (outlen) *outlen = 3;
         return 1;
     } else {
         return 0;
@@ -391,7 +401,8 @@ h64wchar *utf8_to_utf32_ex(
 int utf32_to_utf8(
         const h64wchar *input, int64_t input_len,
         char *outbuf, int64_t outbuflen,
-        int64_t *out_len, int surrogateunescape
+        int64_t *out_len, int surrogateunescape,
+        int invalidquestionmarkescape
         ) {
     const h64wchar *p = input;
     uint64_t totallen = 0;
@@ -402,6 +413,7 @@ int utf32_to_utf8(
         int inneroutlen = 0;
         if (!write_codepoint_as_utf8(
                 (uint64_t)*p, surrogateunescape,
+                invalidquestionmarkescape,
                 outbuf, outbuflen, &inneroutlen
                 )) {
             return 0;
@@ -577,7 +589,7 @@ int utf16_to_utf8(
                 value = 0xDC80ULL + invalid_value[0];
                 int inneroutlen = 0;
                 if (!write_codepoint_as_utf8(
-                        (uint64_t)value, 0,
+                        (uint64_t)value, 0, 0,
                         outbuf, outbuflen, &inneroutlen
                         )) {
                     return 0;
@@ -589,7 +601,7 @@ int utf16_to_utf8(
                 value = 0xDC80ULL + invalid_value[1];
                 inneroutlen = 0;
                 if (!write_codepoint_as_utf8(
-                        (uint64_t)value, 0,
+                        (uint64_t)value, 0, 0,
                         outbuf, outbuflen, &inneroutlen
                         )) {
                     return 0;
@@ -607,7 +619,7 @@ int utf16_to_utf8(
         }
         int inneroutlen = 0;
         if (!write_codepoint_as_utf8(
-                (uint64_t)value, 0,
+                (uint64_t)value, 0, 0,
                 outbuf, outbuflen, &inneroutlen
                 )) {
             return 0;

@@ -161,7 +161,7 @@ char *lexer_ParseStringLiteral(
                     char utf8buf[10] = "";
                     int utf8buflen;
                     int u8result = write_codepoint_as_utf8(
-                        number, 0, utf8buf, 9, &utf8buflen
+                        number, 0, 0, utf8buf, 9, &utf8buflen
                     );
                     if (!u8result || utf8buflen <= 0 ||
                             utf8buflen >= 10) {

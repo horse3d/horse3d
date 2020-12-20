@@ -346,9 +346,9 @@ static h64wchar *_corelib_value_to_str_do(
         case H64VALTYPE_BOOL: {
             char s[12];
             if (c->int_value != 0)
-                memcpy(s, "true", strlen("true"));
+                memcpy(s, "true", strlen("true") + 1);
             else
-                memcpy(s, "false", strlen("false"));
+                memcpy(s, "false", strlen("false") + 1);
             int k = 0;
             while (k < (int)strlen(s)) {
                 buf[k] = s[k];
@@ -428,7 +428,7 @@ int corelib_print(  // $$builtin.print
     int64_t utf8len = 0;
     int outbufsize = slen * 5 + 1;
     int result = utf32_to_utf8(
-        s, slen, outbuf, outbufsize, &utf8len, 1
+        s, slen, outbuf, outbufsize, &utf8len, 1, 1
     );
     if (!result) {
         free(outbuf);
