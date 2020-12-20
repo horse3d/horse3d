@@ -277,6 +277,13 @@ int sockets_ConnectClient(
                 return H64SOCKERROR_OPERATIONFAILED;
             #endif
             sock->flags |= _SOCKFLAG_CONNECTCALLED;
+            #ifndef NDEBUG
+            if (_vmsockets_debug)
+                h64fprintf(stderr, "horsevm: debug: "
+                    "sockets_ConnectClient on fd %d connect() "
+                    "IPv6 path (%s)\n",
+                    sock->fd, ipu8);
+            #endif
             if (connect(sock->fd,
                     (struct sockaddr *)&targetaddr,
                     sizeof(targetaddr)) < 0) {
@@ -334,6 +341,13 @@ int sockets_ConnectClient(
                 return H64SOCKERROR_OPERATIONFAILED;
             #endif
             sock->flags |= _SOCKFLAG_CONNECTCALLED;
+            #ifndef NDEBUG
+            if (_vmsockets_debug)
+                h64fprintf(stderr, "horsevm: debug: "
+                    "sockets_ConnectClient on fd %d connect() "
+                    "IPv4 path (%s)\n",
+                    sock->fd, ipu8);
+            #endif
             if (connect(sock->fd,
                     (struct sockaddr *)&targetaddr,
                     sizeof(targetaddr)) < 0) {
@@ -385,21 +399,26 @@ int sockets_ConnectClient(
                 #if defined(_WIN32) || defined(_WIN64)
                 h64fprintf(stderr,
                     "horsevm: debug: sockets_ConnectClient "
+                    "on fd %d "
                     "getpeername() -> WSAGetLastError() -> %d\n",
-                    (int)WSAGetLastError()
+                    sock->fd, (int)WSAGetLastError()
                 );
                 #else
                 h64fprintf(stderr,
                     "horsevm: debug: sockets_ConnectClient "
-                    "getpeername() -> errno: %d\n", errno
+                    "on fd %d "
+                    "getpeername() -> errno: %d\n",
+                    sock->fd, errno
                 );
                 #endif
                 int so_error;
                 socklen_t len = sizeof(so_error);
                 getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &so_error, &len);
                 h64fprintf(stderr, "horsevm: debug: "
-                    "sockets_ConnectClient SOL_SOCKET "
-                    "SO_ERROR: %d\n", (int)so_error
+                    "sockets_ConnectClient on fd %d "
+                    "SOL_SOCKET "
+                    "SO_ERROR: %d\n",
+                    sock->fd, (int)so_error
                 );
             }
             #endif
