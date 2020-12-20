@@ -193,12 +193,16 @@ int sockets_ConnectClient(
             "sockets_ConnectClient on fd %d\n",
             sock->fd);
     #endif
+
+    // Determine if this is a valid IP, and convert it from UTF-32:
     int isip6 = 0;
     if (sockets_IsIPv4(ip, iplen)) {
         isip6 = 0;
         sock->flags &= ~((uint16_t)_SOCKFLAG_ISV6TARGET);
     } else if (sockets_IsIPv6(ip, iplen)) {
         isip6 = 1;
+        if ((sock->flags & SOCKFLAG_IPV6CAPABLE) == 0)
+            return H64SOCKERROR_OPERATIONFAILED;
         sock->flags |= _SOCKFLAG_ISV6TARGET;
     } else {
         return H64SOCKERROR_OPERATIONFAILED;
@@ -218,14 +222,18 @@ int sockets_ConnectClient(
         return H64SOCKERROR_OPERATIONFAILED;
     }
     ipu8[ipu8len] = '\0';
+
     #ifndef NDEBUG
     if (_vmsockets_debug)
         h64fprintf(stderr, "horsevm: debug: "
             "sockets_ConnectClient on fd %d -> ip %s\n",
             sock->fd, ipu8);
     #endif
+
+    // Do connect() OS call if not done yet:
     if ((sock->flags & _SOCKFLAG_CONNECTCALLED) == 0) {
         if (isip6 || (sock->flags & SOCKFLAG_IPV6CAPABLE) != 0) {
+            // IPv6 socket connect path:
             struct sockaddr_in6 targetaddr = {0};
             targetaddr.sin6_family = AF_INET6;
             targetaddr.sin6_port = port;
@@ -248,8 +256,10 @@ int sockets_ConnectClient(
                     strlen(ipv4mappedipv6) + 1
                 );
             }
+
+            // Convert string ip into address struct:
             #if defined(_WIN32) || defined(_WIN64)
-            {
+            {  // winapi address conversion
                 struct sockaddr_storage addrout = {0};
                 int addroutlen = sizeof(addrout);
                 char ipinputbuf[INET6_ADDRSTRLEN + 1] = "";
@@ -269,6 +279,7 @@ int sockets_ConnectClient(
                 }
             }
             #else
+            // POSIX api conversion
             int result = (inet_pton(
                     AF_INET6, ipu8,
                     (struct sockaddr_in6 *) &targetaddr
@@ -276,7 +287,6 @@ int sockets_ConnectClient(
             if (result != 1)
                 return H64SOCKERROR_OPERATIONFAILED;
             #endif
-            sock->flags |= _SOCKFLAG_CONNECTCALLED;
             #ifndef NDEBUG
             if (_vmsockets_debug)
                 h64fprintf(stderr, "horsevm: debug: "
@@ -284,6 +294,9 @@ int sockets_ConnectClient(
                     "IPv6 path (%s)\n",
                     sock->fd, ipu8);
             #endif
+
+            // Actual connect:
+            sock->flags |= _SOCKFLAG_CONNECTCALLED;
             if (connect(sock->fd,
                     (struct sockaddr *)&targetaddr,
                     sizeof(targetaddr)) < 0) {
@@ -309,11 +322,14 @@ int sockets_ConnectClient(
                 goto connectionmustbedone;
             }
         } else {
+            // IPv4 socket connect path:
             struct sockaddr_in targetaddr = {0};
             targetaddr.sin_family = AF_INET;
             targetaddr.sin_port = port;
+
+            // Convert string ip into address struct:
             #if defined(_WIN32) || defined(_WIN64)
-            {
+            {  // winapi address conversion
                 struct sockaddr_storage addrout = {0};
                 int addroutlen = sizeof(addrout);
                 char ipinputbuf[INET6_ADDRSTRLEN + 1] = "";
@@ -333,6 +349,7 @@ int sockets_ConnectClient(
                 }
             }
             #else
+            // POSIX address conversion:
             int result = (inet_pton(
                     AF_INET, ipu8,
                     (struct sockaddr_in *) &targetaddr
@@ -340,7 +357,6 @@ int sockets_ConnectClient(
             if (result <= 0)
                 return H64SOCKERROR_OPERATIONFAILED;
             #endif
-            sock->flags |= _SOCKFLAG_CONNECTCALLED;
             #ifndef NDEBUG
             if (_vmsockets_debug)
                 h64fprintf(stderr, "horsevm: debug: "
@@ -348,6 +364,9 @@ int sockets_ConnectClient(
                     "IPv4 path (%s)\n",
                     sock->fd, ipu8);
             #endif
+
+            // Do actual connect:
+            sock->flags |= _SOCKFLAG_CONNECTCALLED;
             if (connect(sock->fd,
                     (struct sockaddr *)&targetaddr,
                     sizeof(targetaddr)) < 0) {
@@ -374,9 +393,11 @@ int sockets_ConnectClient(
             }
         }
     }
+    // If OS connect() was done, check result and/or do TLS init:
     if ((sock->flags & _SOCKFLAG_CONNECTCALLED) != 0) {
         if ((sock->flags & _SOCKFLAG_KNOWNCONNECTED) != 0) {
             connectionmustbedone: ;
+            // Verify that we are indeed connected:
             int connected = 0;
             if ((sock->flags & _SOCKFLAG_ISV6TARGET) == 0 &&
                     (sock->flags & SOCKFLAG_IPV6CAPABLE) == 0) {
@@ -396,6 +417,7 @@ int sockets_ConnectClient(
             }
             #ifndef NDEBUG
             if (_vmsockets_debug && !connected) {
+                // We are NOT connected, print additional debug info:
                 #if defined(_WIN32) || defined(_WIN64)
                 h64fprintf(stderr,
                     "horsevm: debug: sockets_ConnectClient "
@@ -423,6 +445,7 @@ int sockets_ConnectClient(
             }
             #endif
 
+            // Return failure if we didn't connect:
             if (!connected) {
                 sock->flags &= ~((uint16_t)_SOCKFLAG_CONNECTCALLED);
                 return H64SOCKERROR_OPERATIONFAILED;
@@ -431,6 +454,8 @@ int sockets_ConnectClient(
         }
         if ((sock->flags & SOCKFLAG_TLS) == 0)
             return H64SOCKERROR_SUCCESS;
+
+        // If we arrived here, we still need to establish TLS/SSL:
         if ((sock->flags & _SOCKFLAG_OUTSTANDINGTLSCONNECT) == 0)
             return H64SOCKERROR_OPERATIONFAILED;
         if (!sock->sslobj) {
