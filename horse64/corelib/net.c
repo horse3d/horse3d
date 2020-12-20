@@ -26,7 +26,6 @@
 
 typedef struct _connectionobj_cdata {
     h64socket *connection;
-    SSL *ssl;
 } __attribute__((packed)) _connectionobj_cdata;
 
 struct netlib_connect_asyncprogress {
@@ -388,6 +387,11 @@ int netlib_connect(h64vmthread *vmthread) {
             memset(cdata, 0, sizeof(*cdata));
             cdata->connection = asprogress->connection;
             asprogress->connection = NULL;
+            if (asprogress->resolve_job) {
+                asyncjob_AbandonJob(asprogress->resolve_job);
+                asprogress->resolve_job = NULL;
+            }
+            vmthread_FreeAsyncForegroundWorkWithoutAbort(vmthread);
             return 1;
         }
     }
