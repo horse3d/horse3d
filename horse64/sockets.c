@@ -280,13 +280,13 @@ int sockets_ConnectClient(
             // POSIX api conversion
             int result = (inet_pton(
                     AF_INET6, ipu8,
-                    (struct sockaddr_in6 *) &targetaddr
+                    &targetaddr.sin6_addr
                 ));
             if (result != 1)
                 return H64SOCKERROR_OPERATIONFAILED;
             #endif
             targetaddr.sin6_family = AF_INET6;
-            targetaddr.sin6_port = port;
+            targetaddr.sin6_port = htons(port);
             #ifndef NDEBUG
             if (_vmsockets_debug)
                 h64fprintf(stderr, "horsevm: debug: "
@@ -350,13 +350,13 @@ int sockets_ConnectClient(
             // POSIX address conversion:
             int result = (inet_pton(
                     AF_INET, ipu8,
-                    (struct sockaddr_in *) &targetaddr
+                    &targetaddr.sin_addr
                 ));
             if (result <= 0)
                 return H64SOCKERROR_OPERATIONFAILED;
             #endif
             targetaddr.sin_family = AF_INET;
-            targetaddr.sin_port = port;
+            targetaddr.sin_port = htons(port);
             #ifndef NDEBUG
             if (_vmsockets_debug)
                 h64fprintf(stderr, "horsevm: debug: "
