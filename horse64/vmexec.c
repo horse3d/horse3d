@@ -2420,6 +2420,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             int64_t oldreverseto = vmthread->call_settop_reverse;
 
             resumeasynccfunc: ;   // HMMMM how do we do this
+            rinfo->cfunc_resume.needs_cfunc_resume = 0;
             if (is_cfunc_resume) {
                 old_floor = (
                     vmthread->upcoming_resume_info->
@@ -2580,16 +2581,19 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     }
                     // Suspend VM with stuff left as-is:
                     SUSPEND_VM((&retval));
-                    vmthread->upcoming_resume_info->
-                        cfunc_resume.needs_cfunc_resume = 1;
-                    vmthread->upcoming_resume_info->
-                        cfunc_resume.old_floor = old_floor;
-                    vmthread->upcoming_resume_info->
-                        cfunc_resume.target_func_id = target_func_id;
-                    vmthread->upcoming_resume_info->
-                        cfunc_resume.oldreverseto = oldreverseto;
-                    vmthread->upcoming_resume_info->
-                        cfunc_resume.new_func_floor = new_func_floor;
+                    if (unfinished_async_work) {
+                        vmthread->upcoming_resume_info->
+                            cfunc_resume.needs_cfunc_resume = 1;
+                        vmthread->upcoming_resume_info->
+                            cfunc_resume.old_floor = old_floor;
+                        vmthread->upcoming_resume_info->
+                            cfunc_resume.target_func_id = target_func_id;
+                        vmthread->upcoming_resume_info->
+                            cfunc_resume.oldreverseto = oldreverseto;
+                        vmthread->upcoming_resume_info->
+                            cfunc_resume.new_func_floor =
+                            new_func_floor;
+                    }
                     return 1;
                 }
                 // Handle function call error
