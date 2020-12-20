@@ -124,6 +124,7 @@ h64socket *sockets_NewBlockingRaw(int v6capable) {
         free(sock);
         return NULL;
     }
+    if (v6capable) sock->flags |= SOCKFLAG_IPV6CAPABLE;
     #if defined(_WIN32) || defined(_WIN64)
     // SECURITY RELEVANT, default Windows sockets to be address exclusive
     // to match the Linux/BSD/macOS defaults:
@@ -202,15 +203,18 @@ int sockets_ConnectClient(
     } else {
         return H64SOCKERROR_OPERATIONFAILED;
     }
-    char *ipu8 = malloc(iplen * 5 + 2);
+    if (port <= 0 || port > INT16_MAX)
+        return H64SOCKERROR_OPERATIONFAILED;
+    int ipu8buflen = iplen * 5 + 2;
+    char *ipu8 = malloc(ipu8buflen);
     if (!ipu8) {
         return H64SOCKERROR_OUTOFMEMORY;
     }
     int64_t ipu8len = 0;
     if (!utf32_to_utf8(
-            ip, iplen, ipu8, iplen * 5 + 2,
+            ip, iplen, ipu8,ipu8buflen,
             &ipu8len, 1, 0
-            ) || ipu8len >= iplen * 5 + 2) {
+            ) || ipu8len >= ipu8buflen) {
         return H64SOCKERROR_OPERATIONFAILED;
     }
     ipu8[ipu8len] = '\0';
@@ -221,10 +225,29 @@ int sockets_ConnectClient(
             sock->fd, ipu8);
     #endif
     if ((sock->flags & _SOCKFLAG_CONNECTCALLED) == 0) {
-        if (isip6) {
+        if (isip6 || (sock->flags & SOCKFLAG_IPV6CAPABLE) != 0) {
             struct sockaddr_in6 targetaddr = {0};
             targetaddr.sin6_family = AF_INET6;
-            targetaddr.sin6_addr = in6addr_loopback;
+            targetaddr.sin6_port = port;
+            if (!isip6) {
+                char ipv4mappedipv6[1024];
+                snprintf(
+                    ipv4mappedipv6, sizeof(ipv4mappedipv6) - 1,
+                    "::ffff:%s", ipu8
+                );
+                ipv4mappedipv6[sizeof(ipv4mappedipv6) - 1] = '\0';
+                if ((int)strlen(ipv4mappedipv6) >= ipu8buflen) {
+                    free(ipu8);
+                    ipu8 = malloc(strlen(ipv4mappedipv6) + 1);
+                    if (!ipu8) {
+                        return H64SOCKERROR_OUTOFMEMORY;
+                    }
+                }
+                memcpy(
+                    ipu8, ipv4mappedipv6,
+                    strlen(ipv4mappedipv6) + 1
+                );
+            }
             #if defined(_WIN32) || defined(_WIN64)
             {
                 struct sockaddr_storage addrout = {0};
@@ -281,7 +304,7 @@ int sockets_ConnectClient(
         } else {
             struct sockaddr_in targetaddr = {0};
             targetaddr.sin_family = AF_INET;
-            targetaddr.sin_addr.s_addr = INADDR_LOOPBACK;
+            targetaddr.sin_port = port;
             #if defined(_WIN32) || defined(_WIN64)
             {
                 struct sockaddr_storage addrout = {0};
@@ -307,7 +330,7 @@ int sockets_ConnectClient(
                     AF_INET, ipu8,
                     (struct sockaddr_in *) &targetaddr
                 ));
-            if (result != 1)
+            if (result <= 0)
                 return H64SOCKERROR_OPERATIONFAILED;
             #endif
             sock->flags |= _SOCKFLAG_CONNECTCALLED;
@@ -341,7 +364,8 @@ int sockets_ConnectClient(
         if ((sock->flags & _SOCKFLAG_KNOWNCONNECTED) != 0) {
             connectionmustbedone: ;
             int connected = 0;
-            if ((sock->flags & _SOCKFLAG_ISV6TARGET) == 0) {
+            if ((sock->flags & _SOCKFLAG_ISV6TARGET) == 0 &&
+                    (sock->flags & SOCKFLAG_IPV6CAPABLE) == 0) {
                 struct sockaddr_in v4addr;
                 socklen_t v4size = sizeof(v4addr);
                 connected = (getpeername(
@@ -356,6 +380,30 @@ int sockets_ConnectClient(
                     (struct sockaddr *)&v6addr, &v6size
                 ) == 0);
             }
+            #ifndef NDEBUG
+            if (_vmsockets_debug && !connected) {
+                #if defined(_WIN32) || defined(_WIN64)
+                h64fprintf(stderr,
+                    "horsevm: debug: sockets_ConnectClient "
+                    "getpeername() -> WSAGetLastError() -> %d\n",
+                    (int)WSAGetLastError()
+                );
+                #else
+                h64fprintf(stderr,
+                    "horsevm: debug: sockets_ConnectClient "
+                    "getpeername() -> errno: %d\n", errno
+                );
+                #endif
+                int so_error;
+                socklen_t len = sizeof(so_error);
+                getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+                h64fprintf(stderr, "horsevm: debug: "
+                    "sockets_ConnectClient SOL_SOCKET "
+                    "SO_ERROR: %d\n", (int)so_error
+                );
+            }
+            #endif
+
             if (!connected) {
                 sock->flags &= ~((uint16_t)_SOCKFLAG_CONNECTCALLED);
                 return H64SOCKERROR_OPERATIONFAILED;
