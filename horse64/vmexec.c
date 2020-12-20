@@ -2419,7 +2419,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             #endif
             int64_t oldreverseto = vmthread->call_settop_reverse;
 
-            resumeasynccfunc: ;   // HMMMM how do we do this
+            resumeasynccfunc: ;
             rinfo->cfunc_resume.needs_cfunc_resume = 0;
             if (is_cfunc_resume) {
                 old_floor = (

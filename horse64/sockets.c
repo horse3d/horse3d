@@ -235,8 +235,6 @@ int sockets_ConnectClient(
         if (isip6 || (sock->flags & SOCKFLAG_IPV6CAPABLE) != 0) {
             // IPv6 socket connect path:
             struct sockaddr_in6 targetaddr = {0};
-            targetaddr.sin6_family = AF_INET6;
-            targetaddr.sin6_port = port;
             if (!isip6) {
                 char ipv4mappedipv6[1024];
                 snprintf(
@@ -270,9 +268,9 @@ int sockets_ConnectClient(
                         (struct sockaddr *)&addrout, &addroutlen)
                         == 0) {
                     memcpy(
-                        &targetaddr,
+                        &targetaddr.sin6_addr,
                         &((struct sockaddr_in6 *)&addrout)->sin6_addr,
-                        sizeof(targetaddr)
+                        sizeof(targetaddr.sin6_addr)
                     );
                 } else {
                     return H64SOCKERROR_OPERATIONFAILED;
@@ -287,6 +285,8 @@ int sockets_ConnectClient(
             if (result != 1)
                 return H64SOCKERROR_OPERATIONFAILED;
             #endif
+            targetaddr.sin6_family = AF_INET6;
+            targetaddr.sin6_port = port;
             #ifndef NDEBUG
             if (_vmsockets_debug)
                 h64fprintf(stderr, "horsevm: debug: "
@@ -324,8 +324,6 @@ int sockets_ConnectClient(
         } else {
             // IPv4 socket connect path:
             struct sockaddr_in targetaddr = {0};
-            targetaddr.sin_family = AF_INET;
-            targetaddr.sin_port = port;
 
             // Convert string ip into address struct:
             #if defined(_WIN32) || defined(_WIN64)
@@ -340,9 +338,9 @@ int sockets_ConnectClient(
                         (struct sockaddr *)&addrout, &addroutlen)
                         == 0) {
                     memcpy(
-                        &targetaddr,
+                        &targetaddr.sin_addr,
                         &((struct sockaddr_in *)&addrout)->sin_addr,
-                        sizeof(targetaddr)
+                        sizeof(targetaddr.sin_addr)
                     );
                 } else {
                     return H64SOCKERROR_OPERATIONFAILED;
@@ -357,6 +355,8 @@ int sockets_ConnectClient(
             if (result <= 0)
                 return H64SOCKERROR_OPERATIONFAILED;
             #endif
+            targetaddr.sin_family = AF_INET;
+            targetaddr.sin_port = port;
             #ifndef NDEBUG
             if (_vmsockets_debug)
                 h64fprintf(stderr, "horsevm: debug: "
@@ -395,7 +395,7 @@ int sockets_ConnectClient(
     }
     // If OS connect() was done, check result and/or do TLS init:
     if ((sock->flags & _SOCKFLAG_CONNECTCALLED) != 0) {
-        if ((sock->flags & _SOCKFLAG_KNOWNCONNECTED) != 0) {
+        if ((sock->flags & _SOCKFLAG_KNOWNCONNECTED) == 0) {
             connectionmustbedone: ;
             // Verify that we are likely connected:
             int definitelyconnected = 0;
@@ -424,8 +424,8 @@ int sockets_ConnectClient(
                     hadsocketerror = 1;
             }
 
-            // Return failure if we definitely didn't connect:
-            if (!definitelyconnected && hadsocketerror) {
+            // Return failure if we didn't connect:
+            if (!definitelyconnected || hadsocketerror) {
                 sock->flags &= ~((uint16_t)_SOCKFLAG_CONNECTCALLED);
                 return H64SOCKERROR_OPERATIONFAILED;
             }
