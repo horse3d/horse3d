@@ -99,11 +99,11 @@ int main(int argc, const char **argv) {
             if (strcmp(argv[i], "--version") == 0 ||
                     strcmp(argv[i], "-V") == 0) {
                 h64printf(
-                    "org.horse64.core with horsec/horsevm\n"
-                    "\n"
-                    "   Corelib version:   %s\n"
-                    "   Build time:        %s\n"
-                    "   Compiler version:  %s%s\n",
+                    "org.horse64.core horsec/horsevm v%s.\n"
+                    "- Corelib version:   %s\n"
+                    "- Build time:        %s\n"
+                    "- Compiler version:  %s%s\n",
+                    CORELIB_VERSION,
                     CORELIB_VERSION, BUILD_TIME,
                     #if defined(__clang__)
                     "clang-", __clang_version__

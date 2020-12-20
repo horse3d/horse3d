@@ -301,12 +301,13 @@ int sockets_ConnectClient(
                     (struct sockaddr *)&targetaddr,
                     sizeof(targetaddr)) < 0) {
                 #if defined(_WIN32) || defined(_WIN64)
-                if (WSAGetLastError() == WSAEINPROGRESS) {
+                if (WSAGetLastError() == WSAEINPROGRESS ||
+                        WSAGetLastError() == WSAEWOULDBLOCK) {
                     if (WSAGetLastError() == WSAEWOULDBLOCK)
                         sock->flags &= ~(
                             (uint16_t)_SOCKFLAG_CONNECTCALLED
                         );
-                    return H64SOCKERROR_INPROGRESS;
+                    return H64SOCKERROR_NEEDTOWRITE;
                 }
                 #else
                 if (errno == EAGAIN || errno == EINPROGRESS) {
@@ -371,7 +372,8 @@ int sockets_ConnectClient(
                     (struct sockaddr *)&targetaddr,
                     sizeof(targetaddr)) < 0) {
                 #if defined(_WIN32) || defined(_WIN64)
-                if (WSAGetLastError() == WSAEINPROGRESS) {
+                if (WSAGetLastError() == WSAEINPROGRESS ||
+                        WSAGetLastError() == WSAEWOULDBLOCK) {
                     if (WSAGetLastError() == WSAEWOULDBLOCK)
                         sock->flags &= ~(
                             (uint16_t)_SOCKFLAG_CONNECTCALLED
