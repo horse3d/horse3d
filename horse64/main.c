@@ -11,6 +11,8 @@
 #if defined(_WIN32) || defined(_WIN64)
 #include <fcntl.h>
 #include <windows.h>
+#else
+#include <signal.h>
 #endif
 
 #include "horse64/compiler/main.h"
@@ -38,6 +40,9 @@ int main(int argc, const char **argv) {
 #endif
     #if defined(_WIN32) || defined(_WIN64)
     _setmode(_fileno(stdin), O_BINARY);
+    #else
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGHUP, SIG_IGN);
     #endif
     char *exepath = filesys_GetOwnExecutable();
     vfs_Init(exepath ? exepath : argv[0]);

@@ -397,56 +397,35 @@ int sockets_ConnectClient(
     if ((sock->flags & _SOCKFLAG_CONNECTCALLED) != 0) {
         if ((sock->flags & _SOCKFLAG_KNOWNCONNECTED) != 0) {
             connectionmustbedone: ;
-            // Verify that we are indeed connected:
-            int connected = 0;
+            // Verify that we are likely connected:
+            int definitelyconnected = 0;
             if ((sock->flags & _SOCKFLAG_ISV6TARGET) == 0 &&
                     (sock->flags & SOCKFLAG_IPV6CAPABLE) == 0) {
                 struct sockaddr_in v4addr;
                 socklen_t v4size = sizeof(v4addr);
-                connected = (getpeername(
+                definitelyconnected = (getpeername(
                     sock->fd,
                     (struct sockaddr *)&v4addr, &v4size
                 ) == 0);
             } else {
                 struct sockaddr_in6 v6addr;
                 socklen_t v6size = sizeof(v6addr);
-                connected = (getpeername(
+                definitelyconnected = (getpeername(
                     sock->fd,
                     (struct sockaddr *)&v6addr, &v6size
                 ) == 0);
             }
-            #ifndef NDEBUG
-            if (_vmsockets_debug && !connected) {
-                // We are NOT connected, print additional debug info:
-                #if defined(_WIN32) || defined(_WIN64)
-                h64fprintf(stderr,
-                    "horsevm: debug: sockets_ConnectClient "
-                    "on fd %d "
-                    "getpeername() -> WSAGetLastError() -> %d\n",
-                    sock->fd, (int)WSAGetLastError()
-                );
-                #else
-                h64fprintf(stderr,
-                    "horsevm: debug: sockets_ConnectClient "
-                    "on fd %d "
-                    "getpeername() -> errno: %d\n",
-                    sock->fd, errno
-                );
-                #endif
-                int so_error;
+            int hadsocketerror = 0;
+            {
+                int so_error = 0;
                 socklen_t len = sizeof(so_error);
                 getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &so_error, &len);
-                h64fprintf(stderr, "horsevm: debug: "
-                    "sockets_ConnectClient on fd %d "
-                    "SOL_SOCKET "
-                    "SO_ERROR: %d\n",
-                    sock->fd, (int)so_error
-                );
+                if (so_error != 0)
+                    hadsocketerror = 1;
             }
-            #endif
 
-            // Return failure if we didn't connect:
-            if (!connected) {
+            // Return failure if we definitely didn't connect:
+            if (!definitelyconnected && hadsocketerror) {
                 sock->flags &= ~((uint16_t)_SOCKFLAG_CONNECTCALLED);
                 return H64SOCKERROR_OPERATIONFAILED;
             }
@@ -456,11 +435,12 @@ int sockets_ConnectClient(
             return H64SOCKERROR_SUCCESS;
 
         // If we arrived here, we still need to establish TLS/SSL:
-        if ((sock->flags & _SOCKFLAG_OUTSTANDINGTLSCONNECT) == 0)
+        if ((sock->flags & _SOCKFLAG_NOOUTSTANDINGTLSCONNECT) != 0)
             return H64SOCKERROR_OPERATIONFAILED;
         if (!sock->sslobj) {
             sock->sslobj = SSL_new(ssl_ctx);
             if (!sock->sslobj) {
+                sock->flags |= _SOCKFLAG_NOOUTSTANDINGTLSCONNECT;
                 return H64SOCKERROR_OUTOFMEMORY;
             }
         }
@@ -474,6 +454,29 @@ int sockets_ConnectClient(
                 return H64SOCKERROR_NEEDTOREAD;
             if (err == SSL_ERROR_WANT_WRITE)
                 return H64SOCKERROR_NEEDTOWRITE;
+            if (err == SSL_ERROR_SYSCALL) {
+                #ifndef NDEBUG
+                if (_vmsockets_debug) {
+                    #if defined(_WIN32) || defined(_WIN64)
+                    int errno = WSAGetLastError();
+                    #endif
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "sockets_ConnectClient on fd %d "
+                        "SSL_connect() failed (errno=%d)\n",
+                        sock->fd, errno);
+                }
+                #endif
+            } else {
+                #ifndef NDEBUG
+                if (_vmsockets_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "sockets_ConnectClient on fd %d "
+                        "SSL_connect() failed "
+                        "(SSL_get_error()=%d)\n",
+                        sock->fd, err);
+                #endif
+            }
+            sock->flags |= _SOCKFLAG_NOOUTSTANDINGTLSCONNECT;
             return H64SOCKERROR_OPERATIONFAILED;
         }
     }
