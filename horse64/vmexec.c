@@ -2230,7 +2230,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 memmove(
                     &stack->entry[base + i],
                     &stack->entry[base + i + 1],
-                    top - (i + base) - 1
+                    (top - (i + base) - 1) * sizeof(valuecontent)
                 );
                 stack->entry_count--;
                 i++;
