@@ -33,6 +33,8 @@ void mutex_Release(mutex* m);
 
 void mutex_Destroy(mutex* m);
 
+int mutex_IsLocked(mutex *m);  // ONLY FOR DEBUG PURPOSES (slow!)
+
 
 thread *thread_Spawn(
     void (*func)(void *userdata),

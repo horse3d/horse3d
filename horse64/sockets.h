@@ -30,8 +30,9 @@
 #define _SOCKFLAG_CONNECTCALLED 0x4
 #define _SOCKFLAG_KNOWNCONNECTED 0x8
 #define _SOCKFLAG_NOOUTSTANDINGTLSCONNECT 0x10
-#define _SOCKFLAG_ISV6TARGET 0x20
-#define SOCKFLAG_IPV6CAPABLE 0x40
+#define SOCKFLAG_IPV6CAPABLE 0x20
+#define _SOCKFLAG_ISINSENDLIST 0x40
+#define _SOCKFLAG_SENDWAITSFORREAD 0x80
 
 
 #if defined(USE_POLL_ON_UNIX) && USE_POLL_ON_UNIX != 0
@@ -51,6 +52,7 @@ typedef struct h64socket {
 #endif
     char *sendbuf;
     size_t sendbufsize, sendbuffill;
+    size_t _resent_attempt_fill;
 } h64socket;
 
 typedef struct h64threadevent h64threadevent;
@@ -225,6 +227,14 @@ h64socket *sockets_New(int ipv6capable, int tls);
 int sockets_Send(
     h64socket *s, const uint8_t *bytes, size_t byteslen
 );
+
+int _internal_sockets_ProcessSend(h64socket *s);
+
+void _internal_sockets_UnregisterFromSend(h64socket *s, int lock);
+
+int _internal_sockets_RegisterForSend(h64socket *s, int lock);
+
+int sockets_NeedSend(h64socket *s);
 
 void sockets_Destroy(h64socket *sock);
 

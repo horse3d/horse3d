@@ -23,6 +23,7 @@ typedef int socklen_t;
 #include <string.h>
 #include <unistd.h>
 
+#include "datetime.h"
 #include "nonlocale.h"
 #include "secrandom.h"
 #include "sockets.h"
@@ -33,6 +34,7 @@ typedef int socklen_t;
 extern int _vmsockets_debug;
 static volatile _Atomic int _sockinitdone = 0;
 static SSL_CTX *ssl_ctx = NULL;
+static mutex *sockets_needing_send_mutex = NULL;
 
 __attribute__((constructor)) void _sockinit() {
     if (_sockinitdone)
@@ -45,6 +47,14 @@ __attribute__((constructor)) void _sockinit() {
         exit(1);
     }
     #endif
+
+    sockets_needing_send_mutex = mutex_Create();
+    if (!sockets_needing_send_mutex) {
+        h64fprintf(stderr, "horsevm: error: failed to create "
+            "mutex for sockets_needing_send list\n");
+        exit(1);
+    }
+
     const SSL_METHOD *m = TLS_method();
     if (m)
         ssl_ctx = SSL_CTX_new(m);
@@ -53,6 +63,10 @@ __attribute__((constructor)) void _sockinit() {
         h64fprintf(stderr, "horsevm: error: OpenSSL init failed\n");
         exit(1);
     }
+    SSL_CTX_clear_mode(ssl_ctx, SSL_MODE_AUTO_RETRY);
+    SSL_CTX_clear_mode(ssl_ctx, SSL_OP_LEGACY_SERVER_CONNECT);
+    SSL_CTX_set_mode(ssl_ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
+    SSL_CTX_set_mode(ssl_ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
 
     // Configure pre-TLS 1.3 ciphers, and manually exclude a few:
     STACK_OF(SSL_CIPHER) *stack;
@@ -110,6 +124,158 @@ __attribute__((constructor)) void _sockinit() {
 
     // Configure TLS 1.3 ciphers:
 }
+
+h64socket **sockets_needing_send = NULL;
+int sockets_needing_send_alloc = 0;
+int sockets_needing_send_fill = 0;
+thread *sockets_needing_send_worker = NULL;
+h64sockset sockets_needing_send_set = {0};
+threadevent *sockets_needing_send_stopsocksetwaitev = NULL;
+mutex *sockets_needing_send_pauseworkerlock = NULL;
+
+void _ssend_worker(ATTR_UNUSED void *userdata) {  // socket send worker.
+    #ifndef NDEBUG
+    if (_vmsockets_debug)
+        h64fprintf(stderr, "horsevm: debug: "
+            "_ssend_worker(): launch\n");
+    #endif
+    while (1) {
+        mutex_Lock(sockets_needing_send_pauseworkerlock);
+        mutex_Release(sockets_needing_send_pauseworkerlock);
+        mutex_Lock(sockets_needing_send_mutex);
+        #ifndef NDEBUG
+        uint64_t waitstartms = datetime_Ticks();
+        #endif
+        ATTR_UNUSED int waitresult = sockset_Wait(
+            &sockets_needing_send_set, 5000
+        );
+        #ifndef NDEBUG
+        uint64_t waitduration = datetime_Ticks() - waitstartms;
+        #endif
+        #ifndef NDEBUG
+        if (_vmsockets_debug)
+            h64fprintf(stderr, "horsevm: debug: "
+                "_ssend_worker(): wake-up after %" PRIu64 "ms wait\n",
+                waitduration);
+        #endif
+        threadevent_FlushWakeUpEvents(
+            sockets_needing_send_stopsocksetwaitev
+        );
+        int i = 0;
+        while (i < sockets_needing_send_fill) {
+            int result = (
+                sockset_GetResult(
+                    &sockets_needing_send_set,
+                    sockets_needing_send[i]->fd,
+                    H64SOCKSET_WAITALL
+                )
+            );
+            h64socket *s = sockets_needing_send[i];
+            if (result != 0) {
+                #ifndef NDEBUG
+                if (_vmsockets_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "_ssend_worker(): fd %d has event %d,"
+                        " will try send\n",
+                        (int)s->fd, (int)result);
+                #endif
+                int sendresult = (
+                    _internal_sockets_ProcessSend(
+                        sockets_needing_send[i]
+                    ));
+                if (sendresult == H64SOCKERROR_NEEDTOWRITE) {
+                    if ((s->flags & _SOCKFLAG_SENDWAITSFORREAD) != 0) {
+                        sockset_Remove(
+                            &sockets_needing_send_set, s->fd
+                        );
+                        if (!sockset_Add(
+                                &sockets_needing_send_set,
+                                s->fd,
+                                H64SOCKSET_WAITWRITE |
+                                H64SOCKSET_WAITERROR)) {
+                            goto errorwithwrite;
+                        }
+                    }
+                } else if (sendresult == H64SOCKERROR_NEEDTOREAD) {
+                    if ((s->flags & _SOCKFLAG_SENDWAITSFORREAD) == 0) {
+                        sockset_Remove(
+                            &sockets_needing_send_set, s->fd
+                        );
+                        if (!sockset_Add(
+                                &sockets_needing_send_set,
+                                s->fd,
+                                H64SOCKSET_WAITREAD |
+                                H64SOCKSET_WAITERROR)) {
+                            goto errorwithwrite;
+                        }
+                    }
+                } else if (sendresult != H64SOCKERROR_SUCCESS) {
+                    errorwithwrite:
+                    if (s->sslobj)
+                        SSL_free(s->sslobj);
+                    s->sslobj = NULL;
+                    #if defined(_WIN32) || defined(_WIN64)
+                    closesocket(s->fd):
+                    #else
+                    close(s->fd);
+                    #endif
+                    s->fd = -1;
+                }
+            } else {
+                #ifndef NDEBUG
+                if (_vmsockets_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "_ssend_worker(): fd %d has no event\n",
+                        (int)s->fd);
+                #endif
+            }
+            i++;
+        }
+        mutex_Release(sockets_needing_send_mutex);
+    }
+}
+
+int _internal_sockets_RequireWorker() {
+    mutex_Lock(sockets_needing_send_mutex);
+    if (sockets_needing_send_worker) {
+        mutex_Release(sockets_needing_send_mutex);
+        return 1;
+    }
+    if (!sockets_needing_send_stopsocksetwaitev) {
+        sockets_needing_send_stopsocksetwaitev = (
+            threadevent_Create()
+        );
+        mutex_Release(sockets_needing_send_mutex);
+        return 0;
+    }
+    if (!sockset_Add(
+            &sockets_needing_send_set,
+            threadevent_WaitForSocket(
+                sockets_needing_send_stopsocksetwaitev
+            )->fd, H64SOCKSET_WAITREAD | H64SOCKSET_WAITERROR)) {
+        threadevent_Free(sockets_needing_send_stopsocksetwaitev);
+        sockets_needing_send_stopsocksetwaitev = NULL;
+        mutex_Release(sockets_needing_send_mutex);
+        return 0;
+    }
+    if (!sockets_needing_send_pauseworkerlock) {
+        sockets_needing_send_pauseworkerlock = mutex_Create();
+        if (!sockets_needing_send_pauseworkerlock) {
+            mutex_Release(sockets_needing_send_mutex);
+            return 0;
+        }
+    }
+    sockets_needing_send_worker = (thread_SpawnWithPriority(
+        THREAD_PRIO_NORMAL, &_ssend_worker, NULL
+    ));
+    if (!sockets_needing_send_worker) {
+        mutex_Release(sockets_needing_send_mutex);
+        return 0;
+    }
+    mutex_Release(sockets_needing_send_mutex);
+    return 1;
+}
+
 
 h64socket *sockets_NewBlockingRaw(int v6capable) {
     _sockinit();
@@ -198,12 +364,10 @@ int sockets_ConnectClient(
     int isip6 = 0;
     if (sockets_IsIPv4(ip, iplen)) {
         isip6 = 0;
-        sock->flags &= ~((uint16_t)_SOCKFLAG_ISV6TARGET);
     } else if (sockets_IsIPv6(ip, iplen)) {
         isip6 = 1;
         if ((sock->flags & SOCKFLAG_IPV6CAPABLE) == 0)
             return H64SOCKERROR_OPERATIONFAILED;
-        sock->flags |= _SOCKFLAG_ISV6TARGET;
     } else {
         return H64SOCKERROR_OPERATIONFAILED;
     }
@@ -401,8 +565,7 @@ int sockets_ConnectClient(
             connectionmustbedone: ;
             // Verify that we are likely connected:
             int definitelyconnected = 0;
-            if ((sock->flags & _SOCKFLAG_ISV6TARGET) == 0 &&
-                    (sock->flags & SOCKFLAG_IPV6CAPABLE) == 0) {
+            if ((sock->flags & SOCKFLAG_IPV6CAPABLE) == 0) {
                 struct sockaddr_in v4addr;
                 socklen_t v4size = sizeof(v4addr);
                 definitelyconnected = (getpeername(
@@ -421,7 +584,9 @@ int sockets_ConnectClient(
             {
                 int so_error = 0;
                 socklen_t len = sizeof(so_error);
-                getsockopt(sock->fd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+                getsockopt(
+                    sock->fd, SOL_SOCKET, SO_ERROR, &so_error, &len
+                );
                 if (so_error != 0)
                     hadsocketerror = 1;
             }
@@ -481,6 +646,8 @@ int sockets_ConnectClient(
             sock->flags |= _SOCKFLAG_NOOUTSTANDINGTLSCONNECT;
             return H64SOCKERROR_OPERATIONFAILED;
         }
+        sock->flags |= _SOCKFLAG_NOOUTSTANDINGTLSCONNECT;
+        SSL_set_connect_state(sock->sslobj);
     }
     return H64SOCKERROR_SUCCESS;
 }
@@ -492,6 +659,8 @@ int sockets_WasEverConnected(h64socket *sock) {
 void sockets_Destroy(h64socket *sock) {
     if (!sock)
         return;
+    if ((sock->flags & _SOCKFLAG_ISINSENDLIST) != 0)
+        _internal_sockets_UnregisterFromSend(sock, 1);
     if (sock->sslobj) {
         SSL_free(sock->sslobj);
         sock->sslobj = NULL;
@@ -507,18 +676,203 @@ void sockets_Destroy(h64socket *sock) {
 int sockets_Send(
         h64socket *s, const uint8_t *bytes, size_t byteslen
         ) {
+    if (byteslen <= 0)
+        return 0;
+    if (!_internal_sockets_RequireWorker())
+        return 0;
+    mutex_Lock(sockets_needing_send_pauseworkerlock);
+    threadevent_Set(sockets_needing_send_stopsocksetwaitev);
+    mutex_Lock(sockets_needing_send_mutex);
+    mutex_Release(sockets_needing_send_pauseworkerlock);
     if (s->sendbufsize < s->sendbuffill + byteslen) {
         char *newsendbuf = realloc(
             s->sendbuf,
             sizeof(*newsendbuf) * (byteslen + s->sendbuffill)
         );
-        if (!newsendbuf)
+        if (!newsendbuf) {
+            mutex_Release(sockets_needing_send_mutex);
             return 0;
+        }
         s->sendbuf = newsendbuf;
         s->sendbufsize = s->sendbuffill + byteslen;
     }
+    if ((s->flags & _SOCKFLAG_ISINSENDLIST) == 0) {
+        if (!_internal_sockets_RegisterForSend(s, 0)) {
+            mutex_Release(sockets_needing_send_mutex);
+            return 0;
+        }
+    }
     memcpy(s->sendbuf + s->sendbuffill, bytes, byteslen);
+    s->sendbuffill += byteslen;
+    mutex_Release(sockets_needing_send_mutex);
     return 1;
+}
+
+int sockets_NeedSend(h64socket *s) {
+    mutex_Lock(sockets_needing_send_mutex);
+    if (s->fd < 0 || s->sendbuffill == 0) {
+        mutex_Release(sockets_needing_send_mutex);
+        return 0;
+    }
+    mutex_Release(sockets_needing_send_mutex);
+    return 1;
+}
+
+int _internal_sockets_RegisterForSend(h64socket *s, int lock) {
+    if (lock)
+        mutex_Lock(sockets_needing_send_mutex);
+    if (s->fd < 0) {
+        if (lock)
+            mutex_Release(sockets_needing_send_mutex);
+        return 0;
+    }
+    if (sockets_needing_send_fill + 1 >
+            sockets_needing_send_alloc) {
+        int new_alloc = sockets_needing_send_fill + 16;
+        if (new_alloc < sockets_needing_send_alloc * 2)
+            new_alloc = sockets_needing_send_alloc * 2;
+        h64socket **new_needing_send = realloc(
+            sockets_needing_send,
+            sizeof(*new_needing_send) * new_alloc
+        );
+        if (!new_needing_send) {
+            if (lock)
+                mutex_Release(sockets_needing_send_mutex);
+            return 0;
+        }
+        sockets_needing_send = new_needing_send;
+        sockets_needing_send_alloc = new_alloc;
+    }
+    if (!sockset_Add(
+            &sockets_needing_send_set, s->fd,
+            H64SOCKSET_WAITERROR | H64SOCKSET_WAITWRITE
+            )) {
+        if (lock)
+            mutex_Release(sockets_needing_send_mutex);
+        return 0;
+    }
+    s->flags &= ~((uint16_t)_SOCKFLAG_SENDWAITSFORREAD);
+    sockets_needing_send[
+        sockets_needing_send_fill
+    ] = s;
+    sockets_needing_send_fill++;
+    if (lock)
+        mutex_Release(sockets_needing_send_mutex);
+    return 1;
+}
+
+void _internal_sockets_UnregisterFromSend(h64socket *s, int lock) {
+    if (lock)
+        mutex_Lock(sockets_needing_send_mutex);
+    int i = 0;
+    while (i < sockets_needing_send_fill) {
+        if (sockets_needing_send[i] == s) {
+            if (i + 1 < sockets_needing_send_fill)
+                memmove(
+                    &sockets_needing_send[i],
+                    &sockets_needing_send[i + 1],
+                    sizeof(*sockets_needing_send) *
+                        (sockets_needing_send_fill - i - 1)
+                );
+            sockets_needing_send_fill--;
+            continue;
+        }
+        i++;
+    }
+    if (lock)
+        mutex_Release(sockets_needing_send_mutex);
+}
+
+int _internal_sockets_ProcessSend(h64socket *s) {
+    assert(mutex_IsLocked(sockets_needing_send_mutex));
+    if (s->fd < 0)
+        return H64SOCKERROR_OPERATIONFAILED;
+    assert(s->_resent_attempt_fill <= s->sendbuffill);
+    if (s->sendbuffill <= 0)
+        return H64SOCKERROR_SUCCESS;
+    char *sendthis = s->sendbuf;
+    size_t sendlen = s->sendbuffill;
+    if (s->_resent_attempt_fill > 0)
+        sendlen = s->_resent_attempt_fill;
+    if ((s->flags & SOCKFLAG_TLS) != 0) {
+        int result = SSL_write(
+            s->sslobj, sendthis, sendlen
+        );
+        if (result <= 0) {
+            int error = SSL_get_error(
+                s->sslobj, result
+            );
+            if (error == SSL_ERROR_WANT_WRITE ||
+                    error == SSL_ERROR_WANT_CONNECT) {
+                s->_resent_attempt_fill = sendlen;
+                return H64SOCKERROR_NEEDTOWRITE;
+            } else if (error == SSL_ERROR_WANT_READ ||
+                    error == SSL_ERROR_WANT_ACCEPT) {
+                s->_resent_attempt_fill = sendlen;
+                return H64SOCKERROR_NEEDTOREAD;
+            } else {
+                SSL_free(s->sslobj);
+                #if defined(_WIN32) || defined(_WIN64)
+                closesocket(s->fd);
+                #else
+                close(s->fd);
+                #endif
+                s->fd = -1;
+                return H64SOCKERROR_OPERATIONFAILED;
+            }
+        }
+        s->_resent_attempt_fill = 0;
+        if (s->sendbuffill > (size_t)result)
+            memmove(
+                s->sendbuf, s->sendbuf + result,
+                s->sendbuffill - result
+            );
+        s->sendbuffill -= result;
+        if (s->sendbuffill <= 0) {
+            if ((s->flags & _SOCKFLAG_ISINSENDLIST) != 0) {
+                _internal_sockets_UnregisterFromSend(s, 0);
+            }
+        }
+        return H64SOCKERROR_SUCCESS;
+    } else {
+        int result = send(
+            s->fd, sendthis, sendlen,
+            #if defined(_WIN32) || defined(_WIN64)
+            0
+            #else
+            MSG_DONTWAIT
+            #endif
+        );
+        if (result <= 0) {
+            #if defined(_WIN32) || defined(_WIN64)
+            if (WSAGetLastError() == EAGAIN ||
+                    WSAGetLastError() == EWOULDBLOCK) {
+                s->_resent_attempt_fill = sendlen;
+                return H64SOCKERROR_NEEDTOWRITE;
+            }
+            #else
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                s->_resent_attempt_fill = sendlen;
+                return H64SOCKERROR_NEEDTOWRITE;
+            }
+            #endif
+            #if defined(_WIN32) || defined(_WIN64)
+            closesocket(s->fd);
+            #else
+            close(s->fd);
+            #endif
+            s->fd = -1;
+            return H64SOCKERROR_OPERATIONFAILED;
+        }
+        s->_resent_attempt_fill = 0;
+        if (s->sendbuffill > (size_t)result)
+            memmove(
+                s->sendbuf, s->sendbuf + result,
+                s->sendbuffill - result
+            );
+        s->sendbuffill -= result;
+        return H64SOCKERROR_SUCCESS;
+    }
 }
 
 typedef struct _h64socketpairsetup {

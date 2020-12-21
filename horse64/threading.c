@@ -437,6 +437,13 @@ threadevent *threadevent_Create() {
     return te;
 }
 
+int mutex_IsLocked(mutex *m) {
+    int result = mutex_TryLock(m);
+    if (result)
+        mutex_Release(m);
+    return (result == 0);
+}
+
 int threadevent_PollIsSet(threadevent *te, int unsetifset) {
     mutex_Lock(te->datalock);
     if (te->set) {
