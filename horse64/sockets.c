@@ -845,8 +845,7 @@ int _internal_sockets_ProcessSend(h64socket *s) {
         );
         if (result <= 0) {
             #if defined(_WIN32) || defined(_WIN64)
-            if (WSAGetLastError() == EAGAIN ||
-                    WSAGetLastError() == EWOULDBLOCK) {
+            if (WSAGetLastError() == WSAEWOULDBLOCK) {
                 s->_resent_attempt_fill = sendlen;
                 return H64SOCKERROR_NEEDTOWRITE;
             }
