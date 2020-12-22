@@ -215,7 +215,7 @@ void _ssend_worker(ATTR_UNUSED void *userdata) {  // socket send worker.
                         SSL_free(s->sslobj);
                     s->sslobj = NULL;
                     #if defined(_WIN32) || defined(_WIN64)
-                    closesocket(s->fd):
+                    closesocket(s->fd);
                     #else
                     close(s->fd);
                     #endif
@@ -585,7 +585,7 @@ int sockets_ConnectClient(
                 int so_error = 0;
                 socklen_t len = sizeof(so_error);
                 getsockopt(
-                    sock->fd, SOL_SOCKET, SO_ERROR, &so_error, &len
+                    sock->fd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len
                 );
                 if (so_error != 0)
                     hadsocketerror = 1;
