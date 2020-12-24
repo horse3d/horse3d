@@ -710,6 +710,9 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
         mutex_Release(_waited_for_socklist_supervisorPREmutex);
 
         // Wait for any socket events, up to max waiting time:
+        #ifndef NDEBUG
+        uint64_t waitstart = datetime_Ticks();
+        #endif
         mutex_Lock(_waited_for_socklist_mutex);
         if (timerwaitsmin >= 0) {
             // Wait only roughly as long as we are allowed to, for timers:
@@ -719,6 +722,42 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
             sockset_Wait(&_waited_for_socklist, 5000);
         }
         mutex_Release(_waited_for_socklist_mutex);
+        #ifndef NDEBUG
+        if (vmexec->moptions.vmscheduler_verbose_debug) {
+            int fds_count = 0;
+            int *fds = sockset_GetResultList(
+                &_waited_for_socklist, NULL, 0,
+                H64SOCKSET_WAITALL, &fds_count
+            );
+            char printmsg[2048] = "";
+            h64snprintf(
+                printmsg, sizeof(printmsg) - 1,
+                "horsevm: debug: vmschedule.c: "
+                "[SU] EVENTWAIT wait time was %" PRId64
+                ", fds set: ", datetime_Ticks() - waitstart
+            );
+            int i = 0;
+            while (i + 1 < fds_count * 2) {
+                char addition[64] = "";
+                if (i > 0)
+                    h64snprintf(
+                        addition, sizeof(addition) - 1, ", "
+                    );
+                h64snprintf(
+                    addition + strlen(addition),
+                    sizeof(addition) - 1 - strlen(addition),
+                    "%d[%d]", fds[i], fds[i + 1]
+                );
+                h64snprintf(
+                    printmsg + strlen(printmsg),
+                    sizeof(printmsg) - 1 - strlen(printmsg),
+                    "%s", addition
+                );
+                i += 2;
+            }
+            h64fprintf(stderr, "%s\n", printmsg);
+        }
+        #endif
         asyncjob_FlushSupervisorWakeupEvents();
         if (vmexec->supervisor_stop_signal)
             break;

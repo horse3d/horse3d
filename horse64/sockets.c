@@ -350,6 +350,93 @@ h64socket *sockets_New(int ipv6capable, int tls) {
     return sock;
 }
 
+
+int *sockset_GetResultList(
+        h64sockset *set, int *fdbuf, int fdbufsize,
+        int waittypes, int *result_fd_count
+        ) {
+    if (!set) {
+        if (result_fd_count)
+            *result_fd_count = 0;
+        return NULL;
+    }
+    int onheap = 0;
+    int resultcount = 0;
+    int allocsize = fdbufsize;
+    if (!fdbuf || allocsize < 0) {
+        allocsize = 0;
+        fdbuf = NULL;
+    }
+    #if !defined(_WIN32) && !defined(_WIN64) && defined(CANUSEPOLL)
+    struct pollfd *resultset = (
+        set->size != 0 ? set->result : set->smallresult
+    );
+    #endif
+    int i = 0;
+    while (i <
+            #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
+            FD_SETSIZE
+            #else
+            set->resultfill
+            #endif
+            ) {
+        int result = 0;
+        #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
+        int fd = i;
+        if ((waittypes & H64SOCKSET_WAITERROR) != 0 &&
+                FD_ISSET(fd, &set->errorset))
+            result |= H64SOCKSET_WAITERROR;
+        if ((waittypes & H64SOCKSET_WAITWRITE) != 0 &&
+                FD_ISSET(fd, &set->writeset))
+            result |= H64SOCKSET_WAITWRITE;
+        if ((waittypes & H64SOCKSET_WAITREAD) != 0 &&
+                FD_ISSET(fd, &set->readset))
+            result |= H64SOCKSET_WAITREAD;
+        #else
+        int fd = resultset[i].fd;
+        result = (resultset[i].revents & waittypes);
+        #endif
+        if (result != 0) {
+            if (resultcount + 2 > allocsize) {
+                int newallocsize = allocsize *= 2;
+                if (newallocsize < resultcount + 16)
+                    newallocsize = resultcount + 16;
+                int *newfdbuf = NULL;
+                if (onheap) {
+                    newfdbuf = realloc(
+                        fdbuf, sizeof(*newfdbuf) * newallocsize
+                    );
+                } else {
+                    newfdbuf = malloc(
+                        sizeof(*newfdbuf) * newallocsize
+                    );
+                    if (newfdbuf && resultcount > 0)
+                        memcpy(
+                            newfdbuf, fdbuf,
+                            sizeof(*newfdbuf) * resultcount
+                        );
+                }
+                if (!newfdbuf) {
+                    if (onheap && fdbuf)
+                        free(fdbuf);
+                    if (result_fd_count)
+                        *result_fd_count = 0;
+                    return NULL;
+                }
+                onheap = 1;
+                fdbuf = newfdbuf;
+                allocsize = newallocsize;
+            }
+            fdbuf[resultcount] = fd;
+            fdbuf[resultcount + 1] = result;
+            resultcount += 2;
+        }
+        i++;
+    }
+    if (result_fd_count) *result_fd_count = resultcount / 2;
+    return fdbuf;
+}
+
 int sockets_ConnectClient(
         h64socket *sock, const h64wchar *ip, int64_t iplen, int port
         ) {

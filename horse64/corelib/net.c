@@ -17,6 +17,7 @@
 #include "poolalloc.h"
 #include "sockets.h"
 #include "stack.h"
+#include "valuecontentstruct.h"
 #include "vmexec.h"
 #include "vmschedule.h"
 #include "widechar.h"
@@ -154,6 +155,8 @@ int netlib_connect(h64vmthread *vmthread) {
     int32_t encrypt = 0;
     if (vcencrypt->type == H64VALTYPE_BOOL) {
         encrypt = (vcencrypt->int_value != 0);
+    } else if (vcencrypt->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        encrypt = 0;
     } else {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,

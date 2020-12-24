@@ -21,6 +21,11 @@
 #endif
 #endif
 
+// FD set size on Windows:
+#if defined(_WIN32) || defined(_WIN64)
+#define FD_SETSIZE 1024
+#endif
+
 #define USE_POLL_ON_UNIX 1
 
 #endif  // HORSE64_COMPILECONFIG_H_

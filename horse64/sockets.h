@@ -218,6 +218,11 @@ ATTR_UNUSED static inline void sockset_Uninit(
     #endif
 }
 
+int *sockset_GetResultList(
+    h64sockset *set, int *fdbuf, int fdbufsize,
+    int waittypes, int *resultcount
+);
+
 int sockset_Wait(
     h64sockset *set, int64_t timeout_ms
 );
