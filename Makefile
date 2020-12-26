@@ -132,3 +132,7 @@ veryclean: clean
 	rm -f $(BINNAME)-*.exe $(BINNAME)-*.bin
 	cd $(OPENSSLPATH) && rm -f lib*.a
 	cd $(PHYSFSPATH) && rm -f libphysfs.a
+
+install:
+	echo "Use horp to install horsec. Or just run the horsec binary directly."
+	exit 0
