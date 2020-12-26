@@ -755,7 +755,10 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
                 );
                 i += 2;
             }
-            h64fprintf(stderr, "%s\n", printmsg);
+            h64fprintf(
+                stderr, "%s (supervisor wakeup fd: %d)\n",
+                printmsg, (int)_asyncjob_GetSupervisorWaitFD()
+            );
         }
         #endif
         asyncjob_FlushSupervisorWakeupEvents();
