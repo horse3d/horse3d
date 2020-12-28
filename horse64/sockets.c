@@ -120,6 +120,7 @@ __attribute__((constructor)) void _sockinit() {
             "OpenSSL SSL_CTX_set_cipher_list() failed\n");
             exit(1);
         }
+        free(filtered_cipher_list);
     }
 
     // Configure TLS 1.3 ciphers:

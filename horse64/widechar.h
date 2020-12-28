@@ -55,8 +55,14 @@ int utf32_to_utf8(
 
 int utf32_to_utf16(
     const h64wchar *input, int64_t input_len,
-    char *outbuf, int64_t outbuflen,
+    char *outbuf, int64_t outbufbyteslen,
     int64_t *out_len, int surrogateunescape
+);
+
+h64wchar *utf16_to_utf32(
+    const h64wchar *input, int64_t input_len,
+    int64_t *out_len, int surrogateescape,
+    int *wasoom
 );
 
 int64_t utf32_letter_len(
@@ -79,5 +85,9 @@ int utf16_to_utf8(
     char *outbuf, int64_t outbuflen,
     int64_t *out_len, int surrogateescape
 );
+
+void utf32_tolower(h64wchar *s, int64_t slen);
+
+void utf32_toupper(h64wchar *s, int64_t slen);
 
 #endif  // HORSE64_WIDECHAR_H_

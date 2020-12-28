@@ -1,0 +1,6 @@
+
+import net from core.horse64.org
+
+func get(url, require_encrypt=true) {
+    #var connection = net.connect()
+}

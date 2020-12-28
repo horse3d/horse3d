@@ -121,7 +121,7 @@ int write_codepoint_as_utf8(
             codepoint >= 0xDC80ULL + 0 &&
             codepoint <= 0xDC80ULL + 255) {
         if (outbuflen < 1) return 0;
-        out[0] = (int)(codepoint - 0xDC80ULL);
+        ((uint8_t *)out)[0] = (int)(codepoint - 0xDC80ULL);
         if (outbuflen >= 2)
             out[1] = '\0';
         if (outlen) *outlen = 1;
@@ -129,7 +129,7 @@ int write_codepoint_as_utf8(
     }
     if (codepoint < 0x80ULL) {
         if (outbuflen < 1) return 0;
-        out[0] = (int)codepoint;
+        ((uint8_t *)out)[0] = (int)codepoint;
         if (outbuflen >= 2)
             out[1] = '\0';
         if (outlen) *outlen = 1;
@@ -138,8 +138,8 @@ int write_codepoint_as_utf8(
         uint64_t byte2val = (codepoint & 0x3FULL);
         uint64_t byte1val = (codepoint & 0x7C0ULL) >> 6;
         if (outbuflen < 2) return 0;
-        out[0] = (int)(byte1val | 0xC0);
-        out[1] = (int)(byte2val | 0x80);
+        ((uint8_t *)out)[0] = (int)(byte1val | 0xC0);
+        ((uint8_t *)out)[1] = (int)(byte2val | 0x80);
         if (outbuflen >= 3)
             out[2] = '\0';
         if (outlen) *outlen = 2;
@@ -149,9 +149,9 @@ int write_codepoint_as_utf8(
         uint64_t byte2val = (codepoint & 0xFC0ULL) >> 6;
         uint64_t byte1val = (codepoint & 0xF000ULL) >> 12;
         if (outbuflen < 3) return 0;
-        out[0] = (int)(byte1val | 0xE0);
-        out[1] = (int)(byte2val | 0x80);
-        out[2] = (int)(byte3val | 0x80);
+        ((uint8_t *)out)[0] = (int)(byte1val | 0xE0);
+        ((uint8_t *)out)[1] = (int)(byte2val | 0x80);
+        ((uint8_t *)out)[2] = (int)(byte3val | 0x80);
         if (outbuflen >= 4)
             out[3] = '\0';
         if (outlen) *outlen = 3;
@@ -162,19 +162,19 @@ int write_codepoint_as_utf8(
         uint64_t byte2val = (codepoint & 0x3F000ULL) >> 12;
         uint64_t byte1val = (codepoint & 0x1C0000ULL) >> 18;
         if (outbuflen < 4) return 0;
-        out[0] = (int)(byte1val | 0xF0);
-        out[1] = (int)(byte2val | 0x80);
-        out[2] = (int)(byte3val | 0x80);
-        out[3] = (int)(byte4val | 0x80);
+        ((uint8_t *)out)[0] = (int)(byte1val | 0xF0);
+        ((uint8_t *)out)[1] = (int)(byte2val | 0x80);
+        ((uint8_t *)out)[2] = (int)(byte3val | 0x80);
+        ((uint8_t *)out)[3] = (int)(byte4val | 0x80);
         if (outbuflen >= 5)
             out[4] = '\0';
         if (outlen) *outlen = 4;
         return 1;
     } else if (questionmarkescape) {
         if (outbuflen < 3) return 0;
-        out[0] = (int)0xEF;
-        out[1] = (int)0xBF;
-        out[2] = (int)0xBD;
+        ((uint8_t *)out)[0] = (int)0xEF;
+        ((uint8_t *)out)[1] = (int)0xBF;
+        ((uint8_t *)out)[2] = (int)0xBD;
         if (outbuflen >= 4)
             out[3] = '\0';
         if (outlen) *outlen = 3;
@@ -429,6 +429,14 @@ int utf32_to_utf8(
     return 1;
 }
 
+h64wchar *utf16_to_utf32(
+        const h64wchar *input, int64_t input_len,
+        int64_t *out_len, int surrogateescape,
+        int *wasoom
+        ) {
+    assert(0);  // FIXME implement
+}
+
 int utf32_to_utf16(
         const h64wchar *input, int64_t input_len,
         char *outbuf, int64_t outbuflen,
@@ -570,6 +578,7 @@ int utf16_to_utf8(
         if (value >= 0xD800 && value < 0xE000 &&
                 i + 1 < input_len &&
                 p[1] >= 0xD800 && p[1] < 0xE000) {
+            // Possibly valid regular UTF-16 surrogates.
             uint64_t sg1 = value & 0x3FF;
             sg1 = sg1 << 10;
             uint64_t sg2 = p[1] & 0x3FF;
@@ -633,4 +642,30 @@ int utf16_to_utf8(
     }
     if (out_len) *out_len = (int64_t)totallen;
     return 1;
+}
+
+void utf32_tolower(h64wchar *s, int64_t slen) {
+    int i = 0;
+    while (i < slen) {
+        uint64_t codepoint = s[i];
+        int64_t lowered = -1;
+        if ((int64_t)codepoint <= _widechartbl_highest_cp)
+            lowered = _widechartbl_lowercp[codepoint];
+        if (lowered >= 0)
+            s[i] = lowered;
+        i++;
+    }
+}
+
+void utf32_toupper(h64wchar *s, int64_t slen) {
+    int i = 0;
+    while (i < slen) {
+        uint64_t codepoint = s[i];
+        int64_t uppered = -1;
+        if ((int64_t)codepoint <= _widechartbl_highest_cp)
+            uppered = _widechartbl_lowercp[codepoint];
+        if (uppered >= 0)
+            s[i] = uppered;
+        i++;
+    }
 }

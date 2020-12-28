@@ -150,7 +150,11 @@ int filesys_RemoveFile(const char *path) {
     return 1;
 }
 
-char *filesys_RemoveDoubleSlashes(const char *path) {
+char *filesys_RemoveDoubleSlashes(
+        const char *path, int couldbewinpath
+        ) {
+    // MAINTENANCE NOTE: KEEP IN SYNC WITH filesys_RemoveDoubleSlashes()!!!
+
     if (!path)
         return NULL;
     char *p = strdup(path);
@@ -162,12 +166,12 @@ char *filesys_RemoveDoubleSlashes(const char *path) {
     int i = 0;
     while (i < (int)strlen(p)) {
         if (p[i] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || p[i] == '\\'
-                #endif
+                || (couldbewinpath && p[i] == '\\')
                 ) {
             #if defined(_WIN32) || defined(_WIN64)
             p[i] = '\\';
+            #else
+            p[i] = '/';
             #endif
             if (!lastwassep) {
                 lastwassep = 1;
@@ -185,18 +189,27 @@ char *filesys_RemoveDoubleSlashes(const char *path) {
     }
     if (strlen(p) > 1 && (
             p[strlen(p) - 1] == '/'
-            #if defined(_WIN32) || defined(_WIN64)
-            || p[strlen(p) - 1] == '\\'
-            #endif
+            || (couldbewinpath && p[strlen(p) - 1] == '\\')
             )) {
         p[strlen(p) - 1] = '\0';
     }
     return p;
 }
 
+char *filesys_NormalizeEx(const char *path, int couldbewinpath) {
+    // MAINTENANCE NOTE: KEEP THIS IN SINC WITH filesys32_Normalize()!!!
 
-char *filesys_Normalize(const char *path) {
-    char *result = filesys_RemoveDoubleSlashes(path);
+    if (couldbewinpath == -1) {
+        #if defined(_WIN32) || defined(_WIN64)
+        couldbewinpath = 1;
+        #else
+        couldbewinpath = 0;
+        #endif
+    }
+
+    char *result = filesys_RemoveDoubleSlashes(
+        path, couldbewinpath
+    );
     if (!result)
         return NULL;
 
@@ -205,23 +218,18 @@ char *filesys_Normalize(const char *path) {
     int i = 0;
     while (i < (int)strlen(result)) {
         if ((result[i] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || result[i] == '\\'
-                #endif
+                || (couldbewinpath && result[i] == '\\')
                 ) && result[i + 1] == '.' &&
                 result[i + 2] == '.' && (
                 result[i + 3] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || result[i + 3] == '\\'
-                #endif
+                || (couldbewinpath && result[i + 3] == '\\')
                 || result[i + 3] == '\0'
                 ) && i > last_component_start && i > 0 &&
                 (result[last_component_start + 1] != '.' ||
                  result[last_component_start + 2] != '.' ||
                  (result[last_component_start + 3] != '/'
-                  #if defined(_WIN32) || defined(_WIN64)
-                  && result[last_component_start + 3] != '\\'
-                  #endif
+                  && (!couldbewinpath ||
+                  result[last_component_start + 3] != '\\')
                  )
                 )) {
             // Collapse ../ into previous component:
@@ -236,14 +244,10 @@ char *filesys_Normalize(const char *path) {
             last_component_start = 0;
             continue;
         } else if ((result[i] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || result[i] == '\\'
-                #endif
+                || (couldbewinpath && result[i] == '\\')
                 ) && result[i + 1] == '.' && (
                 result[i + 2] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || result[i + 2] == '\\'
-                #endif
+                || (couldbewinpath && result[i + 2] == '\\')
                 )) {
             // Collapse unncessary ./ away:
             last_component_start = i;
@@ -251,16 +255,12 @@ char *filesys_Normalize(const char *path) {
                     strlen(result) - (i - 2) + 1);
             continue;
         } else if (result[i] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || result[i] == '\\'
-                #endif
+                || (couldbewinpath && result[i] == '\\')
                 ) {
             last_component_start = i;
             // Collapse all double slashes away:
             while (result[i + 1] == '/'
-                    #if defined(_WIN32) || defined(_WIN64)
-                    || result[i + 1] == '\\'
-                    #endif
+                    || (couldbewinpath && result[i + 1] == '\\')
                     ) {
                 memmove(result + i, result + (i + 1),
                         strlen(result) - (i - 1) + 1);
@@ -272,9 +272,7 @@ char *filesys_Normalize(const char *path) {
     // Remove leading ./ instances:
     while (strlen(result) >= 2 && result[0] == '.' && (
             result[1] == '/'
-            #if defined(_WIN32) || defined(_WIN64)
-            || result[1] == '\\'
-            #endif
+            || (couldbewinpath && result[1] == '\\')
             )) {
         memmove(result, result + 2, strlen(result) + 1 - 2);
     }
@@ -283,9 +281,7 @@ char *filesys_Normalize(const char *path) {
     i = 0;
     while (i < (int)strlen(result)) {
         if (result[i] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || result[i] == '\\'
-                #endif
+                || (couldbewinpath && result[i] == '\\')
                 ) {
             #if defined(_WIN32) || defined(_WIN64)
             result[i] = '\\';
@@ -299,9 +295,7 @@ char *filesys_Normalize(const char *path) {
     // Remove trailing path separators:
     while (strlen(result) > 0) {
         if (result[strlen(result) - 1] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || result[strlen(result) - 1] == '\\'
-                #endif
+                || (couldbewinpath && result[strlen(result) - 1] == '\\')
                 ) {
             result[strlen(result) - 1] = '\0';
         } else {
@@ -375,9 +369,12 @@ void filesys_RequestFilesystemAccess() {
 }
 
 
-int filesys_CreateDirectory(const char *path) {
+int filesys_CreateDirectory(const char *path, int user_readable_only) {
     #if defined(ANDROID) || defined(__ANDROID__) || defined(__unix__) || defined(__linux__) || defined(__APPLE__) || defined(__OSX__)
-    return (mkdir(path, 0700) == 0);
+    if (user_readable_only)
+        return (mkdir(path, 0700) == 0);
+    else
+        return (mkdir(path, 0755) == 0);
     #elif defined(_WIN32) || defined(_WIN64)
     return (CreateDirectory(path, NULL) != 0);
     #else
@@ -442,7 +439,7 @@ const char *_filesys_DocumentsBasePath() {
     #endif
     #endif
     if (_documentspath && !filesys_IsDirectory(_documentspath)) {
-        filesys_CreateDirectory(_documentspath);
+        filesys_CreateDirectory(_documentspath, 1);
     }
     return _documentspath;
 }
@@ -540,7 +537,7 @@ const char *filesys_AppDataSubFolder(const char *appname) {
     #endif
     #endif
     if (_appdatapath && !filesys_IsDirectory(_appdatapath)) {
-        filesys_CreateDirectory(_appdatapath);
+        filesys_CreateDirectory(_appdatapath, 1);
     }
     return _appdatapath;
 }
@@ -578,7 +575,7 @@ const char *filesys_DocumentsSubFolder(
     );
         
     if (!filesys_IsDirectory(docsubfolderbuf)) {
-        filesys_CreateDirectory(docsubfolderbuf);
+        filesys_CreateDirectory(docsubfolderbuf, 0);
     }
 
     return docsubfolderbuf;
@@ -1102,22 +1099,6 @@ char *filesys_ToAbsolutePath(const char *path) {
     return result;
 }
 
-int filesys_PathCompare(const char *p1, const char *p2) {
-    char *p1normalized = filesys_Normalize(p1);
-    char *p2normalized = filesys_Normalize(p2);
-    if (!p1normalized || !p2normalized) {
-        if (p1normalized)
-            free(p1normalized);
-        if (p2normalized)
-            free(p2normalized);
-        return -1;
-    }
-    int result = strcmp(p1normalized, p2normalized) == 0;
-    free(p1normalized);
-    free(p2normalized);
-    return result;
-}
-
 char *filesys_GetCurrentDirectory() {
     #if defined(_WIN32) || defined(_WIN64)
     DWORD size = GetCurrentDirectory(0, NULL);
@@ -1479,7 +1460,7 @@ FILE *filesys_TempFile(
     }
     tempbuffill = strlen("/tmp/");
     #endif
-    uint64_t v[2];
+    uint64_t v[4];
     if (!secrandom_GetBytes(
             (char*)&v, sizeof(v)
             )) {
@@ -1489,14 +1470,14 @@ FILE *filesys_TempFile(
     char extbuf[512];
     snprintf(
         extbuf, sizeof(extbuf) - 1,
-        "%s%s%" PRIu64 "%" PRIu64 "%s%s",
+        "%s%s%" PRIu64 "%" PRIu64 "%" PRIu64 "%" PRIu64 "%s%s",
         #if defined(_WIN32) || defined(_WIN64)
         "\\",
         #else
         "/",
         #endif
         (subfolder ? "" : prefix),
-        v[0], v[1],
+        v[0], v[1], v[2], v[3],
         #if defined(_WIN32) || defined(_WIN64)
         (subfolder ? "\\" : ""),
         #else
@@ -1514,7 +1495,7 @@ FILE *filesys_TempFile(
     memcpy(combined_path + tempbuffill, extbuf, strlen(extbuf) + 1);
     free(tempbuf);
     if (subfolder) {
-        if (!filesys_CreateDirectory(combined_path)) {
+        if (!filesys_CreateDirectory(combined_path, 1)) {
             free(combined_path);
             return NULL;
         }
@@ -1533,7 +1514,8 @@ FILE *filesys_TempFile(
         );
         if (prefix)
             memcpy(
-                file_path + strlen(combined_path), prefix, strlen(prefix)
+                file_path + strlen(combined_path),
+                prefix, strlen(prefix)
             );
         memcpy(
             file_path + strlen(combined_path) +
@@ -1570,4 +1552,8 @@ FILE *filesys_TempFile(
         return NULL;
     }
     return f;
+}
+
+char *filesys_Normalize(const char *path) {
+    return filesys_NormalizeEx(path, -1);
 }

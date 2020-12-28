@@ -38,16 +38,18 @@ START_TEST (test_scope_import_complex)
         assert(result != 0);
     }
     assert(filesys_FileExists(testfolder_path) == 0);
-    int createresult = filesys_CreateDirectory(testfolder_path);
-    ck_assert(createresult);
-    createresult = filesys_CreateDirectory(".testdata-prj/horse_modules");
+    int createresult = filesys_CreateDirectory(testfolder_path, 1);
     ck_assert(createresult);
     createresult = filesys_CreateDirectory(
-        ".testdata-prj/horse_modules/my.lib"
+        ".testdata-prj/horse_modules", 1
     );
     ck_assert(createresult);
     createresult = filesys_CreateDirectory(
-        ".testdata-prj/horse_modules/my.lib/mymodule"
+        ".testdata-prj/horse_modules/my.lib", 1
+    );
+    ck_assert(createresult);
+    createresult = filesys_CreateDirectory(
+        ".testdata-prj/horse_modules/my.lib/mymodule", 1
     );
     ck_assert(createresult);
 

@@ -74,7 +74,7 @@ ATTR_UNUSED static inline int64_t h64strtoll(
         char const *str, char **end_ptr, int base
         ) {
     /// Parses a signed 64 bit integer, returns resulting int or 0.
-    /// Important: base must be >= 2 and <= 3,
+    /// Important: base must be >= 2 and <= 36,
     /// and *end_ptr is always set to NULL.
     if (end_ptr) *end_ptr = NULL;
 

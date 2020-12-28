@@ -36,7 +36,9 @@ int filesys_GetComponentCount(const char *path);
 
 void filesys_RequestFilesystemAccess();
 
-int filesys_CreateDirectory(const char *path);
+int filesys_CreateDirectory(
+    const char *path, int user_readable_only
+);
 
 char *filesys_GetOwnExecutable();
 
@@ -58,6 +60,8 @@ int filesys_GetSize(const char *path, uint64_t *size);
 
 char *filesys_Normalize(const char *path);
 
+char *filesys_NormalizeEx(const char *path, int couldbewinpath);
+
 char *filesys_GetCurrentDirectory();
 
 char *filesys_GetRealPath(const char *s);
@@ -65,8 +69,6 @@ char *filesys_GetRealPath(const char *s);
 char *filesys_TurnIntoPathRelativeTo(
     const char *path, const char *makerelativetopath
 );
-
-int filesys_PathCompare(const char *p1, const char *p2);
 
 int filesys_FolderContainsPath(
     const char *folder_path, const char *check_path,
