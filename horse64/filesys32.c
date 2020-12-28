@@ -382,6 +382,7 @@ h64wchar *filesys32_GetCurrentDirectory(int64_t *out_len) {
         cwd, strlen(cwd), NULL, 0, NULL, NULL, &resultlen,
         1, 0, &wasinvalid, &wasoom
     );
+    free(cwd);
     if (result)
         if (out_len) *out_len = resultlen;
     return result;

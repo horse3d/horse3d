@@ -1007,12 +1007,28 @@ int vmschedule_ExecuteProgram(
     thread_Join(
         supervisor_thread
     );
+    // Clean up everything:
     if (threaderror && mainexec->program_return_value == 0)
         mainexec->program_return_value = -1;
     int retval = mainexec->program_return_value;
     while (mainexec->thread_count > 0) {
         vmthread_Free(mainexec->thread[0]);
     }
+    i = 0;
+    while (i < mainexec->worker_overview->worker_count) {
+        threadevent_Free(
+            mainexec->worker_overview->worker[i]->wakeupevent
+        );
+        free(mainexec->worker_overview->worker[i]);
+        i++;
+    }
+    mainexec->worker_overview->worker_count = 0;
+    threadevent_Free(_waited_for_socklist_supervisorunlockevent);
+    _waited_for_socklist_supervisorunlockevent = NULL;
+    mutex_Destroy(_waited_for_socklist_mutex);
+    _waited_for_socklist_mutex = NULL;
+    mutex_Destroy(_waited_for_socklist_supervisorPREmutex);
+    _waited_for_socklist_supervisorPREmutex = NULL;
     vmexec_Free(mainexec);
     #ifndef NDEBUG
     if (moptions->vmscheduler_debug)
