@@ -5,8 +5,12 @@
 
 #include "compileconfig.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#endif
 
 #include "filesys.h"
 #include "filesys32.h"
@@ -228,10 +232,10 @@ h64wchar *filesys32_ToAbsolutePath(
 
 int filesys32_AssumeCaseSensitiveHostFS() {
     #if defined(_WIN32) || defined(_WIN64)
-    return 1
+    return 1;
     #else
     #if defined(__APPLE__)
-    return 1
+    return 1;
     #endif
     #endif
     return 0;
@@ -331,8 +335,8 @@ int filesys32_PathCompare(
             p1normalized, p1normalizedlen,
             p2normalized, p2normalizedlen, &wasoom
         ));
-        free(p1normalized):
-        free(p2normalized):
+        free(p1normalized);
+        free(p2normalized);
         if (!result && wasoom)
             return -1;
         return result;
@@ -362,7 +366,7 @@ h64wchar *filesys32_GetCurrentDirectory(int64_t *out_len) {
         return NULL;
     }
     int hadoom = 0;
-    in64_t resultlen = 0;
+    int64_t resultlen = 0;
     h64wchar *result = utf16_to_utf32(
         s, size, &resultlen, 1, &hadoom
     );

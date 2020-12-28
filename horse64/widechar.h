@@ -60,7 +60,7 @@ int utf32_to_utf16(
 );
 
 h64wchar *utf16_to_utf32(
-    const h64wchar *input, int64_t input_len,
+    const uint16_t *input, int64_t input_len,
     int64_t *out_len, int surrogateescape,
     int *wasoom
 );
