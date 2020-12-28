@@ -21,6 +21,7 @@
 #include "corelib/moduleless.h"
 #include "corelib/system.h"
 #include "corelib/time.h"
+#include "corelib/uri.h"
 #include "gcvalue.h"
 #include "hash.h"
 #include "net.h"
@@ -472,6 +473,10 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
 
     // 'system' module:
     if (!systemlib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'uri' module:
+    if (!urilib_RegisterFuncsAndModules(p))
         return 0;
 
     // 'print' function:

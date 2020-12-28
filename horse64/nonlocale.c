@@ -39,3 +39,81 @@ __attribute__((constructor)) static inline void _genlocale() {
         h64localeset = 1;
     }
 }
+
+int64_t h64casecmp_u32(
+        const h64wchar *s1, int64_t s1len,
+        const h64wchar *s2, int64_t s2len
+        ) {
+    int i = 0;
+    while (i < s1len && i < s2len) {
+        h64wchar s1c = s1[i];
+        utf32_tolower(&s1c, 1);
+        h64wchar s2c = s2[i];
+        utf32_tolower(&s2c, 1);
+        if (s1c != s2c)
+            return ((int64_t)s1c) - ((int64_t)s2c);
+        i++;
+    }
+    if (s1len != s2len)
+        return ((int64_t)s1len) - ((int64_t)s2len);
+    return 0;
+}
+
+
+uint64_t h64strtoull(
+        char const *str, char **end_ptr, int base
+        ) {
+    /// Parses a unsigned 64 bit integer, return resulting int or 0.
+    /// Important: base must be >= 2 and <= 36,
+    /// and *end_ptr is always set to NULL.
+    if (end_ptr) *end_ptr = NULL;
+
+    if (base < 2 || base > 36)
+        return 0;
+
+    uint64_t result = 0;
+    while (*str) {
+        uint64_t prev_result = result;
+        result *= base;
+        if (result < prev_result)  // overflow
+            return UINT64_MAX;
+
+        uint8_t digit = _parse_digit(*str);
+        if (digit >= base)
+            return result;
+
+        result += digit;
+
+        str += 1;
+    }
+
+    return result;
+}
+
+int64_t h64strtoll(
+        char const *str, char **end_ptr, int base
+        ) {
+    /// Parses a signed 64 bit integer, returns resulting int or 0.
+    /// Important: base must be >= 2 and <= 36,
+    /// and *end_ptr is always set to NULL.
+    if (end_ptr) *end_ptr = NULL;
+
+    int64_t sresult;
+    if (str[0] == '-') {
+        uint64_t result = h64strtoull(
+            str + 1, NULL, base
+        );
+        if (result > 0x8000000000000000ULL)
+            return INT64_MAX;
+        else if (result == 0x8000000000000000ULL)
+            sresult = INT64_MIN;
+        else
+            sresult = -(int64_t)(result);
+    } else {
+        uint64_t result = h64strtoull(str, NULL, base);
+        if(result >= 0x8000000000000000ULL)
+            return INT64_MAX;
+        sresult = (int64_t)(result);
+    }
+    return sresult;
+}

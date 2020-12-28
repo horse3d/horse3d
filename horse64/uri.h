@@ -35,11 +35,11 @@ int uri_Compare(
 );
 
 int uri32info_to_uriinfo(
-    const uri32info *input, uriinfo *output
+    uriinfo *output, const uri32info *input
 );
 
 int uriinfo_to_uri32info(
-    const uriinfo *input, uri32info *output
+    uri32info *output, const uriinfo *input
 );
 
 #endif  // HORSE64_URI_H_

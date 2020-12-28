@@ -41,7 +41,7 @@ h64compileproject *compileproject_New(
     memset(pr, 0, sizeof(*pr));
     warningconfig_Init(&pr->warnconfig);
 
-    uriinfo *uinfo = uri_ParseEx(basefolderuri, "https");
+    uriinfo *uinfo = uri_ParseEx(basefolderuri, "file");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             h64casecmp(uinfo->protocol, "file") != 0) {
         uri_Free(uinfo);
@@ -98,7 +98,7 @@ char *compileproject_URIRelPath(
         return NULL;
     }
 
-    uriinfo *uinfo = uri_ParseEx(fileuri, "https");
+    uriinfo *uinfo = uri_ParseEx(fileuri, "file");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             h64casecmp(uinfo->protocol, "file") != 0) {
         uri_Free(uinfo);
@@ -319,7 +319,7 @@ char *compileproject_GetFileSubProjectPath(
         char **subproject_name, int *outofmemory
         ) {
     // Parse sourcefileuri given to us:
-    uriinfo *uinfo = uri_ParseEx(sourcefileuri, "https");
+    uriinfo *uinfo = uri_ParseEx(sourcefileuri, "file");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             h64casecmp(uinfo->protocol, "file") != 0) {
         if (outofmemory && !uinfo) *outofmemory = 1;
@@ -1016,7 +1016,7 @@ char *compileproject_FolderGuess(
         char **error
         ) {
     assert(fileuri != NULL);
-    uriinfo *uinfo = uri_ParseEx(fileuri, "https");
+    uriinfo *uinfo = uri_ParseEx(fileuri, "file");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             h64casecmp(uinfo->protocol, "file") != 0) {
         uri_Free(uinfo);

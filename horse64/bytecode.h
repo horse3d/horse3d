@@ -416,6 +416,7 @@ typedef struct h64program {
 
     classid_t _io_file_class_idx;  // used by io module
     classid_t _net_connection_class_idx;  // used by net module
+    classid_t _urilib_uri_class_idx;  // used by uri module
 
     globalvarid_t globalvar_count;
     h64globalvar *globalvar;

@@ -47,7 +47,7 @@ START_TEST (test_uribasics)
     h64wchar testurl[64];
     testurl[0] = '/';
     testurl[1] = 246;  // umlaut o
-    uri32info *uri32 = uri32_ParseEx(testurl, 2, NULL);
+    uri32info *uri32 = uri32_ParseEx(testurl, 2, NULL, 0);
     assert(uri32->pathlen == 2);
     #if defined(_WIN32) || defined(_WIN64)
     assert(uri32->path[0] == '\\');
@@ -63,7 +63,7 @@ START_TEST (test_uribasics)
     testurl[6] = '/'; testurl[7] = '/';
     testurl[8] = '%'; testurl[9] = 'C'; testurl[10] = '3';
     testurl[11] = '%'; testurl[12] = 'B'; testurl[13] = '6';
-    uri32 = uri32_ParseEx(testurl, 14, NULL);
+    uri32 = uri32_ParseEx(testurl, 14, NULL, 0);
     assert(uri32->pathlen == 2);
     #if defined(_WIN32) || defined(_WIN64)
     assert(uri32->path[0] == '\\');
@@ -100,6 +100,14 @@ START_TEST (test_uribasics)
     assert(strcmp(uri->protocol, "https") == 0);
     assert(strcmp(uri->host, "example.com") == 0);
     assert(uri->port == 443);
+    uri_Free(uri);
+
+    // If we default to file even for remote-looking stuff, this
+    // should return a file path:
+    uri = uri_ParseEx("example.com:443", "file");
+    assert(strcmp(uri->protocol, "file") == 0);
+    assert(strcmp(uri->path, "example.com:443") == 0);
+    assert(uri->port < 0);
     uri_Free(uri);
 
     // Test that remote protocol stays as-is even with different one set:

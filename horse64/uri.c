@@ -59,7 +59,7 @@ int uri_Compare(
 }
 
 int uri32info_to_uriinfo(
-        const uri32info *input, uriinfo *output
+        uriinfo *output, const uri32info *input
         ) {
     memset(output, 0, sizeof(*output));
     if (!input)
@@ -142,11 +142,26 @@ uriinfo *uri_ParseEx(
     if (!uriu32)
         return NULL;
 
+    int64_t protou32len = 0;
+    h64wchar *protou32 = NULL;
+    if (default_remote_protocol) {
+        protou32 = utf8_to_utf32_ex(
+            default_remote_protocol,
+            strlen(default_remote_protocol),
+            NULL, 0, NULL, NULL, &protou32len, 1, 0,
+            &wasinvalid, &wasoom
+        );
+        if (!protou32) {
+            free(uriu32);
+            return NULL;
+        }
+    }
+
     uri32info *result32 = uri32_ParseEx(
-        uriu32, uriu32len, default_remote_protocol
+        uriu32, uriu32len, protou32, protou32len
     );
     free(uriu32);
-    uriu32 = NULL;
+    free(protou32);
 
     uriinfo *result = malloc(sizeof(*result));
     if (!result) {
@@ -155,7 +170,7 @@ uriinfo *uri_ParseEx(
     }
 
     int cvresult = uri32info_to_uriinfo(
-        result32, result
+        result, result32
     );
     uri32_Free(result32);
     if (!cvresult) {
@@ -216,7 +231,7 @@ char *uri_Dump(uriinfo *uinfo) {
 }
 
 int uriinfo_to_uri32info(
-        const uriinfo *input, uri32info *output
+        uri32info *output, const uriinfo *input
         ) {
     if (!input)
         return 0;
@@ -273,7 +288,7 @@ char *uri_DumpEx(uriinfo *uinfo, int absolutefilepaths) {
     if (!converted)
         return NULL;
     if (!uriinfo_to_uri32info(
-            uinfo, converted
+            converted, uinfo
             )) {
         free(converted);  // NOT uri32_Free(), has garbage!
         return NULL;

@@ -19,7 +19,8 @@ typedef struct uri32info {
 
 uri32info *uri32_ParseEx(
     const h64wchar *uri, int64_t urilen,
-    const char *default_remote_protocol
+    const h64wchar *default_remote_protocol,
+    int64_t default_remote_protocol_len
 );
 
 uri32info *uri32_Parse(
