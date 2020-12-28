@@ -61,12 +61,10 @@ typedef struct h64gcvalue {
         };
         struct {
             classid_t class_id;
-            union {
-                struct {
-                    valuecontent *varattr;
-                };
-                void *cdata;
+            struct {
+                valuecontent *varattr;
             };
+            void *cdata;
         };
     };
 } h64gcvalue;
