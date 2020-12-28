@@ -64,9 +64,10 @@ __attribute__((constructor)) void _sockinit() {
         exit(1);
     }
     SSL_CTX_clear_mode(ssl_ctx, SSL_MODE_AUTO_RETRY);
-    SSL_CTX_clear_mode(ssl_ctx, SSL_OP_LEGACY_SERVER_CONNECT);
+    SSL_CTX_clear_options(ssl_ctx, SSL_OP_LEGACY_SERVER_CONNECT);
     SSL_CTX_set_mode(ssl_ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
     SSL_CTX_set_mode(ssl_ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_COMPRESSION);
 
     // Configure pre-TLS 1.3 ciphers, and manually exclude a few:
     STACK_OF(SSL_CIPHER) *stack;
