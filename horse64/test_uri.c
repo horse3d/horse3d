@@ -95,16 +95,25 @@ START_TEST (test_uribasics)
     assert(strcmp(uri->path, "/blubb") == 0);
     uri_Free(uri);
 
+    // Again no default protocol, but no path appended either:
     uri = uri_ParseEx("example.com:443", "https");
     assert(strcmp(uri->protocol, "https") == 0);
     assert(strcmp(uri->host, "example.com") == 0);
     assert(uri->port == 443);
     uri_Free(uri);
 
+    // Test that remote protocol stays as-is even with different one set:
     uri = uri_ParseEx("http://blubb/", "https");
     assert(strcmp(uri->protocol, "http") == 0);
     assert(uri->port < 0);
     assert(strcmp(uri->host, "blubb") == 0);
+    uri_Free(uri);
+
+    // Test a relative path file name that used to break:
+    uri = uri_ParseEx("test-file.h64", "https");
+    assert(strcmp(uri->protocol, "file") == 0);
+    assert(uri->port < 0);
+    assert(strcmp(uri->path, "test-file.h64") == 0);
     uri_Free(uri);
 }
 END_TEST

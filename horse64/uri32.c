@@ -366,20 +366,20 @@ uri32info *uri32_ParseEx(
     int lastdotindex = -1;
     const h64wchar *part_start = uri;
     int64_t part_start_len = urilen;
-    const h64wchar *part = uri;
-    int64_t partlen = urilen;
-    while (partlen > 0 &&
-            *part != ' ' && *part != ';' && *part != ':' &&
-            *part != '/' && *part != '\\' &&
-            *part != '\n' && *part != '\r' && *part != '\t' &&
-            *part != '@' && *part != '*' && *part != '&' &&
-            *part != '%' && *part != '#' && *part != '$' &&
-            *part != '!' && *part != '"' && *part != '\'' &&
-            *part != '(' && *part != ')' && *part != '|') {
-        if (*part == '.')
-            lastdotindex = (part - part_start);
-        part++;
-        partlen--;
+    const h64wchar *next_part = uri;
+    int64_t next_part_len = urilen;
+    while (next_part_len > 0 &&
+            *next_part != ' ' && *next_part != ';' && *next_part != ':' &&
+            *next_part != '/' && *next_part != '\\' &&
+            *next_part != '\n' && *next_part != '\r' && *next_part != '\t' &&
+            *next_part != '@' && *next_part != '*' && *next_part != '&' &&
+            *next_part != '%' && *next_part != '#' && *next_part != '$' &&
+            *next_part != '!' && *next_part != '"' && *next_part != '\'' &&
+            *next_part != '(' && *next_part != ')' && *next_part != '|') {
+        if (*next_part == '.')
+            lastdotindex = (next_part - part_start);
+        next_part++;
+        next_part_len--;
     }
     int haswinprotocolslashes = 0;
     int recognizedfirstblock = 0;
@@ -387,16 +387,16 @@ uri32info *uri32_ParseEx(
     {  // Check whether :// follows the first part:
         int compare1oom = 0;
         int compare2oom = 0;
-        int _cmplen = partlen;
+        int _cmplen = next_part_len;
         if (_cmplen > 3)
             _cmplen = 3;
         if (u32u8compare_simple(
-                    part, _cmplen,
+                    next_part, _cmplen,
                     "://", 0, &compare1oom
                     )) {
             has_protocol_doubleslash = 1;
         } else if (u32u8compare_simple(
-                    part, _cmplen,
+                    next_part, _cmplen,
                     ":\\\\", 0, &compare2oom
                     )) {
             has_protocol_doubleslash = 1;
@@ -411,7 +411,7 @@ uri32info *uri32_ParseEx(
     if (has_protocol_doubleslash) {
         // Extract protocol part at the front.
         result->protocol = malloc(
-            (part - part_start) * sizeof(*part)
+            (next_part - part_start) * sizeof(*next_part)
         );
         if (!result->protocol) {
             uri32_Free(result);
@@ -419,14 +419,14 @@ uri32info *uri32_ParseEx(
         }
         memcpy(
             result->protocol, part_start,
-            (part - part_start) * sizeof(*part)
+            (next_part - part_start) * sizeof(*next_part)
         );
-        result->protocollen = (part - part_start);
-        part += 3;
-        partlen -= 3;
+        result->protocollen = (next_part - part_start);
+        next_part += 3;
+        next_part_len -= 3;
         lastdotindex = -1;
-        part_start = part;
-        part_start_len = partlen;
+        part_start = next_part;
+        part_start_len = next_part_len;
         int compareoom = 0;
         if (u32u8compare_simple(
                 result->protocol, result->protocollen,
@@ -475,14 +475,15 @@ uri32info *uri32_ParseEx(
     } else {
         isknownfileuri = 0;
         int is_win_abspath = (
-            (partlen > 0 &&
-             (*part) == ':' && (part - uri) == 1 &&
+            (next_part_len > 0 &&
+             (*next_part) == ':' && (next_part - uri) == 1 &&
             ((uri[0] >= 'a' && uri[0] <= 'z') ||
             (uri[0] >= 'A' && uri[0] <= 'Z')) &&
-            (partlen > 1 && (*(part + 1) == '/' || *(part + 1) == '\\')))
+            (next_part_len > 1 && (*(next_part + 1) == '/' ||
+             *(next_part + 1) == '\\')))
         );
         int is_linux_abspath = (
-            (*part == '/' && (part - uri) == 0)
+            (*next_part == '/' && (next_part - uri) == 0)
         );
         if (is_win_abspath || is_linux_abspath) {
             // Looks like an absolute path:
@@ -515,23 +516,29 @@ uri32info *uri32_ParseEx(
     if (recognizedfirstblock) {
         // We successfully parsed a protocol header, so find
         // the end of the host or whatever comes first now:
-        while (partlen > 0 && *part != ' ' && *part != ';' &&
-                *part != '/' && *part != '\\' &&
-                *part != '\n' && *part != '\r' && *part != '\t' &&
-                *part != '@' && *part != '*' && *part != '&' &&
-                *part != '%' && *part != '#' && *part != '$' &&
-                *part != '!' && *part != '"' && *part != '\'' &&
-                *part != '(' && *part != ')' && *part != '|') {
-            if (*part == '.')
-                lastdotindex = (part - part_start);
-            part++;
-            partlen--;
+        while (next_part_len > 0 && *next_part != ' ' &&
+                *next_part != ';' &&
+                *next_part != '/' && *next_part != '\\' &&
+                *next_part != '\n' && *next_part != '\r' &&
+                *next_part != '\t' &&
+                *next_part != '@' && *next_part != '*' &&
+                *next_part != '&' &&
+                *next_part != '%' && *next_part != '#' &&
+                *next_part != '$' &&
+                *next_part != '!' && *next_part != '"' &&
+                *next_part != '\'' &&
+                *next_part != '(' && *next_part != ')' &&
+                *next_part != '|') {
+            if (*next_part == '.')
+                lastdotindex = (next_part - part_start);
+            next_part++;
+            next_part_len--;
         }
     }
 
-    if (partlen >= 2 &&
-            *part == ':' &&
-            (*(part + 1) >= '0' && *(part + 1) <= '9') &&
+    if (next_part_len >= 2 &&
+            *next_part == ':' &&
+            (*(next_part + 1) >= '0' && *(next_part + 1) <= '9') &&
             lastdotindex > 0 && (
             !default_remote_protocol ||
             h64casecmp(default_remote_protocol, "file") != 0)) {
@@ -559,7 +566,7 @@ uri32info *uri32_ParseEx(
             }
         }
         result->host = malloc(
-            sizeof(*part) * (part - part_start)
+            sizeof(*next_part) * (next_part - part_start)
         );
         if (!result->host) {
             uri32_Free(result);
@@ -567,31 +574,31 @@ uri32info *uri32_ParseEx(
         }
         memcpy(
             result->host, part_start,
-            sizeof(*part) * (part - part_start)
+            sizeof(*next_part) * (next_part - part_start)
         );
-        result->hostlen = (part - part_start);
-        part++;  // Skip past ':'
-        partlen--;
-        part_start = part;
-        part_start_len = partlen;
+        result->hostlen = (next_part - part_start);
+        next_part++;  // Skip past ':'
+        next_part_len--;
+        part_start = next_part;
+        part_start_len = next_part_len;
         lastdotindex = -1;
-        while (partlen > 0 &&
-                (*part >= '0' && *part <= '9')) {
-            part++;
-            partlen--;
+        while (next_part_len > 0 &&
+                (*next_part >= '0' && *next_part <= '9')) {
+            next_part++;
+            next_part_len--;
         }
         int64_t portbuflen = 0;
-        char *portbuf = malloc((part - part_start) * 5 + 1);
+        char *portbuf = malloc((next_part - part_start) * 5 + 1);
         int convertresult = 0;
         if (portbuf) {
             convertresult = utf32_to_utf8(
-                part_start, part - part_start,
-                portbuf, (part - part_start) * 5 + 1,
+                part_start, next_part - part_start,
+                portbuf, (next_part - part_start) * 5 + 1,
                 &portbuflen, 1, 1
             );
         }
         if (!portbuf || !convertresult ||
-                portbuflen >= (part - part_start) * 5 + 1) {
+                portbuflen >= (next_part - part_start) * 5 + 1) {
             uri32_Free(result);
             free(portbuf);
             return NULL;
@@ -599,10 +606,11 @@ uri32info *uri32_ParseEx(
         portbuf[portbuflen] = '\0';
         result->port = atoi(portbuf);
         free(portbuf);
-        part_start = part;
-        part_start_len = partlen;
+        part_start = next_part;
+        part_start_len = next_part_len;
         lastdotindex = -1;
-    } else if ((partlen == 0 || *part == '/') &&
+    } else if ((next_part_len == 0 || *next_part == '/') &&
+            result->protocol != NULL &&
             (!default_remote_protocol ||
              h64casecmp(default_remote_protocol, "file") != 0)) {
         // Ok, we got directly a path of sorts following the host,
@@ -613,7 +621,7 @@ uri32info *uri32_ParseEx(
         //   the protocol.
         #endif
         result->host = malloc(
-            sizeof(*part) * (part - part_start)
+            sizeof(*next_part) * (next_part - part_start)
         );
         if (!result->host) {
             uri32_Free(result);
@@ -621,11 +629,11 @@ uri32info *uri32_ParseEx(
         }
         memcpy(
             result->host, part_start,
-            sizeof(*part) * (part - part_start)
+            sizeof(*next_part) * (next_part - part_start)
         );
-        result->hostlen = (part - part_start);
-        part_start = part;
-        part_start_len = partlen;
+        result->hostlen = (next_part - part_start);
+        part_start = next_part;
+        part_start_len = next_part_len;
         lastdotindex = -1;
     }
 
@@ -668,6 +676,7 @@ uri32info *uri32_ParseEx(
             result->path, part_start,
             sizeof(*result->path) * part_start_len
         );
+        result->pathlen = part_start_len;
     }
 
     int comparewasoom = 0;
@@ -762,7 +771,13 @@ h64wchar *uri32_Normalize(
     if (!uinfo) {
         return NULL;
     }
-    return uri32_DumpEx(uinfo, absolutefilepaths, out_len);
+    int64_t resultlen = 0;
+    h64wchar *result = uri32_DumpEx(
+        uinfo, absolutefilepaths, &resultlen
+    );
+    uri32_Free(uinfo);
+    if (out_len) *out_len = resultlen;
+    return result;
 }
 
 h64wchar *uri32_Dump(const uri32info *uinfo, int64_t *out_len) {

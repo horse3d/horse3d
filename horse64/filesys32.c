@@ -410,7 +410,7 @@ h64wchar *filesys32_Join(
 
     // Clean up path2 for merging:
     int64_t path2len = path2_origlen;
-    char *path2 = malloc(
+    h64wchar *path2 = malloc(
         sizeof(*path2_orig) * path2_origlen
     );
     if (!path2)
@@ -441,9 +441,10 @@ h64wchar *filesys32_Join(
         free(path2);
         return NULL;
     }
-    memcpy(
-        presult, path1, path1len * sizeof(*path1)
-    );
+    if (path1len > 0)
+        memcpy(
+            presult, path1, path1len * sizeof(*path1)
+        );
     presultlen = path1len;
     if (path1len > 0) {
         #if defined(_WIN32) || defined(_WIN64)
@@ -465,31 +466,38 @@ h64wchar *filesys32_Join(
             presult + presultlen, path2,
             sizeof(*path2) * path2len
         );
+        presultlen += path2len;
     } else {
         #if defined(_WIN32) || defined(_WIN64)
         if (path2len > 0 && (
                 path2[0] == '/' ||
-                path2[0] == '\\'))
+                path2[0] == '\\')) {
             memcpy(
                 presult + presultlen,
                 path2 + 1, sizeof(*path2) * (path2len - 1)
             );
-        else
+            presultlen += (path2len - 1);
+        } else {
             memcpy(
                 presult + presultlen,
                 path2, sizeof(*path2) * path2len
             );
+            presultlen += path2len;
+        }
         #else
-        if (path2len > 0 && path2[0] == '/')
+        if (path2len > 0 && path2[0] == '/') {
             memcpy(
                 presult + presultlen,
                 path2 + 1, sizeof(*path2) * (path2len - 1)
             );
-        else
+            presultlen += (path2len - 1);
+        } else if (path2len > 0) {
             memcpy(
                 presult + presultlen,
                 path2, sizeof(*path2) * path2len
             );
+            presultlen += path2len;
+        }
         #endif
     }
     free(path2);  // this was a mutable copy of ours
