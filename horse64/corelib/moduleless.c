@@ -345,7 +345,7 @@ static h64wchar *_corelib_value_to_str_do(
             return buf;
         }
         case H64VALTYPE_BOOL: {
-            char s[12];
+            char s[12] = "";
             if (c->int_value != 0)
                 memcpy(s, "true", strlen("true") + 1);
             else

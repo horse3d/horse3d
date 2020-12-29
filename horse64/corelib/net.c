@@ -7,6 +7,9 @@
 #include <assert.h>
 #include <errno.h>
 #include <math.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <winsock2.h>
+#endif
 #include <openssl/ssl.h>
 
 #include "asyncsysjob.h"

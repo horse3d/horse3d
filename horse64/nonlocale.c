@@ -119,7 +119,8 @@ int64_t h64strtoll(
 }
 
 int _doprintfwindows(
-        FILE *printfile, const char *format, va_list vl
+        ATTR_UNUSED FILE *printfile, ATTR_UNUSED const char *format,
+        ATTR_UNUSED va_list vl
         ) {
     #if defined(_WIN32) || defined(_WIN64)
     if (!h64stdout)
@@ -129,7 +130,7 @@ int _doprintfwindows(
     char _stackbuf[256] = "";
     char *buf = _stackbuf;
     int bufheap = 0;
-    int buflen = 256;
+    size_t buflen = 256;
     while (1) {
         va_list vcopy;
         va_copy(vcopy, vl);

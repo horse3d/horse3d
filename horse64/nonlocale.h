@@ -103,7 +103,8 @@ int _doprintfwindows(
 );
 
 ATTR_UNUSED static inline int _doprintfunix(
-        FILE *printfile, const char *format, va_list vl
+        ATTR_UNUSED FILE *printfile, ATTR_UNUSED const char *format,
+        ATTR_UNUSED va_list vl
         ) {
     #if defined(_WIN32) || defined(_WIN64)
     return -1;

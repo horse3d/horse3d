@@ -12,6 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <winsock2.h>
+#endif
 
 #include "bytecode.h"
 #include "compiler/disassembler.h"
