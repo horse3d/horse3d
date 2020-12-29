@@ -95,7 +95,7 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
             ) {
         int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
             rinfo->pr->program->symbols,
-            expr->identifierref.value, 0
+            expr->identifierref.value, 0, 0
         );
         if (idx < 0) {
             int guarded = (

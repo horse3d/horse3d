@@ -3233,15 +3233,13 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             target->int_value = len;
         } else if (nameidx >= 0 &&
                 (nameidx == vmexec->program->init_name_index ||
-                 nameidx == vmexec->program->to_str_name_index ||
-                 nameidx == vmexec->program->on_destroy_name_index ||
-                 nameidx == vmexec->program->equals_name_index ||
-                 nameidx == vmexec->program->to_hash_name_index
+                 nameidx == vmexec->program->on_cloned_name_index ||
+                 nameidx == vmexec->program->on_destroy_name_index
                 ) &&
                 vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue *)vc->ptr_value)->type ==
                 H64GCVALUETYPE_OBJINSTANCE
-                ) {  // .init/.to_str/.destroyed/.cloned/.equals/.to_hash
+                ) {  // .init/.on_destroy/.on_cloned
                      // (on a class object instance)
             // This is an internal function that is supposed to be
             // inaccessible from the outside.

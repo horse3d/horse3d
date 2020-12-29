@@ -718,71 +718,24 @@ char *disassembler_InstructionToStr(
 int disassembler_Dump(
         dinfo *di, h64program *p
         ) {
-    assert(p != NULL);
+    assert(p != NULL && p->symbols != NULL);
     if (p->main_func_index >= 0) {
         if (!disassembler_Write(di,
                 "MAINFUNC f%d\n", p->main_func_index))
             return 0;
     }
-    if (p->add_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " add\n",
-                p->add_name_index))
-            return 0;
-    }
-    if (p->as_str_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " as_str\n",
-                p->as_str_name_index))
-            return 0;
-    }
-    if (p->to_str_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " to_str\n",
-                p->to_str_name_index))
-            return 0;
-    }
-    if (p->len_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " len\n",
-                p->len_name_index))
-            return 0;
-    }
-    if (p->init_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " init\n",
-                p->init_name_index))
-            return 0;
-    }
-    if (p->on_destroy_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " on_destroy\n",
-                p->on_destroy_name_index))
-            return 0;
-    }
-    if (p->equals_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " equals\n",
-                p->equals_name_index))
-            return 0;
-    }
-    if (p->to_hash_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " to_hash\n",
-                p->to_hash_name_index))
-            return 0;
-    }
-    if (p->del_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " del\n",
-                p->del_name_index))
-            return 0;
-    }
-    if (p->is_a_name_index >= 0) {
-        if (!disassembler_Write(di,
-                "NAMEIDX n%" PRId64 " is_a\n",
-                p->is_a_name_index))
-            return 0;
+    {
+        int64_t i = 0;
+        while (i < p->symbols->global_attribute_count) {
+            if (p->symbols->global_attribute_needsidx[i]) {
+                if (!disassembler_Write(di,
+                        "NAMEIDX n%" PRId64 " %s\n",
+                        i, p->symbols->global_attribute_name[i]
+                        ))
+                    return 0;
+            }
+            i++;
+        }
     }
     int64_t i = 0;
     while (i < p->classes_count) {

@@ -131,7 +131,7 @@ void h64debugsymbols_ClearFuncSymbol(
 
 int64_t h64debugsymbols_AttributeNameToAttributeNameId(
         h64debugsymbols *symbols, const char *name,
-        int addifnotpresent
+        int addifnotpresent, int requirefixednameidx
         ) {
     if (!name || !symbols)
         return -1;
@@ -140,6 +140,7 @@ int64_t h64debugsymbols_AttributeNameToAttributeNameId(
             symbols->attribute_name_to_global_attribute_id,
             name, &number)) {
         if (addifnotpresent) {
+            // Increase the arrays we use:
             int64_t new_id = symbols->global_attribute_count;
             char **new_name_list = realloc(
                 symbols->global_attribute_name,
@@ -149,9 +150,22 @@ int64_t h64debugsymbols_AttributeNameToAttributeNameId(
             if (!new_name_list)
                 return -1;
             symbols->global_attribute_name = new_name_list;
+            int *new_needsidx_list = realloc(
+                symbols->global_attribute_needsidx,
+                sizeof(*symbols->global_attribute_needsidx) *
+                (symbols->global_attribute_count + 1)
+            );
+            if (!new_needsidx_list)
+                return -1;
+            symbols->global_attribute_needsidx = new_needsidx_list;
+
+            // Add in variable index:
             symbols->global_attribute_name[new_id] = strdup(name);
             if (!symbols->global_attribute_name[new_id])
                 return -1;
+            symbols->global_attribute_needsidx[new_id] = 0;
+            if (requirefixednameidx)
+                symbols->global_attribute_needsidx[new_id] = 1;
             symbols->global_attribute_count++;
             if (!hash_StringMapSet(
                     symbols->attribute_name_to_global_attribute_id,
@@ -160,27 +174,36 @@ int64_t h64debugsymbols_AttributeNameToAttributeNameId(
                 symbols->global_attribute_count--;
                 return -1;
             }
+
+            // Built-in names need to be tracked:
             if (symbols->program) {
                 if (strcmp(name, "as_str") == 0) {
                     symbols->program->as_str_name_index = new_id;
-                } else if (strcmp(name, "to_str") == 0) {
-                    symbols->program->to_str_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
                 } else if (strcmp(name, "len") == 0) {
                     symbols->program->len_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
                 } else if (strcmp(name, "init") == 0) {
                     symbols->program->init_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
+                } else if (strcmp(name, "on_cloned_name_index") == 0) {
+                    symbols->program->on_cloned_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
                 } else if (strcmp(name, "on_destroy") == 0) {
                     symbols->program->on_destroy_name_index = new_id;
-                } else if (strcmp(name, "equals") == 0) {
-                    symbols->program->equals_name_index = new_id;
-                } else if (strcmp(name, "to_hash") == 0) {
-                    symbols->program->to_hash_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
                 } else if (strcmp(name, "add") == 0) {
                     symbols->program->add_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
                 } else if (strcmp(name, "del") == 0) {
                     symbols->program->del_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
+                } else if (strcmp(name, "contains") == 0) {
+                    symbols->program->contains_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
                 } else if (strcmp(name, "is_a") == 0) {
                     symbols->program->is_a_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
                 }
             }
             return new_id;

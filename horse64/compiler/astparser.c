@@ -3827,7 +3827,7 @@ int ast_ParseExprStmt(
                     nameindex = (
                         h64debugsymbols_AttributeNameToAttributeNameId(
                             context->project->program->symbols,
-                            stmt[k]->vardef.identifier, 1
+                            stmt[k]->vardef.identifier, 1, 0
                         ));
                     if (nameindex < 0) nameoom = 1;
                 }
@@ -3837,7 +3837,7 @@ int ast_ParseExprStmt(
                     nameindex = (
                         h64debugsymbols_AttributeNameToAttributeNameId(
                             context->project->program->symbols,
-                            stmt[k]->funcdef.name, 1
+                            stmt[k]->funcdef.name, 1, 0
                         ));
                     if (nameindex < 0) nameoom = 1;
                 }

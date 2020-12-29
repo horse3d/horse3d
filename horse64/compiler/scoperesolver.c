@@ -507,7 +507,7 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
             }
             int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
                 atinfo->pr->program->symbols,
-                expr->funcdef.arguments.arg_name[i], 1
+                expr->funcdef.arguments.arg_name[i], 1, 0
             );
             if (idx < 0) {
                 atinfo->hadoutofmemory = 1;
@@ -1403,7 +1403,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             // Enforce identifier registration:
             int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
                 atinfo->pr->program->symbols,
-                expr->identifierref.value, 1
+                expr->identifierref.value, 1, 0
             );
             if (idx < 0) {
                 atinfo->hadoutofmemory = 1;

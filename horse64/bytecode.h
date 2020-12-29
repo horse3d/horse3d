@@ -404,14 +404,13 @@ typedef struct h64program {
     funcid_t has_attr_func_idx;
 
     int64_t as_str_name_index;
-    int64_t to_str_name_index;
     int64_t len_name_index;
     int64_t init_name_index;
+    int64_t on_cloned_name_index;
     int64_t on_destroy_name_index;
-    int64_t equals_name_index;
-    int64_t to_hash_name_index;
     int64_t add_name_index;
     int64_t del_name_index;
+    int64_t contains_name_index;
     int64_t is_a_name_index;
 
     classid_t _io_file_class_idx;  // used by io module
@@ -425,8 +424,8 @@ typedef struct h64program {
 } h64program;
 
 ATTR_UNUSED static char *builtin_type_attributes[] = {
-    "as_str", "to_str", "len", "init", "on_destroy",
-    "equals", "to_hash", "add", "del", "is_a", NULL
+    "as_str", "len", "init", "on_cloned", "on_destroy",
+    "add", "del", "contains", "is_a", NULL
 };
 
 ATTR_UNUSED static int isbuiltinattrname(const char *name) {

@@ -564,7 +564,7 @@ static int _codegen_call_to(
                 h64debugsymbols_AttributeNameToAttributeNameId(
                     rinfo->pr->program->symbols,
                     callexpr->inlinecall.arguments.arg_name[i],
-                    0
+                    0, 0
                 ));
             if (kwnameidx < 0) {
                 char buf[256];
@@ -1033,7 +1033,7 @@ int _codegencallback_DoCodegen_visit_out(
         );
         int64_t add_name_idx =
             h64debugsymbols_AttributeNameToAttributeNameId(
-                rinfo->pr->program->symbols, "add", 1
+                rinfo->pr->program->symbols, "add", 1, 0
             );
         if (entry_count > 0) {
             int addfunctemp = new1linetemp(
@@ -1352,7 +1352,7 @@ int _codegencallback_DoCodegen_visit_out(
         assert(expr->op.value2->type == H64EXPRTYPE_IDENTIFIERREF);
         int64_t idx = h64debugsymbols_AttributeNameToAttributeNameId(
             rinfo->pr->program->symbols,
-            expr->op.value2->identifierref.value, 0
+            expr->op.value2->identifierref.value, 0, 0
         );
         int temp = new1linetemp(func, expr, 1);
         if (temp < 0) {
@@ -1891,7 +1891,7 @@ int _codegencallback_DoCodegen_visit_out(
                             h64debugsymbols_AttributeNameToAttributeNameId(
                                 rinfo->pr->program->symbols,
                                 expr->assignstmt.lvalue->op.value2->
-                                    identifierref.value, 0
+                                    identifierref.value, 0, 0
                             ));
                         if (nameid >= 0) {
                             h64instruction_getattributebyname inst = {0};
@@ -2010,7 +2010,7 @@ int _codegencallback_DoCodegen_visit_out(
                         h64debugsymbols_AttributeNameToAttributeNameId(
                             rinfo->pr->program->symbols,
                             expr->assignstmt.lvalue->op.value2->
-                                identifierref.value, 0
+                                identifierref.value, 0, 0
                         )
                     );
                     if (nameidx < 0) {
@@ -2707,7 +2707,7 @@ int _codegencallback_DoCodegen_visit_in(
             // Check if value has .close() attribute, and call it:
             int64_t closeidx = (
                 h64debugsymbols_AttributeNameToAttributeNameId(
-                    rinfo->pr->program->symbols, "close", 0
+                    rinfo->pr->program->symbols, "close", 0, 0
                 )
             );
             if (closeidx >= 0) {
@@ -3178,7 +3178,7 @@ int _codegencallback_DoCodegen_visit_in(
                         literal.str_value,
                     isbuiltinattrname(
                         expr->inlinecall.arguments.arg_value[1]->
-                        literal.str_value)
+                        literal.str_value), 0
                 )
             );
         }

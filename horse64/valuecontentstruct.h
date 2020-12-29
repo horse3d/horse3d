@@ -80,4 +80,15 @@ typedef struct valuecontent {
     } __attribute__((packed));
 } __attribute__((packed)) valuecontent;
 
+typedef struct h64vmthread h64vmthread;
+
+int valuecontent_SetStringU8(
+    h64vmthread *vmthread, valuecontent *v, const char *u8
+);
+
+int valuecontent_SetStringU32(
+    h64vmthread *vmthread, valuecontent *v,
+    h64wchar *u32, int64_t u32len
+);
+
 #endif  // HORSE64_VALUECONTENTSTRUCT_H_

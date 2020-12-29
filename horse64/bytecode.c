@@ -164,14 +164,13 @@ h64program *h64program_New() {
     p->has_attr_func_idx = -1;
 
     p->as_str_name_index = -1;
-    p->to_str_name_index = -1;
     p->len_name_index = -1;
     p->init_name_index = -1;
+    p->on_cloned_name_index = -1;
     p->on_destroy_name_index = -1;
-    p->equals_name_index = -1;
-    p->to_hash_name_index = -1;
     p->add_name_index = -1;
     p->del_name_index = -1;
+    p->contains_name_index = -1;
     p->is_a_name_index = -1;
 
     p->symbols = h64debugsymbols_New();
@@ -320,7 +319,7 @@ attridx_t h64program_RegisterClassAttributeEx(
         return -1;
 
     int64_t nameid = h64debugsymbols_AttributeNameToAttributeNameId(
-        p->symbols, name, 1
+        p->symbols, name, 1, 0
     );
     if (nameid < 0)
         return -1;
@@ -388,6 +387,14 @@ attridx_t h64program_RegisterClassAttributeEx(
         p->classes[class_id].varattr_global_name_idx = (
             new_varattr_global_name_idx
         );
+        uint8_t *new_varattr_flags = realloc(
+            p->classes[class_id].varattr_flags,
+            sizeof(*p->classes[class_id].varattr_flags) *
+            (p->classes[class_id].varattr_count + 1)
+        );
+        if (!new_varattr_flags)
+            return -1;
+        p->classes[class_id].varattr_flags = new_varattr_flags;
         assert(p->symbols != NULL);
         h64classsymbol *csymbol = h64debugsymbols_GetClassSymbolById(
             p->symbols, class_id
@@ -447,7 +454,7 @@ attridx_t h64program_LookupClassAttributeByName(
         h64program *p, classid_t class_id, const char *name
         ) {
     int64_t nameid = h64debugsymbols_AttributeNameToAttributeNameId(
-        p->symbols, name, 0
+        p->symbols, name, 0, 0
     );
     if (nameid < 0)
         return -1;
@@ -982,7 +989,7 @@ funcid_t h64program_RegisterCFunction(
             if (!argname)
                 goto funcsymboloom;
             int64_t nameid = h64debugsymbols_AttributeNameToAttributeNameId(
-                p->symbols, arg_kwarg_name[i], 1
+                p->symbols, arg_kwarg_name[i], 1, 0
             );
             if (nameid < 0)
                 goto funcsymboloom;

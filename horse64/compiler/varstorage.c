@@ -380,7 +380,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
         const char *name = expr->op.value2->identifierref.value;
         int64_t nameid = (
             h64debugsymbols_AttributeNameToAttributeNameId(
-                rinfo->pr->program->symbols, name, 0
+                rinfo->pr->program->symbols, name, 0, 0
             )
         );
         attridx_t result = -1;

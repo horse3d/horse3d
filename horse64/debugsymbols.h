@@ -77,6 +77,7 @@ typedef struct h64debugsymbols {
     hashmap *attribute_name_to_global_attribute_id;
     int64_t global_attribute_count;
     char **global_attribute_name;
+    int *global_attribute_needsidx;
 
     hashmap *func_id_to_module_symbols_index;
     hashmap *func_id_to_module_symbols_func_subindex;
@@ -88,7 +89,7 @@ typedef struct h64debugsymbols {
 
 int64_t h64debugsymbols_AttributeNameToAttributeNameId(
     h64debugsymbols *symbols, const char *name,
-    int addifnotpresent
+    int addifnotpresent, int requirefixednameidx
 );
 
 void h64debugsymbols_ClearFuncSymbol(

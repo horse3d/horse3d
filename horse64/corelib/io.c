@@ -59,6 +59,7 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 /// @module io Disk access functions, reading and writing to files.
 
 typedef struct _fileobj_cdata {
+    void (*on_destroy)(h64gcvalue *fileobj);
     FILE *file_handle;
     uint8_t flags;
     uint64_t text_offset;
