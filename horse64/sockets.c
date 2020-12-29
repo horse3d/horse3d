@@ -1414,11 +1414,11 @@ void sockset_RemoveWithMask(
         h64sockset *set, int fd, int waittypes
         ) {
     #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
-    if ((waittype & H64SOCKSET_WAITREAD) != 0)
+    if ((waittypes & H64SOCKSET_WAITREAD) != 0)
         FD_CLR(fd, &set->readset);
-    if ((waittype & H64SOCKSET_WAITWRITE) != 0)
+    if ((waittypes & H64SOCKSET_WAITWRITE) != 0)
         FD_CLR(fd, &set->writeset);
-    if ((waittype & H64SOCKSET_WAITERROR) != 0)
+    if ((waittypes & H64SOCKSET_WAITERROR) != 0)
         FD_CLR(fd, &set->errorset);
     return;
     #else
