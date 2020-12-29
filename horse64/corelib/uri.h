@@ -7,6 +7,6 @@
 
 typedef struct h64program h64program;
 
-int uilib_RegisterFuncsAndModules(h64program *p);
+int urilib_RegisterFuncsAndModules(h64program *p);
 
 #endif  // HORSE64_CORELIB_URI_H_

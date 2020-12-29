@@ -117,3 +117,71 @@ int64_t h64strtoll(
     }
     return sresult;
 }
+
+int _doprintfwindows(
+        FILE *printfile, const char *format, va_list vl
+        ) {
+    #if defined(_WIN32) || defined(_WIN64)
+    if (!h64stdout)
+        h64stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (!h64stderr)
+        h64stderr = GetStdHandle(STD_ERROR_HANDLE);
+    char _stackbuf[256] = "";
+    char *buf = _stackbuf;
+    int bufheap = 0;
+    int buflen = 256;
+    while (1) {
+        va_list vcopy;
+        va_copy(vcopy, vl);
+        int result = _vsnprintf_l(
+            buf, buflen - 1, format, h64locale, vcopy
+        );
+        va_end(vcopy);
+        buf[buflen - 1] = '\0';
+        if (result >= 0 && strlen(buf) >= buflen - 1) {
+            buflen *= 2;
+            char *bufnew = malloc(buflen);
+            if (!bufnew) {
+                errorquit:
+                if (bufheap)
+                    free(buf);
+                return -1;
+            }
+            if (bufheap)
+                free(buf);
+            buf = bufnew;
+            bufheap = 1;
+        } else if (result < 0) {
+            goto errorquit;
+        } else {
+            break;
+        }
+    }
+    uint32_t written = 0;
+    if (printfile == stdout || printfile == stderr) {
+        if (!WriteConsole(
+                (printfile == stdout ?
+                h64stdout : h64stderr),
+                buf, strlen(buf), (LPDWORD)&written, NULL
+                )) {
+            if (bufheap)
+                free(buf);
+            return -1;
+        }
+    } else {
+        int result = -1;
+        if ((result = fprintf(printfile, "%s", buf)) < 0) {
+            if (bufheap)
+                free(buf);
+        }
+        written = result;
+    }
+    if (bufheap)
+        free(buf);
+    if (written < strlen(buf))
+        return written;
+    return strlen(buf);
+    #else
+    return -1;
+    #endif
+}
