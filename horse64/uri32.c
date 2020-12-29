@@ -316,13 +316,19 @@ uri32info *uri32_ParseEx(
     const h64wchar *next_part = uri;
     int64_t next_part_len = urilen;
     while (next_part_len > 0 &&
-            *next_part != ' ' && *next_part != ';' && *next_part != ':' &&
+            *next_part != ' ' && *next_part != ';' &&
+            *next_part != ':' &&
             *next_part != '/' && *next_part != '\\' &&
-            *next_part != '\n' && *next_part != '\r' && *next_part != '\t' &&
-            *next_part != '@' && *next_part != '*' && *next_part != '&' &&
-            *next_part != '%' && *next_part != '#' && *next_part != '$' &&
-            *next_part != '!' && *next_part != '"' && *next_part != '\'' &&
-            *next_part != '(' && *next_part != ')' && *next_part != '|') {
+            *next_part != '\n' && *next_part != '\r' &&
+            *next_part != '\t' &&
+            *next_part != '@' && *next_part != '*' &&
+            *next_part != '&' &&
+            *next_part != '%' && *next_part != '#' &&
+            *next_part != '$' &&
+            *next_part != '!' && *next_part != '"' &&
+            *next_part != '\'' &&
+            *next_part != '(' && *next_part != ')' &&
+            *next_part != '|') {
         if (*next_part == '.')
             lastdotindex = (next_part - part_start);
         next_part++;
