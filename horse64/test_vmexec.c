@@ -250,10 +250,25 @@ START_TEST (test_numberslist)
 }
 END_TEST
 
+START_TEST (test_uri)
+{
+    runprog(
+        "test_unicodestrlen",
+        "import uri from core.horse64.org\n"
+        "func main {\n"
+        "    var myuri = uri.parse('file://test.html')\n"
+        "    return myuri.protocol.len * 2 + myuri.path.len"
+        "}\n",
+        strlen("file") * 2 + strlen("test.html")
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_simpleclass, test_attributeerrors,
     test_hasattr, test_callwithclass, test_hasattr2,
     test_memberaccesschain,
-    test_unicodestrlen, test_numberslist
+    test_unicodestrlen, test_numberslist,
+    test_uri
 )
 

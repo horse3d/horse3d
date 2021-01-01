@@ -46,6 +46,7 @@ int valuecontent_SetStringU32(
         gcstr->str_val.s, s,
         sizeof(*s) * slen
     );
+    gcstr->type = H64GCVALUETYPE_STRING;
     return 1;
 }
 

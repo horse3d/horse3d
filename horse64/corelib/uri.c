@@ -31,13 +31,14 @@ typedef struct _uriobj_cdata {
 } __attribute__((packed)) _uriobj_cdata;
 
 static const char *urimembernames[] = {
-    "path", "port", "host"
+    "path", "port", "host", "protocol"
 };
 
 typedef enum h64urimember {
     H64URIMEMBER_PATH = 0,
     H64URIMEMBER_PORT,
     H64URIMEMBER_HOST,
+    H64URIMEMBER_PROTOCOL,
     H64URIMEMBER_TOTAL
 } h64urimember;
 
@@ -60,15 +61,15 @@ int urilib_parse(
     assert(STACK_TOP(vmthread->stack) >= 2);
 
     valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
-    h64wchar *pathstr = NULL;
+    char *pathstr = NULL;
     int64_t pathlen = 0;
     if (vcpath->type == H64VALTYPE_GCVAL &&
             ((h64gcvalue *)vcpath->ptr_value)->type ==
             H64GCVALUETYPE_STRING) {
-        pathstr = ((h64gcvalue *)vcpath->ptr_value)->str_val.s;
+        pathstr = (char *)((h64gcvalue *)vcpath->ptr_value)->str_val.s;
         pathlen = ((h64gcvalue *)vcpath->ptr_value)->str_val.len;
     } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
-        pathstr = vcpath->shortstr_value;
+        pathstr = (char *)vcpath->shortstr_value;
         pathlen = vcpath->shortstr_len;
     } else {
         return vmexec_ReturnFuncError(
@@ -79,17 +80,17 @@ int urilib_parse(
 
     static h64wchar protodefaultbuf[] = {'h', 't', 't', 'p', 's'};
     valuecontent *vcproto = STACK_ENTRY(vmthread->stack, 1);
-    h64wchar *protostr = NULL;
+    char *protostr = NULL;
     int64_t protolen = 0;
     if (vcproto->type == H64VALTYPE_GCVAL &&
             ((h64gcvalue *)vcproto->ptr_value)->type == H64GCVALUETYPE_STRING) {
-        protostr = ((h64gcvalue *)vcproto->ptr_value)->str_val.s;
+        protostr = (char *)((h64gcvalue *)vcproto->ptr_value)->str_val.s;
         protolen = ((h64gcvalue *)vcproto->ptr_value)->str_val.len;
     } else if (vcproto->type == H64VALTYPE_SHORTSTR) {
-        protostr = vcproto->shortstr_value;
+        protostr = (char *)vcproto->shortstr_value;
         protolen = vcproto->shortstr_len;
     } else if (vcproto->type == H64VALTYPE_UNSPECIFIED_KWARG) {
-        protostr = protodefaultbuf;
+        protostr = (char *)protodefaultbuf;
         protolen = sizeof(protodefaultbuf) / sizeof(protodefaultbuf[0]);
     } else {
         return vmexec_ReturnFuncError(
@@ -99,7 +100,8 @@ int urilib_parse(
     }
 
     uri32info *uinfo = uri32_ParseEx(
-        pathstr, pathlen, protostr, protolen
+        (h64wchar *)pathstr, pathlen,
+        (h64wchar *)protostr, protolen
     );
     if (!uinfo) {
         return vmexec_ReturnFuncError(
@@ -148,6 +150,14 @@ int urilib_parse(
             vmthread, &uriobj->varattr[H64URIMEMBER_HOST],
             uinfo->host, uinfo->hostlen
             )) {
+        goto oom;
+    }
+    ADDREF_HEAP(&uriobj->varattr[H64URIMEMBER_HOST]);
+    if (uinfo->protocol &&
+            !valuecontent_SetStringU32(
+            vmthread, &uriobj->varattr[H64URIMEMBER_PROTOCOL],
+            uinfo->protocol, uinfo->protocollen
+            )) {
         oom: ;
         if (uriobj) {
             if (uriobj->varattr) {
@@ -168,7 +178,7 @@ int urilib_parse(
             "out of memory allocating URI object"
         );
     }
-    ADDREF_HEAP(&uriobj->varattr[H64URIMEMBER_HOST]);
+    ADDREF_HEAP(&uriobj->varattr[H64URIMEMBER_PROTOCOL]);
     if (uinfo->port >= 0) {
         uriobj->varattr[H64URIMEMBER_PORT].type = (
             H64VALTYPE_INT64
@@ -192,8 +202,8 @@ int urilib_RegisterFuncsAndModules(h64program *p) {
     // uri.parse() method:
     const char *uri_parse_kw_arg_name[] = {NULL, "default_protocol"};
     int64_t idx = h64program_RegisterCFunction(
-        p, "read", &urilib_parse,
-        NULL, 1, uri_parse_kw_arg_name,  // fileuri, args
+        p, "parse", &urilib_parse,
+        NULL, 2, uri_parse_kw_arg_name,  // fileuri, args
         "uri", "core.horse64.org", 1, -1
     );
     if (idx < 0)
