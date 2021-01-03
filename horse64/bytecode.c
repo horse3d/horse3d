@@ -159,7 +159,6 @@ h64program *h64program_New() {
     p->main_func_index = -1;
     p->globalinitsimple_func_index = -1;
     p->globalinit_func_index = -1;
-    p->print_func_index = -1;
     p->containeradd_func_index = -1;
     p->has_attr_func_idx = -1;
 
@@ -185,7 +184,7 @@ h64program *h64program_New() {
         return NULL;
     }
 
-    {
+    {  // Add has_attr() fake func slot:
         funcid_t idx = h64program_RegisterCFunction(
             p, "has_attr", NULL, NULL, 2,
             NULL, NULL, NULL, 1, -1

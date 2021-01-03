@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 #include "compileconfig.h"
+#include "valuecontentstruct.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <malloc.h>
@@ -400,6 +401,111 @@ h64wchar *corelib_value_to_str(
     return result;
 }
 
+int corelib_type(  // $$builtin.type
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Return the name of a value's type. Possible return values
+     * are "number", "string", "boolean", "none", "bytes",
+     * "list", "vector", "map", "set", "function", "error",
+     * and "object" (object instances). To find out the exact
+     * error class, or object class for an instance, use .is_a().
+     *
+     * @func type
+     * @param value the value of which to return the type name
+     * @returns string the type name for the given value
+     */
+    assert(STACK_TOP(vmthread->stack) == 1);
+    valuecontent *c = STACK_ENTRY(vmthread->stack, 0);
+    assert(c != NULL);
+    h64wchar tname[16];
+    int64_t tname_size = 0;
+    if (c->type == H64VALTYPE_FLOAT64 ||
+            c->type == H64VALTYPE_INT64) {
+        tname_size = strlen("number");
+        tname[0] = 'n'; tname[1] = 'u'; tname[2] = 'm';
+        tname[3] = 'b'; tname[4] = 'e'; tname[5] = 'r';
+    } else if (c->type == H64VALTYPE_NONE) {
+        tname_size = strlen("none");
+        tname[0] = 'n'; tname[1] = 'o'; tname[2] = 'n';
+        tname[3] = 'e';
+    } else if (c->type == H64VALTYPE_BOOL) {
+        tname_size = strlen("boolean");
+        tname[0] = 'b'; tname[1] = 'o'; tname[2] = 'o';
+        tname[3] = 'l'; tname[4] = 'e'; tname[5] = 'a';
+        tname[6] = 'n';
+    } else if (c->type == H64VALTYPE_VECTOR) {
+        tname_size = strlen("vector");
+        tname[0] = 'v'; tname[1] = 'e'; tname[2] = 'c';
+        tname[3] = 't'; tname[4] = 'o'; tname[5] = 'r';
+    } else if (c->type == H64VALTYPE_CONSTPREALLOCSTR ||
+            c->type == H64VALTYPE_SHORTSTR) {
+        tname_size = strlen("string");
+        tname[0] = 's'; tname[1] = 't'; tname[2] = 'r';
+        tname[3] = 'i'; tname[4] = 'n'; tname[5] = 'g';
+    } else if (c->type == H64VALTYPE_CONSTPREALLOCBYTES ||
+            c->type == H64VALTYPE_SHORTBYTES) {
+        tname_size = strlen("bytes");
+        tname[0] = 'b'; tname[1] = 'y'; tname[2] = 't';
+        tname[3] = 'e'; tname[4] = 's';
+    } else if (c->type == H64VALTYPE_FUNCREF) {
+        tname_size = strlen("function");
+        tname[0] = 'f'; tname[1] = 'u'; tname[2] = 'n';
+        tname[3] = 'c'; tname[4] = 't'; tname[5] = 'i';
+        tname[6] = 'o'; tname[7] = 'n';
+    } else if (c->type == H64VALTYPE_GCVAL) {
+        if (((h64gcvalue *)c->ptr_value)->type ==
+                H64GCVALUETYPE_SET) {
+            tname_size = strlen("set");
+            tname[0] = 's'; tname[1] = 'e'; tname[2] = 't';
+        } else if (((h64gcvalue *)c->ptr_value)->type ==
+                H64GCVALUETYPE_LIST) {
+            tname_size = strlen("list");
+            tname[0] = 'l'; tname[1] = 'i'; tname[2] = 's';
+            tname[3] = 't';
+        } else if (((h64gcvalue *)c->ptr_value)->type ==
+                H64GCVALUETYPE_MAP) {
+            tname_size = strlen("map");
+            tname[0] = 'm'; tname[1] = 'a'; tname[2] = 'p';
+        } else if (((h64gcvalue *)c->ptr_value)->type ==
+                H64GCVALUETYPE_FUNCREF_CLOSURE) {
+            tname_size = strlen("function");
+            tname[0] = 'f'; tname[1] = 'u'; tname[2] = 'n';
+            tname[3] = 'c'; tname[4] = 't'; tname[5] = 'i';
+            tname[6] = 'o'; tname[7] = 'n';
+        } else if (((h64gcvalue *)c->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE) {
+            tname_size = strlen("object");
+            tname[0] = 'o'; tname[1] = 'b'; tname[2] = 'j';
+            tname[3] = 'e'; tname[4] = 'c'; tname[5] = 't';
+        } else {
+            // This should be unreachable.
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RUNTIMEERROR,
+                "internal error: type() entered unreachable path 1"
+            );
+        }
+    } else {
+        // This should be unreachable.
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RUNTIMEERROR,
+            "internal error: type() entered unreachable path 2"
+        );
+    }
+
+    valuecontent *returnv = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(returnv);
+    memset(returnv, 0, sizeof(*returnv));
+    if (!valuecontent_SetStringU32(
+            vmthread, returnv, tname, tname_size
+            ))
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory allocating string"
+        );
+    return 1;
+}
+
 int corelib_print(  // $$builtin.print
         h64vmthread *vmthread
         ) {
@@ -486,7 +592,14 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     );
     if (idx < 0)
         return 0;
-    p->print_func_index = idx;
+
+    // 'type' function:
+    idx = h64program_RegisterCFunction(
+        p, "type", &corelib_type,
+        NULL, 1, NULL, NULL, NULL, 1, -1
+    );
+    if (idx < 0)
+        return 0;
 
     // '$$container.add' function:
     idx = h64program_RegisterCFunction(
