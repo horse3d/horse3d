@@ -123,6 +123,17 @@ START_TEST (test_uribasics)
     assert(uri->port < 0);
     assert(strcmp(uri->path, "test-file.h64") == 0);
     uri_Free(uri);
+
+    // Test that VFS paths are treated like file paths, and not like
+    // a remote URI with a host:
+    uri = uri_ParseEx("vfs://blubb:80/", "https");
+    assert(strcmp(uri->protocol, "vfs") == 0);
+    assert(uri->port < 0);
+    assert(uri->host == NULL);
+    assert(strcmp(uri->path, "blubb:80/") == 0 ||
+           strcmp(uri->path, "blubb:80\\") == 0 ||
+           strcmp(uri->path, "blubb:80") == 0);
+    uri_Free(uri);
 }
 END_TEST
 

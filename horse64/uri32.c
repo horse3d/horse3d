@@ -533,6 +533,10 @@ uri32info *uri32_ParseEx(
         if (h64casecmp_u32(
                 result->protocol, result->protocollen,
                 file_u32, strlen("file")
+                ) == 0 ||
+                h64casecmp_u32(
+                result->protocol, result->protocollen,
+                vfs_u32, strlen("vfs")
                 ) == 0) {
             isknownfileuri = 1;
             int maybewindowspath = haswinprotocolslashes;
