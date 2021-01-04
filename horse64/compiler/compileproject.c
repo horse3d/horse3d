@@ -842,6 +842,15 @@ char *compileproject_ResolveImportToFile(
                     uriinfo *result = uri_ParseEx(
                         library_sourced_path, "vfs"
                     );
+                    if (result && result->protocol &&
+                            strcmp(result->protocol, "file") == 0) {
+                        free(result->protocol);
+                        result->protocol = strdup("vfs");
+                        if (!result->protocol) {
+                            uri_Free(result);
+                            result = NULL;
+                        }
+                    }
                     free(library_sourced_path);
                     if (result) {
                         resulturi = uri_Dump(result);
@@ -904,6 +913,15 @@ char *compileproject_ResolveImportToFile(
                 uriinfo *result = uri_ParseEx(
                     library_sourced_path, "vfs"
                 );
+                if (result && result->protocol &&
+                        strcmp(result->protocol, "file") == 0) {
+                    free(result->protocol);
+                    result->protocol = strdup("vfs");
+                    if (!result->protocol) {
+                        uri_Free(result);
+                        result = NULL;
+                    }
+                }
                 free(library_sourced_path_external);
                 if (result) {
                     resulturi = uri_Dump(result);

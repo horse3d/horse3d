@@ -446,6 +446,8 @@ uri32info *uri32_ParseEx(
 
     const h64wchar file_u32[4] = {'f', 'i', 'l', 'e'};
     int64_t file_u32len = 4;
+    const h64wchar vfs_u32[3] = {'v', 'f', 's'};
+    int64_t vfs_u32len = 3;
 
     uri32info *result = malloc(sizeof(*result));
     if (!result)
@@ -650,6 +652,9 @@ uri32info *uri32_ParseEx(
              h64casecmp_u32(
                 result->protocol, result->protocollen,
                 file_u32, file_u32len
+             ) != 0 || h64casecmp_u32(
+                result->protocol, result->protocollen,
+                vfs_u32, vfs_u32len
              ) != 0)) {
         // Looks like we've had the host followed by port:
         if (!result->protocol && default_remote_protocol) {
@@ -721,7 +726,10 @@ uri32info *uri32_ParseEx(
             h64casecmp_u32(
                 result->protocol, result->protocollen,
                 file_u32, file_u32len
-            ) != 0) {
+            ) != 0 && h64casecmp_u32(
+                result->protocol, result->protocollen,
+                vfs_u32, vfs_u32len
+             ) != 0) {
         // Ok, we got directly a path of sorts following the host,
         // or nothing following what looks like a host.
         #ifndef NDEBUG
@@ -756,11 +764,22 @@ uri32info *uri32_ParseEx(
             uri32_Free(result);
             return NULL;
         }
-        result->protocol[0] = 'f';
-        result->protocol[1] = 'i';
-        result->protocol[2] = 'l';
-        result->protocol[3] = 'e';
-        result->protocollen = strlen("file");
+        if (default_remote_protocol && h64casecmp_u32(
+                default_remote_protocol,
+                default_remote_protocol_len,
+                vfs_u32, vfs_u32len
+                ) == 0) {
+            result->protocol[0] = 'v';
+            result->protocol[1] = 'f';
+            result->protocol[2] = 's';
+            result->protocollen = strlen("vfs");
+        } else {
+            result->protocol[0] = 'f';
+            result->protocol[1] = 'i';
+            result->protocol[2] = 'l';
+            result->protocol[3] = 'e';
+            result->protocollen = strlen("file");
+        }
         isknownfileuri = 1;
         dont_unescape_path = 1;  // since no URI header of any kind
     }
