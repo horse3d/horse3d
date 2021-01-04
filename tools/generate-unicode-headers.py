@@ -43,10 +43,10 @@ with open(os.path.join(
                 startswith("MODIFIER LETTER") else False),
             (True if entries[1].strip().upper().   # tag (true/false)
                 startswith("TAG ") else False),
-            (int(entries[12].strip(), 16) if   # lower case code point, or -1
-                len(entries[12].strip()) > 0 else -1),
-            (int(entries[13].strip(), 16) if   # upper case code point, or -1
-                len(entries[13].strip()) > 0 else -1)
+            (int(entries[13].strip(), 16) if   # lower case code point, or -1
+                len(entries[13].strip()) > 0 else -1),
+            (int(entries[12].strip(), 16) if   # upper case code point, or -1
+                len(entries[12].strip()) > 0 else -1)
         )
         #print(str(chars[codepoint]))
         if smallest_cp_seen is None or codepoint < smallest_cp_seen:

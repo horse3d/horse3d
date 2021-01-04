@@ -663,7 +663,7 @@ void utf32_toupper(h64wchar *s, int64_t slen) {
         uint64_t codepoint = s[i];
         int64_t uppered = -1;
         if ((int64_t)codepoint <= _widechartbl_highest_cp)
-            uppered = _widechartbl_lowercp[codepoint];
+            uppered = _widechartbl_uppercp[codepoint];
         if (uppered >= 0)
             s[i] = uppered;
         i++;
