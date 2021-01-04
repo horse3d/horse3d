@@ -679,6 +679,7 @@ void h64program_Free(h64program *p) {
             free(p->classes[i].funcattr_func_idx);
             free(p->classes[i].funcattr_global_name_idx);
             free(p->classes[i].varattr_global_name_idx);
+            free(p->classes[i].varattr_flags);
             i++;
         }
     }

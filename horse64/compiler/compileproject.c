@@ -89,7 +89,62 @@ h64compileproject *compileproject_New(
     return pr;
 }
 
-char *compileproject_URIRelPath(
+uriinfo *compileproject_FilePathToURI(
+        const char *fileuri, int makeabs
+        ) {
+    int _couldbevfs = 0;
+    if (!strstr(fileuri, "://"))
+        _couldbevfs = 1;
+    uriinfo *uinfo = uri_ParseEx(fileuri, "file");
+    if (!uinfo || !uinfo->path || !uinfo->protocol ||
+            (h64casecmp(uinfo->protocol, "file") != 0 &&
+             h64casecmp(uinfo->protocol, "vfs") != 0)) {
+        uri_Free(uinfo);
+        return NULL;
+    }
+    if (_couldbevfs && h64casecmp(uinfo->protocol, "file") == 0 &&
+            !filesys_IsAbsolutePath(uinfo->path)) {
+        int exists = 0;
+        if (!vfs_Exists(uinfo->path, &exists,
+                VFSFLAG_NO_REALDISK_ACCESS)) {
+            uri_Free(uinfo);
+            return NULL;
+        }
+        if (exists) {
+            free(uinfo->protocol);
+            uinfo->protocol = strdup("vfs");
+            if (!uinfo->protocol) {
+                uri_Free(uinfo);
+                return NULL;
+            }
+            char *npath = filesys_Normalize(uinfo->path);
+            if (!npath) {
+                uri_Free(uinfo);
+                return NULL;
+            }
+            free(uinfo->path);
+            uinfo->path = npath;
+        }
+    }
+    if (h64casecmp(uinfo->protocol, "file") == 0 &&
+            !filesys_IsAbsolutePath(uinfo->path) && makeabs) {
+        char *npath = filesys_ToAbsolutePath(uinfo->path);
+        if (npath) {
+            char *npath2 = filesys_Normalize(npath);
+            free(npath);
+            npath = npath2;
+        }
+        if (!npath) {
+            uri_Free(uinfo);
+            return NULL;
+        }
+        free(uinfo->path);
+        uinfo->path = npath;
+    }
+    return uinfo;
+}
+
+uriinfo *compileproject_URIRelPathToBase(
         const char *basepath, const char *fileuri,
         int *outofmemory
         ) {
@@ -98,54 +153,51 @@ char *compileproject_URIRelPath(
         return NULL;
     }
 
-    uriinfo *uinfo = uri_ParseEx(fileuri, "file");
-    if (!uinfo || !uinfo->path || !uinfo->protocol ||
-            h64casecmp(uinfo->protocol, "file") != 0) {
-        uri_Free(uinfo);
+    uriinfo *uinfo = compileproject_FilePathToURI(fileuri, 1);
+    if (!uinfo) {
         if (outofmemory) *outofmemory = 1;
         return NULL;
     }
 
-    char *s = filesys_ToAbsolutePath(uinfo->path);
-    uri_Free(uinfo);
-    uinfo = NULL;
-    if (!s) {
+    if (h64casecmp(uinfo->protocol, "file") == 0) {
+        // Convert file:// URIs to be relative to given base.
+        char *newpath = filesys_TurnIntoPathRelativeTo(
+            uinfo->path, basepath
+        );
+        if (newpath) {
+            char *newpath2 = filesys_Normalize(newpath);
+            free(newpath);
+            newpath = newpath2;
+        }
+        if (!newpath) {
+            uri_Free(uinfo);
+            uinfo = NULL;
+            if (outofmemory) *outofmemory = 1;
+            return NULL;
+        }
+        if (strlen(newpath) > strlen("../") &&
+                (memcmp(newpath, "../", 3) == 0
+                #if defined(_WIN32) || defined(_WIN64)
+                || memcmp(newpath, "..\\", 3) == 0
+                #endif
+                )) {
+            // A path escaping out of base is not allowed.
+            uri_Free(uinfo);
+            uinfo = NULL;
+            if (outofmemory) *outofmemory = 0;
+            return NULL;
+        }
+        free(uinfo->path);
+        uinfo->path = newpath;
+    }
+    if (!uinfo) {
         if (outofmemory) *outofmemory = 1;
         return NULL;
     }
-
-    char *result = filesys_TurnIntoPathRelativeTo(
-        s, basepath
-    );
-    free(s); s = NULL;
-    if (!result) {
-        if (outofmemory) *outofmemory = 1;
-        return NULL;
-    }
-
-    char *resultnormalized = filesys_Normalize(result);
-    free(result);
-    if (!resultnormalized) {
-        if (outofmemory) *outofmemory = 1;
-        return NULL;
-    }
-
-    if (strlen(resultnormalized) > strlen("../") &&
-            (memcmp(resultnormalized, "../", 3) == 0
-            #if defined(_WIN32) || defined(_WIN64)
-            || memcmp(resultnormalized, "..\\", 3) == 0
-            #endif
-            )) {
-        if (outofmemory) *outofmemory = 0;
-        free(resultnormalized);
-        return NULL;
-    }
-
-    if (outofmemory) *outofmemory = 0;
-    return resultnormalized;
+    return uinfo;
 }
 
-char *compileproject_ToProjectRelPath(
+uriinfo *compileproject_ToProjectRelPathURI(
         h64compileproject *pr, const char *fileuri,
         int *outofmemory
         ) {
@@ -153,7 +205,7 @@ char *compileproject_ToProjectRelPath(
         if (outofmemory) *outofmemory = 0;
         return NULL;
     }
-    return compileproject_URIRelPath(
+    return compileproject_URIRelPathToBase(
         pr->basefolder, fileuri, outofmemory
     );
 }
@@ -163,55 +215,79 @@ int compileproject_GetAST(
         h64ast **out_ast, char **error
         ) {
     int relfileoom = 0;
-    char *relfilepath = compileproject_ToProjectRelPath(
+    uriinfo *relfileuri = compileproject_ToProjectRelPathURI(
         pr, fileuri, &relfileoom
     );
-    if (!relfilepath) {
+    if (!relfileuri) {
         if (relfileoom) {
             *error = strdup("out of memory");
             *out_ast = NULL;
             return 0;
         }
-        *error = strdup(
-            "cannot get AST of file outside of project root"
+        char msg[] = "cannot get AST of file outside of project root: ";
+        *error = malloc(
+            strlen(msg) + strlen(fileuri) + 1
         );
+        if (*error) {
+            memcpy(
+                *error, msg, strlen(msg)
+            );
+            memcpy(
+                (*error) + strlen(msg), fileuri, strlen(fileuri) + 1
+            );
+        }
         *out_ast = NULL;
         return 0;
     }
  
     uint64_t entry;
     if (hash_StringMapGet(
-            pr->astfilemap, relfilepath, &entry
+            pr->astfilemap, relfileuri->path, &entry
             ) && entry > 0) {
         h64ast *resultptr = (h64ast*)(uintptr_t)entry;
-        free(relfilepath);
+        free(relfileuri);
         *out_ast = resultptr;
         *error = NULL;
         return 1;
     }
 
-    char *absfilepath = filesys_Join(
-        pr->basefolder, relfilepath
-    );
-    if (!absfilepath) {
-        free(relfilepath);
-        *error = strdup("alloc fail (abs file path)");
+    int isvfs = (h64casecmp(relfileuri->protocol, "vfs") == 0);
+    char *abspath = (relfileuri->path ? strdup(relfileuri->path) : NULL);
+    if (!abspath) {
+        uri_Free(relfileuri);
+        *error = strdup("out of memory");
         *out_ast = NULL;
-        return 0;
+        return 1;
+    }
+    if (!isvfs) {
+        char *trueabspath = filesys_Join(
+            pr->basefolder, relfileuri->path
+        );
+        if (!trueabspath) {
+            uri_Free(relfileuri);
+            free(relfileuri);
+            *error = strdup("alloc fail (abs file path)");
+            *out_ast = NULL;
+            return 0;
+        }
+        free(abspath);
+        abspath = trueabspath;
     }
 
     #ifdef DEBUG_COMPILEPROJECT
-    h64printf("horsec: debug: compileproject_GetAST -> parsing %s\n",
-              absfilepath);
+    h64printf(
+        "horsec: debug: compileproject_GetAST -> parsing %s (from %s)\n",
+        absuri, relfileuri
+    );
     #endif
 
     h64ast *result = codemodule_GetASTUncached(
-        pr, absfilepath, &pr->warnconfig
+        pr, abspath, &pr->warnconfig
     );
     assert(!fileuri || !result || result->fileuri);
-    free(absfilepath); absfilepath = NULL;
+    free(abspath); abspath = NULL;
     if (!result) {
-        free(relfilepath);
+        uri_Free(relfileuri);
         *error = strdup("alloc fail (get uncached AST)");
         *out_ast = NULL;
         return 0;
@@ -224,7 +300,7 @@ int compileproject_GetAST(
         result_FreeContents(pr->resultmsg);
         pr->resultmsg->success = 0;
         ast_FreeContents(result);
-        free(relfilepath);
+        uri_Free(relfileuri);
         free(result);
         *error = strdup("alloc fail (transfer errors)");
         *out_ast = NULL;
@@ -233,10 +309,10 @@ int compileproject_GetAST(
     result_RemoveMessageDuplicates(pr->resultmsg);
 
     if (!hash_StringMapSet(
-            pr->astfilemap, relfilepath, (uintptr_t)result
+            pr->astfilemap, relfileuri->path, (uintptr_t)result
             )) {
         ast_FreeContents(result);
-        free(relfilepath);
+        uri_Free(relfileuri);
         free(result);
         *error = strdup("alloc fail (ast file map set)");
         *out_ast = NULL;
@@ -245,7 +321,7 @@ int compileproject_GetAST(
     pr->astfilemap_count++;
     *out_ast = result;
     *error = NULL;
-    free(relfilepath);
+    uri_Free(relfileuri);
     return 1;
 }
 
@@ -314,7 +390,7 @@ void compileproject_Free(h64compileproject *pr) {
     free(pr);
 }
 
-char *compileproject_GetFileSubProjectPath(
+uriinfo *compileproject_GetFileSubProjectURI(
         h64compileproject *pr, const char *sourcefileuri,
         char **subproject_name, int *outofmemory
         ) {
@@ -328,16 +404,20 @@ char *compileproject_GetFileSubProjectPath(
         return NULL;
     }
 
-    // Turn it into a relative path, which is relative to our main project:
+    // Turn it into a relative URI, which is relative to our main project:
     int relfilepathoom = 0;
-    char *relfilepath = compileproject_ToProjectRelPath(
-        pr, uinfo->path, &relfilepathoom
-    );
-    uri_Free(uinfo); uinfo = NULL;
-    if (!relfilepath) {
-        if (outofmemory && relfilepathoom) *outofmemory = 1;
-        if (outofmemory && !relfilepathoom) *outofmemory = 0;
-        return NULL;
+    {
+        uriinfo *relfileuri = compileproject_ToProjectRelPathURI(
+            pr, uinfo->path, &relfilepathoom
+        );
+        if (!relfileuri) {
+            uri_Free(uinfo);
+            if (outofmemory && relfilepathoom) *outofmemory = 1;
+            if (outofmemory && !relfilepathoom) *outofmemory = 0;
+            return NULL;
+        }
+        uri_Free(uinfo);
+        uinfo = relfileuri;
     }
 
     // If path starts with ./horse_modules/somemodule/<stuff>/ then
@@ -345,17 +425,24 @@ char *compileproject_GetFileSubProjectPath(
     int i = 0;
     while (i < 2) {
         char hmodules_path[] = "horse_modules_builtin";
+        if (i == 0) {
+            if (h64casecmp(uinfo->protocol, "vfs") != 0) {
+                // Only VFS paths may refer to builtin modules.
+                i++;
+                continue;
+            }
+        }
         if (i == 1)
             memcpy(hmodules_path, "horse_modules",
                    strlen("horse_modules") + 1);
-        if (strlen(relfilepath) <= strlen(hmodules_path)) {
+        if (strlen(uinfo->path) <= strlen(hmodules_path)) {
             // Too short to have horse_modules + sub_folder in path.
             i++;
             continue;
         }
         // Verify it starts with correct path segment:
         char buf[64];
-        memcpy(buf, relfilepath, strlen(hmodules_path));
+        memcpy(buf, uinfo->path, strlen(hmodules_path));
         buf[strlen(hmodules_path)] = '\0';
         if (
                 #if defined(__linux__) || defined(__LINUX__) || \
@@ -364,24 +451,24 @@ char *compileproject_GetFileSubProjectPath(
                 #else
                 h64casecmp(buf, hmodules_path) == 0
                 #endif
-                && (relfilepath[strlen(hmodules_path)] == '/'
+                && (uinfo->path[strlen(hmodules_path)] == '/'
                 #if defined(_WIN32) || defined(_WIN64)
-                || relfilepath[strlen(hmodules_path)] == '\\'
+                || uinfo->path[strlen(hmodules_path)] == '\\'
                 #endif
                 )) {
             int k = strlen(hmodules_path) + 1;  // path + '/'
-            while (relfilepath[k] != '/' && relfilepath[k] != '\0'
+            while (uinfo->path[k] != '/' && uinfo->path[k] != '\0'
                     #if defined(_WIN32) || defined(_WIN64)
                     && relfilepath[k] != '\\'
                     #endif
                     )
                 k++;
-            if (relfilepath[k] != '\0') {
+            if (uinfo->path[k] != '\0') {
                 k++;  // go past dir separator
                 // Extract actual horse_modules/<name>/(REST CUT OFF) path:
-                char *relfilepath_shortened = strdup(relfilepath);
+                char *relfilepath_shortened = strdup(uinfo->path);
                 if (!relfilepath_shortened) {
-                    free(relfilepath);
+                    uri_Free(uinfo);
                     if (outofmemory) *outofmemory = 0;
                     return NULL;
                 }
@@ -409,7 +496,7 @@ char *compileproject_GetFileSubProjectPath(
                 if (slashcount != 2 ||
                         secondslashindex <= firstslashindex + 1) {
                     free(relfilepath_shortened);
-                    free(relfilepath);
+                    uri_Free(uinfo);
                     if (outofmemory) *outofmemory = 0;
                     return NULL;
                 }
@@ -420,12 +507,12 @@ char *compileproject_GetFileSubProjectPath(
                 );
                 if (!project_name) {
                     free(relfilepath_shortened);
-                    free(relfilepath);
+                    uri_Free(uinfo);
                     if (outofmemory) *outofmemory = 0;
                     return NULL;
                 }
                 memcpy(
-                    project_name, relfilepath + firstslashindex + 1,
+                    project_name, uinfo->path + firstslashindex + 1,
                     secondslashindex - (firstslashindex + 1)
                 );
                 project_name[
@@ -437,31 +524,39 @@ char *compileproject_GetFileSubProjectPath(
                     pr->basefolder
                 );  // needs to be relative to main project path
                 if (!parent_abs) {
-                    free(relfilepath);
+                    uri_Free(uinfo);
                     free(relfilepath_shortened);
                     if (outofmemory) *outofmemory = 0;
                     return NULL;
                 }
-                char *result = filesys_Join(
+                char *resultpath = filesys_Join(
                     parent_abs, relfilepath_shortened
                 );
                 free(parent_abs);
                 parent_abs = NULL;
                 free(relfilepath_shortened);
                 relfilepath_shortened = NULL;
-                if (result) {
-                    char *resultold = result;
-                    result = filesys_Normalize(resultold);
+                if (resultpath) {
+                    char *resultold = resultpath;
+                    resultpath = filesys_Normalize(resultold);
                     free(resultold);
                 }
-                free(relfilepath);
-                if (result) {
+                uri_Free(uinfo);
+                if (resultpath) {
                     if (subproject_name) *subproject_name = project_name;
                     if (outofmemory) *outofmemory = 0;
                 } else {
                     if (outofmemory) *outofmemory = 1;
                 }
-                return result;
+                // Ok, return as URI with protocol header stuff:
+                uriinfo *resulturi = uri_ParseEx(
+                    resultpath, (i == 0 ? "vfs" : "file")
+                );
+                free(resultpath);
+                resultpath = NULL;
+                if (!resulturi)
+                    if (outofmemory) *outofmemory = 1;
+                return resulturi;
             }
         }
         i++;
@@ -469,7 +564,7 @@ char *compileproject_GetFileSubProjectPath(
     }
     // Not inside horse_modules module folder, so just return the
     // regular project root:
-    free(relfilepath);
+    uri_Free(uinfo);
     if (subproject_name) {
         *subproject_name = strdup("");
         if (!*subproject_name) {
@@ -477,13 +572,29 @@ char *compileproject_GetFileSubProjectPath(
             return NULL;
         }
     }
-    char *result = filesys_ToAbsolutePath(pr->basefolder);
-    if (!result) {
+    char *resultpath = filesys_ToAbsolutePath(pr->basefolder);
+    if (resultpath) {
+        char *result2 = uri_Normalize(
+            resultpath, 1
+        );
+        free(resultpath);
+        resultpath = result2;
+    }
+    if (!resultpath) {
         if (outofmemory) *outofmemory = 1;
         return NULL;
     }
+    // Ok, return as URI with protocol header stuff:
+    uriinfo *resulturi = uri_ParseEx(
+        resultpath, "file"
+    );
+    free(resultpath);
+    resultpath = NULL;
+    if (!resulturi) {
+        if (outofmemory) *outofmemory = 1;
+    }
     if (outofmemory) *outofmemory = 0;
-    return result;
+    return resulturi;
 }
 
 int compileproject_DoesImportMapToCFuncs(
@@ -726,7 +837,20 @@ char *compileproject_ResolveImportToFile(
                 free(fullpath);
                 free(library_sourced_path_external);
                 if (outofmemory) *outofmemory = 0;
-                return library_sourced_path;
+                char *resulturi = NULL;
+                {
+                    uriinfo *result = uri_ParseEx(
+                        library_sourced_path, "vfs"
+                    );
+                    free(library_sourced_path);
+                    if (result) {
+                        resulturi = uri_Dump(result);
+                        uri_Free(result);
+                    }
+                }
+                if (!resulturi)
+                    if (outofmemory) *outofmemory = 1;
+                return resulturi;
             }
             free(library_sourced_path);
             library_sourced_path = NULL;
@@ -775,7 +899,20 @@ char *compileproject_ResolveImportToFile(
                 );
             free(fullpath);
             if (outofmemory) *outofmemory = 0;
-            return library_sourced_path_external;
+            char *resulturi = NULL;
+            {
+                uriinfo *result = uri_ParseEx(
+                    library_sourced_path, "vfs"
+                );
+                free(library_sourced_path_external);
+                if (result) {
+                    resulturi = uri_Dump(result);
+                    uri_Free(result);
+                }
+            }
+            if (!resulturi)
+                if (outofmemory) *outofmemory = 1;
+            return resulturi;
         } else {
             // Return full disk path:
             if (print_debug_info)
@@ -786,35 +923,48 @@ char *compileproject_ResolveImportToFile(
                 );
             free(library_sourced_path_external);
             if (outofmemory) *outofmemory = 0;
-            return fullpath;
+            char *resulturi = NULL;
+            {
+                uriinfo *result = uri_ParseEx(
+                    fullpath, "file"
+                );
+                free(fullpath);
+                if (result) {
+                    resulturi = uri_Dump(result);
+                    uri_Free(result);
+                }
+            }
+            if (!resulturi)
+                if (outofmemory) *outofmemory = 1;
+            return resulturi;
         }
     }
 
     // Not a library, do local project folder search:
     int projectpathoom = 0;
-    char *projectpath = compileproject_GetFileSubProjectPath(
+    uriinfo *projecturi = compileproject_GetFileSubProjectURI(
         pr, sourcefileuri, NULL, &projectpathoom
     );
-    if (!projectpath) {
+    if (!projecturi) {
         free(import_relpath);
         if (outofmemory) *outofmemory = projectpathoom;
         return NULL;
     }
     int relfilepathoom = 0;
-    char *relfilepath = compileproject_ToProjectRelPath(
+    uriinfo *relfileuri = compileproject_ToProjectRelPathURI(
         pr, sourcefileuri, &relfilepathoom
     );
-    if (!relfilepath) {
-        free(projectpath);
+    if (!relfileuri) {
+        uri_Free(projecturi);
         free(import_relpath);
         if (relfilepathoom && outofmemory) *outofmemory = 1;
         return NULL;
     }
-    char *relfolderpath = filesys_Dirname(relfilepath);
-    free(relfilepath);
-    relfilepath = NULL;
+    char *relfolderpath = filesys_Dirname(relfileuri->path);
+    uri_Free(relfileuri);
+    relfileuri = NULL;
     if (!relfolderpath) {
-        free(projectpath);
+        uri_Free(projecturi);
         free(import_relpath);
         if (outofmemory) *outofmemory = 1;
         return NULL;
@@ -853,7 +1003,7 @@ char *compileproject_ResolveImportToFile(
                         k++;
                     }
                     free(subdir_components);
-                    free(projectpath);
+                    uri_Free(projecturi);
                     free(relfolderpath);
                     free(import_relpath);
                     if (outofmemory) *outofmemory = 1;
@@ -937,7 +1087,7 @@ char *compileproject_ResolveImportToFile(
 
         // Get absolute path, and check if we can actually import this path:
         char *checkpath_abs = filesys_Join(
-            projectpath, checkpath_rel
+            projecturi->path, checkpath_rel
         );
         if (!checkpath_abs) {
             free(checkpath_rel);
@@ -1004,7 +1154,7 @@ char *compileproject_ResolveImportToFile(
         k++;
     }
     free(subdir_components);
-    free(projectpath);
+    uri_Free(projecturi);
     free(relfolderpath);
     free(import_relpath);
     if (outofmemory) *outofmemory = 0;
@@ -1158,26 +1308,30 @@ int _resolveallcb(
     int fileismain = 0;
     assert(cinfo->mainfileuri != NULL && ast->fileuri != NULL);
     int relfileoom = 0;
-    char *relfilepath_main = compileproject_ToProjectRelPath(
+    uriinfo *relfileuri_main = compileproject_ToProjectRelPathURI(
         pr, cinfo->mainfileuri, &relfileoom
     );
-    if (!relfilepath_main)
+    if (!relfileuri_main)
         return 0;
     relfileoom = 0;
-    char *relfilepath_ast = compileproject_ToProjectRelPath(
+    uriinfo *relfileuri_ast = compileproject_ToProjectRelPathURI(
         pr, ast->fileuri, &relfileoom
     );
-    if (!relfilepath_ast) {
-        free(relfilepath_main);
+    if (!relfileuri_ast) {
+        uri_Free(relfileuri_main);
         return 0;
     }
-    #if defined(_WIN32) || defined(_WIN64)
-    fileismain = (h64casecmp(relfilepath_ast, relfilepath_main) == 0);
-    #else
-    fileismain = (strcmp(relfilepath_ast, relfilepath_main) == 0);
-    #endif
-    free(relfilepath_main);
-    free(relfilepath_ast);
+    if (!uri_CompareEx(
+            relfileuri_main, relfileuri_ast,
+            0, -1, &fileismain
+            )) {
+        // Oom.
+        uri_Free(relfileuri_main);
+        uri_Free(relfileuri_ast);
+        return 0;
+    }
+    uri_Free(relfileuri_main);
+    uri_Free(relfileuri_ast);
     assert(!fileismain || !cinfo->mainfileseen);
     if (fileismain)
         cinfo->mainfileseen = 1;

@@ -28,6 +28,7 @@
 #include "hash.h"
 #include "nonlocale.h"
 #include "threadablechecker.h"
+#include "uri.h"
 
 
 typedef struct resolveinfo {
@@ -1439,9 +1440,15 @@ int scoperesolver_BuildASTGlobalStorage(
     if (!unresolved_ast->module_path) {
         char *library_source = NULL;
         int pathoom = 0;
-        char *project_path = compileproject_GetFileSubProjectPath(
+        char *project_path = NULL;
+        uriinfo *project_path_uri = compileproject_GetFileSubProjectURI(
             pr, unresolved_ast->fileuri, &library_source, &pathoom
         );
+        if (project_path_uri) {
+            project_path = strdup(project_path_uri->path);
+            uri_Free(project_path_uri);
+            project_path_uri = NULL;
+        }
         if (!project_path) {
             assert(library_source == NULL);
             if (!pathoom) {
@@ -1463,9 +1470,15 @@ int scoperesolver_BuildASTGlobalStorage(
             return 0;
         }
         int modpathoom = 0;
-        char *module_path = compileproject_URIRelPath(
+        char *module_path = NULL;
+        uriinfo *module_path_uri = compileproject_URIRelPathToBase(
             project_path, unresolved_ast->fileuri, &modpathoom
         );
+        if (module_path_uri) {
+            module_path = strdup(module_path_uri->path);
+            uri_Free(module_path_uri);
+            module_path_uri = NULL;
+        }
         if (!module_path) {
             free(library_source);
             if (!modpathoom) {
@@ -1580,7 +1593,8 @@ int scoperesolver_BuildASTGlobalStorage(
         if (expr->type != H64EXPRTYPE_IMPORT_STMT ||
                 (expr->importstmt.referenced_ast != NULL &&
                  strlen(expr->importstmt.referenced_ast->fileuri) > 0) ||
-                expr->importstmt.references_c_module) {
+                expr->importstmt.references_c_module ||
+                expr->poisoned) {
             i++;
             continue;
         }
@@ -1617,6 +1631,7 @@ int scoperesolver_BuildASTGlobalStorage(
         if (!file_path) {
             char buf[256];
             if (oom) {
+                expr->poisoned = 1;
                 result_AddMessage(
                     &unresolved_ast->resultmsg, H64MSG_ERROR,
                     "import failed, out of memory or other fatal "
@@ -1626,6 +1641,7 @@ int scoperesolver_BuildASTGlobalStorage(
                 );
                 return 0;
             } else {
+                expr->poisoned = 1;
                 char modpath[128] = "";
                 int i2 = 0;
                 while (i2 < expr->importstmt.import_elements_count) {
@@ -1671,6 +1687,7 @@ int scoperesolver_BuildASTGlobalStorage(
                 pr, file_path,
                 &expr->importstmt.referenced_ast, &error
                 )) {
+            expr->poisoned = 1;
             expr->importstmt.referenced_ast = NULL;
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,

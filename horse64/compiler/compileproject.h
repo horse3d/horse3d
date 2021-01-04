@@ -36,13 +36,15 @@ typedef struct h64compileproject {
     h64result *resultmsg;
 } h64compileproject;
 
+typedef struct uriinfo uriinfo;
+
 typedef struct h64ast h64ast;
 
 h64compileproject *compileproject_New(
     const char *basefolderuri
 );
 
-char *compileproject_URIRelPath(
+uriinfo *compileproject_URIRelPathToBase(
     const char *basepath, const char *fileuri,
     int *outofmemory
 );
@@ -64,7 +66,7 @@ char *compileproject_FolderGuess(
     char **error
 );
 
-char *compileproject_GetFileSubProjectPath(
+uriinfo *compileproject_GetFileSubProjectURI(
     h64compileproject *pr, const char *sourcefileuri,
     char **subproject_name, int *outofmemory
 );

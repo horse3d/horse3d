@@ -38,11 +38,25 @@ h64wchar *uri32_Dump(
     const uri32info *uri, int64_t *out_len
 );
 
-int uri32_Compare(
+int uri32_CompareStrEx(
     const h64wchar *uri1str, int64_t uri1len,
     const h64wchar *uri2str, int64_t uri2len,
     int converttoabsolutefilepaths,
     int assumecasesensitivefilepaths, int *result
 );
+
+int uri32_CompareStr(
+    const h64wchar *uri1str, int64_t uri1len,
+    const h64wchar *uri2str, int64_t uri2len,
+    int *result
+);
+
+int uri32_CompareEx(
+    const uri32info *uri1, const uri32info *uri2,
+    int converttoabsolutefilepaths,
+    int assumecasesensitivefilepaths, int *result
+);
+
+uri32info *uri32_Duplicate(const uri32info *orig);
 
 #endif  // HORSE64_URI32_H_

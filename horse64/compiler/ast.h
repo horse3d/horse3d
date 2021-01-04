@@ -73,7 +73,7 @@ typedef struct h64ast h64ast;
 #define KNOWNVALUETYPE_KNOWNSTR 4
 
 typedef struct h64expression {
-    uint8_t destroyed;
+    uint8_t destroyed, poisoned;
     int64_t line, column;
     int tokenindex;
     h64expression *parent;

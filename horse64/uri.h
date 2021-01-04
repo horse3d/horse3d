@@ -28,10 +28,26 @@ void uri_Free(uriinfo *uri);
 
 char *uri_Dump(uriinfo *uri);
 
-int uri_Compare(
+int uri_CompareStrEx(
     const char *uri1str, const char *uri2str,
     int converttoabsolutefilepaths,
     int assumecasesensitivefilepaths, int *result
+);
+
+int uri_CompareStr(
+    const char *uri1str, const char *uri2str,
+    int *result
+);
+
+int uri_CompareEx(
+    const uriinfo *uri1str, const uriinfo *uri2str,
+    int converttoabsolutefilepaths,
+    int assumecasesensitivefilepaths, int *result
+);
+
+int uri_Compare(
+    const uriinfo *uri1str, const uriinfo *uri2str,
+    int *result
 );
 
 int uri32info_to_uriinfo(

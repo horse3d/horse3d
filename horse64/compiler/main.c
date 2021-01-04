@@ -266,7 +266,7 @@ static void printmsg(
         fileuri = "<unknown-file>";
     } else if (fileuri && exectempfileuri) {
         int isexecuri = 0;
-        int result = uri_Compare(
+        int result = uri_CompareStrEx(
             fileuri, exectempfileuri, 1,
             #if defined(_WIN32) || defined(_WIN64)
             1,

@@ -21,41 +21,68 @@
 #include "widechar.h"
 
 
+int uri_CompareEx(
+        const uriinfo *u1, const uriinfo *u2,
+        int converttoabsolutefilepaths,
+        int assumecasesensitivefilepaths, int *result
+        ) {
+    assert(u1 != NULL && u2 != NULL);
+    uri32info *u1_32 = malloc(sizeof(*u1_32));
+    uri32info *u2_32 = malloc(sizeof(*u2_32));
+    if (!u1_32 || !u2_32 ||
+            !uriinfo_to_uri32info(u1_32, u1) ||
+            !uriinfo_to_uri32info(u2_32, u2)) {
+        uri32_Free(u1_32);
+        uri32_Free(u2_32);
+        return 0;
+    }
+    assert(u1_32 != NULL && u2_32 != NULL);
+    int _innerresult = uri32_CompareEx(
+        u1_32, u2_32, converttoabsolutefilepaths,
+        assumecasesensitivefilepaths, result
+    );
+    uri32_Free(u1_32);
+    uri32_Free(u2_32);
+    return _innerresult;
+}
+
 int uri_Compare(
+        const uriinfo *u1, const uriinfo *u2,
+        int *result
+        ) {
+    return uri_CompareEx(u1, u2, 1, 1, result);
+}
+
+int uri_CompareStrEx(
         const char *uri1str, const char *uri2str,
         int converttoabsolutefilepaths,
         int assumecasesensitivefilepaths, int *result
         ) {
-    int wasinvalid, wasoom;
-    int64_t uri1_32len = 0;
-    h64wchar *uri1_32 = NULL;
-    int64_t uri2_32len = 0;
-    h64wchar *uri2_32 = NULL;
-    uri1_32 = utf8_to_utf32_ex(
-        uri1str, strlen(uri1str), 
-        NULL, 0, NULL, NULL, &uri1_32len,
-        1, 0, &wasinvalid, &wasoom
-    );
-    uri2_32 = utf8_to_utf32_ex(
-        uri2str, strlen(uri2str), 
-        NULL, 0, NULL, NULL, &uri2_32len,
-        1, 0, &wasinvalid, &wasoom
-    );
-    if (!uri1_32 || !uri2_32) {
-        free(uri1_32);
-        free(uri2_32);
+    uriinfo *u1 = uri_Parse(uri1str);
+    uriinfo *u2 = uri_Parse(uri2str);
+    if (!u1 || !u2) {
+        uri_Free(u1);
+        uri_Free(u2);
         return 0;
     }
-    int cmp = uri32_Compare(
-        uri1_32, uri1_32len,
-        uri2_32, uri2_32len,
+    int cmp = uri_CompareEx(
+        u1, u2,
         converttoabsolutefilepaths,
         assumecasesensitivefilepaths,
         result
     );
-    free(uri1_32);
-    free(uri2_32);
+    uri_Free(u1);
+    uri_Free(u2);
     return cmp;
+}
+
+int uri_CompareStr(
+        const char *uri1str, const char *uri2str,
+        int *result
+        ) {
+    return uri_CompareStrEx(
+        uri1str, uri2str, 1, 1, result
+    );
 }
 
 int uri32info_to_uriinfo(
@@ -233,6 +260,7 @@ char *uri_Dump(uriinfo *uinfo) {
 int uriinfo_to_uri32info(
         uri32info *output, const uriinfo *input
         ) {
+    assert(output != NULL);
     if (!input)
         return 0;
     memset(output, 0, sizeof(*output));

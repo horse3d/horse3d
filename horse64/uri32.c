@@ -186,7 +186,18 @@ static h64wchar *uri32_ParsePath(
     return unescaped_path;
 }
 
-int uri32_Compare(
+int uri32_CompareStr(
+        const h64wchar *uri1str, int64_t uri1len,
+        const h64wchar *uri2str, int64_t uri2len,
+        int *result
+        ) {
+    return uri32_CompareStrEx(
+        uri1str, uri1len, uri2str, uri2len,
+        1, -1, result
+    );
+}
+
+int uri32_CompareStrEx(
         const h64wchar *uri1str, int64_t uri1len,
         const h64wchar *uri2str, int64_t uri2len,
         int converttoabsolutefilepaths,
@@ -215,7 +226,6 @@ int uri32_Compare(
                 uri1normalized, uri2normalized, uri1normalizedlen *
                 sizeof(*uri1normalized)
             ) == 0) {
-        match:
         uri32_Free(uri1);
         uri32_Free(uri2);
         free(uri1normalized);
@@ -233,6 +243,85 @@ int uri32_Compare(
         free(uri2normalized);
         return 0;
     }
+    int _result = 0;
+    if (!uri32_CompareEx(
+            uri1, uri2, 0,
+            assumecasesensitivefilepaths, &_result
+            )) {
+        goto oom;
+    }
+    uri32_Free(uri1);
+    uri32_Free(uri2);
+    free(uri1normalized);
+    free(uri2normalized);
+    if (result) *result = _result;
+    return 1;
+}
+
+uri32info *uri32_Duplicate(const uri32info *orig) {
+    uri32info *result = malloc(sizeof(*result));
+    if (!result)
+        return NULL;
+    memset(result, 0, sizeof(*result));
+    if (orig->path) {
+        result->path = malloc(
+            sizeof(*result->path) * orig->pathlen
+        );
+        if (!result->path) {
+            uri32_Free(result);
+            return NULL;
+        }
+        memcpy(
+            result->path, orig->path,
+            sizeof(*result->path) * orig->pathlen
+        );
+        result->pathlen = orig->pathlen;
+    }
+    if (orig->host) {
+        result->host = malloc(
+            sizeof(*result->host) * orig->hostlen
+        );
+        if (!result->host) {
+            uri32_Free(result);
+            return NULL;
+        }
+        memcpy(
+            result->host, orig->host,
+            sizeof(*result->host) * orig->hostlen
+        );
+        result->hostlen = orig->hostlen;
+    }
+    if (orig->protocol) {
+        result->protocol = malloc(
+            sizeof(*result->protocol) * orig->protocollen
+        );
+        if (!result->protocol) {
+            uri32_Free(result);
+            return NULL;
+        }
+        memcpy(
+            result->protocol, orig->protocol,
+            sizeof(*result->protocol) * orig->protocollen
+        );
+        result->protocollen = orig->protocollen;
+    }
+    result->port = orig->port;
+    return result;
+}
+
+int uri32_CompareEx(
+        const uri32info *uri1_orig, const uri32info *uri2_orig,
+        int converttoabsolutefilepaths,
+        int assumecasesensitivefilepaths, int *result
+        ) {
+    uri32info *uri1 = uri32_Duplicate(uri1_orig);
+    uri32info *uri2 = uri32_Duplicate(uri2_orig);
+    if (!uri1 || !uri2) {
+        oom:
+        uri32_Free(uri1);
+        uri32_Free(uri2);
+        return 0;
+    }
     int uri1isfile = 1;
     {
         static h64wchar file_u32[] = {'f', 'i', 'l', 'e'};
@@ -243,12 +332,56 @@ int uri32_Compare(
             uri1isfile = 0;
         }
     }
+    int uri2isfile = 1;
+    {
+        static h64wchar file_u32[] = {'f', 'i', 'l', 'e'};
+        if (h64casecmp_u32(
+                uri2->protocol, uri2->protocollen,
+                file_u32, strlen("file")
+                ) != 0) {
+            uri2isfile = 0;
+        }
+    }
+    if (converttoabsolutefilepaths) {
+        if (uri1isfile && !filesys32_IsAbsolutePath(
+                uri1->path, uri1->pathlen)) {
+            int64_t uri1newplen = 0;
+            h64wchar *uri1newp = filesys32_ToAbsolutePath(
+                uri1->path, uri1->pathlen, &uri1newplen
+            );
+            if (!uri1newp)
+                goto oom;
+            free(uri1->path);
+            uri1->path = uri1newp;
+            uri1->pathlen = uri1newplen;
+        }
+        if (uri2isfile && !filesys32_IsAbsolutePath(
+                uri2->path, uri2->pathlen)) {
+            int64_t uri2newplen = 0;
+            h64wchar *uri2newp = filesys32_ToAbsolutePath(
+                uri2->path, uri2->pathlen, &uri2newplen
+            );
+            if (!uri2newp)
+                goto oom;
+            free(uri2->path);
+            uri2->path = uri2newp;
+            uri2->pathlen = uri2newplen;
+        }
+    }
+    if (assumecasesensitivefilepaths < 0) {
+        #if defined(_WIN32) || defined(_WIN64)
+        assumecasesensitivefilepaths = 1;
+        #elif defined(__APPLE__)
+        assumecasesensitivefilepaths = 1;
+        #else
+        assumecasesensitivefilepaths = 0;
+        #endif
+    }
     if (uri1->protocollen != uri2->protocollen ||
-            memcpy(uri1->protocol, uri2->protocol,
+            memcmp(uri1->protocol, uri2->protocol,
                 sizeof(*uri1->protocol) * uri1->protocollen) != 0 ||
             uri1->pathlen != uri2->pathlen ||
-            ((!assumecasesensitivefilepaths ||
-              !uri1isfile ||
+            (((!assumecasesensitivefilepaths || !uri1isfile) &&
               memcmp(
                   uri1->path, uri2->path,
                   sizeof(*uri1->path) * uri1->pathlen
@@ -256,8 +389,6 @@ int uri32_Compare(
         nomatch:
         uri32_Free(uri1);
         uri32_Free(uri2);
-        free(uri1normalized);
-        free(uri2normalized);
         *result = 0;
         return 1;
     }
@@ -276,8 +407,10 @@ int uri32_Compare(
             goto nomatch;
         }
         #else
-        assert(0);  // FIXME implement this, if ever required
-        goto nomatch;
+        if (h64casecmp_u32(
+                uri1->path, uri1->pathlen,
+                uri2->path, uri2->pathlen) != 0)
+            goto nomatch;
         #endif
     }
     if (uri1->hostlen != uri2->hostlen ||
@@ -288,7 +421,10 @@ int uri32_Compare(
             uri1->port != uri2->port) {
         goto nomatch;
     }
-    goto match;
+    uri32_Free(uri1);
+    uri32_Free(uri2);
+    *result = 1;
+    return 1;
 }
 
 uri32info *uri32_ParseEx(
