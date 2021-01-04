@@ -50,7 +50,7 @@ int uri_Compare(
         const uriinfo *u1, const uriinfo *u2,
         int *result
         ) {
-    return uri_CompareEx(u1, u2, 1, 1, result);
+    return uri_CompareEx(u1, u2, 1, -1, result);
 }
 
 int uri_CompareStrEx(
@@ -81,7 +81,7 @@ int uri_CompareStr(
         int *result
         ) {
     return uri_CompareStrEx(
-        uri1str, uri2str, 1, 1, result
+        uri1str, uri2str, 1, -1, result
     );
 }
 

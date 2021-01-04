@@ -57,6 +57,11 @@ int uri32_CompareEx(
     int assumecasesensitivefilepaths, int *result
 );
 
+int uri32_Compare(
+    const uri32info *uri1, const uri32info *uri2,
+    int *result
+);
+
 uri32info *uri32_Duplicate(const uri32info *orig);
 
 #endif  // HORSE64_URI32_H_

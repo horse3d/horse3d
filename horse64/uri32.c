@@ -309,6 +309,15 @@ uri32info *uri32_Duplicate(const uri32info *orig) {
     return result;
 }
 
+int uri32_Compare(
+        const uri32info *uri1, const uri32info *uri2,
+        int *result
+        ) {
+    return uri32_CompareEx(
+        uri1, uri2, 1, -1, result
+    );
+}
+
 int uri32_CompareEx(
         const uri32info *uri1_orig, const uri32info *uri2_orig,
         int converttoabsolutefilepaths,
