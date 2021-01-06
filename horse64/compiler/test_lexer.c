@@ -9,9 +9,19 @@
 #include <stdint.h>
 
 #include "compiler/lexer.h"
+#include "uri.h"
 #include "vfs.h"
 
 #include "../testmain.h"
+
+static uriinfo *_parsedURI = NULL;
+
+static uriinfo *_parseURI(const char *uri) {
+    if (_parsedURI)
+        uri_Free(_parsedURI);
+    _parsedURI = uri_ParseEx(uri, "file");
+    return _parsedURI;
+}
 
 START_TEST (test_intliterals)
 {
@@ -27,7 +37,7 @@ START_TEST (test_intliterals)
     ck_assert(fwrite(s, 1, strlen(s), f));
     fclose(f);
     h64tokenizedfile tfile = lexer_ParseFromFile(
-        ".testdata.txt", &wconfig, 0
+        _parseURI(".testdata.txt"), &wconfig
     );
     ck_assert(tfile.token_count == 5);
     ck_assert(tfile.token[0].type == H64TK_CONSTANT_FLOAT);
@@ -57,7 +67,7 @@ START_TEST (test_unaryminus)
         fclose(f);
 
         h64tokenizedfile tfile = lexer_ParseFromFile(
-            ".testdata.txt", &wconfig, 0
+            _parseURI(".testdata.txt"), &wconfig
         );
         ck_assert(tfile.token_count == 2);
         ck_assert(tfile.token[0].type == H64TK_UNOPSYMBOL);
@@ -75,7 +85,7 @@ START_TEST (test_unaryminus)
         fclose(f);
 
         h64tokenizedfile tfile = lexer_ParseFromFile(
-            ".testdata.txt", &wconfig, 0
+            _parseURI(".testdata.txt"), &wconfig
         );
         ck_assert(tfile.token_count == 3);
         ck_assert(tfile.token[0].type == H64TK_CONSTANT_INT);
@@ -106,7 +116,7 @@ START_TEST (test_utf8_literal)
     ck_assert(fwrite(s, 1, strlen(s), f));
     fclose(f);
     h64tokenizedfile tfile = lexer_ParseFromFile(
-        ".testdata.txt", &wconfig, 0
+        _parseURI(".testdata.txt"), &wconfig
     );
     ck_assert(tfile.resultmsg.success);
     ck_assert(tfile.token_count == 1);
@@ -129,7 +139,7 @@ START_TEST (test_separation)
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
         h64tokenizedfile tfile = lexer_ParseFromFile(
-            ".testdata.txt", &wconfig, 0
+            _parseURI(".testdata.txt"), &wconfig
         );
         ck_assert(tfile.resultmsg.success);
         ck_assert(tfile.token_count == 1);
@@ -144,7 +154,7 @@ START_TEST (test_separation)
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
         h64tokenizedfile tfile = lexer_ParseFromFile(
-            ".testdata.txt", &wconfig, 0
+            _parseURI(".testdata.txt"), &wconfig
         );
         ck_assert(tfile.resultmsg.success);
         ck_assert(tfile.token_count == 1);
@@ -159,7 +169,7 @@ START_TEST (test_separation)
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
         h64tokenizedfile tfile = lexer_ParseFromFile(
-            ".testdata.txt", &wconfig, 0
+            _parseURI(".testdata.txt"), &wconfig
         );
         ck_assert(tfile.resultmsg.success);
         ck_assert(tfile.token_count == 1);
@@ -174,7 +184,7 @@ START_TEST (test_separation)
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
         h64tokenizedfile tfile = lexer_ParseFromFile(
-            ".testdata.txt", &wconfig, 0
+            _parseURI(".testdata.txt"), &wconfig
         );
         ck_assert(tfile.resultmsg.success);
         ck_assert(tfile.token_count == 1);
@@ -199,7 +209,7 @@ START_TEST (test_stringliterals)
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
         h64tokenizedfile tfile = lexer_ParseFromFile(
-            ".testdata.txt", &wconfig, 0
+            _parseURI(".testdata.txt"), &wconfig
         );
         ck_assert(tfile.resultmsg.success);
         ck_assert(tfile.token_count == 3);
@@ -217,7 +227,7 @@ START_TEST (test_stringliterals)
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
         h64tokenizedfile tfile = lexer_ParseFromFile(
-            ".testdata.txt", &wconfig, 0
+            _parseURI(".testdata.txt"), &wconfig
         );
         ck_assert(tfile.resultmsg.success);
         ck_assert(tfile.token_count == 1);
@@ -235,7 +245,7 @@ START_TEST (test_stringliterals)
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
         h64tokenizedfile tfile = lexer_ParseFromFile(
-            ".testdata.txt", &wconfig, 0
+            _parseURI(".testdata.txt"), &wconfig
         );
         ck_assert(!tfile.resultmsg.success);
         ck_assert(tfile.token_count == 1);
