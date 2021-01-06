@@ -223,9 +223,9 @@ static int ast_TokenStartsStatementOutsideOfBrackets(
             strcmp(tokens[i].str_value, "var") == 0 ||
             strcmp(tokens[i].str_value, "continue") == 0 ||
             strcmp(tokens[i].str_value, "break") == 0 ||
-            strcmp(tokens[i].str_value, "raise") == 0 ||
             strcmp(tokens[i].str_value, "return") == 0 ||
-            strcmp(tokens[i].str_value, "await") == 0)) {
+            strcmp(tokens[i].str_value, "await") == 0 ||
+            strcmp(tokens[i].str_value, "raise") == 0)) {
         return 1;
     }
     return 0;
@@ -274,6 +274,7 @@ void ast_ParseRecover_FindNextStatement(
                 // will always be incomplete, it's just best effort):
                 (tokens[i].type == H64TK_KEYWORD && (
                  strcmp(tokens[i].str_value, "await") == 0 ||
+                 strcmp(tokens[i].str_value, "raise") == 0 ||
                  strcmp(tokens[i].str_value, "while") == 0 ||
                  strcmp(tokens[i].str_value, "do") == 0 ||
                  strcmp(tokens[i].str_value, "if") == 0 ||
@@ -4436,16 +4437,72 @@ int ast_ParseExprStmt(
         return 1;
     }
 
+    // raise statement:
+    if (tokens[0].type == H64TK_KEYWORD &&
+            strcmp(tokens[0].str_value, "raise") == 0) {
+        expr->type = H64EXPRTYPE_RAISE_STMT;
+        int i = 1;
+        int tlen = 0;
+        int innerparsefail = 0;
+        int inneroutofmemory = 0;
+        h64expression *innerexpr = NULL;
+        h64parsethis _buf;
+        if (!ast_ParseExprInline(
+                context, newparsethis(
+                    &_buf, parsethis,
+                    &tokens[i], max_tokens_touse - i
+                ),
+                INLINEMODE_GREEDY,
+                &innerparsefail,
+                &inneroutofmemory, &innerexpr,
+                &tlen, nestingdepth
+                )) {
+            if (inneroutofmemory) {
+                if (parsefail) *parsefail = 0;
+                if (outofmemory) *outofmemory = 1;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            if (innerparsefail) {
+                if (parsefail) *parsefail = 1;
+                if (outofmemory) *outofmemory = 0;
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            innerexpr = NULL;
+            char buf[256]; char describebuf[64];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected %s, "
+                "expected inline expression as argument to "
+                "raise statement",
+                _describetoken(describebuf, context->tokenstreaminfo,
+                    tokens, i)
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri,
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 1;
+            ast_MarkExprDestroyed(expr);
+            return 0;
+        }
+        i += tlen;
+        expr->raisestmt.raised_expression = innerexpr;
+        *out_expr = expr;
+        if (outofmemory) *outofmemory = 0;
+        if (parsefail) *parsefail = 0;
+        if (out_tokenlen) *out_tokenlen = i;
+        return 1;
+    }
+
     // await and async statements:
     if (tokens[0].type == H64TK_KEYWORD &&
             (strcmp(tokens[0].str_value, "await") == 0 ||
              strcmp(tokens[0].str_value, "async") == 0)) {
         int isawait = (strcmp(tokens[0].str_value, "await") == 0);
-        int isparallelasync = (
-            !isawait && max_tokens_touse >= 1 &&
-            tokens[1].type == H64TK_KEYWORD &&
-            strcmp(tokens[1].str_value, "parallel") == 0
-        );
         int i = 0;
         if (statementmode != STATEMENTMODE_INFUNC &&
                 statementmode != STATEMENTMODE_INCLASSFUNC) {
@@ -4466,9 +4523,8 @@ int ast_ParseExprStmt(
             ast_MarkExprDestroyed(expr);
             return 0;
         }
-        expr->type = H64EXPRTYPE_RETURN_STMT;
+        expr->type = H64EXPRTYPE_AWAIT_STMT;
         i++;
-        if (isparallelasync) i++;
 
         int tlen = 0;
         int innerparsefail = 0;
@@ -4576,7 +4632,6 @@ int ast_ParseExprStmt(
             expr = innerexpr;
             assert(expr->type == H64EXPRTYPE_CALL);
             expr->inlinecall.is_async = 1;
-            expr->inlinecall.is_parallel = isparallelasync;
             *out_expr = expr;
             if (outofmemory) *outofmemory = 0;
             if (parsefail) *parsefail = 0;

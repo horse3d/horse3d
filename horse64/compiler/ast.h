@@ -21,6 +21,7 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_WHILE_STMT,
     H64EXPRTYPE_FOR_STMT,
     H64EXPRTYPE_IMPORT_STMT,
+    H64EXPRTYPE_RAISE_STMT,
     H64EXPRTYPE_RETURN_STMT,
     H64EXPRTYPE_DO_STMT,
     H64EXPRTYPE_WITH_STMT,
@@ -151,7 +152,7 @@ typedef struct h64expression {
         struct inlinecall {
             h64expression *value;
             h64funcargs arguments;
-            uint8_t is_async, is_parallel, expand_last_posarg;
+            uint8_t is_async, expand_last_posarg;
         } inlinecall;
         struct identifierref {
             h64scopedef *resolved_to_def;
@@ -168,6 +169,9 @@ typedef struct h64expression {
             uint8_t references_c_module;
             h64scope *foundinscope;
         } importstmt;
+        struct raisestmt {
+            h64expression *raised_expression;
+        } raisestmt;
         struct constructorvector {
             int entry_count;
             h64expression **entry;

@@ -591,10 +591,16 @@ jsonvalue *compiler_TokenizeToJSON(
         ATTR_UNUSED h64misccompileroptions *moptions,
         const char *fileuri, h64compilewarnconfig *wconfig
         ) {
-    h64tokenizedfile tfile = lexer_ParseFromFile(
-        fileuri, wconfig, 0
-    );
-
+    h64tokenizedfile tfile = {0};
+    {
+        uriinfo *fileuri_info = uri_ParseEx(fileuri, "file");
+        if (!fileuri_info)
+            return NULL;
+        tfile = lexer_ParseFromFile(
+            fileuri_info, wconfig
+        );
+        uri_Free(fileuri_info);
+    }
     char *normalizeduri = uri_Normalize(fileuri, 1);
     if (!normalizeduri) {
         result_FreeContents(&tfile.resultmsg);

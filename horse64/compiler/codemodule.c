@@ -16,11 +16,16 @@
 #include "uri.h"
 
 h64ast *codemodule_GetASTUncached(
-        h64compileproject *pr, const char *fileuri,
+        h64compileproject *pr, uriinfo *fileuri,
         h64compilewarnconfig *wconfig
         ) {
+    char *fileuri_s = uri_Dump(fileuri);
+    if (!fileuri_s) {
+        return NULL;
+    }
+
     // 1. Get tokens:
-    h64tokenizedfile tfile = lexer_ParseFromFile(fileuri, wconfig, 0);
+    h64tokenizedfile tfile = lexer_ParseFromFile(fileuri, wconfig);
     int haderrormessages = 0;
     int i = 0;
     while (i < tfile.resultmsg.message_count) {
@@ -35,6 +40,7 @@ h64ast *codemodule_GetASTUncached(
         if (!tcode) {
             lexer_FreeFileTokens(&tfile);
             result_FreeContents(&tfile.resultmsg);
+            free(fileuri_s);
             return NULL;
         }
         memset(tcode, 0, sizeof(*tcode));
@@ -42,11 +48,12 @@ h64ast *codemodule_GetASTUncached(
         memcpy(&tcode->resultmsg, &tfile.resultmsg,
                sizeof(tcode->resultmsg));
         if (fileuri) {
-            tcode->fileuri = uri_Normalize(fileuri, 1);
+            tcode->fileuri = strdup(fileuri_s);
             if (!tcode->fileuri) {
                 free(tcode);
                 lexer_FreeFileTokens(&tfile);
                 result_FreeContents(&tfile.resultmsg);
+                free(fileuri_s);
                 return NULL;
             }
         }
@@ -55,11 +62,12 @@ h64ast *codemodule_GetASTUncached(
 
     // 2. Parse AST from tokens:
     h64ast *tcode = ast_ParseFromTokens(
-        pr, fileuri, tfile.token, tfile.token_count
+        pr, fileuri_s, tfile.token, tfile.token_count
     );
     if (!tcode) {
         lexer_FreeFileTokens(&tfile);
         result_FreeContents(&tfile.resultmsg);
+        free(fileuri_s);
         return NULL;
     }
     tcode->basic_file_access_was_successful = 1;
@@ -79,6 +87,7 @@ h64ast *codemodule_GetASTUncached(
         result_FreeContents(&tcode->resultmsg);
         ast_FreeContents(tcode);
         free(tcode);
+        free(fileuri_s);
         return NULL;
     }
     while (i < tfile.resultmsg.message_count) {
@@ -94,12 +103,15 @@ h64ast *codemodule_GetASTUncached(
         result_FreeContents(&tcode->resultmsg);
         ast_FreeContents(tcode);
         free(tcode);
+        free(fileuri_s);
         return NULL;
     }
     if (haderrormessages || !tfile.resultmsg.success) {
         tcode->resultmsg.success = 0;
+        free(fileuri_s);
         return tcode;
     }
 
+    free(fileuri_s);
     return tcode;
 }

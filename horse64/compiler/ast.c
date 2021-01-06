@@ -286,6 +286,14 @@ int ast_VisitExpression(
         break;
     case H64EXPRTYPE_IMPORT_STMT:
         break;
+    case H64EXPRTYPE_RAISE_STMT:
+        if (!ast_VisitExpression(
+                expr->raisestmt.raised_expression, expr,
+                visit_in, visit_out,
+                cancel_visit_descend_callback, ud
+                ))
+            return 0;
+        break;
     case H64EXPRTYPE_RETURN_STMT:
         if (!ast_VisitExpression(
                 expr->returnstmt.returned_expression, expr,
@@ -613,6 +621,9 @@ void ast_FreeExprNonpoolMembers(
         expr->withstmt.stmt = NULL;
         break;
     }
+    case H64EXPRTYPE_RAISE_STMT: {
+        break;
+    }
     case H64EXPRTYPE_RETURN_STMT: {
         break;
     }
@@ -786,6 +797,7 @@ static char _h64exprname_if_stmt[] = "H64EXPRTYPE_IF_STMT";
 static char _h64exprname_while_stmt[] = "H64EXPRTYPE_WHILE_STMT";
 static char _h64exprname_for_stmt[] = "H64EXPRTYPE_FOR_STMT";
 static char _h64exprname_import_stmt[] = "H64EXPRTYPE_IMPORT_STMT";
+static char _h64exprname_raise_stmt[] = "H64EXPRTYPE_RAISE_STMT";
 static char _h64exprname_return_stmt[] = "H64EXPRTYPE_RETURN_STMT";
 static char _h64exprname_do_stmt[] = "H64EXPRTYPE_DO_STMT";
 static char _h64exprname_with_stmt[] = "H64EXPRTYPE_WITH_STMT";
@@ -823,6 +835,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_for_stmt;
     case H64EXPRTYPE_IMPORT_STMT:
         return _h64exprname_import_stmt;
+    case H64EXPRTYPE_RAISE_STMT:
+        return _h64exprname_raise_stmt;
     case H64EXPRTYPE_RETURN_STMT:
         return _h64exprname_return_stmt;
     case H64EXPRTYPE_DO_STMT:
@@ -1241,10 +1255,6 @@ jsonvalue *ast_ExpressionToJSON(
         jsonvalue *storagejson = varstorage_StorageAsJSON(e);
         json_SetDict(v, "storage", storagejson);
         jsonvalue *attributes = json_List();
-        if (e->classdef.is_parallel) {
-            if (!json_AddToListStr(attributes, "parallel"))
-                fail = 1;
-        }
         if (e->classdef.is_noparallel) {
             if (!json_AddToListStr(attributes, "noparallel"))
                 fail = 1;
@@ -1507,6 +1517,19 @@ jsonvalue *ast_ExpressionToJSON(
                 !json_SetDictStr(v, "import_as",
                     e->importstmt.import_as))
             fail = 1;
+    } else if (e->type == H64EXPRTYPE_RAISE_STMT) {
+        if (e->raisestmt.raised_expression) {
+            jsonvalue *value = ast_ExpressionToJSON(
+                e->raisestmt.raised_expression, fileuri
+            );
+            if (!json_SetDict(v, "raised_value", value)) {
+                json_Free(value);
+                fail = 1;
+            }
+        } else {
+            if (!json_SetDictNull(v, "raised_value"))
+                fail = 1;
+        }
     } else if (e->type == H64EXPRTYPE_RETURN_STMT) {
         if (e->returnstmt.returned_expression) {
             jsonvalue *value = ast_ExpressionToJSON(
@@ -1596,10 +1619,6 @@ jsonvalue *ast_ExpressionToJSON(
             }
         }
         if (!json_SetDictBool(v, "is_async", innere->inlinecall.is_async)) {
-            fail = 1;
-        }
-        if (!json_SetDictBool(v, "is_parallel",
-                              innere->inlinecall.is_parallel)) {
             fail = 1;
         }
     }

@@ -240,53 +240,54 @@ int compileproject_GetAST(
         return 0;
     }
  
+    char *hashmap_key = uri_Dump(relfileuri);
+    if (!hashmap_key) {
+        uri_Free(relfileuri);
+        *error = strdup("out of memory");
+        *out_ast = NULL;
+        return 1;
+    }
     uint64_t entry;
     if (hash_StringMapGet(
-            pr->astfilemap, relfileuri->path, &entry
+            pr->astfilemap, hashmap_key, &entry
             ) && entry > 0) {
         h64ast *resultptr = (h64ast*)(uintptr_t)entry;
-        free(relfileuri);
+        free(hashmap_key);
+        uri_Free(relfileuri);
         *out_ast = resultptr;
         *error = NULL;
         return 1;
     }
 
     int isvfs = (h64casecmp(relfileuri->protocol, "vfs") == 0);
-    char *abspath = (relfileuri->path ? strdup(relfileuri->path) : NULL);
-    if (!abspath) {
-        uri_Free(relfileuri);
-        *error = strdup("out of memory");
-        *out_ast = NULL;
-        return 1;
-    }
     if (!isvfs) {
         char *trueabspath = filesys_Join(
             pr->basefolder, relfileuri->path
         );
         if (!trueabspath) {
+            free(hashmap_key);
             uri_Free(relfileuri);
-            free(relfileuri);
             *error = strdup("alloc fail (abs file path)");
             *out_ast = NULL;
             return 0;
         }
-        free(abspath);
-        abspath = trueabspath;
+        free(relfileuri->path);
+        relfileuri->path = trueabspath;
     }
 
     #ifdef DEBUG_COMPILEPROJECT
     h64printf(
-        "horsec: debug: compileproject_GetAST -> parsing %s (from %s)\n",
-        absuri, relfileuri
+        "horsec: debug: compileproject_GetAST -> parsing %s\n",
+        relfileuri->path
     );
     #endif
 
     h64ast *result = codemodule_GetASTUncached(
-        pr, abspath, &pr->warnconfig
+        pr, relfileuri, &pr->warnconfig
     );
     assert(!fileuri || !result || result->fileuri);
-    free(abspath); abspath = NULL;
     if (!result) {
+        free(hashmap_key);
         uri_Free(relfileuri);
         *error = strdup("alloc fail (get uncached AST)");
         *out_ast = NULL;
@@ -299,8 +300,9 @@ int compileproject_GetAST(
             )) {
         result_FreeContents(pr->resultmsg);
         pr->resultmsg->success = 0;
-        ast_FreeContents(result);
+        free(hashmap_key);
         uri_Free(relfileuri);
+        ast_FreeContents(result);
         free(result);
         *error = strdup("alloc fail (transfer errors)");
         *out_ast = NULL;
@@ -309,10 +311,11 @@ int compileproject_GetAST(
     result_RemoveMessageDuplicates(pr->resultmsg);
 
     if (!hash_StringMapSet(
-            pr->astfilemap, relfileuri->path, (uintptr_t)result
+            pr->astfilemap, hashmap_key, (uintptr_t)result
             )) {
-        ast_FreeContents(result);
+        free(hashmap_key);
         uri_Free(relfileuri);
+        ast_FreeContents(result);
         free(result);
         *error = strdup("alloc fail (ast file map set)");
         *out_ast = NULL;
@@ -321,6 +324,7 @@ int compileproject_GetAST(
     pr->astfilemap_count++;
     *out_ast = result;
     *error = NULL;
+    free(hashmap_key);
     uri_Free(relfileuri);
     return 1;
 }
@@ -397,7 +401,8 @@ uriinfo *compileproject_GetFileSubProjectURI(
     // Parse sourcefileuri given to us:
     uriinfo *uinfo = uri_ParseEx(sourcefileuri, "file");
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
-            h64casecmp(uinfo->protocol, "file") != 0) {
+            (h64casecmp(uinfo->protocol, "file") != 0 &&
+             h64casecmp(uinfo->protocol, "vfs") != 0)) {
         if (outofmemory && !uinfo) *outofmemory = 1;
         if (outofmemory && uinfo) *outofmemory = 0;
         uri_Free(uinfo);

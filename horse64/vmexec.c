@@ -2642,7 +2642,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if ((inst->flags & CALLFLAG_ASYNC) != 0) {
                 // Async call. Need to set it up as separate execution
                 // thread instead.
-                if ((inst->flags & CALLFLAG_PARALLELASYNC) &&
+                int parallelasync = (
+                    vmexec->program->func[target_func_id].is_threadable |
+                    !vmthread->is_on_main_thread
+                );
+                if (parallelasync &&
                         !vmexec->program->func[target_func_id].
                         is_threadable) {
                     // Abort, this is not allowed (due to heap separation)
@@ -2651,7 +2655,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     }
                     RAISE_ERROR(
                         H64STDERROR_TYPEERROR,
-                        "cannot call nonparallel func via async parallel"
+                        "cannot call non-parallel func in this "
+                        "context"
                     );
                     goto *jumptable[((h64instructionany *)p)->type];
                 }
@@ -2659,7 +2664,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 int result = vmschedule_AsyncScheduleFunc(
                     vmexec, vmthread,
                     new_func_floor, target_func_id,
-                    (inst->flags & CALLFLAG_PARALLELASYNC)
+                    parallelasync
                 );
                 if (!result) {
                     vmthread_ResetCallTempStack(vmthread);

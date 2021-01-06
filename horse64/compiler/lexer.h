@@ -14,6 +14,8 @@
 #include "compiler/warningconfig.h"
 #include "json.h"
 
+typedef struct uriinfo uriinfo;
+
 typedef enum h64tokentype {
     H64TK_INVALID = 0,
     H64TK_IDENTIFIER = 1,
@@ -52,7 +54,7 @@ typedef struct h64tokenizedfile {
 } h64tokenizedfile;
 
 ATTR_UNUSED static char *h64keywords[] = {
-    "async", "const",
+    "async", "const", "raise",
     "if", "while", "func",
     "for", "from", "with",
     "var", "class", "extends",
@@ -66,8 +68,7 @@ ATTR_UNUSED static char *h64keywords[] = {
 };
 
 h64tokenizedfile lexer_ParseFromFile(
-    const char *fileuri, h64compilewarnconfig *wconfig,
-    int vfsflags
+    uriinfo *fileuri, h64compilewarnconfig *wconfig
 );
 
 void lexer_ClearToken(h64token *t);

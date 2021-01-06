@@ -316,53 +316,58 @@ static int is_digit(char c) {
 }
 
 h64tokenizedfile lexer_ParseFromFile(
-        const char *fileuri, h64compilewarnconfig *wconfig,
-        int vfsflags
+        uriinfo *fileuri, h64compilewarnconfig *wconfig
         ) {
     h64tokenizedfile result;
     memset(&result, 0, sizeof(result));
     result.resultmsg.success = 1;
 
-    uriinfo *uinfo = uri_ParseEx(
-        fileuri, "https"
-    );
-    if (!uinfo) {
+    char *fileuri_s = uri_Dump(fileuri);
+    if (!fileuri_s) {
         result_ErrorNoLoc(
             &result.resultmsg,
-            "URI parse failed",
-            fileuri
+            "out of memory converting URI",
+            NULL
         );
+        free(fileuri_s);
         return result;
     }
-    if (h64casecmp(uinfo->protocol, "file") != 0) {
+
+    if (h64casecmp(fileuri->protocol, "file") != 0 &&
+            h64casecmp(fileuri->protocol, "vfs") != 0) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "URI protocol unsupported",
-            fileuri
+            fileuri_s
         );
-        uri_Free(uinfo);
+        free(fileuri_s);
         return result;
     }
+    int vfsflags = (
+        h64casecmp(fileuri->protocol, "file") == 0 ?
+        VFSFLAG_NO_VIRTUALPAK_ACCESS :
+        VFSFLAG_NO_REALDISK_ACCESS
+    );
     int _vfs_exists = 0;
-    if (!vfs_Exists(uinfo->path, &_vfs_exists, vfsflags)) {
+    if (!vfs_Exists(fileuri->path, &_vfs_exists, vfsflags)) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "vfs_Exists() failed, out of memory?",
-            fileuri
+            fileuri_s
         );
-        uri_Free(uinfo);
+        free(fileuri_s);
         return result;
     }
     if (!_vfs_exists) {
         char *buffer = malloc(
-            strlen("no such file: ") + strlen(fileuri) + 1
+            strlen("no such file: ") + strlen(fileuri_s) + 1
         );
         if (!buffer) {
             result.resultmsg.success = 0;
-            uri_Free(uinfo);
+            free(fileuri_s);
             return result;
         }
-        sprintf(buffer, "no such file: %s", fileuri);
+        sprintf(buffer, "no such file: %s", fileuri_s);
         result_ErrorNoLoc(
             &result.resultmsg,
             buffer,
@@ -372,37 +377,37 @@ h64tokenizedfile lexer_ParseFromFile(
         assert(result.resultmsg.message_count == 1);
         assert(result.resultmsg.message[0].message);
         assert(strlen(result.resultmsg.message[0].message) > 0);
-        uri_Free(uinfo);
+        free(fileuri_s);
         return result;
     }
     int _vfs_isdir = 0;
-    if (!vfs_IsDirectory(uinfo->path, &_vfs_isdir, vfsflags)) {
+    if (!vfs_IsDirectory(fileuri->path, &_vfs_isdir, vfsflags)) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "vfs_IsDirectory() failed, out of memory?",
-            fileuri
+            fileuri_s
         );
-        uri_Free(uinfo);
+        free(fileuri_s);
         return result;
     }
     if (_vfs_isdir) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "path points to directory instead of file",
-            fileuri
+            fileuri_s
         );
-        uri_Free(uinfo);
+        free(fileuri_s);
         return result;
     }
 
     uint64_t size = 0;
-    if (!vfs_Size(uinfo->path, &size, vfsflags)) {
+    if (!vfs_Size(fileuri->path, &size, vfsflags)) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "vfs_Size() failed, lack of permission or i/o error",
-            fileuri
+            fileuri_s
         );
-        uri_Free(uinfo);
+        free(fileuri_s);
         return result;
     }
     if (size > H64LIMIT_SOURCEFILESIZE) {
@@ -414,9 +419,9 @@ h64tokenizedfile lexer_ParseFromFile(
         result_ErrorNoLoc(
             &result.resultmsg,
             buf,
-            fileuri
+            fileuri_s
         );
-        uri_Free(uinfo);
+        free(fileuri_s);
         return result;
     }
     char *buffer = malloc(size);
@@ -424,23 +429,21 @@ h64tokenizedfile lexer_ParseFromFile(
         result_ErrorNoLoc(
             &result.resultmsg,
             "failed to allocate token file buffer",
-            fileuri
+            fileuri_s
         );
-        uri_Free(uinfo);
+        free(fileuri_s);
         return result;
     }
-    if (!vfs_GetBytes(uinfo->path, 0, size, buffer, vfsflags)) {
+    if (!vfs_GetBytes(fileuri->path, 0, size, buffer, vfsflags)) {
         result_ErrorNoLoc(
             &result.resultmsg,
             "failed to read file, lack of permission or i/o error",
-            fileuri
+            fileuri_s
         );
         free(buffer);
-        uri_Free(uinfo);
+        free(fileuri_s);
         return result;
     }
-    uri_Free(uinfo);
-    uinfo = NULL;
 
     int post_identifier_is_likely_func = 0;
     int tokenallocsize = 0;
@@ -464,7 +467,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 H64MSG_ERROR,
                 "invalid binary value 0x0, "
                 "you must escape zero bytes with \\0",
-                fileuri, line, column
+                fileuri_s, line, column
             );
             column++;
             i++;
@@ -496,9 +499,10 @@ h64tokenizedfile lexer_ParseFromFile(
             result_ErrorNoLoc(
                 &result.resultmsg,
                 "failed to allocate token, out of memory?",
-                fileuri
+                fileuri_s
             );
             free(buffer);
+            free(fileuri_s);
             return result;
         }
         result.token[result.token_count].line = line;
@@ -563,9 +567,10 @@ h64tokenizedfile lexer_ParseFromFile(
                     &result.resultmsg,
                     "failed to allocate literal, "
                     "out of memory?",
-                    fileuri
+                    fileuri_s
                 );
                 free(buffer);
+                free(fileuri_s);
                 return result;
             }
             int hadinvaliderror = 0;
@@ -595,7 +600,7 @@ h64tokenizedfile lexer_ParseFromFile(
                     result_AddMessage(
                         &result.resultmsg,
                         H64MSG_ERROR, buf,
-                        fileuri, line, column
+                        fileuri_s, line, column
                     );
                     hadinvaliderror = 1;
                     break;
@@ -615,9 +620,10 @@ h64tokenizedfile lexer_ParseFromFile(
                             &result.resultmsg,
                             "failed to allocate literal, "
                             "out of memory?",
-                            fileuri
+                            fileuri_s
                         );
                         free(buffer);
+                        free(fileuri_s);
                         return result;
                     }
                     strbuf = newstrbuf;
@@ -630,16 +636,17 @@ h64tokenizedfile lexer_ParseFromFile(
                             H64MSG_ERROR,
                             "invalid binary value 0x0, "
                             "you must escape zero bytes with \\0",
-                            fileuri, line, column
+                            fileuri_s, line, column
                             )) {
                         if (strbuf) free(strbuf);
                         result_ErrorNoLoc(
                             &result.resultmsg,
                             "failed to allocate error, "
                             "out of memory?",
-                            fileuri
+                            fileuri_s
                         );
                         free(buffer);
+                        free(fileuri_s);
                         return result;
                     }
                 }
@@ -657,16 +664,17 @@ h64tokenizedfile lexer_ParseFromFile(
                     if (!result_AddMessage(
                             &result.resultmsg,
                             H64MSG_ERROR, buf,
-                            fileuri, line, column
+                            fileuri_s, line, column
                             )) {
                         if (strbuf) free(strbuf);
                         result_ErrorNoLoc(
                             &result.resultmsg,
                             "failed to allocate error, "
                             "out of memory?",
-                            fileuri
+                            fileuri_s
                         );
                         free(buffer);
+                        free(fileuri_s);
                         return result;
                     }
                     escaped = 0;
@@ -683,16 +691,17 @@ h64tokenizedfile lexer_ParseFromFile(
                     if (!result_AddMessage(
                             &result.resultmsg,
                             H64MSG_ERROR, buf,
-                            fileuri, line, column
+                            fileuri_s, line, column
                             )) {
                         if (strbuf) free(strbuf);
                         result_ErrorNoLoc(
                             &result.resultmsg,
                             "failed to allocate error, "
                             "out of memory?",
-                            fileuri
+                            fileuri_s
                         );
                         free(buffer);
+                        free(fileuri_s);
                         return result;
                     }
                     escaped = 0;
@@ -738,7 +747,7 @@ h64tokenizedfile lexer_ParseFromFile(
             if (!hadinvaliderror) {
                 int out_len = -1;
                 char *unescaped = lexer_ParseStringLiteral(
-                    strbuf, fileuri, startline, startcolumn,
+                    strbuf, fileuri_s, startline, startcolumn,
                     isbinary,
                     &result.resultmsg, wconfig, &out_len
                 );
@@ -749,9 +758,10 @@ h64tokenizedfile lexer_ParseFromFile(
                         &result.resultmsg,
                         "failed to allocate literal, "
                         "out of memory?",
-                        fileuri
+                        fileuri_s
                     );
                     free(buffer);
+                    free(fileuri_s);
                     return result;
                 }
                 assert(out_len >= 0);
@@ -845,9 +855,10 @@ h64tokenizedfile lexer_ParseFromFile(
                             &result.resultmsg,
                             "failed to allocate literal, "
                             "out of memory?",
-                            fileuri
+                            fileuri_s
                         );
                         free(buffer);
+                        free(fileuri_s);
                         return result;
                     }
                 }
@@ -878,14 +889,16 @@ h64tokenizedfile lexer_ParseFromFile(
                 free(numbuf);
                 if (!result_AddMessage(
                         &result.resultmsg,
-                        H64MSG_ERROR, buf, fileuri, line, column
+                        H64MSG_ERROR, buf, fileuri_s,
+                        line, column
                         )) {
                     result_ErrorNoLoc(
                         &result.resultmsg,
                         "failed to add result message, out of memory?",
-                        fileuri
+                        fileuri_s
                     );
                     free(buffer);
+                    free(fileuri_s);
                     return result;
                 }
                 continue;
@@ -951,14 +964,16 @@ h64tokenizedfile lexer_ParseFromFile(
                     printc, startline, startcolumn);
                 if (!result_AddMessage(
                         &result.resultmsg,
-                        H64MSG_ERROR, buf, fileuri, line, column
+                        H64MSG_ERROR, buf, fileuri_s,
+                        line, column
                         )) {
                     result_ErrorNoLoc(
                         &result.resultmsg,
                         "failed to add result message, out of memory?",
-                        fileuri
+                        fileuri_s
                     );
                     free(buffer);
+                    free(fileuri_s);
                     return result;
                 }
             }
@@ -1215,15 +1230,16 @@ h64tokenizedfile lexer_ParseFromFile(
                     operator_OpPrintedAsStr(optype));
                 if (!result_AddMessage(
                         &result.resultmsg,
-                        H64MSG_ERROR, buf, fileuri, line,\
+                        H64MSG_ERROR, buf, fileuri_s, line,
                         column + 1 - strlen(operator_OpPrintedAsStr(optype))
                         )) {
                     result_ErrorNoLoc(
                         &result.resultmsg,
                         "failed to add result message, out of memory?",
-                        fileuri
+                        fileuri_s
                     );
                     free(buffer);
+                    free(fileuri_s);
                     return result;
                 }
             }
@@ -1332,14 +1348,17 @@ h64tokenizedfile lexer_ParseFromFile(
                     );
                     if (!result_AddMessage(
                             &result.resultmsg,
-                            H64MSG_ERROR, buf, fileuri, line, column
+                            H64MSG_ERROR, buf, fileuri_s,
+                            line, column
                             )) {
                         result_ErrorNoLoc(
                             &result.resultmsg,
-                            "failed to add result message, out of memory?",
-                            fileuri
+                            "failed to add result "
+                            "message, out of memory?",
+                            fileuri_s
                         );
                         free(buffer);
+                        free(fileuri_s);
                         return result;
                     }
                 }
@@ -1360,16 +1379,17 @@ h64tokenizedfile lexer_ParseFromFile(
                         );
                         if (!result_AddMessage(
                                 &result.resultmsg,
-                                H64MSG_ERROR, buf, fileuri, line,
-                                columnstart
+                                H64MSG_ERROR, buf, fileuri_s,
+                                line, columnstart
                                 )) {
                             result_ErrorNoLoc(
                                 &result.resultmsg,
                                 "failed to add result message, "
                                 "out of memory?",
-                                fileuri
+                                fileuri_s
                             );
                             free(buffer);
+                            free(fileuri_s);
                             return result;
                         }
                     }
@@ -1392,9 +1412,10 @@ h64tokenizedfile lexer_ParseFromFile(
                     &result.resultmsg,
                     "failed to allocate identifier, "
                     "out of memory?",
-                    fileuri
+                    fileuri_s
                 );
                 free(buffer);
+                free(fileuri_s);
                 return result;
             }
             int k = 0;
@@ -1433,15 +1454,16 @@ h64tokenizedfile lexer_ParseFromFile(
         }
         if (!result_AddMessage(
                 &result.resultmsg,
-                H64MSG_ERROR, buf, fileuri, line, column
+                H64MSG_ERROR, buf, fileuri_s, line, column
                 )) {
             result_ErrorNoLoc(
                 &result.resultmsg,
                 "failed to add result message, "
                 "out of memory?",
-                fileuri
+                fileuri_s
             );
             free(buffer);
+            free(fileuri_s);
             return result;
         }
         i++;
@@ -1458,10 +1480,11 @@ h64tokenizedfile lexer_ParseFromFile(
         i++;
     }
     if (!result.resultmsg.fileuri)
-        result.resultmsg.fileuri = strdup(fileuri);
+        result.resultmsg.fileuri = strdup(fileuri_s);
     if (returninganyerror)
         result.resultmsg.success = 0;
     free(buffer);
+    free(fileuri_s);
 
     #ifndef NDEBUG
     if (result.resultmsg.success) {
