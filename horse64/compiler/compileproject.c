@@ -159,8 +159,15 @@ uriinfo *compileproject_URIRelPathToBase(
         return NULL;
     }
 
-    if (h64casecmp(uinfo->protocol, "file") == 0) {
-        // Convert file:// URIs to be relative to given base.
+    if (h64casecmp(uinfo->protocol, "file") == 0 ||
+            h64casecmp(uinfo->protocol, "vfs") == 0) {
+        // Convert URIs to be relative to given base.
+        #ifndef NDEBUG
+        if (h64casecmp(uinfo->protocol, "vfs") == 0)
+            assert(!filesys_IsAbsolutePath(basepath));
+        else if (h64casecmp(uinfo->protocol, "file") == 0)
+            assert(filesys_IsAbsolutePath(basepath));
+        #endif
         char *newpath = filesys_TurnIntoPathRelativeTo(
             uinfo->path, basepath
         );
@@ -205,8 +212,21 @@ uriinfo *compileproject_ToProjectRelPathURI(
         if (outofmemory) *outofmemory = 0;
         return NULL;
     }
+    int isvfs = 0;
+    {
+        uriinfo *fileuri_info = uri_ParseEx(fileuri, "file");
+        if (!fileuri_info) {
+            if (outofmemory) *outofmemory = 1;
+            return NULL;
+        }
+        isvfs = (
+            fileuri_info->protocol != NULL &&
+            h64casecmp(fileuri_info->protocol, "vfs") == 0
+        );
+        uri_Free(fileuri_info);
+    }
     return compileproject_URIRelPathToBase(
-        pr->basefolder, fileuri, outofmemory
+        (isvfs ? "" : pr->basefolder), fileuri, outofmemory
     );
 }
 
@@ -408,10 +428,11 @@ uriinfo *compileproject_GetFileSubProjectURI(
         uri_Free(uinfo);
         return NULL;
     }
+    int isvfs = (h64casecmp(uinfo->protocol, "vfs") == 0);
 
     // Turn it into a relative URI, which is relative to our main project:
     int relfilepathoom = 0;
-    {
+    if (!isvfs) {
         uriinfo *relfileuri = compileproject_ToProjectRelPathURI(
             pr, uinfo->path, &relfilepathoom
         );
@@ -431,7 +452,7 @@ uriinfo *compileproject_GetFileSubProjectURI(
     while (i < 2) {
         char hmodules_path[] = "horse_modules_builtin";
         if (i == 0) {
-            if (h64casecmp(uinfo->protocol, "vfs") != 0) {
+            if (!isvfs) {
                 // Only VFS paths may refer to builtin modules.
                 i++;
                 continue;
@@ -534,9 +555,14 @@ uriinfo *compileproject_GetFileSubProjectURI(
                     if (outofmemory) *outofmemory = 0;
                     return NULL;
                 }
-                char *resultpath = filesys_Join(
-                    parent_abs, relfilepath_shortened
-                );
+                char *resultpath = NULL;
+                if (!isvfs) {
+                    resultpath = filesys_Join(
+                        parent_abs, relfilepath_shortened
+                    );
+                } else {
+                    resultpath = strdup(relfilepath_shortened);
+                }
                 free(parent_abs);
                 parent_abs = NULL;
                 free(relfilepath_shortened);
@@ -555,7 +581,7 @@ uriinfo *compileproject_GetFileSubProjectURI(
                 }
                 // Ok, return as URI with protocol header stuff:
                 uriinfo *resulturi = uri_ParseEx(
-                    resultpath, (i == 0 ? "vfs" : "file")
+                    resultpath, (isvfs ? "vfs" : "file")
                 );
                 free(resultpath);
                 resultpath = NULL;
@@ -577,13 +603,18 @@ uriinfo *compileproject_GetFileSubProjectURI(
             return NULL;
         }
     }
-    char *resultpath = filesys_ToAbsolutePath(pr->basefolder);
-    if (resultpath) {
-        char *result2 = uri_Normalize(
-            resultpath, 1
-        );
-        free(resultpath);
-        resultpath = result2;
+    char *resultpath = NULL;
+    if (isvfs) {
+        resultpath = strdup("");  // (cwd)
+    } else {
+        resultpath = filesys_ToAbsolutePath(pr->basefolder);
+        if (resultpath) {
+            char *result2 = uri_Normalize(
+                resultpath, 1
+            );
+            free(resultpath);
+            resultpath = result2;
+        }
     }
     if (!resultpath) {
         if (outofmemory) *outofmemory = 1;
@@ -591,7 +622,7 @@ uriinfo *compileproject_GetFileSubProjectURI(
     }
     // Ok, return as URI with protocol header stuff:
     uriinfo *resulturi = uri_ParseEx(
-        resultpath, "file"
+        resultpath, (isvfs ? "vfs" : "file")
     );
     free(resultpath);
     resultpath = NULL;
