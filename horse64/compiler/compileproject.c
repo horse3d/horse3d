@@ -485,7 +485,7 @@ uriinfo *compileproject_GetFileSubProjectURI(
             int k = strlen(hmodules_path) + 1;  // path + '/'
             while (uinfo->path[k] != '/' && uinfo->path[k] != '\0'
                     #if defined(_WIN32) || defined(_WIN64)
-                    && relfilepath[k] != '\\'
+                    && uinfo->path[k] != '\\'
                     #endif
                     )
                 k++;
