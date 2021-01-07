@@ -2210,6 +2210,51 @@ int _codegencallback_DoCodegen_visit_in(
         }
         rinfo->dont_descend_visitation = 1;
         return 1;
+    } else if (expr->type == H64EXPRTYPE_RAISE_STMT) {
+        rinfo->dont_descend_visitation = 1;
+
+        if (expr->raisestmt.raised_expression->type !=
+                H64EXPRTYPE_UNARYOP ||
+                expr->raisestmt.raised_expression->op.optype !=
+                H64OP_NEW ||
+                expr->raisestmt.raised_expression->op.value1->type !=
+                H64EXPRTYPE_CALL) {
+            result_AddMessage(
+                rinfo->pr->resultmsg, H64MSG_ERROR,
+                "unexpected raised expression, expected "
+                "a 'new' instantiation of an error class",
+                rinfo->ast->fileuri, expr->line, expr->column
+            );
+            rinfo->hadunexpectederror = 1;
+            return 0;
+        }
+        if (expr->raisestmt.raised_expression->op.value1->inlinecall.
+                arguments.arg_count != 1 || (
+                expr->raisestmt.raised_expression->op.value1->inlinecall.
+                arguments.arg_name != NULL &&
+                expr->raisestmt.raised_expression->op.value1->inlinecall.
+                arguments.arg_name[0] != NULL)) {
+            result_AddMessage(
+                rinfo->pr->resultmsg, H64MSG_ERROR,
+                "unexpected number of arguments to error object, "
+                "expected single positional argument",
+                rinfo->ast->fileuri, expr->line, expr->column
+            );
+            rinfo->hadunexpectederror = 1;
+            return 0;
+        }
+        int error_type_tmp = (
+            expr->raisestmt.raised_expression->op.value1->inlinecall.
+                value->storage.eval_temp_id
+        );
+        int str_arg_tmp = (
+            expr->raisestmt.raised_expression->op.value1->inlinecall.
+                arguments.arg_value[0]->storage.eval_temp_id
+        );
+        assert(0);  // FIXME finish this
+        free1linetemps(func);
+        rinfo->dont_descend_visitation = 1;
+        return 1;
     } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
         rinfo->dont_descend_visitation = 1;
 
