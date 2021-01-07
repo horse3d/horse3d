@@ -324,7 +324,7 @@ typedef struct h64instruction_raise {
 
 typedef struct h64instruction_raisebyref {
     uint8_t type;
-    int16_t sloterrorobj;
+    int16_t sloterrorclassrefobj;
     int16_t sloterrormsgobj;
 } __attribute__ ((packed)) h64instruction_raisebyref;
 

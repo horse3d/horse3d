@@ -3755,21 +3755,26 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 goto triggeroom;
         #endif
         assert(
-            inst->sloterrorobj >= 0 &&
-            inst->sloterrorobj < (int64_t)vmthread->stack->entry_count -
-                (int64_t)vmthread->stack->current_func_floor
+            inst->sloterrorclassrefobj >= 0 &&
+            inst->sloterrorclassrefobj <
+                (int64_t)vmthread->stack->entry_count -
+                    (int64_t)vmthread->stack->current_func_floor
         );
 
-        valuecontent *vobj = STACK_ENTRY(stack, inst->sloterrorobj);
-        if (vobj->type != H64VALTYPE_ERROR) {
+        valuecontent *vobj = STACK_ENTRY(
+            stack, inst->sloterrorclassrefobj
+        );
+        if (vobj->type != H64VALTYPE_CLASSREF ||
+                !vmthread->vmexec_owner->program->
+                    classes[vobj->int_value].is_error) {
             RAISE_ERROR(
                 H64STDERROR_TYPEERROR,
-                "cannot raise from a non-error class"
+                "cannot raise from something else than an error class"
             );
             goto *jumptable[((h64instructionany *)p)->type];
         }
         _raise_error_class_id = (
-            vobj->error_class_id
+            (classid_t)vobj->int_value
         );
         _raise_msg_stack_slot = inst->sloterrormsgobj;
         goto inst_raise_do;

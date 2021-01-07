@@ -1331,6 +1331,7 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_IF_STMT ||
             expr->type == H64EXPRTYPE_FOR_STMT ||
             expr->type == H64EXPRTYPE_WITH_STMT ||
+            expr->type == H64EXPRTYPE_RAISE_STMT ||
             (expr->type == H64EXPRTYPE_UNARYOP &&
              expr->op.optype == H64OP_NEW)) {
         // Already handled in visit_in
@@ -2213,6 +2214,7 @@ int _codegencallback_DoCodegen_visit_in(
     } else if (expr->type == H64EXPRTYPE_RAISE_STMT) {
         rinfo->dont_descend_visitation = 1;
 
+        // Check the raised thing is a `new Exception(string)` item:
         if (expr->raisestmt.raised_expression->type !=
                 H64EXPRTYPE_UNARYOP ||
                 expr->raisestmt.raised_expression->op.optype !=
@@ -2243,15 +2245,89 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->hadunexpectederror = 1;
             return 0;
         }
-        int error_type_tmp = (
+
+        // See if we can tell what error class this is by looking at it:
+        classid_t error_class_id = -1;
+        if (expr->raisestmt.raised_expression->op.value1->inlinecall.
+                value->storage.set &&
+                expr->raisestmt.raised_expression->op.value1->inlinecall.
+                value->storage.ref.type == H64STORETYPE_GLOBALCLASSSLOT) {
+            error_class_id = (
+                expr->raisestmt.raised_expression->op.value1->inlinecall.
+                value->storage.ref.id
+            );
+            assert(error_class_id >= 0);
+        }
+
+        // Visit raised element and the string argument to generate code:
+        rinfo->dont_descend_visitation = 0;
+        int result = 1;
+        if (error_class_id < 0)  // -> we don't know what to raise already
+            result = ast_VisitExpression(
+                expr->raisestmt.raised_expression->op.value1->inlinecall.
+                    value, expr,
+                &_codegencallback_DoCodegen_visit_in,
+                &_codegencallback_DoCodegen_visit_out,
+                _asttransform_cancel_visit_descend_callback,
+                rinfo
+            );
+        rinfo->dont_descend_visitation = 1;
+        if (!result)
+            return 0;
+        rinfo->dont_descend_visitation = 0;
+        result = ast_VisitExpression(
             expr->raisestmt.raised_expression->op.value1->inlinecall.
-                value->storage.eval_temp_id
+                arguments.arg_value[0], expr,
+            &_codegencallback_DoCodegen_visit_in,
+            &_codegencallback_DoCodegen_visit_out,
+            _asttransform_cancel_visit_descend_callback,
+            rinfo
         );
+        rinfo->dont_descend_visitation = 1;
+        if (!result)
+            return 0;
+
+        // Generate raise instruction:
+        int error_instance_tmp = -1;
+        if (error_class_id < 0)  // -> we visited this for code gen
+            error_instance_tmp = (
+                expr->raisestmt.raised_expression->op.value1->inlinecall.
+                value->storage.eval_temp_id
+            );
         int str_arg_tmp = (
             expr->raisestmt.raised_expression->op.value1->inlinecall.
                 arguments.arg_value[0]->storage.eval_temp_id
         );
-        assert(0);  // FIXME finish this
+        if ((error_instance_tmp < 0 && error_class_id < 0) ||
+                str_arg_tmp < 0) {
+            assert(rinfo->hadunexpectederror || rinfo->hadoutofmemory);
+            return 0;
+        } else if (error_class_id < 0) {
+            // We don't know the exact class at compile time, so
+            // raise by using runtime ref:
+            h64instruction_raisebyref inst_raisebyref = {0};
+            inst_raisebyref.type = H64INST_RAISEBYREF;
+            inst_raisebyref.sloterrormsgobj = str_arg_tmp;
+            inst_raisebyref.sloterrorclassrefobj = error_instance_tmp;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_raisebyref, sizeof(inst_raisebyref))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        } else {
+            // We DO know the exact class, so hard code it (faster):
+            h64instruction_raise inst_raise = {0};
+            inst_raise.type = H64INST_RAISE;
+            inst_raise.sloterrormsgobj = str_arg_tmp;
+            inst_raise.error_class_id = error_instance_tmp;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr,
+                    &inst_raise, sizeof(inst_raise))) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
         free1linetemps(func);
         rinfo->dont_descend_visitation = 1;
         return 1;
@@ -2287,6 +2363,12 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_sconst.type = H64INST_SETCONST;
                 inst_sconst.content.type = H64VALTYPE_UNSPECIFIED_KWARG;
                 inst_sconst.slot = operand2tmp;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr,
+                        &inst_sconst, sizeof(inst_sconst))) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
 
                 h64instruction_binop inst_binop = {0};
                 inst_binop.type = H64INST_BINOP;
