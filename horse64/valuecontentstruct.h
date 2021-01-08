@@ -62,7 +62,7 @@ typedef struct valuecontent {
             int32_t constpreallocstr_len;
         } __attribute__((packed));
         struct {   // 12 bytes
-            h64wchar *constpreallocbytes_value;
+            char *constpreallocbytes_value;
             int32_t constpreallocbytes_len;
         } __attribute__((packed));
         struct {   // 12 bytes

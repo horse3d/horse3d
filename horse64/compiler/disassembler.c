@@ -17,6 +17,7 @@
 #include "compiler/disassembler.h"
 #include "compiler/globallimits.h"
 #include "compiler/operator.h"
+#include "gcvalue.h"
 #include "nonlocale.h"
 #include "widechar.h"
 
@@ -52,94 +53,201 @@ static inline int disassembler_Write(
     return 1;
 }
 
+static char *_nicelywriteu32(
+        const h64wchar *s, int64_t slen
+        ) {
+    int alloclen = -1;
+    alloclen = slen * 12 + 3;  // 1x int32 char -> \uXXXXXXXXXX
+    char *outbuf = malloc(alloclen);
+    if (!outbuf)
+        return NULL;
+    outbuf[0] = '\"';
+    int outfill = 1;
+    int k = 0;
+    while (k < slen) {
+        uint64_t c = 0;
+        c = s[k];
+        assert(c < INT32_MAX);
+        if (outfill + 16 >= alloclen) {
+            char *newoutbuf = realloc(
+                outbuf, outfill + 64
+            );
+            if (!newoutbuf) {
+                free(outbuf);
+                return NULL;
+            }
+            outbuf = newoutbuf;
+            alloclen = outfill + 64;
+        }
+        if (c == '"' || c == '\\') {
+            outbuf[outfill] = '\\';
+            outfill++;
+        }
+        if (c < 32) {
+            char numesc[6];
+            snprintf(numesc, sizeof(numesc) - 1,
+                "%x", (int)c);
+            outbuf[outfill] = '\\';
+            outfill++;
+            outbuf[outfill] = 'x';
+            outfill++;
+            if (strlen(numesc) < 2) {
+                outbuf[outfill] = '0';
+                outfill++;
+            }
+            memcpy(outbuf + outfill, numesc, strlen(numesc));
+            outfill += strlen(numesc);
+        } else if (c >= 127) {
+            char numesc[15];
+            snprintf(numesc, sizeof(numesc) - 1,
+                "\\u" "%" PRId64, (int64_t)c);
+            memcpy(outbuf + outfill, numesc, strlen(numesc));
+            outfill += strlen(numesc);
+        } else {
+            outbuf[outfill] = c;
+            outfill++;
+        }
+        k++;
+    }
+    outbuf[outfill] = '"';
+    outfill++;
+    outbuf[outfill] = '\0';
+    char *result = strdup(outbuf);  // shrink allocation
+    free(outbuf);
+    return result;
+}
+
+static char *_nicelywritebytes(
+        const char *s, int64_t slen
+        ) {
+    int alloclen = -1;
+    alloclen = slen * 4 + 3;  // 1x escaped char -> \xYY
+    char *outbuf = malloc(alloclen);
+    if (!outbuf)
+        return NULL;
+    outbuf[0] = '\"';
+    int outfill = 1;
+    int k = 0;
+    while (k < slen) {
+        uint8_t c = 0;
+        c = s[k];
+        if (outfill + 16 >= alloclen) {
+            char *newoutbuf = realloc(
+                outbuf, outfill + 64
+            );
+            if (!newoutbuf) {
+                free(outbuf);
+                return NULL;
+            }
+            outbuf = newoutbuf;
+            alloclen = outfill + 64;
+        }
+        if (c == '"' || c == '\\') {
+            outbuf[outfill] = '\\';
+            outfill++;
+        }
+        if (c < 32 || c >= 127) {
+            char numesc[6];
+            snprintf(numesc, sizeof(numesc) - 1,
+                "%x", (int)c);
+            outbuf[outfill] = '\\';
+            outfill++;
+            outbuf[outfill] = 'x';
+            outfill++;
+            if (strlen(numesc) < 2) {
+                outbuf[outfill] = '0';
+                outfill++;
+            }
+            memcpy(outbuf + outfill, numesc, strlen(numesc));
+            outfill += strlen(numesc);
+        } else {
+            outbuf[outfill] = c;
+            outfill++;
+        }
+        k++;
+    }
+    outbuf[outfill] = '"';
+    outfill++;
+    outbuf[outfill] = '\0';
+    char *result = strdup(outbuf);  // shrink allocation
+    free(outbuf);
+    return result;
+}
+
 char *disassembler_DumpValueContent(valuecontent *vs) {
     char buf[128];
     switch (vs->type) {
-    case H64VALTYPE_INT64:
-        snprintf(buf, sizeof(buf) - 1,
-            "%" PRId64, vs->int_value);
-        return strdup(buf);
-    case H64VALTYPE_FLOAT64:
-        snprintf(buf, sizeof(buf) - 1,
-            "%f", vs->float_value);
-        return strdup(buf);
-    case H64VALTYPE_BOOL:
-        if (vs->int_value)
-            return strdup("true");
-        return strdup("false");
-    case H64VALTYPE_NONE:
-        return strdup("none");
-    case H64VALTYPE_CONSTPREALLOCSTR:
-    case H64VALTYPE_SHORTSTR: ;
-        int alloclen = -1;
-        int totallen = -1;
-        if (vs->type == H64VALTYPE_CONSTPREALLOCSTR) {
-            totallen = (int)vs->constpreallocstr_len;
-        } else {
-            totallen = (int)vs->shortstr_len;
+        case H64VALTYPE_INT64:
+            snprintf(buf, sizeof(buf) - 1,
+                "%" PRId64, vs->int_value);
+            return strdup(buf);
+        case H64VALTYPE_FLOAT64:
+            snprintf(buf, sizeof(buf) - 1,
+                "%f", vs->float_value);
+            return strdup(buf);
+        case H64VALTYPE_BOOL:
+            if (vs->int_value)
+                return strdup("true");
+            return strdup("false");
+        case H64VALTYPE_NONE:
+            return strdup("none");
+        case H64VALTYPE_UNSPECIFIED_KWARG:
+            return strdup("internal_unspecified_kwarg");
+        case H64VALTYPE_CONSTPREALLOCBYTES:
+        case H64VALTYPE_SHORTBYTES: {
+            int slen = -1;
+            if (vs->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+                slen = (int)vs->constpreallocbytes_len;
+            } else {
+                slen = (int)vs->shortbytes_len;
+            }
+            char *s = NULL;
+            if (vs->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+                s = vs->constpreallocbytes_value;
+            } else {
+                s = vs->shortbytes_value;
+            }
+            return _nicelywritebytes(
+                s, slen
+            );
         }
-        alloclen = totallen * 12 + 3;  // 1x int32 char -> \uXXXXXXXXXX
-        char *outbuf = malloc(alloclen);
-        outbuf[0] = '\"';
-        int outfill = 1;
-        int k = 0;
-        while (k < totallen) {
-            uint64_t c = 0;
+        case H64VALTYPE_CONSTPREALLOCSTR:
+        case H64VALTYPE_SHORTSTR: {
+            int slen = -1;
             if (vs->type == H64VALTYPE_CONSTPREALLOCSTR) {
-                c = vs->constpreallocstr_value[k];
+                slen = (int)vs->constpreallocstr_len;
             } else {
-                c = vs->shortstr_value[k];
+                slen = (int)vs->shortstr_len;
             }
-            assert(c < INT32_MAX);
-            if (outfill + 16 >= alloclen) {
-                char *newoutbuf = realloc(
-                    outbuf, outfill + 64
-                );
-                if (!newoutbuf) {
-                    free(outbuf);
-                    return NULL;
-                }
-                outbuf = newoutbuf;
-                alloclen = outfill + 64;
-            }
-            if (c == '"' || c == '\\') {
-                outbuf[outfill] = '\\';
-                outfill++;
-            }
-            if (c < 32) {
-                char numesc[6];
-                snprintf(numesc, sizeof(numesc) - 1,
-                    "%x", (int)c);
-                outbuf[outfill] = '\\';
-                outfill++;
-                outbuf[outfill] = 'x';
-                outfill++;
-                if (strlen(numesc) < 2) {
-                    outbuf[outfill] = '0';
-                    outfill++;
-                }
-                memcpy(outbuf + outfill, numesc, strlen(numesc));
-                outfill += strlen(numesc);
-            } else if (c >= 127) {
-                char numesc[15];
-                snprintf(numesc, sizeof(numesc) - 1,
-                    "\\u" "%" PRId64, (int64_t)c);
-                memcpy(outbuf + outfill, numesc, strlen(numesc));
-                outfill += strlen(numesc);
+            char *s = NULL;
+            if (vs->type == H64VALTYPE_CONSTPREALLOCSTR) {
+                s = (char *)vs->constpreallocstr_value;
             } else {
-                outbuf[outfill] = c;
-                outfill++;
+                s = (char *)vs->shortstr_value;
             }
-            k++;
+            return _nicelywriteu32(
+                (h64wchar *)s, slen
+            );
         }
-        outbuf[outfill] = '"';
-        outfill++;
-        outbuf[outfill] = '\0';
-        char *result = strdup(outbuf);  // shrink allocation
-        free(outbuf);
-        return result;
-    default:
-        return strdup("<unknown valuecontent type>");
+        case H64VALTYPE_GCVAL: {
+            h64gcvalue *gcval = (h64gcvalue *)vs->ptr_value;
+            if (gcval->type == H64GCVALUETYPE_STRING) {
+                return _nicelywriteu32(
+                    gcval->str_val.s, gcval->str_val.len
+                );
+            } else if (gcval->type == H64GCVALUETYPE_BYTES) {
+                return _nicelywritebytes(
+                    gcval->bytes_val.s, gcval->bytes_val.len
+                );
+            } else {
+                printf("GCVAL UNHANDLED %d\n", gcval->type);
+                return strdup("<unknown valuecontent type>");
+            }
+        }
+        default: {
+            printf("VALTYPE UNHANDLED %d\n", vs->type);
+            return strdup("<unknown valuecontent type>");
+        }
     }
 }
 
