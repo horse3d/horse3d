@@ -193,6 +193,14 @@ char *disassembler_DumpValueContent(valuecontent *vs) {
             return strdup("none");
         case H64VALTYPE_UNSPECIFIED_KWARG:
             return strdup("internal_unspecified_kwarg");
+        case H64VALTYPE_FUNCREF: {
+            snprintf(
+                buf, sizeof(buf) - 1,
+                "f%" PRId64,
+                vs->int_value
+            );
+            return strdup(buf);
+        }
         case H64VALTYPE_CONSTPREALLOCBYTES:
         case H64VALTYPE_SHORTBYTES: {
             int slen = -1;
