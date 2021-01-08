@@ -2334,7 +2334,7 @@ int _codegencallback_DoCodegen_visit_in(
     } else if (expr->type == H64EXPRTYPE_FUNCDEF_STMT) {
         rinfo->dont_descend_visitation = 1;
 
-        int func_id = expr->funcdef.bytecode_func_id;
+        funcid_t func_id = expr->funcdef.bytecode_func_id;
 
         // Handling of keyword arguments:
         int argtmp = (
@@ -2364,7 +2364,9 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_sconst.content.type = H64VALTYPE_UNSPECIFIED_KWARG;
                 inst_sconst.slot = operand2tmp;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
+                        rinfo->pr->program,
+                        expr, expr->funcdef.arguments.arg_value[i],
+                        // ^ expr is the func since this is a kw arg
                         &inst_sconst, sizeof(inst_sconst))) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2377,7 +2379,9 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_binop.arg1slotfrom = argtmp;
                 inst_binop.arg2slotfrom = operand2tmp;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
+                        rinfo->pr->program,
+                        expr, expr->funcdef.arguments.arg_value[i],
+                        // ^ expr is the func since this is a kw arg
                         &inst_binop, sizeof(inst_binop))) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2387,7 +2391,9 @@ int _codegencallback_DoCodegen_visit_in(
                 cjump.type = H64INST_CONDJUMP;
                 cjump.jumpbytesoffset = jump_past_id;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
+                        rinfo->pr->program,
+                        expr, expr->funcdef.arguments.arg_value[i],
+                        // ^ expr is the func since this is a kw arg
                         &cjump, sizeof(cjump))) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2415,7 +2421,9 @@ int _codegencallback_DoCodegen_visit_in(
                 vc.slotfrom = expr->funcdef.arguments.arg_value[i]->
                     storage.eval_temp_id;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
+                        rinfo->pr->program,
+                        expr, expr->funcdef.arguments.arg_value[i],
+                        // ^ expr is the func since this is a kw arg
                         &vc, sizeof(vc))) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
@@ -2426,7 +2434,9 @@ int _codegencallback_DoCodegen_visit_in(
                 jumpt.type = H64INST_JUMPTARGET;
                 jumpt.jumpid = jump_past_id;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
+                        rinfo->pr->program,
+                        expr, expr->funcdef.arguments.arg_value[i],
+                        // ^ expr is the func since this is a kw arg
                         &jumpt, sizeof(jumpt))) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
