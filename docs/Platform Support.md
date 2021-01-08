@@ -45,7 +45,9 @@ CI work is done.
 tooling issues and platform owner policies we do not aim to provide
 any support for this platform any time soon. Patches to help with a
 manual build might be rejected unless a simple enough approach to
-reasonably support these targets is figured out.
+reasonably support these targets is figured out. However, these tier 4
+platforms are listed here as an acknowledgement of potential higher
+interest, and the feasability of them will be monitored for the future.
 
 
 ---
