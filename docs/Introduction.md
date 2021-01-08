@@ -21,6 +21,11 @@ Find the specifications here:
 - Standard Library Reference - FIXME
 - [Language Specifications](./Specification/Horse64.md)
 
+
+## Runtime information
+
+- [Platform Support](./Platform Support.md)
+
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
 ( https://creativecommons.org/licenses/by-sa/4.0/ )
