@@ -36,14 +36,14 @@ implementations, but all should generally be available in a usable form.
 
 **Tier 3:** this platform is not tested in Continuous Integration, and
 doesn't currently get any official binary releases, and may not currently
-work in a manual bulid either. However, we are very interested in patches
+work in a manual build either. However, we are very interested in patches
 to get all features to work, even if this means larger code changes.
 These platforms are of high interest to be promoted to Tier 2, once the
 CI work is done.
 
 **Tier 4:** this platform is not tested or supported, and due to a mix of
 tooling issues and platform owner policies we do not aim to provide
-extensive support for this platform any time soon. Patches to help with a
+any support for this platform any time soon. Patches to help with a
 manual build might be rejected unless a simple enough approach to
 reasonably support these targets is figured out.
 
