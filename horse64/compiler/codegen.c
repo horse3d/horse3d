@@ -815,9 +815,10 @@ int codegen_FinalBytecodeTransform(
                 }
                 break;
             }
-            default:
+            default: {
                 k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
                 continue;
+            }
             }
             assert(jumpid >= 0 || jumpid2 >= 0);
 
@@ -831,6 +832,16 @@ int codegen_FinalBytecodeTransform(
                 );
                 if (!resolveworked) {
                     free(jump_info);
+                    h64fprintf(
+                        stderr, "horsec: error: internal error in "
+                        "codegen jump translation: failed to resolve "
+                        "jump %" PRId64 " to target offset for jump at "
+                        "instruction offset %" PRId64
+                        " in func %" PRId64
+                        "\n",
+                        (int64_t)jumpid2, (int64_t)k,
+                        (int64_t)i
+                    );
                     return 0;
                 }
 
@@ -881,6 +892,16 @@ int codegen_FinalBytecodeTransform(
                 );
                 if (!resolveworked) {
                     free(jump_info);
+                    h64fprintf(
+                        stderr, "horsec: error: internal error in "
+                        "codegen jump translation: failed to resolve "
+                        "jump %" PRId64 " to target offset for jump at "
+                        "instruction offset %" PRId64
+                        " in func %" PRId64
+                        "\n",
+                        (int64_t)jumpid2, (int64_t)k,
+                        (int64_t)i
+                    );
                     return 0;
                 }
 
@@ -2415,7 +2436,7 @@ int _codegencallback_DoCodegen_visit_in(
                 assert(expr->funcdef.arguments.arg_value[i]->
                     storage.eval_temp_id >= 0);
 
-                h64instruction_valuecopy vc;
+                h64instruction_valuecopy vc = {0};
                 vc.type = H64INST_VALUECOPY;
                 vc.slotto = argtmp;
                 vc.slotfrom = expr->funcdef.arguments.arg_value[i]->

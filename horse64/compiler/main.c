@@ -362,8 +362,11 @@ int compiler_command_CompileEx(
                 );
                 if (rbytes <= 0)
                     break;
+                buffill += rbytes;
             }
             free(execarg);
+            assert(buffill + 1 < bufsize);
+            buf[buffill] = '\0';
             execarg = buf;
         }
         FILE *tempfile = filesys_TempFile(
