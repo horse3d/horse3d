@@ -478,6 +478,16 @@ int corelib_type(  // $$builtin.type
             tname_size = strlen("object");
             tname[0] = 'o'; tname[1] = 'b'; tname[2] = 'j';
             tname[3] = 'e'; tname[4] = 'c'; tname[5] = 't';
+        } else if (((h64gcvalue *)c->ptr_value)->type ==
+                H64GCVALUETYPE_STRING) {
+            tname_size = strlen("string");
+            tname[0] = 's'; tname[1] = 't'; tname[2] = 'r';
+            tname[3] = 'i'; tname[4] = 'n'; tname[5] = 'g';
+        } else if (((h64gcvalue *)c->ptr_value)->type ==
+                H64GCVALUETYPE_BYTES) {
+            tname_size = strlen("bytes");
+            tname[0] = 'b'; tname[1] = 'y'; tname[2] = 't';
+            tname[3] = 'e'; tname[4] = 's';
         } else {
             // This should be unreachable.
             return vmexec_ReturnFuncError(
