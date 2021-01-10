@@ -1409,6 +1409,10 @@ int _codegenallcb(
     return 1;
 }
 
+int codegen_FinalBytecodeTransform(
+    h64compileproject *prj
+);
+
 int compileproject_CompileAllToBytecode(
         h64compileproject *project,
         h64misccompileroptions *moptions,
@@ -1489,11 +1493,26 @@ int compileproject_CompileAllToBytecode(
     if (!hash_StringMapIterate(
             project->astfilemap, &_codegenallcb,
             &cinfo)) {
+        project->resultmsg->success = 0;
         if (error)
             *error = strdup(
                 "unexpected codegen callback failure, "
                 "out of memory?"
             );
+        return 0;
+    }
+    // Transform jump instructions to final offsets:
+    if (!codegen_FinalBytecodeTransform(
+            project
+            )) {
+        project->resultmsg->success = 0;
+        char buf[256];
+        snprintf(buf, sizeof(buf) - 1,
+            "internal error: jump offset calculation "
+            "failed, out of memory or codegen bug?"
+        );
+        if (error)
+            *error = strdup(buf);
         return 0;
     }
     return 1;

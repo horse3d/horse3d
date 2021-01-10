@@ -27,6 +27,8 @@
 #include "widechar.h"
 
 
+//#define DEBUG_CODEGEN_INSTADD
+
 static void get_assign_lvalue_storage(
         h64expression *expr,
         storageref **out_storageref
@@ -211,11 +213,25 @@ int appendinstbyfuncid(
         int id,
         h64expression *correspondingexpr,
         // ^ FIXME: extract & attach debug info from this, like location
-        void *ptr, size_t len
+        void *ptr
         ) {
     assert(id >= 0 && id < p->func_count);
     assert(!p->func[id].iscfunc);
     assert(((h64instructionany *)ptr)->type != H64INST_INVALID);
+    size_t len = h64program_PtrToInstructionSize(ptr);
+    #if !defined(NDEBUG) && defined(DEBUG_CODEGEN_INSTADD)
+    h64fprintf(
+        stderr,
+        "horsec: debug: inst appended to: "
+        "f%" PRId64 " offset %" PRId64 " inst_type:%s "
+        "inst_size:%d\n",
+        (int64_t)id, (int64_t)p->func[id].instructions_bytes,
+        bytecode_InstructionTypeToStr(
+            ((h64instructionany *)ptr)->type
+        ),
+        (int)len
+    );
+    #endif
     char *instructionsnew = realloc(
         p->func[id].instructions,
         sizeof(*p->func[id].instructions) *
@@ -239,13 +255,13 @@ int appendinst(
         h64program *p,
         h64expression *func,
         h64expression *correspondingexpr,
-        void *ptr, size_t len
+        void *ptr
         ) {
     assert(p != NULL);
     assert(func != NULL && (func->type == H64EXPRTYPE_FUNCDEF_STMT ||
            func->type == H64EXPRTYPE_INLINEFUNCDEF));
     int id = func->funcdef.bytecode_func_id;
-    return appendinstbyfuncid(p, id, correspondingexpr, ptr, len);
+    return appendinstbyfuncid(p, id, correspondingexpr, ptr);
 }
 
 void codegen_CalculateFinalFuncStack(
@@ -523,8 +539,8 @@ static int _codegen_call_to(
     inst_callsettop.type = H64INST_CALLSETTOP;
     inst_callsettop.topto = _argtemp;
     if (!appendinst(
-            rinfo->pr->program, func, callexpr,
-            &inst_callsettop, sizeof(inst_callsettop))) {
+            rinfo->pr->program, func, callexpr, &inst_callsettop
+            )) {
         rinfo->hadoutofmemory = 1;
         return 0;
     }
@@ -592,7 +608,7 @@ static int _codegen_call_to(
                 inst_setconst.content.int_value = kwnameidx;
                 if (!appendinst(
                         rinfo->pr->program, func, callexpr,
-                        &inst_setconst, sizeof(inst_setconst))) {
+                        &inst_setconst)) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -608,7 +624,7 @@ static int _codegen_call_to(
                 _settop_inst(rinfo, func, callsettop_offset)->topto++;
                 if (!appendinst(
                         rinfo->pr->program, func, callexpr,
-                        &inst_vc, sizeof(inst_vc))) {
+                        &inst_vc)) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -629,7 +645,7 @@ static int _codegen_call_to(
             _settop_inst(rinfo, func, callsettop_offset)->topto++;
             if (!appendinst(
                     rinfo->pr->program, func, callexpr,
-                    &inst_vc, sizeof(inst_vc))) {
+                    &inst_vc)) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -663,8 +679,8 @@ static int _codegen_call_to(
         inst_call.posargs = posargcount;
         inst_call.kwargs = kwargcount;
         if (!appendinst(
-                rinfo->pr->program, func, callexpr,
-                &inst_call, sizeof(inst_call))) {
+                rinfo->pr->program, func, callexpr, &inst_call
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -679,8 +695,8 @@ static int _codegen_call_to(
             expandlastposarg ? CALLFLAG_UNPACKLASTPOSARG : 0
         ) | (callexpr->inlinecall.is_async ? CALLFLAG_ASYNC : 0);
         if (!appendinst(
-                rinfo->pr->program, func, callexpr,
-                &inst_call, sizeof(inst_call))) {
+                rinfo->pr->program, func, callexpr, &inst_call
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -759,7 +775,7 @@ int codegen_FinalBytecodeTransform(
                     ((char*)pr->func[i].instructions) + k,
                     ((char*)pr->func[i].instructions) + k +
                         sizeof(h64instruction_jumptarget),
-                    pr->func[i].instructions_bytes - (
+                    ((int64_t)pr->func[i].instructions_bytes) - (
                         k + sizeof(h64instruction_jumptarget)
                     )
                 );
@@ -957,17 +973,13 @@ int codegen_FinalBytecodeTransform(
             inst_setnone.type = H64INST_SETCONST;
             inst_setnone.slot = 0;
             inst_setnone.content.type = H64VALTYPE_NONE;
-            if (!appendinstbyfuncid(
-                    pr, i, NULL,
-                    &inst_setnone, sizeof(inst_setnone))) {
+            if (!appendinstbyfuncid(pr, i, NULL, &inst_setnone)) {
                 return 0;
             }
             h64instruction_returnvalue inst_return = {0};
             inst_return.type = H64INST_RETURNVALUE;
             inst_return.returnslotfrom = 0;
-            if (!appendinstbyfuncid(
-                    pr, i, NULL,
-                    &inst_return, sizeof(inst_return))) {
+            if (!appendinstbyfuncid(pr, i, NULL, &inst_return)) {
                 return 0;
             }
         }
@@ -1031,8 +1043,7 @@ int _codegencallback_DoCodegen_visit_out(
             h64instruction_newlist inst = {0};
             inst.type = H64INST_NEWLIST;
             inst.slotto = listtmp;
-            if (!appendinst(rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
+            if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -1040,8 +1051,7 @@ int _codegencallback_DoCodegen_visit_out(
             h64instruction_newset inst = {0};
             inst.type = H64INST_NEWSET;
             inst.slotto = listtmp;
-            if (!appendinst(rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
+            if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -1070,8 +1080,7 @@ int _codegencallback_DoCodegen_visit_out(
             instgetattr.objslotfrom = listtmp;
             instgetattr.nameidx = add_name_idx;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &instgetattr, sizeof(instgetattr)
+                    rinfo->pr->program, func, expr, &instgetattr
                     )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
@@ -1091,7 +1100,7 @@ int _codegencallback_DoCodegen_visit_out(
                 instvcopy.slotto = argsfloor;
                 instvcopy.slotfrom = item_slot;
                 if (!appendinst(rinfo->pr->program, func, expr,
-                                &instvcopy, sizeof(instvcopy))) {
+                                &instvcopy)) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -1099,7 +1108,7 @@ int _codegencallback_DoCodegen_visit_out(
                 inststop.type = H64INST_CALLSETTOP;
                 inststop.topto = argsfloor + 1;
                 if (!appendinst(rinfo->pr->program, func, expr,
-                                &inststop, sizeof(inststop))) {
+                                &inststop)) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -1111,7 +1120,7 @@ int _codegencallback_DoCodegen_visit_out(
                 instcall.kwargs = 0;
                 instcall.flags = 0;
                 if (!appendinst(rinfo->pr->program, func, expr,
-                                &instcall, sizeof(instcall))) {
+                                &instcall)) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -1132,9 +1141,10 @@ int _codegencallback_DoCodegen_visit_out(
         assert(expr->awaitstmt.awaitedvalue->storage.eval_temp_id >= 0);
         h64instruction_awaititem inst = {0};
         inst.type = H64INST_AWAITITEM;
-        inst.objslotawait = expr->awaitstmt.awaitedvalue->storage.eval_temp_id;
-        if (!appendinst(rinfo->pr->program, func, expr,
-                        &inst, sizeof(inst))) {
+        inst.objslotawait = (
+            expr->awaitstmt.awaitedvalue->storage.eval_temp_id
+        );
+        if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -1152,8 +1162,7 @@ int _codegencallback_DoCodegen_visit_out(
             h64instruction_newvector inst = {0};
             inst.type = H64INST_NEWVECTOR;
             inst.slotto = vectortmp;
-            if (!appendinst(rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
+            if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -1161,8 +1170,7 @@ int _codegencallback_DoCodegen_visit_out(
             h64instruction_newmap inst = {0};
             inst.type = H64INST_NEWMAP;
             inst.slotto = vectortmp;
-            if (!appendinst(rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
+            if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -1208,9 +1216,9 @@ int _codegencallback_DoCodegen_visit_out(
             instbyindexexpr.slotobjto = vectortmp;
             instbyindexexpr.slotindexto = key_slot;
             instbyindexexpr.slotvaluefrom = item_slot;
-            if (!appendinst(rinfo->pr->program, func, expr,
-                    &instbyindexexpr, sizeof(instbyindexexpr
-                    ))) {
+            if (!appendinst(
+                    rinfo->pr->program, func, expr, &instbyindexexpr
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -1338,8 +1346,7 @@ int _codegencallback_DoCodegen_visit_out(
             }
             return 1;
         }
-        if (!appendinst(rinfo->pr->program, func, expr,
-                        &inst, sizeof(inst))) {
+        if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
             if (inst.content.type == H64VALTYPE_CONSTPREALLOCSTR)
                 free(inst.content.constpreallocstr_value);
             rinfo->hadoutofmemory = 1;
@@ -1400,8 +1407,8 @@ int _codegencallback_DoCodegen_visit_out(
             inst_str.content.constpreallocstr_len = msglen;
             inst_str.content.constpreallocstr_value = msg;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_str, sizeof(inst_str))) {
+                    rinfo->pr->program, func, expr, &inst_str
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 free(msg);
                 return 0;
@@ -1411,8 +1418,8 @@ int _codegencallback_DoCodegen_visit_out(
             inst_raise.error_class_id = H64STDERROR_ATTRIBUTEERROR;
             inst_raise.sloterrormsgobj = temp2;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_raise, sizeof(inst_raise))) {
+                    rinfo->pr->program, func, expr, &inst_raise
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -1423,8 +1430,8 @@ int _codegencallback_DoCodegen_visit_out(
             inst_getattr.objslotfrom = expr->op.value1->storage.eval_temp_id;
             inst_getattr.nameidx = idx;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_getattr, sizeof(inst_getattr))) {
+                    rinfo->pr->program, func, expr, &inst_getattr
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -1473,8 +1480,8 @@ int _codegencallback_DoCodegen_visit_out(
         inst_binop.arg1slotfrom = expr->op.value1->storage.eval_temp_id;
         inst_binop.arg2slotfrom = expr->op.value2->storage.eval_temp_id;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_binop, sizeof(inst_binop))) {
+                rinfo->pr->program, func, expr, &inst_binop
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -1492,8 +1499,8 @@ int _codegencallback_DoCodegen_visit_out(
         inst_unop.slotto = temp;
         inst_unop.argslotfrom = expr->op.value1->storage.eval_temp_id;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_unop, sizeof(inst_unop))) {
+                rinfo->pr->program, func, expr, &inst_unop
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -1578,8 +1585,8 @@ int _codegencallback_DoCodegen_visit_out(
                 inst_getglobal.slotto = temp;
                 inst_getglobal.globalfrom = expr->storage.ref.id;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_getglobal, sizeof(inst_getglobal))) {
+                        rinfo->pr->program, func, expr, &inst_getglobal
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -1605,8 +1612,8 @@ int _codegencallback_DoCodegen_visit_out(
                 inst_getfunc.slotto = temp;
                 inst_getfunc.funcfrom = expr->storage.ref.id;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_getfunc, sizeof(inst_getfunc))) {
+                        rinfo->pr->program, func, expr, &inst_getfunc
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -1617,8 +1624,8 @@ int _codegencallback_DoCodegen_visit_out(
                 inst_getclass.slotto = temp;
                 inst_getclass.classfrom = expr->storage.ref.id;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_getclass, sizeof(inst_getclass))) {
+                        rinfo->pr->program, func, expr, &inst_getclass
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -1652,8 +1659,8 @@ int _codegencallback_DoCodegen_visit_out(
                 );
                 vcopy.slotto = expr->storage.eval_temp_id;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &vcopy, sizeof(vcopy))) {
+                        rinfo->pr->program, func, expr, &vcopy
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -1678,8 +1685,9 @@ int _codegencallback_DoCodegen_visit_out(
             h64instruction_setconst inst_setconst = {0};
             inst_setconst.type = H64INST_SETCONST;
             inst_setconst.content.type = H64VALTYPE_NONE;
-            if (!appendinst(rinfo->pr->program, func, expr,
-                            &inst_setconst, sizeof(inst_setconst))) {
+            if (!appendinst(
+                    rinfo->pr->program, func, expr, &inst_setconst
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -1688,9 +1696,8 @@ int _codegencallback_DoCodegen_visit_out(
         inst_returnvalue.type = H64INST_RETURNVALUE;
         inst_returnvalue.returnslotfrom = returntemp;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_returnvalue, sizeof(inst_returnvalue))
-                ) {
+                rinfo->pr->program, func, expr, &inst_returnvalue
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -1736,8 +1743,8 @@ int _codegencallback_DoCodegen_visit_out(
                 inst.slot = assignfromtemporary;
                 inst.content.type = H64VALTYPE_NONE;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst, sizeof(inst))) {
+                        rinfo->pr->program, func, expr, &inst
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -1795,8 +1802,8 @@ int _codegencallback_DoCodegen_visit_out(
                     inst.globalfrom = str->id;
                     inst.slotto = oldvaluetemp;
                     if (!appendinst(
-                            rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
+                            rinfo->pr->program, func, expr, &inst
+                            )) {
                         rinfo->hadoutofmemory = 1;
                         return 0;
                     }
@@ -1923,7 +1930,8 @@ int _codegencallback_DoCodegen_visit_out(
                             inst.slotto = oldvaluetemp;
                             if (!appendinst(
                                     rinfo->pr->program, func, expr,
-                                    &inst, sizeof(inst))) {
+                                    &inst
+                                    )) {
                                 rinfo->hadoutofmemory = 1;
                                 return 0;
                             }
@@ -1946,7 +1954,8 @@ int _codegencallback_DoCodegen_visit_out(
                         inst.slotto = oldvaluetemp;
                         if (!appendinst(
                                 rinfo->pr->program, func, expr,
-                                &inst, sizeof(inst))) {
+                                &inst
+                                )) {
                             rinfo->hadoutofmemory = 1;
                             return 0;
                         }
@@ -1964,7 +1973,8 @@ int _codegencallback_DoCodegen_visit_out(
                 inst_assignmath.slotto = oldvaluetemp;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
-                        &inst_assignmath, sizeof(inst_assignmath))) {
+                        &inst_assignmath
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -1977,8 +1987,7 @@ int _codegencallback_DoCodegen_visit_out(
             inst.type = H64INST_SETGLOBAL;
             inst.globalto = str->id;
             inst.slotfrom = assignfromtemporary;
-            if (!appendinst(rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
+            if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -1990,8 +1999,7 @@ int _codegencallback_DoCodegen_visit_out(
             inst.slotobjto = 0;  // 0 must always be 'self'
             inst.varattrto = (attridx_t)str->id;
             inst.slotvaluefrom = assignfromtemporary;
-            if (!appendinst(rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
+            if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -2041,7 +2049,8 @@ int _codegencallback_DoCodegen_visit_out(
                         inst.slotvaluefrom = assignfromtemporary;
                         if (!appendinst(
                                 rinfo->pr->program, func, expr,
-                                &inst, sizeof(inst))) {
+                                &inst
+                                )) {
                             rinfo->hadoutofmemory = 1;
                             return 0;
                         }
@@ -2065,8 +2074,8 @@ int _codegencallback_DoCodegen_visit_out(
                     );
                     inst.slotvaluefrom = assignfromtemporary;
                     if (!appendinst(
-                            rinfo->pr->program, func, expr,
-                            &inst, sizeof(inst))) {
+                            rinfo->pr->program, func, expr, &inst
+                            )) {
                         rinfo->hadoutofmemory = 1;
                         return 0;
                     }
@@ -2078,7 +2087,7 @@ int _codegencallback_DoCodegen_visit_out(
                 inst.slotto = str->id;
                 inst.slotfrom = assignfromtemporary;
                 if (!appendinst(rinfo->pr->program, func, expr,
-                                &inst, sizeof(inst))) {
+                                &inst)) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -2164,8 +2173,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_jumptarget.type = H64INST_JUMPTARGET;
         inst_jumptarget.jumpid = jumpid_start;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jumptarget, sizeof(inst_jumptarget))) {
+                rinfo->pr->program, func, expr, &inst_jumptarget
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2189,8 +2198,8 @@ int _codegencallback_DoCodegen_visit_in(
         );
         inst_condjump.jumpbytesoffset = jumpid_end;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_condjump, sizeof(inst_condjump))) {
+                rinfo->pr->program, func, expr, &inst_condjump
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2215,8 +2224,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_jump.type = H64INST_JUMP;
         inst_jump.jumpbytesoffset = jumpid_start;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jump, sizeof(inst_jump))) {
+                rinfo->pr->program, func, expr, &inst_jump
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2226,7 +2235,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_jumptargetend.jumpid = jumpid_end;
         if (!appendinst(
                 rinfo->pr->program, func, expr,
-                &inst_jumptargetend, sizeof(inst_jumptargetend))) {
+                &inst_jumptargetend
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2332,7 +2342,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_raisebyref.sloterrorclassrefobj = error_instance_tmp;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
-                    &inst_raisebyref, sizeof(inst_raisebyref))) {
+                    &inst_raisebyref
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -2343,8 +2354,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_raise.sloterrormsgobj = str_arg_tmp;
             inst_raise.error_class_id = error_instance_tmp;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_raise, sizeof(inst_raise))) {
+                    rinfo->pr->program, func, expr, &inst_raise
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -2388,7 +2399,8 @@ int _codegencallback_DoCodegen_visit_in(
                         rinfo->pr->program,
                         expr, expr->funcdef.arguments.arg_value[i],
                         // ^ expr is the func since this is a kw arg
-                        &inst_sconst, sizeof(inst_sconst))) {
+                        &inst_sconst
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -2403,7 +2415,8 @@ int _codegencallback_DoCodegen_visit_in(
                         rinfo->pr->program,
                         expr, expr->funcdef.arguments.arg_value[i],
                         // ^ expr is the func since this is a kw arg
-                        &inst_binop, sizeof(inst_binop))) {
+                        &inst_binop
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -2415,7 +2428,8 @@ int _codegencallback_DoCodegen_visit_in(
                         rinfo->pr->program,
                         expr, expr->funcdef.arguments.arg_value[i],
                         // ^ expr is the func since this is a kw arg
-                        &cjump, sizeof(cjump))) {
+                        &cjump
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -2445,7 +2459,8 @@ int _codegencallback_DoCodegen_visit_in(
                         rinfo->pr->program,
                         expr, expr->funcdef.arguments.arg_value[i],
                         // ^ expr is the func since this is a kw arg
-                        &vc, sizeof(vc))) {
+                        &vc
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -2458,7 +2473,8 @@ int _codegencallback_DoCodegen_visit_in(
                         rinfo->pr->program,
                         expr, expr->funcdef.arguments.arg_value[i],
                         // ^ expr is the func since this is a kw arg
-                        &jumpt, sizeof(jumpt))) {
+                        &jumpt
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -2560,7 +2576,8 @@ int _codegencallback_DoCodegen_visit_in(
             );
             if (!appendinst(
                     rinfo->pr->program, func, expr,
-                    &inst_newinstbyref, sizeof(inst_newinstbyref))) {
+                    &inst_newinstbyref
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -2589,7 +2606,8 @@ int _codegencallback_DoCodegen_visit_in(
             );
             if (!appendinst(
                     rinfo->pr->program, func, expr,
-                    &inst_newinst, sizeof(inst_newinst))) {
+                    &inst_newinst
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -2606,8 +2624,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_getconstr.slotto = temp;
         inst_getconstr.objslotfrom = objslot;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_getconstr, sizeof(inst_getconstr))) {
+                rinfo->pr->program, func, expr, &inst_getconstr
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2630,8 +2648,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_vc.slotto = resulttemp;
             inst_vc.slotfrom = objslot;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_vc, sizeof(inst_vc))) {
+                    rinfo->pr->program, func, expr, &inst_vc
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -2672,8 +2690,8 @@ int _codegencallback_DoCodegen_visit_in(
             );
             inst_setconst.content.type = H64VALTYPE_NONE;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_setconst, sizeof(inst_setconst))) {
+                    rinfo->pr->program, func, expr, &inst_setconst
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -2696,8 +2714,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_pushframe.mode = RESCUEMODE_JUMPONFINALLY;
         inst_pushframe.frameid = dostmtid;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_pushframe, sizeof(inst_pushframe))) {
+                rinfo->pr->program, func, expr, &inst_pushframe
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2706,8 +2724,8 @@ int _codegencallback_DoCodegen_visit_in(
         addctype.frameid = dostmtid;
         addctype.classid = (classid_t)H64STDERROR_ERROR;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &addctype, sizeof(addctype))) {
+                rinfo->pr->program, func, expr, &addctype
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2755,8 +2773,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
         inst_jumptofinally.frameid = dostmtid;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jumptofinally, sizeof(inst_jumptofinally))) {
+                rinfo->pr->program, func, expr, &inst_jumptofinally
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2766,8 +2784,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_jumpfinally.type = H64INST_JUMPTARGET;
         inst_jumpfinally.jumpid = jumpid_finally;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jumpfinally, sizeof(inst_jumpfinally))) {
+                rinfo->pr->program, func, expr, &inst_jumpfinally
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -2835,7 +2853,8 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_pushframe2.mode = RESCUEMODE_JUMPONFINALLY;
                 if (!appendinst(
                         rinfo->pr->program, func, expr,
-                        &inst_pushframe2, sizeof(inst_pushframe2))) {
+                        &inst_pushframe2
+                        )) {
                     free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
@@ -2848,8 +2867,8 @@ int _codegencallback_DoCodegen_visit_in(
                 );
                 addctype2.classid = (classid_t)H64STDERROR_ERROR;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &addctype2, sizeof(addctype2))) {
+                        rinfo->pr->program, func, expr, &addctype2
+                        )) {
                     free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
@@ -2877,8 +2896,8 @@ int _codegencallback_DoCodegen_visit_in(
                     expr->withstmt.withclause[i]->storage.eval_temp_id
                 );
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &hasattrcheck, sizeof(hasattrcheck))) {
+                        rinfo->pr->program, func, expr, &hasattrcheck
+                        )) {
                     free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
@@ -2896,8 +2915,8 @@ int _codegencallback_DoCodegen_visit_in(
                 abyname.slotto = slotid;
                 abyname.nameidx = closeidx;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &abyname, sizeof(abyname))) {
+                        rinfo->pr->program, func, expr, &abyname
+                        )) {
                     free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
@@ -2911,8 +2930,8 @@ int _codegencallback_DoCodegen_visit_in(
                 callclose.posargs = 0;
                 callclose.returnto = slotid;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &callclose, sizeof(callclose))) {
+                        rinfo->pr->program, func, expr, &callclose
+                        )) {
                     free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
@@ -2926,8 +2945,8 @@ int _codegencallback_DoCodegen_visit_in(
                     jump_past_hasattr_id
                 );
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &skipattrcheck, sizeof(skipattrcheck))) {
+                        rinfo->pr->program, func, expr, &skipattrcheck
+                        )) {
                     free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
@@ -2939,7 +2958,8 @@ int _codegencallback_DoCodegen_visit_in(
             pastchecktarget.jumpid = jump_past_hasattr_id;
             if (!appendinst(
                     rinfo->pr->program, func, expr,
-                    &pastchecktarget, sizeof(pastchecktarget))) {
+                    &pastchecktarget
+                    )) {
                 free(_withclause_rescueframeid);
                 free(_withclause_jumpfinallyid);
                 rinfo->hadoutofmemory = 1;
@@ -2952,8 +2972,8 @@ int _codegencallback_DoCodegen_visit_in(
                     _withclause_rescueframeid[i]
                 );
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &nowtofinally, sizeof(nowtofinally))) {
+                        rinfo->pr->program, func, expr, &nowtofinally
+                        )) {
                     free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
@@ -2965,8 +2985,8 @@ int _codegencallback_DoCodegen_visit_in(
                     _withclause_jumpfinallyid[i]
                 );
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &finallytarget, sizeof(finallytarget))) {
+                        rinfo->pr->program, func, expr, &finallytarget
+                        )) {
                     free(_withclause_rescueframeid);
                     free(_withclause_jumpfinallyid);
                     rinfo->hadoutofmemory = 1;
@@ -2988,8 +3008,8 @@ int _codegencallback_DoCodegen_visit_in(
                     _withclause_rescueframeid[i]
                 );
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_popcatch, sizeof(inst_popcatch))) {
+                        rinfo->pr->program, func, expr, &inst_popcatch
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -3002,8 +3022,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_popcatch.type = H64INST_POPRESCUEFRAME;
         inst_popcatch.frameid = dostmtid;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_popcatch, sizeof(inst_popcatch))) {
+                rinfo->pr->program, func, expr, &inst_popcatch
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -3059,8 +3079,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_pushframe.jumponfinally = jumpid_finally;
         }
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_pushframe, sizeof(inst_pushframe))) {
+                rinfo->pr->program, func, expr, &inst_pushframe
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -3085,8 +3105,8 @@ int _codegencallback_DoCodegen_visit_in(
                         storage.ref.id
                 );
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &addctype, sizeof(addctype))) {
+                        rinfo->pr->program, func, expr, &addctype
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -3111,8 +3131,8 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_getglobal.globalfrom = expr->dostmt.errors[i]->
                     storage.ref.id;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_getglobal, sizeof(inst_getglobal))) {
+                        rinfo->pr->program, func, expr, &inst_getglobal
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -3123,8 +3143,8 @@ int _codegencallback_DoCodegen_visit_in(
             addctyperef.slotfrom = error_tmp;
             addctyperef.frameid = dostmtid;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &addctyperef, sizeof(addctyperef))) {
+                    rinfo->pr->program, func, expr, &addctyperef
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3152,8 +3172,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_popcatch.type = H64INST_POPRESCUEFRAME;
             inst_popcatch.frameid = dostmtid;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_popcatch, sizeof(inst_popcatch))) {
+                    rinfo->pr->program, func, expr, &inst_popcatch
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3162,8 +3182,8 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_jump.type = H64INST_JUMP;
                 inst_jump.jumpbytesoffset = jumpid_end;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_jump, sizeof(inst_jump))) {
+                        rinfo->pr->program, func, expr, &inst_jump
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -3177,8 +3197,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
             inst_jumptofinally.frameid = dostmtid;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_jumptofinally, sizeof(inst_jumptofinally))) {
+                    rinfo->pr->program, func, expr, &inst_jumptofinally
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3189,8 +3209,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_jumpcatch.type = H64INST_JUMPTARGET;
             inst_jumpcatch.jumpid = jumpid_catch;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_jumpcatch, sizeof(inst_jumpcatch))) {
+                    rinfo->pr->program, func, expr, &inst_jumpcatch
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3218,8 +3238,8 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_popcatch.type = H64INST_POPRESCUEFRAME;
                 inst_popcatch.frameid = dostmtid;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_popcatch, sizeof(inst_popcatch))) {
+                        rinfo->pr->program, func, expr, &inst_popcatch
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -3234,8 +3254,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_jumpfinally.type = H64INST_JUMPTARGET;
             inst_jumpfinally.jumpid = jumpid_finally;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_jumpfinally, sizeof(inst_jumpfinally))) {
+                    rinfo->pr->program, func, expr, &inst_jumpfinally
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3260,8 +3280,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_popcatch.type = H64INST_POPRESCUEFRAME;
             inst_popcatch.frameid = dostmtid;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_popcatch, sizeof(inst_popcatch))) {
+                    rinfo->pr->program, func, expr, &inst_popcatch
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3271,8 +3291,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_jumpend.type = H64INST_JUMPTARGET;
         inst_jumpend.jumpid = jumpid_end;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jumpend, sizeof(inst_jumpend))) {
+                rinfo->pr->program, func, expr, &inst_jumpend
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -3345,8 +3365,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_setconst.content.type = H64VALTYPE_BOOL;
             inst_setconst.content.int_value = 0;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_setconst, sizeof(inst_setconst))) {
+                    rinfo->pr->program, func, expr, &inst_setconst
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3381,8 +3401,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_setconst.content.type = H64VALTYPE_BOOL;
             inst_setconst.content.int_value = 0;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_setconst, sizeof(inst_setconst))) {
+                    rinfo->pr->program, func, expr, &inst_setconst
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3400,8 +3420,8 @@ int _codegencallback_DoCodegen_visit_in(
                 storage.eval_temp_id
             );
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_haj, sizeof(inst_haj))) {
+                    rinfo->pr->program, func, expr, &inst_haj
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3411,8 +3431,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_setconst2.content.type = H64VALTYPE_BOOL;
             inst_setconst2.content.int_value = 1;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_setconst2, sizeof(inst_setconst2))) {
+                    rinfo->pr->program, func, expr, &inst_setconst2
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3421,8 +3441,8 @@ int _codegencallback_DoCodegen_visit_in(
             inst_jumpppastset.type = H64INST_JUMPTARGET;
             inst_jumpppastset.jumpid = jumpid_pastset;
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_jumpppastset, sizeof(inst_jumpppastset))) {
+                    rinfo->pr->program, func, expr, &inst_jumpppastset
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3478,8 +3498,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_newiter.slotcontainerfrom = containertemp;
 
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_newiter, sizeof(inst_newiter))) {
+                rinfo->pr->program, func, expr, &inst_newiter
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -3488,8 +3508,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_jumpstart.type = H64INST_JUMPTARGET;
         inst_jumpstart.jumpid = jumpid_start;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jumpstart, sizeof(inst_jumpstart))) {
+                rinfo->pr->program, func, expr, &inst_jumpstart
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -3504,8 +3524,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_iterate.slotiteratorfrom = itertemp;
         inst_iterate.jumponend = jumpid_end;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_iterate, sizeof(inst_iterate))) {
+                rinfo->pr->program, func, expr, &inst_iterate
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -3530,8 +3550,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_jump.type = H64INST_JUMP;
         inst_jump.jumpbytesoffset = jumpid_start;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jump, sizeof(inst_jump))) {
+                rinfo->pr->program, func, expr, &inst_jump
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -3540,8 +3560,8 @@ int _codegencallback_DoCodegen_visit_in(
         inst_jumpend.type = H64INST_JUMPTARGET;
         inst_jumpend.jumpid = jumpid_end;
         if (!appendinst(
-                rinfo->pr->program, func, expr,
-                &inst_jumpend, sizeof(inst_jumpend))) {
+                rinfo->pr->program, func, expr, &inst_jumpend
+                )) {
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -3594,8 +3614,8 @@ int _codegencallback_DoCodegen_visit_in(
                     jumpid_nextclause : jumpid_end
                 );
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_condjump, sizeof(inst_condjump))) {
+                        rinfo->pr->program, func, expr, &inst_condjump
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -3622,8 +3642,8 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_jump.type = H64INST_JUMP;
                 inst_jump.jumpbytesoffset = jumpid_end;
                 if (!appendinst(
-                        rinfo->pr->program, func, expr,
-                        &inst_jump, sizeof(inst_jump))) {
+                        rinfo->pr->program, func, expr, &inst_jump
+                        )) {
                     rinfo->hadoutofmemory = 1;
                     return 0;
                 }
@@ -3637,8 +3657,8 @@ int _codegencallback_DoCodegen_visit_in(
                 inst_jumptarget.jumpid = jumpid_nextclause;
             }
             if (!appendinst(
-                    rinfo->pr->program, func, expr,
-                    &inst_jumptarget, sizeof(inst_jumptarget))) {
+                    rinfo->pr->program, func, expr, &inst_jumptarget
+                    )) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
@@ -3727,27 +3747,6 @@ int codegen_GenerateBytecodeForFile(
                 return 0;
             }
         }
-    }
-
-    // Transform jump instructions to final offsets:
-    if (!codegen_FinalBytecodeTransform(
-            project
-            )) {
-        project->resultmsg->success = 0;
-        char buf[256];
-        snprintf(buf, sizeof(buf) - 1,
-            "internal error: jump offset calculation "
-            "failed, out of memory or codegen bug?"
-        );
-        if (!result_AddMessage(
-                project->resultmsg,
-                H64MSG_ERROR, buf,
-                NULL, -1, -1
-                )) {
-            // Nothing we can do
-        }
-        return 0;  // since always OOM if no major compiler bug,
-                   // so return OOM indication
     }
 
     if (miscoptions->compiler_stage_debug) {
