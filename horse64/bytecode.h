@@ -41,6 +41,7 @@ typedef enum instructiontype {
     H64INST_RETURNVALUE,
     H64INST_JUMPTARGET,
     H64INST_CONDJUMP,
+    H64INST_CONDJUMPEX,
     H64INST_JUMP,
     H64INST_NEWITERATOR,
     H64INST_ITERATE,
@@ -210,6 +211,15 @@ typedef struct h64instruction_condjump {
     jumpoffset_t jumpbytesoffset;
     int16_t conditionalslot;
 } __attribute__ ((packed)) h64instruction_condjump;
+
+#define CONDJUMPEX_FLAG_JUMPONTRUE 0x1
+#define CONDJUMPEX_FLAG_NOTYPEERROR 0x2
+
+typedef struct h64instruction_condjumpex {
+    uint8_t type, flags;
+    jumpoffset_t jumpbytesoffset;
+    int16_t conditionalslot;
+} __attribute__ ((packed)) h64instruction_condjumpex;
 
 typedef struct h64instruction_jump {
     uint8_t type;

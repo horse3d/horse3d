@@ -145,6 +145,24 @@ void vmthread_SetSuspendState(
     #endif
 }
 
+int _vmexec_CondExprValue(
+        valuecontent *v, int *truefalse
+        ) {
+    if (v->type == H64VALTYPE_BOOL) {
+        *truefalse = (v->int_value != 0);
+        return 1;
+    } else if (v->type == H64VALTYPE_NONE) {
+        *truefalse = 0;
+        return 1;
+    } else if (v->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue *)v->ptr_value)->type ==
+            H64GCVALUETYPE_OBJINSTANCE) {
+        *truefalse = 1;
+        return 1;
+    }
+    return 0;
+}
+
 int _vmexec_ValueEqualityCheck_Do(
         ATTR_UNUSED h64vmthread *vt, valuecontent *v1,
         valuecontent *v2, int *result
@@ -208,8 +226,10 @@ int _vmexec_ValueEqualityCheck_Do(
                 );
             } else if (v1->type == H64VALTYPE_NONE) {
                 *result = 1;
+            } else if (v1->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+                *result = (v2->type == H64VALTYPE_UNSPECIFIED_KWARG);
             } else {
-                h64fprintf(stderr, "UNIMPLEMENTED EQ CASE");
+                h64fprintf(stderr, "UNIMPLEMENTED EQ CASE\n");
                 return 0;
             }
             return 1;
@@ -2902,28 +2922,76 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
         #endif
+        assert(inst->jumpbytesoffset != 0);
+
+        int jumpevalvalue = 1;
+        assert(inst->conditionalslot >= 0 &&
+               inst->conditionalslot < STACK_TOP(stack));
+        valuecontent *vc = STACK_ENTRY(stack, inst->conditionalslot);
+        if (!_vmexec_CondExprValue(vc, &jumpevalvalue)) {
+            RAISE_ERROR(
+                H64STDERROR_TYPEERROR,
+                "this value type cannot be evaluated as conditional"
+            );
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        if (!jumpevalvalue) {  // jump if it is false
+            p += (
+                (ptrdiff_t)inst->jumpbytesoffset
+            );
+            assert(p >= pr->func[func_id].instructions &&
+                   p < pend);
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        
+        p += sizeof(h64instruction_condjump);
+        goto *jumptable[((h64instructionany *)p)->type];
+    }
+    inst_condjumpex: {
+        h64instruction_condjumpex *inst = (
+            (h64instruction_condjumpex *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
+        #endif
+        assert(inst->jumpbytesoffset != 0);
 
         int jumpevalvalue = 1;
         valuecontent *vc = STACK_ENTRY(stack, inst->conditionalslot);
-        if (vc->type == H64VALTYPE_INT64 ||
-                vc->type == H64VALTYPE_BOOL) {
-            jumpevalvalue = (vc->int_value != 0);
-        } else if (vc->type == H64VALTYPE_FLOAT64) {
-            jumpevalvalue = fabs(vc->float_value - 0) != 0;
-        } else if (vc->type == H64VALTYPE_NONE ||
-                vc->type == H64VALTYPE_UNSPECIFIED_KWARG) {
-            jumpevalvalue = 0;
+        if (!_vmexec_CondExprValue(vc, &jumpevalvalue)) {
+            if ((inst->flags & CONDJUMPEX_FLAG_NOTYPEERROR) == 0) {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "this value type cannot be "
+                    "evaluated as conditional"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            jumpevalvalue = ((
+                (inst->flags & CONDJUMPEX_FLAG_JUMPONTRUE)
+            ) == 0);
         }
-        if (jumpevalvalue) {
-            p += sizeof(h64instruction_condjump);
+        if ((inst->flags & CONDJUMPEX_FLAG_JUMPONTRUE) == 0 &&
+                !jumpevalvalue) {  // jump if it is false
+            p += (
+                (ptrdiff_t)inst->jumpbytesoffset
+            );
+            assert(p >= pr->func[func_id].instructions &&
+                   p < pend);
+            goto *jumptable[((h64instructionany *)p)->type];
+        } else if ((inst->flags & CONDJUMPEX_FLAG_JUMPONTRUE) != 0 &&
+                jumpevalvalue) {  // jump if it is true
+            p += (
+                (ptrdiff_t)inst->jumpbytesoffset
+            );
+            assert(p >= pr->func[func_id].instructions &&
+                   p < pend);
             goto *jumptable[((h64instructionany *)p)->type];
         }
 
-        p += (
-            (ptrdiff_t)inst->jumpbytesoffset
-        );
-        assert(p >= pr->func[func_id].instructions &&
-               p < pend);
+        p += sizeof(h64instruction_condjumpex);
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_jump: {
@@ -3845,6 +3913,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_RETURNVALUE] = &&inst_returnvalue;
     jumptable[H64INST_JUMPTARGET] = &&inst_jumptarget;
     jumptable[H64INST_CONDJUMP] = &&inst_condjump;
+    jumptable[H64INST_CONDJUMPEX] = &&inst_condjumpex;
     jumptable[H64INST_JUMP] = &&inst_jump;
     jumptable[H64INST_NEWITERATOR] = &&inst_newiterator;
     jumptable[H64INST_ITERATE] = &&inst_iterate;
@@ -3876,6 +3945,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     op_jumptable[H64OP_CMP_SMALLEROREQUAL] = &&binop_cmp_smallerorequal;
     op_jumptable[H64OP_CMP_LARGER] = &&binop_cmp_larger;
     op_jumptable[H64OP_CMP_SMALLER] = &&binop_cmp_smaller;
+    op_jumptable[H64OP_BOOLCOND_AND] = &&binop_boolcond_and;
+    op_jumptable[H64OP_BOOLCOND_OR] = &&binop_boolcond_or;
     op_jumptable[H64OP_INDEXBYEXPR] = &&binop_indexbyexpr;
     assert(stack != NULL);
     if (!isresume) {

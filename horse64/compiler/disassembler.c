@@ -495,6 +495,20 @@ int disassembler_PrintInstruction(
         }
         break;
     }
+    case H64INST_CONDJUMPEX: {
+        h64instruction_condjumpex *inst_condjumpex =
+            (h64instruction_condjumpex *)inst;
+        if (!disassembler_Write(di,
+                "    %s %s%d %d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (inst_condjumpex->jumpbytesoffset >= 0 ? "+" : ""),
+                (int)inst_condjumpex->jumpbytesoffset,
+                (int)inst_condjumpex->flags,
+                inst_condjumpex->conditionalslot)) {
+            return 0;
+        }
+        break;
+    }
     case H64INST_JUMP: {
         h64instruction_jump *inst_jump =
             (h64instruction_jump *)inst;

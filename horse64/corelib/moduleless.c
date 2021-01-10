@@ -304,7 +304,7 @@ static h64wchar *_corelib_value_to_str_do(
             char nobuf[64];
             h64snprintf(nobuf, 64, "%" PRId64, c->int_value);
             nobuf[63] = 0;
-            assert((int)strlen(nobuf) <= (int)tempbuflen);
+            assert((int)strlen(nobuf) <= (int)buflen);
             int k = 0;
             while (k < (int)strlen(nobuf)) {
                 buf[k] = nobuf[k];
@@ -336,7 +336,7 @@ static h64wchar *_corelib_value_to_str_do(
                 nobuf[len - 1] = '\0';
                 len--;
             }
-            assert((int)strlen(nobuf) <= (int)tempbuflen);
+            assert((int)strlen(nobuf) <= (int)buflen);
             int k = 0;
             while (k < (int)strlen(nobuf)) {
                 buf[k] = nobuf[k];

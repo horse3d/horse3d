@@ -805,6 +805,13 @@ int codegen_FinalBytecodeTransform(
                 jumpid = cjump->jumpbytesoffset;
                 break;
             }
+            case H64INST_CONDJUMPEX: {
+                h64instruction_condjumpex *cjump = (
+                    (h64instruction_condjumpex *)inst
+                );
+                jumpid = cjump->jumpbytesoffset;
+                break;
+            }
             case H64INST_JUMP: {
                 h64instruction_jump *jump = (
                     (h64instruction_jump *)inst
@@ -865,6 +872,13 @@ int codegen_FinalBytecodeTransform(
                 case H64INST_CONDJUMP: {
                     h64instruction_condjump *cjump = (
                         (h64instruction_condjump *)inst
+                    );
+                    cjump->jumpbytesoffset = offset;
+                    break;
+                }
+                case H64INST_CONDJUMPEX: {
+                    h64instruction_condjumpex *cjump = (
+                        (h64instruction_condjumpex *)inst
                     );
                     cjump->jumpbytesoffset = offset;
                     break;
@@ -1467,6 +1481,12 @@ int _codegencallback_DoCodegen_visit_out(
                 return 1;  // similar to getbymember this is
                            // handled by parent assign statement
             }
+        }
+        if (expr->op.optype == H64OP_BOOLCOND_AND ||
+                expr->op.optype == H64OP_BOOLCOND_OR) {
+            // Handled on visit_in, for early left-hand bail out
+            // special code.
+            return 1;
         }
         int temp = new1linetemp(func, expr, 1);
         if (temp < 0) {
@@ -2241,6 +2261,170 @@ int _codegencallback_DoCodegen_visit_in(
             return 0;
         }
         rinfo->dont_descend_visitation = 1;
+        return 1;
+    } else if (expr->type == H64EXPRTYPE_BINARYOP &&
+            (expr->op.optype == H64OP_BOOLCOND_AND ||
+             expr->op.optype == H64OP_BOOLCOND_OR)) {
+        rinfo->dont_descend_visitation = 1;
+
+        int target_tmp = new1linetemp(func, expr, 1);
+        int32_t jumpid_regulareval = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+        int32_t jumpid_pasteval = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+
+        rinfo->dont_descend_visitation = 0;
+        int result = ast_VisitExpression(
+            expr->op.value1, expr,
+            &_codegencallback_DoCodegen_visit_in,
+            &_codegencallback_DoCodegen_visit_out,
+            _asttransform_cancel_visit_descend_callback,
+            rinfo
+        );
+        rinfo->dont_descend_visitation = 1;
+        if (!result)
+            return 0;
+        int arg1tmp = expr->op.value1->storage.eval_temp_id;
+        assert(arg1tmp >= 0);
+
+        if (expr->op.optype == H64OP_BOOLCOND_AND) {
+            // If first arg is 'true', resume with regular eval:
+            h64instruction_condjumpex inst_cjump = {0};
+            inst_cjump.type = H64INST_CONDJUMPEX;
+            inst_cjump.flags |= (
+                CONDJUMPEX_FLAG_JUMPONTRUE
+            );
+            inst_cjump.conditionalslot = arg1tmp;
+            inst_cjump.jumpbytesoffset = jumpid_regulareval;
+            if (!appendinst(
+                    rinfo->pr->program,
+                    func, expr, &inst_cjump
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+
+            // If first arg is NOT 'true', bail early:
+            h64instruction_setconst inst_setfalse = {0};
+            inst_setfalse.type = H64INST_SETCONST;
+            inst_setfalse.content.type = H64VALTYPE_BOOL;
+            inst_setfalse.content.int_value = 0;
+            inst_setfalse.slot = target_tmp;
+            if (!appendinst(
+                    rinfo->pr->program,
+                    func, expr, &inst_setfalse
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+
+            // Jump past regular eval since we already returned false:
+            h64instruction_jump inst_jump = {0};
+            inst_jump.type = H64INST_JUMP;
+            inst_jump.jumpbytesoffset = jumpid_pasteval;
+            if (!appendinst(
+                    rinfo->pr->program,
+                    func, expr, &inst_jump
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        } else {
+            assert(expr->op.optype == H64OP_BOOLCOND_OR);
+            // If first arg is 'false', resume with regular eval:
+            h64instruction_condjumpex inst_cjump = {0};
+            inst_cjump.type = H64INST_CONDJUMPEX;
+            inst_cjump.conditionalslot = arg1tmp;
+            inst_cjump.jumpbytesoffset = jumpid_regulareval;
+            if (!appendinst(
+                    rinfo->pr->program,
+                    func, expr, &inst_cjump
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+
+            // If first arg is NOT 'false', bail early:
+            h64instruction_setconst inst_settrue = {0};
+            inst_settrue.type = H64INST_SETCONST;
+            inst_settrue.content.type = H64VALTYPE_BOOL;
+            inst_settrue.content.int_value = 1;
+            inst_settrue.slot = target_tmp;
+            if (!appendinst(
+                    rinfo->pr->program,
+                    func, expr, &inst_settrue
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+
+            // Jump past regular eval since we already returned false:
+            h64instruction_jump inst_jump = {0};
+            inst_jump.type = H64INST_JUMP;
+            inst_jump.jumpbytesoffset = jumpid_pasteval;
+            if (!appendinst(
+                    rinfo->pr->program,
+                    func, expr, &inst_jump
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+        h64instruction_jumptarget inst_regulareval = {0};
+        inst_regulareval.type = H64INST_JUMPTARGET;
+        inst_regulareval.jumpid = jumpid_regulareval;
+        if (!appendinst(
+                rinfo->pr->program,
+                func, expr, &inst_regulareval
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        rinfo->dont_descend_visitation = 0;
+        result = ast_VisitExpression(
+            expr->op.value2, expr,
+            &_codegencallback_DoCodegen_visit_in,
+            &_codegencallback_DoCodegen_visit_out,
+            _asttransform_cancel_visit_descend_callback,
+            rinfo
+        );
+        rinfo->dont_descend_visitation = 1;
+        if (!result)
+            return 0;
+        int arg2tmp = expr->op.value2->storage.eval_temp_id;
+
+        h64instruction_binop inst_binop = {0};
+        inst_binop.type = H64INST_BINOP;
+        inst_binop.optype = expr->op.optype;
+        inst_binop.slotto = target_tmp;
+        inst_binop.arg1slotfrom = arg1tmp;
+        inst_binop.arg1slotfrom = arg2tmp;
+        if (!appendinst(
+                rinfo->pr->program,
+                func, expr, &inst_binop
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        h64instruction_jumptarget inst_pasteval = {0};
+        inst_pasteval.type = H64INST_JUMPTARGET;
+        inst_pasteval.jumpid = jumpid_pasteval;
+        if (!appendinst(
+                rinfo->pr->program,
+                func, expr, &inst_pasteval
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        rinfo->dont_descend_visitation = 1;
+        expr->storage.eval_temp_id = target_tmp;
         return 1;
     } else if (expr->type == H64EXPRTYPE_RAISE_STMT) {
         rinfo->dont_descend_visitation = 1;

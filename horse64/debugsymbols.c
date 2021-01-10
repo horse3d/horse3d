@@ -61,6 +61,7 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
         i++;
     }
     free(symbols->global_attribute_name);
+    free(symbols->global_attribute_needsidx);
     i = 0;
     while (i < symbols->module_count) {
         h64debugsymbols_ClearModule(symbols->module_symbols[i]);

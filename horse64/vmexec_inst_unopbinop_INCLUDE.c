@@ -489,6 +489,66 @@ inst_binop: {
             }
             goto binop_done;
         }
+        binop_boolcond_and: {
+            int bool1, bool2;
+            if (!_vmexec_CondExprValue(v1, &bool1)) {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "this value type cannot be "
+                    "evaluated as conditional"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            if (!bool1) {
+                invalidtypes = 0;
+                tmpresult->type = H64VALTYPE_BOOL;
+                tmpresult->int_value = 0;
+                goto binop_done;
+            } else {
+                if (!_vmexec_CondExprValue(v1, &bool2)) {
+                    RAISE_ERROR(
+                        H64STDERROR_TYPEERROR,
+                        "this value type cannot be "
+                        "evaluated as conditional"
+                    );
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+                invalidtypes = 0;
+                tmpresult->type = H64VALTYPE_BOOL;
+                tmpresult->int_value = bool2;
+                goto binop_done;
+            }
+        }
+        binop_boolcond_or: {
+            int bool1, bool2;
+            if (!_vmexec_CondExprValue(v1, &bool1)) {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "this value type cannot be "
+                    "evaluated as conditional"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            if (bool1) {
+                invalidtypes = 0;
+                tmpresult->type = H64VALTYPE_BOOL;
+                tmpresult->int_value = 1;
+                goto binop_done;
+            } else {
+                if (!_vmexec_CondExprValue(v1, &bool2)) {
+                    RAISE_ERROR(
+                        H64STDERROR_TYPEERROR,
+                        "this value type cannot be "
+                        "evaluated as conditional"
+                    );
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+                invalidtypes = 0;
+                tmpresult->type = H64VALTYPE_BOOL;
+                tmpresult->int_value = bool2;
+                goto binop_done;
+            }
+        }
         binop_indexbyexpr: {
             if (unlikely(v2->type != H64VALTYPE_INT64 &&
                     v2->type != H64VALTYPE_FLOAT64)) {
@@ -558,6 +618,51 @@ inst_binop: {
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_unop: {
-        h64fprintf(stderr, "unop not implemented\n");
-        return 0;
+        h64instruction_unop *inst = (h64instruction_unop *)p;
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
+        #endif
+
+        int copyatend = 0;
+        valuecontent _tmpresultbuf = {0};
+        valuecontent *tmpresult = STACK_ENTRY(stack, inst->slotto);
+        if (likely(inst->slotto == inst->argslotfrom)) {
+            copyatend = 1;
+            tmpresult = &_tmpresultbuf;
+        } else {
+            DELREF_NONHEAP(tmpresult);
+            valuecontent_Free(tmpresult);
+            memset(tmpresult, 0, sizeof(*tmpresult));
+        }
+
+        valuecontent *v1 = STACK_ENTRY(stack, inst->argslotfrom);
+
+        if (inst->optype == H64OP_BOOLCOND_NOT) {
+            int boolv;
+            if (!_vmexec_CondExprValue(v1, &boolv)) {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "this value type cannot be "
+                    "evaluated as conditional"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            tmpresult->type = H64VALTYPE_BOOL;
+            tmpresult->int_value = boolv;
+            goto unop_done;
+        } else {
+            h64fprintf(stderr, "unop not implemented\n");
+            return 0;
+        }
+        unop_done:
+        if (copyatend) {
+            valuecontent *target = STACK_ENTRY(stack, inst->slotto);
+            DELREF_NONHEAP(target);
+            valuecontent_Free(target);
+            memcpy(target, tmpresult, sizeof(*tmpresult));
+        }
+        p += sizeof(h64instruction_unop);
+        goto *jumptable[((h64instructionany *)p)->type];
     }

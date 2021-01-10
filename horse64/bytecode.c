@@ -41,6 +41,7 @@ static char _name_itype_callsettop[] = "callsettop";
 static char _name_itype_returnvalue[] = "returnvalue";
 static char _name_itype_jumptarget[] = "jumptarget";
 static char _name_itype_condjump[] = "condjump";
+static char _name_itype_condjumpex[] = "condjumpex";
 static char _name_itype_jump[] = "jump";
 static char _name_itype_newiterator[] = "newiterator";
 static char _name_itype_iterate[] = "iterate";
@@ -103,6 +104,8 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_jumptarget;
     case H64INST_CONDJUMP:
         return _name_itype_condjump;
+    case H64INST_CONDJUMPEX:
+        return _name_itype_condjumpex;
     case H64INST_JUMP:
         return _name_itype_jump;
     case H64INST_NEWITERATOR:
@@ -600,6 +603,8 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_jumptarget);
     case H64INST_CONDJUMP:
         return sizeof(h64instruction_condjump);
+    case H64INST_CONDJUMPEX:
+        return sizeof(h64instruction_condjumpex);
     case H64INST_JUMP:
         return sizeof(h64instruction_jump);
     case H64INST_NEWITERATOR:

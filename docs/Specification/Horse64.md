@@ -238,9 +238,11 @@ if my_tested_value == 5 {
 
 - The conditional itself is evaluated in the defined operator precedence
   order first and outside-in/left-to-right second. Evaluation stops early
-  for binary operators when the result is obvious. (E.g. a logical `and`
-  combination will only have the left-hand side evaluated if that returns
-  a falseish value, skipping the right-hand side.)
+  for the conditional operators `and` and `or` when the result is obvious:
+  a logical `and` combination will only have the right-hand evaluated if
+  the left-hand side wasn't already false. Similarly, `or` will only
+  evaluate the right-hand if the left-hand hasn't already evaluated
+  to true.
 
 
 ### Inline expressions

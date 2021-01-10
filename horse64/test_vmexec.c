@@ -82,6 +82,7 @@ void runprog(
     assert(ast->resultmsg.success && project->resultmsg->success);
     moptions.vmscheduler_debug = 1;
     moptions.vmscheduler_verbose_debug = 1;
+    moptions.vmexec_debug = 1;
     printf("test_vmexec.c: running \"%s\"\n", progname);
     fflush(stdout);
     int resultcode = vmschedule_ExecuteProgram(
@@ -210,7 +211,7 @@ END_TEST
 START_TEST (test_memberaccesschain)
 {
     runprog(
-        "test_unicodestrlen",
+        "test_memberaccesschain",
         "func main {\n"
         "    var s1 = 'a'  var s2 = 'bc'"
         "    print(s1.len.as_str + ', ' + s2.len.as_str)\n"
@@ -238,7 +239,7 @@ END_TEST
 START_TEST (test_numberslist)
 {
     runprog(
-        "test_list",
+        "test_numberslist",
         "func main {\n"
         "    var l = [1, 2, 3]\n"
         "    var inlinel_len = [1, 2].len\n"
@@ -253,7 +254,7 @@ END_TEST
 START_TEST (test_uri)
 {
     runprog(
-        "test_unicodestrlen",
+        "test_uri",
         "import uri from core.horse64.org\n"
         "func main {\n"
         "    var myuri = uri.parse('file://test.html')\n"
@@ -264,11 +265,47 @@ START_TEST (test_uri)
 }
 END_TEST
 
+
+START_TEST (test_conditionals)
+{
+    runprog(
+        "test_conditionals",
+        "import uri from core.horse64.org\n"
+        "var resultvalue = 0\n"
+        "func sideeffecttrue(v) {\n"
+        "    resultvalue += v\n"
+        "    return true\n"
+        "}\n"
+        "func sideeffectfalse(v) {\n"
+        "    resultvalue += v\n"
+        "    return false\n"
+        "}\n"
+        "func main {\n"
+        "    resultvalue = 0\n"
+        "    if sideeffecttrue(5) or sideeffecttrue(7) {\n"
+        "    }\n"
+        "    # resultvalue should be 5 now.\n"
+        "    if sideeffectfalse(5) or sideeffecttrue(7) {\n"
+        "    }\n"
+        "    # resultvalue should be 5+5+7=17 now.\n"
+        "    if sideeffectfalse(2) and sideeffecttrue(3) {\n"
+        "    }\n"
+        "    # resultvalue should be 5+5+7+2=19 now.\n"
+        "    if sideeffecttrue(2) and sideeffecttrue(3) {\n"
+        "    }\n"
+        "    # resultvalue should be 5+5+7+2+2+3=24 now.\n"
+        "    return resultvalue\n"
+        "}\n",
+        24
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_simpleclass, test_attributeerrors,
     test_hasattr, test_callwithclass, test_hasattr2,
     test_memberaccesschain,
     test_unicodestrlen, test_numberslist,
-    test_uri
+    test_uri, test_conditionals
 )
 
