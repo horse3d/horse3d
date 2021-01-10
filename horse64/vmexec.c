@@ -2927,6 +2927,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         int jumpevalvalue = 1;
         assert(inst->conditionalslot >= 0 &&
                inst->conditionalslot < STACK_TOP(stack));
+        char *pend = pr->func[func_id].instructions + (
+            (ptrdiff_t)pr->func[func_id].instructions_bytes
+        );
         valuecontent *vc = STACK_ENTRY(stack, inst->conditionalslot);
         if (!_vmexec_CondExprValue(vc, &jumpevalvalue)) {
             RAISE_ERROR(
@@ -2957,6 +2960,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
         assert(inst->jumpbytesoffset != 0);
+        char *pend = pr->func[func_id].instructions + (
+            (ptrdiff_t)pr->func[func_id].instructions_bytes
+        );
 
         int jumpevalvalue = 1;
         valuecontent *vc = STACK_ENTRY(stack, inst->conditionalslot);
