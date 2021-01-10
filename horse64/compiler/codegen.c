@@ -2568,7 +2568,8 @@ int _codegencallback_DoCodegen_visit_in(
                 func->funcdef._storageinfo->jump_targets_used++;
 
                 int operand2tmp = new1linetemp(
-                    func, expr, 0
+                    expr, expr->funcdef.arguments.arg_value[i], 0
+                    // ^ expr as func, since we're looking at a funcdef
                 );
                 if (operand2tmp < 0) {
                     rinfo->hadoutofmemory = 1;
@@ -2607,6 +2608,7 @@ int _codegencallback_DoCodegen_visit_in(
 
                 h64instruction_condjump cjump = {0};
                 cjump.type = H64INST_CONDJUMP;
+                cjump.conditionalslot = operand2tmp;
                 cjump.jumpbytesoffset = jump_past_id;
                 if (!appendinst(
                         rinfo->pr->program,
@@ -2634,19 +2636,23 @@ int _codegencallback_DoCodegen_visit_in(
                 assert(expr->funcdef.arguments.arg_value[i]->
                     storage.eval_temp_id >= 0);
 
-                h64instruction_valuecopy vc = {0};
-                vc.type = H64INST_VALUECOPY;
-                vc.slotto = argtmp;
-                vc.slotfrom = expr->funcdef.arguments.arg_value[i]->
-                    storage.eval_temp_id;
-                if (!appendinst(
-                        rinfo->pr->program,
-                        expr, expr->funcdef.arguments.arg_value[i],
-                        // ^ expr is the func since this is a kw arg
-                        &vc
-                        )) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
+                if (expr->funcdef.arguments.arg_value[i]->
+                        storage.eval_temp_id != argtmp) {
+                    h64instruction_valuecopy vc = {0};
+                    vc.type = H64INST_VALUECOPY;
+                    vc.slotto = argtmp;
+                    vc.slotfrom = (
+                        expr->funcdef.arguments.arg_value[i]->
+                            storage.eval_temp_id);
+                    if (!appendinst(
+                            rinfo->pr->program,
+                            expr, expr->funcdef.arguments.arg_value[i],
+                            // ^ expr is the func since this is a kw arg
+                            &vc
+                            )) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
                 }
 
                 free1linetemps(func);
