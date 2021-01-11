@@ -30,6 +30,7 @@ void runprog(
         vfs_Init(NULL);
     }
 
+    printf("test_vmexec.c: compiling \"%s\"\n", progname);
     char *error = NULL;
     FILE *tempfile = fopen("testdata.h64", "wb");
     assert(tempfile != NULL);
@@ -301,11 +302,44 @@ START_TEST (test_conditionals)
 }
 END_TEST
 
+
+START_TEST (test_conditionals2)
+{
+    runprog(
+        "test_conditionals2",
+        "import uri from core.horse64.org\n"
+        "var resultvalue = 0\n"
+        "func sideeffecttrue(v) {\n"
+        "    resultvalue += v\n"
+        "    return true\n"
+        "}\n"
+        "func sideeffectfalse(v) {\n"
+        "    resultvalue += v\n"
+        "    return false\n"
+        "}\n"
+        "func main {\n"
+        "    resultvalue = 0\n"
+        "    if sideeffecttrue(5) or sideeffecttrue(7) or\n"
+        "            sideeffectfalse(3) {\n"
+        "        resultvalue += 1\n"
+        "    }\n"
+        "    # resultvalue should now be 5+1=6.\n"
+        "    if sideeffectfalse(5) or (sideeffecttrue(7) and\n"
+        "            sideeffectfalse(3)) {\n"
+        "        resultvalue += 17\n"
+        "    }\n"
+        "    # resultvalue should now be 5+1+5+7+3=21.\n"
+        "}\n",
+        21
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_simpleclass, test_attributeerrors,
     test_hasattr, test_callwithclass, test_hasattr2,
     test_memberaccesschain,
     test_unicodestrlen, test_numberslist,
-    test_uri, test_conditionals
+    test_uri, test_conditionals, test_conditionals2
 )
 
