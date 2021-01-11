@@ -463,6 +463,7 @@ static int _resolve_jumpid_to_jumpoffset(
         z++;
     }
     if (jumptargetoffset < 0) {
+        // Shouldn't happen, unless there is a bug
         if (out_oom) *out_oom = 0;
         return 0;
     }
@@ -855,16 +856,19 @@ int codegen_FinalBytecodeTransform(
                 );
                 if (!resolveworked) {
                     free(jump_info);
-                    h64fprintf(
-                        stderr, "horsec: error: internal error in "
-                        "codegen jump translation: failed to resolve "
-                        "jump %" PRId64 " to target offset for jump at "
-                        "instruction offset %" PRId64
-                        " in func %" PRId64
-                        "\n",
-                        (int64_t)jumpid2, (int64_t)k,
-                        (int64_t)i
-                    );
+                    if (prj->resultmsg->success && !hadoom) {
+                        h64fprintf(
+                            stderr, "horsec: error: internal error in "
+                            "codegen jump translation: failed to resolve "
+                            "jump %" PRId64 " to target offset for jump at "
+                            "instruction offset %" PRId64
+                            " in func %" PRId64 " BUT NO ERROR"
+                            "\n",
+                            (int64_t)jumpid, (int64_t)k,
+                            (int64_t)i
+                        );
+                    }
+                    prj->resultmsg->success = 0;
                     return 0;
                 }
 
@@ -922,16 +926,19 @@ int codegen_FinalBytecodeTransform(
                 );
                 if (!resolveworked) {
                     free(jump_info);
-                    h64fprintf(
-                        stderr, "horsec: error: internal error in "
-                        "codegen jump translation: failed to resolve "
-                        "jump %" PRId64 " to target offset for jump at "
-                        "instruction offset %" PRId64
-                        " in func %" PRId64
-                        "\n",
-                        (int64_t)jumpid2, (int64_t)k,
-                        (int64_t)i
-                    );
+                    if (prj->resultmsg->success && !hadoom) {
+                        h64fprintf(
+                            stderr, "horsec: error: internal error in "
+                            "codegen jump translation: failed to resolve "
+                            "jump %" PRId64 " to target offset for jump at "
+                            "instruction offset %" PRId64
+                            " in func %" PRId64 " BUT NO ERROR"
+                            "\n",
+                            (int64_t)jumpid2, (int64_t)k,
+                            (int64_t)i
+                        );
+                    }
+                    prj->resultmsg->success = 0;
                     return 0;
                 }
 
@@ -956,24 +963,24 @@ int codegen_FinalBytecodeTransform(
         }
         i++;
     }
-    i = 0;
-    while (i < pr->func_count) {
-        if (pr->func[i].iscfunc) {
-            i++;
+    int i2 = 0;
+    while (i2 < pr->func_count) {
+        if (pr->func[i2].iscfunc) {
+            i2++;
             continue;
         }
         jump_table_fill = 0;
 
         int func_ends_in_return = 0;
         int64_t k = 0;
-        while (k < pr->func[i].instructions_bytes) {
+        while (k < pr->func[i2].instructions_bytes) {
             h64instructionany *inst = (
-                (h64instructionany *)((char*)pr->func[i].instructions + k)
+                (h64instructionany *)((char*)pr->func[i2].instructions + k)
             );
             size_t instsize = (
                 h64program_PtrToInstructionSize((char*)inst)
             );
-            if (k + (int)instsize >= pr->func[i].instructions_bytes &&
+            if (k + (int)instsize >= pr->func[i2].instructions_bytes &&
                     inst->type == H64INST_RETURNVALUE) {
                 func_ends_in_return = 1;
             }
@@ -981,24 +988,24 @@ int codegen_FinalBytecodeTransform(
         }
         if (!func_ends_in_return) {
             // Add return to the end:
-            if (pr->func[i].inner_stack_size <= 0)
-                pr->func[i].inner_stack_size = 1;
+            if (pr->func[i2].inner_stack_size <= 0)
+                pr->func[i2].inner_stack_size = 1;
             h64instruction_setconst inst_setnone = {0};
             inst_setnone.type = H64INST_SETCONST;
             inst_setnone.slot = 0;
             inst_setnone.content.type = H64VALTYPE_NONE;
-            if (!appendinstbyfuncid(pr, i, NULL, &inst_setnone)) {
+            if (!appendinstbyfuncid(pr, i2, NULL, &inst_setnone)) {
                 return 0;
             }
             h64instruction_returnvalue inst_return = {0};
             inst_return.type = H64INST_RETURNVALUE;
             inst_return.returnslotfrom = 0;
-            if (!appendinstbyfuncid(pr, i, NULL, &inst_return)) {
+            if (!appendinstbyfuncid(pr, i2, NULL, &inst_return)) {
                 return 0;
             }
         }
 
-        i++;
+        i2++;
     }
     free(jump_info);
     return 1;
@@ -2403,7 +2410,7 @@ int _codegencallback_DoCodegen_visit_in(
         inst_binop.optype = expr->op.optype;
         inst_binop.slotto = target_tmp;
         inst_binop.arg1slotfrom = arg1tmp;
-        inst_binop.arg1slotfrom = arg2tmp;
+        inst_binop.arg2slotfrom = arg2tmp;
         if (!appendinst(
                 rinfo->pr->program,
                 func, expr, &inst_binop
@@ -2563,13 +2570,15 @@ int _codegencallback_DoCodegen_visit_in(
                 assert(i + 1 >= expr->funcdef.arguments.arg_count ||
                        expr->funcdef.arguments.arg_value[i + 1] != NULL);
                 int jump_past_id = (
-                    func->funcdef._storageinfo->jump_targets_used
+                    expr->funcdef._storageinfo->jump_targets_used
                 );
-                func->funcdef._storageinfo->jump_targets_used++;
+                expr->funcdef._storageinfo->jump_targets_used++;
+                // ^ IMPORTANT, again expr instead of func since this
+                // code is generated INTO the expr funcdef.
 
                 int operand2tmp = new1linetemp(
                     expr, expr->funcdef.arguments.arg_value[i], 0
-                    // ^ expr as func, since we're looking at a funcdef
+                    // ^ expr as func again, we're gen'ing INTO a funcdef expr
                 );
                 if (operand2tmp < 0) {
                     rinfo->hadoutofmemory = 1;
@@ -2583,7 +2592,7 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!appendinst(
                         rinfo->pr->program,
                         expr, expr->funcdef.arguments.arg_value[i],
-                        // ^ expr is the func since this is a kw arg
+                        // ^ expr as func again, see explanation above.
                         &inst_sconst
                         )) {
                     rinfo->hadoutofmemory = 1;
@@ -2599,7 +2608,7 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!appendinst(
                         rinfo->pr->program,
                         expr, expr->funcdef.arguments.arg_value[i],
-                        // ^ expr is the func since this is a kw arg
+                        // ^ expr as func again, see explanation above.
                         &inst_binop
                         )) {
                     rinfo->hadoutofmemory = 1;
@@ -2613,7 +2622,7 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!appendinst(
                         rinfo->pr->program,
                         expr, expr->funcdef.arguments.arg_value[i],
-                        // ^ expr is the func since this is a kw arg
+                        // ^ expr as func again, see explanation above.
                         &cjump
                         )) {
                     rinfo->hadoutofmemory = 1;
@@ -2647,7 +2656,7 @@ int _codegencallback_DoCodegen_visit_in(
                     if (!appendinst(
                             rinfo->pr->program,
                             expr, expr->funcdef.arguments.arg_value[i],
-                            // ^ expr is the func since this is a kw arg
+                            // ^ expr as func again, see explanation above.
                             &vc
                             )) {
                         rinfo->hadoutofmemory = 1;
@@ -2662,7 +2671,7 @@ int _codegencallback_DoCodegen_visit_in(
                 if (!appendinst(
                         rinfo->pr->program,
                         expr, expr->funcdef.arguments.arg_value[i],
-                        // ^ expr is the func since this is a kw arg
+                        // ^ expr as func again, see explanation above.
                         &jumpt
                         )) {
                     rinfo->hadoutofmemory = 1;
@@ -3803,6 +3812,7 @@ int _codegencallback_DoCodegen_visit_in(
                     current_clause->followup_clause != NULL ?
                     jumpid_nextclause : jumpid_end
                 );
+                assert(inst_condjump.jumpbytesoffset >= 0);
                 if (!appendinst(
                         rinfo->pr->program, func, expr, &inst_condjump
                         )) {

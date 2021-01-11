@@ -329,6 +329,7 @@ START_TEST (test_conditionals2)
         "        resultvalue += 17\n"
         "    }\n"
         "    # resultvalue should now be 5+1+5+7+3=21.\n"
+        "    return resultvalue\n"
         "}\n",
         21
     );
