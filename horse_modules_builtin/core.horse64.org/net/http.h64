@@ -4,7 +4,7 @@ import uri from core.horse64.org
 
 func get(target, require_encrypt=true) {
     if type(target) == "string" or type(target) == "bytes" {
-        target = uri.parse(target)
+        target = uri.parse(target, default_protocol="https")
     }
     if not has_attr(target, "host") or not has_attr(target, "path") or
             not has_attr(target, "port") or not has_attr(target, "protocol") {
@@ -12,5 +12,7 @@ func get(target, require_encrypt=true) {
             "target must be string, or have uri.uri attributes"
         )
     }
-    print("http.get on " + target.path + ", port " + target.port.as_str)
+    print("http.get on host " + target.host +
+          ", port " + target.port.as_str +
+          ", path " + target.path)
 }
