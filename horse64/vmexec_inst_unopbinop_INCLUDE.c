@@ -351,6 +351,7 @@ inst_binop: {
             if (!success) {
                 goto triggeroom;
             }
+            tmpresult->int_value = (result != 0);
             goto binop_done;
         }
         binop_cmp_notequal: {
@@ -650,7 +651,7 @@ inst_binop: {
                 goto *jumptable[((h64instructionany *)p)->type];
             }
             tmpresult->type = H64VALTYPE_BOOL;
-            tmpresult->int_value = boolv;
+            tmpresult->int_value = !boolv;
             goto unop_done;
         } else {
             h64fprintf(stderr, "unop not implemented\n");

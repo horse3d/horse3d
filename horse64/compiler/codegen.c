@@ -2543,7 +2543,7 @@ int _codegencallback_DoCodegen_visit_in(
             h64instruction_raise inst_raise = {0};
             inst_raise.type = H64INST_RAISE;
             inst_raise.sloterrormsgobj = str_arg_tmp;
-            inst_raise.error_class_id = error_instance_tmp;
+            inst_raise.error_class_id = error_class_id;
             if (!appendinst(
                     rinfo->pr->program, func, expr, &inst_raise
                     )) {
