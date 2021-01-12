@@ -353,8 +353,10 @@ START_TEST (test_assert2)
         "func main{\n"
         "    do {\n"
         "        assert(false)\n"
-        "    } rescue(e) {\n"
-        "        if e.is_a(AssertionError) {return 2}\n"
+        "    } rescue AssertionError as e {\n"
+        "        if e.is_a(AssertionError) {\n"
+        "            return 2\n"
+        "        }\n"
         "    }\n"
         "    return 0\n"
         "}",

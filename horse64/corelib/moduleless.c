@@ -640,7 +640,7 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
         NULL, "msg"
     };
     idx = h64program_RegisterCFunction(
-        p, "assert", &corelib_type,
+        p, "assert", &corelib_assert,
         NULL, 2, assert_arg_name, NULL, NULL, 1, -1
     );
     if (idx < 0)
