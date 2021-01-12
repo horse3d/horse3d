@@ -728,7 +728,7 @@ int codegen_FinalBytecodeTransform(
     h64program *pr = prj->program;
 
     int i = 0;
-    while (i < pr->func_count) {
+    while (i < pr->func_count) {  // Giant loop to resolve all the jumps!
         if (pr->func[i].iscfunc) {
             i++;
             continue;
@@ -831,11 +831,13 @@ int codegen_FinalBytecodeTransform(
                 h64instruction_pushrescueframe *catchjump = (
                     (h64instruction_pushrescueframe *)inst
                 );
-                if ((catchjump->mode & RESCUEMODE_JUMPONFINALLY) != 0) {
+                if ((catchjump->mode & RESCUEMODE_JUMPONRESCUE) != 0) {
                     jumpid = catchjump->jumponrescue;
+                    assert(jumpid >= 0);
                 }
                 if ((catchjump->mode & RESCUEMODE_JUMPONFINALLY) != 0) {
                     jumpid2 = catchjump->jumponfinally;
+                    assert(jumpid2 >= 0);
                 }
                 break;
             }
@@ -3262,12 +3264,13 @@ int _codegencallback_DoCodegen_visit_in(
                 error_tmp = expr->storage.ref.id;
             }
             inst_pushframe.sloterrorto = error_tmp;
-            inst_pushframe.mode |= RESCUEMODE_JUMPONFINALLY;
+            inst_pushframe.mode |= RESCUEMODE_JUMPONRESCUE;
             jumpid_catch = (
                 func->funcdef._storageinfo->jump_targets_used
             );
             func->funcdef._storageinfo->jump_targets_used++;
             inst_pushframe.jumponrescue = jumpid_catch;
+            assert(inst_pushframe.jumponrescue >= 0);
         }
         if (expr->dostmt.has_finally_block) {
             inst_pushframe.mode |= RESCUEMODE_JUMPONFINALLY;
@@ -3376,7 +3379,7 @@ int _codegencallback_DoCodegen_visit_in(
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
-            if ((inst_pushframe.mode & RESCUEMODE_JUMPONFINALLY) != 0) {
+            if ((inst_pushframe.mode & RESCUEMODE_JUMPONRESCUE) != 0) {
                 h64instruction_jump inst_jump = {0};
                 inst_jump.type = H64INST_JUMP;
                 inst_jump.jumpbytesoffset = jumpid_end;
@@ -3403,7 +3406,7 @@ int _codegencallback_DoCodegen_visit_in(
             }
         }
 
-        if ((inst_pushframe.mode & RESCUEMODE_JUMPONFINALLY) != 0) {
+        if ((inst_pushframe.mode & RESCUEMODE_JUMPONRESCUE) != 0) {
             h64instruction_jumptarget inst_jumpcatch = {0};
             inst_jumpcatch.type = H64INST_JUMPTARGET;
             inst_jumpcatch.jumpid = jumpid_catch;
@@ -3443,8 +3446,16 @@ int _codegencallback_DoCodegen_visit_in(
                     return 0;
                 }
             } else {
-                // Just let execution continue since it'll roll into
-                // the finally block that is generated right below.
+                // NOTE: needed despite finally being right after, SEE ABOVE.
+                h64instruction_jumptofinally inst_jumptofinally = {0};
+                inst_jumptofinally.type = H64INST_JUMPTOFINALLY;
+                inst_jumptofinally.frameid = dostmtid;
+                if (!appendinst(
+                        rinfo->pr->program, func, expr, &inst_jumptofinally
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             }
         }
 

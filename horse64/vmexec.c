@@ -814,7 +814,10 @@ static int vmthread_errors_Raise(
                 // But what about finally?
                 if (!vmthread->errorframe[
                         vmthread->errorframe_count - 1
-                        ].triggered_finally) {
+                        ].triggered_finally &&
+                        vmthread->errorframe[
+                        vmthread->errorframe_count - 1
+                        ].finally_instruction_offset >= 0) {
                     // No finally yet. -> enter, but
                     // bubble up error later.
                     bubble_up_error_later = 1;
@@ -989,11 +992,15 @@ static int vmthread_errors_Raise(
             vmthread->errorframe_count - 1
         ].triggered_catch = 1;
     } else {
+        // Uncaught error, run finally clause:
         assert(
             !vmthread->errorframe[
                 vmthread->errorframe_count - 1
             ].triggered_finally
         );
+        assert(vmthread->errorframe[
+            vmthread->errorframe_count - 1
+        ].finally_instruction_offset >= 0);
         vmthread->errorframe[
             vmthread->errorframe_count - 1
         ].triggered_finally = 1;
@@ -3031,6 +3038,12 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         #ifndef NDEBUG
         int previous_count = vmthread->errorframe_count;
+        if ((inst->mode & RESCUEMODE_JUMPONRESCUE))
+            assert((p - pr->func[func_id].instructions) +
+                 (int64_t)inst->jumponrescue >= 0);
+        if ((inst->mode & RESCUEMODE_JUMPONFINALLY))
+            assert((p - pr->func[func_id].instructions) +
+                 (int64_t)inst->jumponfinally >= 0);
         #endif
         if (!pusherrorframe(
                 vmthread, inst->frameid,
