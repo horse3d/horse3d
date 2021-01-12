@@ -863,6 +863,10 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 H64EXPRTYPE_VARDEF_STMT ||
                 def->declarationexpr->type ==
                 H64EXPRTYPE_FOR_STMT ||
+                (def->declarationexpr->type ==
+                 H64EXPRTYPE_DO_STMT &&
+                 dostmthaserrorlabel(def->declarationexpr,
+                    expr->identifierref.value)) ||
                 def->declarationexpr->type ==
                 H64EXPRTYPE_WITH_CLAUSE ||
                 (def->declarationexpr->type ==
@@ -881,6 +885,9 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             if (!isexprchildof(expr, def->declarationexpr) ||
                     def->declarationexpr->type ==
                     H64EXPRTYPE_FOR_STMT ||
+                    (def->declarationexpr->type ==
+                     H64EXPRTYPE_DO_STMT &&
+                     !ischildofdostmterrorexpr(expr, def->declarationexpr)) ||
                     def->declarationexpr->type ==
                     H64EXPRTYPE_WITH_CLAUSE ||
                     ((def->declarationexpr->type ==

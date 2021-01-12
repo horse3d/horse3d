@@ -22,6 +22,16 @@ ATTR_UNUSED static h64expression *surroundingfunc(h64expression *expr) {
     return NULL;
 }
 
+ATTR_UNUSED static int dostmthaserrorlabel(
+        h64expression *expr, const char *lbl
+        ) {
+    if (!expr || expr->type != H64EXPRTYPE_DO_STMT)
+        return 0;
+    if (expr->dostmt.errors_count <= 0)
+        return 0;
+    return(strcmp(expr->dostmt.error_name, lbl) == 0);
+}
+
 ATTR_UNUSED static h64expression *surroundingclass(
         h64expression *expr, int allowfuncnesting
         ) {
@@ -78,6 +88,22 @@ ATTR_UNUSED static int funcdef_has_parameter_with_name(
     } else {
         return 0;
     }
+}
+
+ATTR_UNUSED static int ischildofdostmterrorexpr(
+        h64expression *child_check, h64expression *do_stmt
+        ) {
+    if (!do_stmt || do_stmt->type != H64EXPRTYPE_DO_STMT)
+        return 0;
+    int i = 0;
+    while (i < do_stmt->dostmt.errors_count) {
+        if (isexprchildof(
+                child_check, do_stmt->dostmt.errors[i]
+                ))
+            return 1;
+        i++;
+    }
+    return 0;
 }
 
 h64expression *find_expr_by_tokenindex(
