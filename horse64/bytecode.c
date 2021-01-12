@@ -770,6 +770,8 @@ globalvarid_t h64program_AddGlobalvar(
     msymbols->globalvar_symbols[msymbols->globalvar_count].name = (
         strdup(name)
     );
+    msymbols->globalvar_symbols[msymbols->globalvar_count].
+        global_id = p->globalvar_count;
     if (!msymbols->globalvar_symbols[msymbols->globalvar_count].name) {
         globalvarsymboloom:
         h64debugsymbols_ClearGlobalvarSymbol(
@@ -1173,6 +1175,8 @@ classid_t h64program_AddClass(
     msymbols->classes_symbols = new_classes_symbols;
     memset(&msymbols->classes_symbols[msymbols->classes_count],
         0, sizeof(*msymbols->classes_symbols));
+    msymbols->classes_symbols[msymbols->classes_count].
+        global_id = p->classes_count;
     msymbols->classes_symbols[msymbols->classes_count].name = (
         strdup(name)
     );
