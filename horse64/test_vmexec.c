@@ -336,11 +336,39 @@ START_TEST (test_conditionals2)
 }
 END_TEST
 
+START_TEST (test_assert1)
+{
+    runprog(
+        "test_assert1",
+        "func main{assert(true)}",
+        0
+    );
+}
+END_TEST
+
+START_TEST (test_assert2)
+{
+    runprog(
+        "test_assert2",
+        "func main{\n"
+        "    do {\n"
+        "        assert(false)\n"
+        "    } rescue(e) {\n"
+        "        if e.is_a(AssertionError) {return 2}\n"
+        "    }\n"
+        "    return 0\n"
+        "}",
+        2
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_simpleclass, test_attributeerrors,
     test_hasattr, test_callwithclass, test_hasattr2,
     test_memberaccesschain,
     test_unicodestrlen, test_numberslist,
-    test_uri, test_conditionals, test_conditionals2
+    test_uri, test_conditionals, test_conditionals2,
+    test_assert1, test_assert2
 )
 

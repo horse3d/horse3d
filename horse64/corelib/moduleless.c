@@ -516,6 +516,30 @@ int corelib_type(  // $$builtin.type
     return 1;
 }
 
+int corelib_assert(  // $$builtin.assert
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Test that a given value is true, or raise AssertionError.
+     *
+     * @func assert
+     */
+    assert(STACK_TOP(vmthread->stack) == 2);
+    valuecontent *c = STACK_ENTRY(vmthread->stack, 0);
+    if (c->type == H64VALTYPE_BOOL &&
+            c->int_value == 1) {
+        DELREF_NONHEAP(c);
+        valuecontent_Free(c);
+        memset(c, 0, sizeof(*c));
+        c->type = H64VALTYPE_NONE;
+        return 1;
+    }
+    return vmexec_ReturnFuncError(
+        vmthread, H64STDERROR_ASSERTIONERROR,
+        "assertion failed"
+    );
+}
+
 int corelib_print(  // $$builtin.print
         h64vmthread *vmthread
         ) {
@@ -607,6 +631,17 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "type", &corelib_type,
         NULL, 1, NULL, NULL, NULL, 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // 'assert' function:
+    const char *assert_arg_name[] = {
+        NULL, "msg"
+    };
+    idx = h64program_RegisterCFunction(
+        p, "assert", &corelib_type,
+        NULL, 2, assert_arg_name, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
