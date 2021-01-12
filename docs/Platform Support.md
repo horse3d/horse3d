@@ -7,11 +7,11 @@ following platform support in mind:
 
 |Platform                       | Support tier (1=best)|
 |-------------------------------|----------------------|
-|Linux x64                      |  Tier 1              |
-|Linux ARM64 (including phones) |  Tier 1              |
-|Windows x64   (gcc or clang)   |  Tier 2              |
-|Free/Open/NetBSD x64/ARM64     |  Tier 3              |
-|Windows ARM64 (gcc or clang)   |  Tier 3              |
+|Linux x64                      |  Tier 1  ⭐⭐⭐       |
+|Linux ARM64 (including phones) |  Tier 1  ⭐⭐⭐       |
+|Windows x64   (gcc or clang)   |  Tier 2  ⭐⭐          |
+|Free/Open/NetBSD x64/ARM64     |  Tier 3  ⭐           |
+|Windows ARM64 (gcc or clang)   |  Tier 3  ⭐           |
 |Windows x64/ARM64 via MSVC     |  Tier 4              |
 |macOS x64/ARM64                |  Tier 4              |
 |Android ARM64                  |  Tier 4              |
