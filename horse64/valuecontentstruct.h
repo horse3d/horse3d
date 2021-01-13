@@ -95,4 +95,10 @@ int valuecontent_SetStringU32(
     h64wchar *u32, int64_t u32len
 );
 
+uint32_t valuecontent_Hash(
+    valuecontent *v
+);
+
+int valuecontent_IsMutable(valuecontent *v);
+
 #endif  // HORSE64_VALUECONTENTSTRUCT_H_

@@ -19,7 +19,6 @@ typedef struct hashmap hashmap;
 typedef enum gcvaluetype {
     H64GCVALUETYPE_INVALID = 0,
     H64GCVALUETYPE_FUNCREF_CLOSURE = 1,
-    H64GCVALUETYPE_EMPTYARG,
     H64GCVALUETYPE_STRING,
     H64GCVALUETYPE_BYTES,
     H64GCVALUETYPE_LIST,
@@ -40,6 +39,7 @@ typedef struct h64closureinfo {
 typedef struct h64gcvalue {
     uint8_t type;
     int32_t heapreferencecount, externalreferencecount;
+    uint32_t hash;
     union {
         struct {
             h64stringval str_val;

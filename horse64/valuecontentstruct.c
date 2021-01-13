@@ -4,6 +4,7 @@
 
 #include "compileconfig.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,6 +13,7 @@
 #include "poolalloc.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
+#include "vmlist.h"
 #include "vmstrings.h"
 #include "widechar.h"
 
@@ -106,4 +108,152 @@ int valuecontent_SetPreallocStringU8(
     if (u32 != (h64wchar*) short_buf)
         free(u32);
     return 1;
+}
+
+int valuecontent_IsMutable(valuecontent *v) {
+    if (v->type == H64VALTYPE_GCVAL) {
+        h64gcvalue *gcval = ((h64gcvalue *)v->ptr_value);
+        return (gcval->type != H64GCVALUETYPE_BYTES &&
+                gcval->type != H64GCVALUETYPE_STRING);
+    }
+    return 0;
+}
+
+uint32_t _valuecontent_Hash_Do(
+        valuecontent *v, int depth
+        ) {
+    if (depth >= 2)
+        return 0;
+    if (v->type == H64VALTYPE_NONE ||
+            v->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        return 0;
+    } else if (v->type == H64VALTYPE_INT64) {
+        return (v->int_value % INT32_MAX);
+    } else if (v->type == H64VALTYPE_FLOAT64) {
+        // Split up into exponent & factor,
+        // the float is fac_f * (2 ^ exponent).
+        int exponent32 = 0;
+        double fac_f = frexp(v->float_value, &exponent32);
+        int64_t exponent = exponent32;
+        // fac_f is in -1.0...1.0, map to roughly 32bit int range:
+        int64_t fac = (int)(fac_f * (double)2147483648LL);
+        if (fac < 0) fac = -fac;
+        return ((exponent + fac) % INT32_MAX);
+    } else if (v->type == H64VALTYPE_BOOL) {
+        return (v->int_value != 0);
+    } else if (v->type == H64VALTYPE_SHORTSTR ||
+               v->type == H64VALTYPE_CONSTPREALLOCSTR) {
+        char *s = (char *)(
+            v->type == H64VALTYPE_SHORTSTR ? v->shortstr_value :
+            v->constpreallocstr_value
+        );
+        uint64_t slen = (
+            v->type == H64VALTYPE_SHORTSTR ? v->shortstr_len :
+            v->constpreallocstr_len
+        );
+        uint64_t h = 0;
+        uint64_t i = 0;
+        while (i < slen && i < 16) {
+            h = (h + ((h64wchar *)s)[i]) % INT32_MAX;
+            i++;
+        }
+        h = (h + slen % INT32_MAX) % INT32_MAX;
+        return (h != 0 ? h : 1);
+    } else if (v->type == H64VALTYPE_SHORTBYTES ||
+               v->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+        char *s = (
+            v->type == H64VALTYPE_SHORTBYTES ? v->shortbytes_value :
+            v->constpreallocbytes_value
+        );
+        uint64_t slen = (
+            v->type == H64VALTYPE_SHORTBYTES ? v->shortbytes_len :
+            v->constpreallocbytes_len
+        );
+        uint64_t h = 0;
+        uint64_t i = 0;
+        while (i < slen && i < 16) {
+            h = (h + s[i]) % INT32_MAX;
+            i++;
+        }
+        h = (h + slen % INT32_MAX) % INT32_MAX;
+        return (h != 0 ? h : 1);
+    } else if (v->type == H64VALTYPE_GCVAL) {
+        h64gcvalue *gcval = ((h64gcvalue *)v->ptr_value);
+        if (gcval->hash != 0)
+            return gcval->hash;
+        if (gcval->type == H64GCVALUETYPE_FUNCREF_CLOSURE) {
+            uint64_t h = (
+                gcval->closure_info->closure_func_id %
+                INT32_MAX
+            );
+            return h;
+        } else if (gcval->type == H64GCVALUETYPE_STRING) {
+            uint64_t h = 0;
+            uint64_t i = 0;
+            while (i < gcval->str_val.len && i < 16) {
+                h = (h + gcval->str_val.s[i]) % INT32_MAX;
+                i++;
+            }
+            h = (h + gcval->str_val.len % INT32_MAX) % INT32_MAX;
+            gcval->hash = (h != 0 ? h : 1);
+            return gcval->hash;
+        } else if (gcval->type == H64GCVALUETYPE_BYTES) {
+            uint64_t h = 0;
+            uint64_t i = 0;
+            while (i < gcval->bytes_val.len && i < 16) {
+                h = (h + gcval->bytes_val.s[i]) % INT32_MAX;
+                i++;
+            }
+            h = (h + gcval->bytes_val.len % INT32_MAX) % INT32_MAX;
+            gcval->hash = (h != 0 ? h : 1);
+            return gcval->hash;
+        } else if (gcval->type == H64GCVALUETYPE_LIST) {
+            uint64_t h = 0;
+            uint64_t count = vmlist_Count(gcval->list_values);
+            uint64_t upto = count;
+            if (upto > 32)
+                upto = 32;
+            uint64_t i = 0;
+            while (i < upto) {
+                valuecontent *item = vmlist_Get(gcval->list_values, i);
+                if (valuecontent_IsMutable(item)) {
+                    i++;
+                    continue;
+                }
+                h = (h + _valuecontent_Hash_Do(
+                    item, depth + 1
+                ) % INT32_MAX) % INT32_MAX;
+                i++;
+            }
+            h = (h + upto % INT32_MAX) % INT32_MAX;
+            gcval->hash = h;
+            return gcval->hash;
+        } else if (gcval->type == H64GCVALUETYPE_SET) {
+            return 0;
+        } else if (gcval->type == H64GCVALUETYPE_MAP) {
+            return 0;
+        } else if (gcval->type == H64GCVALUETYPE_OBJINSTANCE) {
+            return 0;
+        } else {
+            assert(0);  // Should be unreachable
+            return 0;
+        }
+    } else if (v->type ==  H64VALTYPE_FUNCREF ||
+            v->type == H64VALTYPE_CLASSREF) {
+        uint64_t h = (v->int_value % INT32_MAX);
+        return h;
+    } else if (v->type == H64VALTYPE_ERROR) {
+        uint64_t h = (v->error_class_id % INT32_MAX);
+        return h;
+    } else {
+        assert(0);  // Should be unreachable
+        return 0;
+    }
+    return 0;
+}
+
+uint32_t valuecontent_Hash(
+        valuecontent *v
+        ) {
+    return _valuecontent_Hash_Do(v, 0);
 }
