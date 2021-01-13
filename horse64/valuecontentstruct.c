@@ -72,3 +72,38 @@ int valuecontent_SetStringU8(
         free(u32);
     return result;
 }
+
+int valuecontent_SetPreallocStringU8(
+        ATTR_UNUSED h64program *p, valuecontent *v, const char *u8
+        ) {
+    int wasinvalid = 0;
+    int wasoom = 0;
+    char short_buf[512];
+    int64_t u32len = 0;
+    h64wchar *u32 = utf8_to_utf32_ex(
+        u8, strlen(u8),
+        short_buf, sizeof(short_buf),
+        NULL, NULL, &u32len, 1, 0,
+        &wasinvalid, &wasoom
+    );
+    if (!u32)
+        return 0;
+    valuecontent_Free(v);
+    memset(v, 0, sizeof(*v));
+
+    v->constpreallocstr_value = malloc(u32len * sizeof(h64wchar));
+    int result = 0;
+    if (v->constpreallocstr_value) {
+        result = 1;
+        v->type = H64VALTYPE_CONSTPREALLOCSTR;
+        v->constpreallocstr_len = u32len;
+        memcpy(
+            v->constpreallocstr_value, u32,
+            u32len * sizeof(h64wchar)
+        );
+    }
+
+    if (u32 != (h64wchar*) short_buf)
+        free(u32);
+    return 1;
+}

@@ -2,6 +2,7 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "bytecode.h"
 #include "compileconfig.h"
 
 #include <assert.h>
@@ -11,6 +12,7 @@
 #include "corelib/errors.h"
 #include "corelib/system.h"
 #include "osinfo.h"
+#include "packageversion.h"
 #include "poolalloc.h"
 #include "stack.h"
 #include "valuecontentstruct.h"
@@ -154,6 +156,17 @@ int systemlib_RegisterFuncsAndModules(h64program *p) {
         "system", "core.horse64.org", 1, -1
     );
     if (idx < 0)
+        return 0;
+
+    // system.core_version:
+    idx = h64program_AddGlobalvar(
+        p, "core_version", 1, NULL, "system", "core.horse64.org"
+    );
+    if (idx < 0)
+        return 0;
+    if (!valuecontent_SetPreallocStringU8(
+            p, &p->globalvar[idx].content, CORELIB_VERSION
+            ))
         return 0;
 
     return 1;

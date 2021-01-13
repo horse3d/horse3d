@@ -1,10 +1,19 @@
+# Copyright (c) 2020-21, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+# also see LICENSE.md file.
+# SPDX-License-Identifier: BSD-2-Clause
+
 
 import net from core.horse64.org
 import uri from core.horse64.org
+import system from core.horse64.org
 
-func get(target, require_encrypt=true) {
+func request(target, method="GET", insecure=false,
+             user_agent="horse64-http/" + system.core_version,
+             bytes_result=true) {
     if type(target) == "string" or type(target) == "bytes" {
-        target = uri.parse(target, default_protocol="https")
+        target = uri.parse(
+            target, default_protocol="https", guess_port=true
+        )
     }
     if not has_attr(target, "host") or not has_attr(target, "path") or
             not has_attr(target, "port") or not has_attr(target, "protocol") {
@@ -15,4 +24,33 @@ func get(target, require_encrypt=true) {
     print("http.get on host " + target.host +
           ", port " + target.port.as_str +
           ", path " + target.path)
+    if target.protocol.lower() != "http" and
+            target.protocol.lower() != "https" {
+        raise new ValueError(
+            "target is not http or https uri"
+        )
+    }
+    if targendt.protocol.lower() == "http" and not insecure {
+        raise new ValueError("untrusted http target")
+    }
+    var conn = net.connect(
+        target.path, target.port,
+        encrypt=(target.protocol.lower() == "https")
+    )
+    var headers = {
+        "User-Agent" -> user_agent,
+        "Host" -> target.host + ":" + target.port
+    }
+    conn.send(
+        b"HTTP1/1 GET " +
+            (b"/" if not target.path.begins("/")) +
+            target.path.as_bytes + b"\r\n" +
+        headers.join(":", "\r\n").as_bytes + b"\r\n" +
+        b"\r\n"
+    )
+    result = conn.receive()
+}
+
+func get(target, insecure=false, bytes_result=true) {
+    return request(target, method="GET", insecure=insecure)
 }

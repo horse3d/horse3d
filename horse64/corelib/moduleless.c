@@ -1,4 +1,4 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -20,6 +20,8 @@
 #include "corelib/errors.h"
 #include "corelib/io.h"
 #include "corelib/moduleless.h"
+#include "corelib/moduleless_containers.h"
+#include "corelib/moduleless_strings.h"
 #include "corelib/system.h"
 #include "corelib/time.h"
 #include "corelib/uri.h"
@@ -78,33 +80,6 @@ int corelib_obj_is_a(h64vmthread *vmthread) {  // $$builtin.$$anyis_a
     memset(vcresult, 0, sizeof(*vcresult));
     vcresult->type = H64VALTYPE_BOOL;
     vcresult->int_value = result;
-    return 1;
-}
-
-int corelib_containeradd(  // $$builtin.$$containeradd
-        h64vmthread *vmthread
-        ) {
-    assert(STACK_TOP(vmthread->stack) >= 2);
-
-    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);
-    assert(vc->type == H64VALTYPE_GCVAL);
-    h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
-    if (gcvalue->type == H64GCVALUETYPE_LIST) {
-        if (!vmlist_Add(
-                gcvalue->list_values, STACK_ENTRY(vmthread->stack, 0)
-                )) {
-            return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                "alloc failure extending container"
-            );
-        }
-    } else {
-        return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_TYPEERROR,
-            "cannot .add() on this container type"
-        );
-    }
-
     return 1;
 }
 
@@ -666,6 +641,14 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     if (!urilib_RegisterFuncsAndModules(p))
         return 0;
 
+    // Container func attributes:
+    if (!corelib_RegisterContainerFuncs(p))
+        return 0;
+
+    // String func attributes:
+    if (!corelib_RegisterStringFuncs(p))
+        return 0;
+
     // 'print' function:
     idx = h64program_RegisterCFunction(
         p, "print", &corelib_print,
@@ -692,16 +675,6 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     );
     if (idx < 0)
         return 0;
-
-    // '$$container.add' function:
-    idx = h64program_RegisterCFunction(
-        p, "$$containeradd", &corelib_containeradd,
-        NULL, 1, NULL, NULL, NULL, 1, -1
-    );
-    if (idx < 0)
-        return 0;
-    p->func[idx].input_stack_size++;  // for 'self'
-    p->containeradd_func_index = idx;
 
     // '$$any.is_a' function:
     idx = h64program_RegisterCFunction(

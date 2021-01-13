@@ -162,7 +162,6 @@ h64program *h64program_New() {
     p->main_func_index = -1;
     p->globalinitsimple_func_index = -1;
     p->globalinit_func_index = -1;
-    p->containeradd_func_index = -1;
     p->has_attr_func_idx = -1;
     p->is_a_func_index = -1;
 
@@ -471,7 +470,7 @@ void h64program_PrintBytecodeStats(h64program *p) {
     h64printf("%s bytecode func count: %" PRId64 "\n",
            _prefix, (int64_t)p->func_count);
     h64printf("%s bytecode global vars count: %" PRId64 "\n",
-           _prefix, (int64_t)p->globals_count);
+           _prefix, (int64_t)p->globalvar_count);
     h64printf("%s bytecode class count: %" PRId64 "\n",
            _prefix, (int64_t)p->classes_count);
     {

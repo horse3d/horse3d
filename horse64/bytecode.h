@@ -1,4 +1,4 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-21, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -13,6 +13,8 @@
 #include <string.h>
 
 #include "compiler/globallimits.h"
+#include "corelib/moduleless_containers.h"
+#include "corelib/moduleless_strings.h"
 
 #define MAX_ERROR_STACK_FRAMES 10
 
@@ -396,9 +398,6 @@ typedef struct h64globalvar {
 } h64globalvar;
 
 typedef struct h64program {
-    int64_t globals_count;
-    valuecontent *globals;
-
     classid_t classes_count;
     h64class *classes;
 
@@ -408,9 +407,10 @@ typedef struct h64program {
     funcid_t main_func_index;
     funcid_t globalinitsimple_func_index;
     funcid_t globalinit_func_index;
-    funcid_t containeradd_func_index;
     funcid_t has_attr_func_idx;
     funcid_t is_a_func_index;
+    h64moduleless_strings_indexes string_indexes;
+    h64moduleless_containers_indexes container_indexes;
 
     int64_t as_str_name_index;
     int64_t len_name_index;

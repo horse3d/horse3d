@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 #include "compileconfig.h"
+#include "corelib/moduleless_containers.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -3193,6 +3194,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
         attridx_t attr_index = -1;
         int64_t nameidx = inst->nameidx;
+        funcid_t lookup_func_idx = -1;
         if (nameidx >= 0 &&
                 nameidx == vmexec->program->as_str_name_index
                 ) {  // .as_str
@@ -3373,51 +3375,46 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 "directly accessible"
             );
             goto *jumptable[((h64instructionany *)p)->type];
-        } else if (nameidx >= 0 &&
-                nameidx == vmexec->program->add_name_index &&
-                (vc->type != H64VALTYPE_GCVAL ||
-                 ((h64gcvalue *)vc->ptr_value)->type !=
-                 H64GCVALUETYPE_OBJINSTANCE)
-                ) {  // .add, not on class object
-            if (vc->type == H64VALTYPE_GCVAL && (
-                    ((h64gcvalue *)vc->ptr_value)->type ==
-                    H64GCVALUETYPE_LIST ||
-                    ((h64gcvalue *)vc->ptr_value)->type ==
-                    H64GCVALUETYPE_SET)) {
-                target->type = H64VALTYPE_GCVAL;
-                target->ptr_value = poolalloc_malloc(
-                    heap, 0
-                );
-                if (!vc->ptr_value)
-                    goto triggeroom;
-                h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
-                gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
-                gcval->heapreferencecount = 0;
-                gcval->externalreferencecount = 1;
-                gcval->closure_info = (
-                    malloc(sizeof(*gcval->closure_info))
-                );
-                if (!gcval->closure_info) {
-                    poolalloc_free(heap, gcval);
-                    target->ptr_value = NULL;
-                    goto triggeroom;
-                }
-                memset(gcval->closure_info, 0,
-                       sizeof(*gcval->closure_info));
-                gcval->closure_info->closure_func_id = (
-                    vmexec->program->containeradd_func_index
-                );
-                gcval->closure_info->closure_self = (
-                    (h64gcvalue *)vc->ptr_value
-                );
-                ((h64gcvalue *)vc->ptr_value)->heapreferencecount++;
-            } else {
-                RAISE_ERROR(
-                    H64STDERROR_ATTRIBUTEERROR,
-                    "given attribute not present on this value"
-                );
-                goto *jumptable[((h64instructionany *)p)->type];
+        } else if (vc->type == H64VALTYPE_GCVAL && (
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                     H64GCVALUETYPE_LIST ||
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                     H64GCVALUETYPE_SET ||
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                     H64GCVALUETYPE_MAP
+                ) && (lookup_func_idx =
+                    corelib_GetContainerFuncIdx(
+                        pr, nameidx,
+                        ((h64gcvalue *)vc->ptr_value)->type
+                    )) >= 0
+                ) {  // container func attr
+            target->type = H64VALTYPE_GCVAL;
+            target->ptr_value = poolalloc_malloc(
+                heap, 0
+            );
+            if (!vc->ptr_value)
+                goto triggeroom;
+            h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+            gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            gcval->closure_info = (
+                malloc(sizeof(*gcval->closure_info))
+            );
+            if (!gcval->closure_info) {
+                poolalloc_free(heap, gcval);
+                target->ptr_value = NULL;
+                goto triggeroom;
             }
+            memset(gcval->closure_info, 0,
+                    sizeof(*gcval->closure_info));
+            gcval->closure_info->closure_func_id = (
+                lookup_func_idx
+            );
+            gcval->closure_info->closure_self = (
+                (h64gcvalue *)vc->ptr_value
+            );
+            ((h64gcvalue *)vc->ptr_value)->heapreferencecount++;
         } else if (nameidx >= 0 &&
                 vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue *)vc->ptr_value)->type ==
