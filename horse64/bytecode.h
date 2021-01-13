@@ -410,6 +410,7 @@ typedef struct h64program {
     funcid_t globalinit_func_index;
     funcid_t containeradd_func_index;
     funcid_t has_attr_func_idx;
+    funcid_t is_a_func_index;
 
     int64_t as_str_name_index;
     int64_t len_name_index;

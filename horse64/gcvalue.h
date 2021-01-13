@@ -32,8 +32,8 @@ typedef enum gcvaluetype {
 typedef struct h64closureinfo {
     int64_t closure_func_id;
     h64gcvalue *closure_self;
-    int closure_vbox_count;
-    h64gcvalue **closure_vbox;
+    int closure_bound_values_count;
+    valuecontent *closure_bound_values;
 } h64closureinfo;
 
 

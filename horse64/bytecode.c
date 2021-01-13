@@ -164,6 +164,7 @@ h64program *h64program_New() {
     p->globalinit_func_index = -1;
     p->containeradd_func_index = -1;
     p->has_attr_func_idx = -1;
+    p->is_a_func_index = -1;
 
     p->as_str_name_index = -1;
     p->len_name_index = -1;

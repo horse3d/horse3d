@@ -34,6 +34,53 @@
 #include "widechar.h"
 
 
+int corelib_obj_is_a(h64vmthread *vmthread) {  // $$builtin.$$anyis_a
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    valuecontent *vc_self = STACK_ENTRY(vmthread->stack, 1);
+    assert(
+        (vc_self->type == H64VALTYPE_GCVAL &&
+         ((h64gcvalue *)vc_self->ptr_value)->type ==
+            H64GCVALUETYPE_OBJINSTANCE) ||
+        vc_self->type == H64VALTYPE_ERROR ||
+        vc_self->type == H64VALTYPE_CLASSREF
+    );
+    valuecontent *vc_is_a = STACK_ENTRY(vmthread->stack, 0);
+    if (vc_is_a->type != H64VALTYPE_CLASSREF) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            ".is_a() needs a class reference as an argument"
+        );
+    }
+
+    int64_t self_class_id = -1;
+    if (vc_self->type == H64VALTYPE_ERROR) {
+        self_class_id = vc_self->error_class_id;
+    } else if (vc_self->type == H64VALTYPE_GCVAL) {
+        assert(((h64gcvalue *)vc_self->ptr_value)->type ==
+            H64GCVALUETYPE_OBJINSTANCE);
+        self_class_id = ((h64gcvalue *)vc_self->ptr_value)->class_id;
+    } else {
+        assert(vc_self->type == H64VALTYPE_CLASSREF);
+        self_class_id = vc_self->int_value;
+    }
+    assert(
+        self_class_id >= 0 &&
+        self_class_id < vmthread->vmexec_owner->program->classes_count
+    );
+
+    int result = (
+        (int64_t)vc_is_a->int_value == self_class_id
+    );
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    vcresult->type = H64VALTYPE_BOOL;
+    vcresult->int_value = result;
+    return 1;
+}
+
 int corelib_containeradd(  // $$builtin.$$containeradd
         h64vmthread *vmthread
         ) {
@@ -655,6 +702,16 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
         return 0;
     p->func[idx].input_stack_size++;  // for 'self'
     p->containeradd_func_index = idx;
+
+    // '$$any.is_a' function:
+    idx = h64program_RegisterCFunction(
+        p, "$$anyis_a", &corelib_obj_is_a,
+        NULL, 1, NULL, NULL, NULL, 1, -1
+    );
+    if (idx < 0)
+        return 0;
+    p->func[idx].input_stack_size++;  // for 'self'
+    p->is_a_func_index = idx;
 
     return 1;
 }

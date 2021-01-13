@@ -1992,7 +1992,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
         closure_arg_count = (
             cinfo ? (cinfo->closure_self ? 1 : 0) +
-            cinfo->closure_vbox_count :
+            cinfo->closure_bound_values_count :
             0);
         func_posargs = pr->func[target_func_id].input_stack_size - (
             pr->func[target_func_id].kwarg_count +
@@ -2391,32 +2391,19 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 ADDREF_NONHEAP(closurearg);
                 i++;
             }
-            int ctop = i + (cinfo ? cinfo->closure_vbox_count : 0);
+            int ctop = i + (cinfo ? cinfo->closure_bound_values_count : 0);
             int closureargid = 0;
             while (i < ctop) {
-                // Insert value box argument:
+                // Append bound closure args:
                 assert(
                     STACK_ENTRY(stack, i)->type == H64VALTYPE_NONE
                 );
                 valuecontent *closurearg = (
                     STACK_ENTRY(stack, i)
                 );
-                closurearg->type = H64VALTYPE_GCVAL;
-                closurearg->ptr_value =
-                    poolalloc_malloc(
-                        heap, 0
-                    );
-                if (!closurearg->ptr_value) {
-                    if (!vmthread_ResetCallTempStack(vmthread)) {
-                        if (returneduncaughterror)
-                            *returneduncaughterror = 0;
-                        return 0;
-                    }
-                    goto triggeroom;
-                }
                 memcpy(
-                    closurearg->ptr_value,
-                    (void*)cinfo->closure_vbox[closureargid],
+                    closurearg,
+                    &cinfo->closure_bound_values[closureargid],
                     sizeof(valuecontent)
                 );
                 ADDREF_NONHEAP(closurearg);
@@ -3282,6 +3269,52 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                    (unsigned int)strvaluelen);
             ADDREF_NONHEAP(target);
         } else if (nameidx >= 0 &&
+                nameidx == vmexec->program->is_a_name_index && (
+                (vc->type == H64VALTYPE_GCVAL &&
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                     H64GCVALUETYPE_OBJINSTANCE) ||
+                vc->type == H64VALTYPE_ERROR ||
+                vc->type == H64VALTYPE_CLASSREF
+                )) {  // .is_a on obj inst, error obj, or class ref
+            target->type = H64VALTYPE_GCVAL;
+            target->ptr_value = poolalloc_malloc(
+                heap, 0
+            );
+            if (!vc->ptr_value)
+                goto triggeroom;
+            h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+            gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            gcval->closure_info = (
+                malloc(sizeof(*gcval->closure_info))
+            );
+            if (!gcval->closure_info) {
+                poolalloc_free(heap, gcval);
+                target->ptr_value = NULL;
+                goto triggeroom;
+            }
+            memset(gcval->closure_info, 0,
+                    sizeof(*gcval->closure_info));
+            gcval->closure_info->closure_func_id = (
+                vmexec->program->is_a_func_index
+            );
+            gcval->closure_info->closure_bound_values_count = 1;
+            gcval->closure_info->closure_bound_values = malloc(
+                sizeof(*gcval->closure_info->closure_bound_values) * 1
+            );
+            if (!gcval->closure_info->closure_bound_values) {
+                free(gcval->closure_info);
+                poolalloc_free(heap, gcval);
+                target->ptr_value = NULL;
+                goto triggeroom;
+            }
+            memcpy(
+                &gcval->closure_info->closure_bound_values[0],
+                vc, sizeof(*vc)
+            );
+            ADDREF_NONHEAP(vc);
+        } else if (nameidx >= 0 &&
                 nameidx == vmexec->program->len_name_index
                 ) {  // .len
             int64_t len = -1;
@@ -3392,7 +3425,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 ((attr_index = h64program_LookupClassAttribute(
                     pr, ((h64gcvalue *)vc->ptr_value)->class_id,
                     nameidx
-                    )) >= 0)) {
+                    )) >= 0)) {  // regular obj attributes
             if (attr_index < H64CLASS_METHOD_OFFSET) {
                 // A varattr, just copy the contents:
                 h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
