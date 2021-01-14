@@ -3,7 +3,7 @@
 
 ## Origin of Horse64
 
-Horse64 was designed by [@ell1e](https://github.com/ell1e) as
+Horse64 was started by [@ell1e](https://github.com/ell1e) as
 an alternative to the popular **Python** scripting language.
 Like Python, it strives for readable, simple syntax, and
 beginner-friendly design, but it tries to be more grounded

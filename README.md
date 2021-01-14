@@ -6,43 +6,31 @@ Horse64
     https://img.shields.io/github/workflow/status/horse64/horse64/Basic%20build%20and%20test/master?label=build%20and%20tests&style=flat-square
 )
 
-Welcome to *Horse64*, a **simple & versatile programming
-language** for your applications.
+Welcome to the *Horse64* language.
 
 [![logo](misc/logo-readme.png)](https://horse64.org)
 
 ```
 func main {
-    print("Hello World!")
+    print("Hello World, from Horse64!")
 }
 ```
 
-**Features:**
+You found a **simple & versatile high level language** for backends, mobile,
+and desktop programs. *Horse64*'s [design](./docs/Design.md#overview) is
+focused on improving handling in large projects compared to scripting
+languages like Python, while retaining their ease of use. [Try it
+yourself!](https://horse64.org/download)
 
-- **Simple.** Horse64 strives for [approachable design](
-  ./docs/Design.md#overview), including its intuitive dynamic typing.
-
-- **Self-contained.** Single-binary compiler, no complex
-  toolchains or giant IDEs. (Unless you want them!) It's cross-platform
-  too.
-
-- **Solid to build on.** Helps keep your code orderly with static
-  imports and compile-time identifier checks.
-  Ideal for maintainable large code bases, while keeping the
-  accessibility of full dynamic typing.
-
-- **Multimedia included.** Support for audio, accelerated graphics,
-  and GUI, provided via the official `multimedia` library.
-
-- **Open.** *Horse64* is, excluding its logo, all free software
-  under BSD-2-clause licensing. [Check the license here.](LICENSE.md)
-  We also have an open [specification](./docs/Specification/Horse64.md).
+*Horse64* is, excluding its logo, all free software
+under BSD-2-clause licensing. [Check the license here.](LICENSE.md)
+We also have an open [specification](./docs/Specification/Horse64.md).
 
 
 Get Started
 -----------
 
-[Download Horse64.](https://horse64.org/download)
+[Download Horse64 here.](https://horse64.org/download)
 
 
 Help & Docs
@@ -63,32 +51,11 @@ Help & Docs
   )
 
 
-Should I switch to Horse64?
----------------------------
-
-This is a quick guideline for experienced programmers:
-
-**You may want** to use Horse64 if Python/Ruby/JavaScript's clean
-syntax appeals to you, but their extremely dynamic nature gives you
-headaches in larger projects with either deployment, or development.
-
-**You may NOT want** to use Horse64 if low-level memory control and
-pure performance is your main concern, since Horse64 relies on bytecode
-and not on compiled machine code.
-
-There is also a more [detailed comparison](
-    ./docs/Design.md#overview
-) available on what Horse64 offers, and what it doesn't offer.
-
-
 Advanced: Build it Yourself
 ---------------------------
 
 Since Horse64 is [open-source](LICENSE.md), you can
 [build it yourself](
     ./docs/horsec/horsec.md#manual-build   
-) if you want to.
-Please note this is an advanced task and in no way necessary to
-build your application.
-However, if you want to contribute to Horse64's compiler,
-this might be your first step to enable you to do so.
+) if you want to. However, it is recommended you simply
+use the [prebuilt SDK](https://horse64.org/download).
