@@ -714,6 +714,26 @@ void h64program_Free(h64program *p) {
         i++;
     }
     free(p->globalvar);
+    if (p->container_indexes.func_count > 0) {
+        free(p->container_indexes.func_idx);
+        int i = 0;
+        while (i < p->container_indexes.func_count) {
+            free(p->container_indexes.func_name[i]);
+            i++;
+        }
+        free(p->container_indexes.func_name);
+        free(p->container_indexes.func_name_idx);
+    }
+    if (p->string_indexes.func_count > 0) {
+        free(p->string_indexes.func_idx);
+        int i = 0;
+        while (i < p->string_indexes.func_count) {
+            free(p->string_indexes.func_name[i]);
+            i++;
+        }
+        free(p->string_indexes.func_name);
+        free(p->string_indexes.func_name_idx);
+    }
 
     free(p);
 }

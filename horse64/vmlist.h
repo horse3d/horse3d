@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 #include "bytecode.h"
-#include "vmliststruct.h"
+#include "vmcontainerstruct.h"
 
 genericlist *vmlist_New();
 

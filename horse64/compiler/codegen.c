@@ -1182,16 +1182,16 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
         if (ismap) {
-            h64instruction_newvector inst = {0};
-            inst.type = H64INST_NEWVECTOR;
+            h64instruction_newmap inst = {0};
+            inst.type = H64INST_NEWMAP;
             inst.slotto = vectortmp;
             if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
                 rinfo->hadoutofmemory = 1;
                 return 0;
             }
         } else {
-            h64instruction_newmap inst = {0};
-            inst.type = H64INST_NEWMAP;
+            h64instruction_newvector inst = {0};
+            inst.type = H64INST_NEWVECTOR;
             inst.slotto = vectortmp;
             if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
                 rinfo->hadoutofmemory = 1;

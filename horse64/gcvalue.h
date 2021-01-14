@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #include "compiler/globallimits.h"
-#include "vmliststruct.h"
+#include "vmcontainerstruct.h"
 #include "vmstringsstruct.h"
 
 typedef struct valuecontent valuecontent;
@@ -48,10 +48,10 @@ typedef struct h64gcvalue {
             h64bytesval bytes_val;
         };
         struct {
-            genericset set_values;
+            genericset* set_values;
         };
         struct {
-            genericmap map_values;
+            genericmap* map_values;
         };
         struct {
             genericlist *list_values;

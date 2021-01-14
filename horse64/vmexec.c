@@ -32,6 +32,7 @@
 #include "valuecontentstruct.h"
 #include "vmexec.h"
 #include "vmlist.h"
+#include "vmmap.h"
 #include "vmschedule.h"
 #include "vmstrings.h"
 #include "vmsuspendtypeenum.h"
@@ -164,111 +165,12 @@ int _vmexec_CondExprValue(
     return 0;
 }
 
-int _vmexec_ValueEqualityCheck_Do(
+int vmexec_ValueEqualityCheck(
         ATTR_UNUSED h64vmthread *vt, valuecontent *v1,
         valuecontent *v2, int *result
         ) {
-    if (likely((v1->type != H64VALTYPE_INT64 &&
-            v1->type != H64VALTYPE_FLOAT64) ||
-            (v2->type != H64VALTYPE_INT64 &&
-            v2->type != H64VALTYPE_FLOAT64))) {
-        if (v1->type == H64VALTYPE_GCVAL &&
-                ((h64gcvalue*)v1->ptr_value)->type ==
-                H64GCVALUETYPE_OBJINSTANCE && (
-                v2->type != H64VALTYPE_GCVAL ||
-                ((h64gcvalue*)v2->ptr_value)->type ==
-                H64GCVALUETYPE_OBJINSTANCE ||
-                ((h64gcvalue*)v1->ptr_value)->class_id !=
-                ((h64gcvalue*)v2->ptr_value)->class_id)) {
-            // Special case: quick fail, don't let an expensive
-            // custom .equals() run when these aren't even both
-            // object instances or same class.
-            *result = 0;
-            return 1;
-        } else if ((v1->type == H64VALTYPE_GCVAL &&
-                ((h64gcvalue*)v1->ptr_value)->type ==
-                H64GCVALUETYPE_STRING) ||
-                v1->type == H64VALTYPE_SHORTSTR ||
-                v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
-            // Strings!
-            if ((v2->type == H64VALTYPE_GCVAL &&
-                    ((h64gcvalue*)v1->ptr_value)->type ==
-                    H64GCVALUETYPE_STRING) ||
-                    v2->type == H64VALTYPE_SHORTSTR ||
-                    v2->type == H64VALTYPE_CONSTPREALLOCSTR) {
-                *result = vmstrings_Equality(v1, v2);
-            } else {
-                *result = 0;
-            }
-            return 1;
-        } else if ((v1->type == H64VALTYPE_GCVAL &&
-                ((h64gcvalue*)v1->ptr_value)->type ==
-                H64GCVALUETYPE_BYTES) ||
-                v1->type == H64VALTYPE_SHORTBYTES ||
-                v1->type == H64VALTYPE_CONSTPREALLOCBYTES) {
-            // Bytes!
-            if ((v2->type == H64VALTYPE_GCVAL &&
-                    ((h64gcvalue*)v1->ptr_value)->type ==
-                    H64GCVALUETYPE_BYTES) ||
-                    v2->type == H64VALTYPE_SHORTBYTES ||
-                    v2->type == H64VALTYPE_CONSTPREALLOCBYTES) {
-                *result = vmbytes_Equality(v1, v2);
-            } else {
-                *result = 0;
-            }
-            return 1;
-        } else {
-            // Remaining cases:
-            if (v1->type != v2->type) {
-                *result = 0;
-            } else if (v1->type == H64VALTYPE_BOOL) {
-                *result = (
-                    (v1->int_value != 0) == (v2->int_value != 0)
-                );
-            } else if (v1->type == H64VALTYPE_NONE) {
-                *result = 1;
-            } else if (v1->type == H64VALTYPE_UNSPECIFIED_KWARG) {
-                *result = (v2->type == H64VALTYPE_UNSPECIFIED_KWARG);
-            } else {
-                h64fprintf(stderr, "UNIMPLEMENTED EQ CASE\n");
-                return 0;
-            }
-            return 1;
-        }
-    } else {
-        // Numbers.
-        if (v1->type == H64VALTYPE_FLOAT64 ||
-                v2->type == H64VALTYPE_FLOAT64) {
-            double v1no = 1;
-            if (v1->type == H64VALTYPE_FLOAT64) {
-                v1no = v1->float_value;
-            } else {
-                v1no = v1->int_value;
-            }
-            double v2no = 1;
-            if (v2->type == H64VALTYPE_FLOAT64) {
-                v2no = v2->float_value;
-            } else {
-                v2no = v2->int_value;
-            }
-            *result = (v1no == v2no);
-        } else {
-            *result = (
-                v1->int_value == v2->int_value
-            );
-        }
-        return 1;
-    }
-    return 0;
-}
-
-int vmexec_ValueEqualityCheck(
-        h64vmthread *vt, valuecontent *v1,
-        valuecontent *v2, int *result
-        ) {
-    return _vmexec_ValueEqualityCheck_Do(
-        vt, v1, v2, result
-    );
+    *result = valuecontent_CheckEquality(v1, v2);
+    return 1;
 }
 
 h64vmthread *vmthread_New(h64vmexec *owner, int is_on_main_thread) {
@@ -3315,7 +3217,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 &gcval->closure_info->closure_bound_values[0],
                 vc, sizeof(*vc)
             );
-            ADDREF_NONHEAP(vc);
+            ADDREF_HEAP(vc);  // for ref by closure
         } else if (nameidx >= 0 &&
                 nameidx == vmexec->program->len_name_index
                 ) {  // .len
@@ -3414,7 +3316,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             gcval->closure_info->closure_self = (
                 (h64gcvalue *)vc->ptr_value
             );
-            ((h64gcvalue *)vc->ptr_value)->heapreferencecount++;
+            ADDREF_HEAP(vc);  // for ref by closure
         } else if (nameidx >= 0 &&
                 vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue *)vc->ptr_value)->type ==
@@ -3468,6 +3370,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 gcval->closure_info->closure_self = (
                     (h64gcvalue *)vc->ptr_value
                 );
+                ADDREF_HEAP(vc);  // for ref by closure
             }
         } else {
             RAISE_ERROR(
@@ -3541,8 +3444,38 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     inst_newmap: {
-        h64fprintf(stderr, "newmap not implemented\n");
-        return 0;
+        h64instruction_newmap *inst = (
+            (h64instruction_newmap *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
+        #endif
+
+        valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
+        DELREF_NONHEAP(vc);
+        valuecontent_Free(vc);
+        memset(vc, 0, sizeof(*vc));
+        vc->type = H64VALTYPE_GCVAL;
+        vc->ptr_value = poolalloc_malloc(
+            heap, 0
+        );
+        if (!vc->ptr_value)
+            goto triggeroom;
+        h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+        gcval->type = H64GCVALUETYPE_MAP;
+        gcval->heapreferencecount = 0;
+        gcval->externalreferencecount = 1;
+        gcval->map_values = vmmap_New();
+        if (!gcval->map_values) {
+            poolalloc_free(heap, vc->ptr_value);
+            vc->ptr_value = NULL;
+            goto triggeroom;
+        }
+
+        p += sizeof(h64instruction_newmap);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_newvector: {
         h64fprintf(stderr, "newvector not implemented\n");
@@ -3761,6 +3694,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 gcval->closure_info->closure_self = (
                     (h64gcvalue *)vc->ptr_value
                 );
+                ADDREF_HEAP(vc);  // for closure ref
             }
         }
         if (copyatend) {

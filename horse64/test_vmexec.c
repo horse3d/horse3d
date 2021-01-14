@@ -365,12 +365,38 @@ START_TEST (test_assert2)
 }
 END_TEST
 
+START_TEST (test_map)
+{
+    runprog(
+        "test_map",
+        "func main{\n"
+        "    var map = {->}\n"
+        "    assert(not map.contains(2))\n"
+        "    map[2] = 3\n"
+        "    assert(map.contains(2))\n"
+        "    assert(map[2] == 3)\n"
+        "    assert(map.len == 1)\n"
+        "    map[2] = 4\n"
+        "    assert(map.len == 1)\n"
+        "    map['test'] = [1, 2]\n"
+        "    assert(map.len == 2)\n"
+        "    assert(type(map['test']) == 'list')\n"
+        "    assert(map['test'][1] == 1)\n"
+        "    assert(map['test'][2] == 2)\n"
+        "    assert(map[2] == 4)\n"
+        "    return 0\n"
+        "}",
+        0
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_simpleclass, test_attributeerrors,
     test_hasattr, test_callwithclass, test_hasattr2,
     test_memberaccesschain,
     test_unicodestrlen, test_numberslist,
     test_uri, test_conditionals, test_conditionals2,
-    test_assert1, test_assert2
+    test_assert1, test_assert2, test_map
 )
 

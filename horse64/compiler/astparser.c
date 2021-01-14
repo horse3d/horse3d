@@ -1117,8 +1117,12 @@ int ast_ParseExprInlineOperator_Recurse(
         if (tlen < op2_len) {
             op2_len = tlen;
             assert(op2_start + op2_len <= operand_max_tokens_touse);
-            operand_max_tokens_touse = op2_start + op2_len;
         }
+        if (tokens[highest_precedence_index].int_value ==
+                H64OP_INDEXBYEXPR)
+            op2_len++;  // include ']' closing bracket
+        if (operand_max_tokens_touse > op2_start + op2_len)
+            operand_max_tokens_touse = op2_start + op2_len;
         if (tokens[highest_precedence_index].int_value ==
                 H64OP_INDEXBYEXPR && (
                 tokens[op2_start + op2_len - 1].type != H64TK_BRACKET ||
@@ -1126,7 +1130,7 @@ int ast_ParseExprInlineOperator_Recurse(
             char buf[256]; char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected %s, "
-                "expected ']' closing bracket "
+                "expected \"]\" closing bracket "
                 "for opening bracket in line %" PRId64
                 ", column %" PRId64,
                 _describetoken(describebuf,
@@ -1223,7 +1227,7 @@ int ast_ParseExprInlineOperator_Recurse(
             char buf[256]; char describebuf[64];
             snprintf(buf, sizeof(buf) - 1,
                 "unexpected %s, "
-                "expected ')' closing bracket "
+                "expected \")\" closing bracket "
                 "for opening bracket in line %" PRId64
                 ", column %" PRId64,
                 _describetoken(describebuf,

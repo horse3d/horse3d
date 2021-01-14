@@ -43,8 +43,28 @@ typedef struct genericset {
     hashmap *values;
 } genericset;
 
+static const uint8_t GENERICMAP_FLAG_LINEAR = 0x1;
+
+typedef struct genericmapbucket {
+    int32_t entry_count;
+    valuecontent *key, *entry;
+    uint32_t *entry_hash;
+} genericmapbucket;
+
 typedef struct genericmap {
-    hashmap *values;
+    uint8_t flags;
+    union {
+        struct hashed {
+            int64_t entry_count;
+            int32_t bucket_count;
+            genericmapbucket *bucket;
+        } hashed;
+        struct linear {
+            int16_t entry_count, entry_alloc;
+            valuecontent *key, *entry;
+            uint32_t *entry_hash;
+        } linear;
+    };
 } genericmap;
 
 typedef struct genericvector {

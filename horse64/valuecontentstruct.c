@@ -7,9 +7,11 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "bytecode.h"
 #include "gcvalue.h"
+#include "nonlocale.h"
 #include "poolalloc.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
@@ -256,4 +258,101 @@ uint32_t valuecontent_Hash(
         valuecontent *v
         ) {
     return _valuecontent_Hash_Do(v, 0);
+}
+
+
+int valuecontent_CheckEquality(
+        valuecontent *v1, valuecontent *v2
+        ) {
+    if (likely((v1->type != H64VALTYPE_INT64 &&
+            v1->type != H64VALTYPE_FLOAT64) ||
+            (v2->type != H64VALTYPE_INT64 &&
+            v2->type != H64VALTYPE_FLOAT64))) {
+        if (v1->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue*)v1->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE && (
+                v2->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue*)v2->ptr_value)->type ==
+                H64GCVALUETYPE_OBJINSTANCE ||
+                ((h64gcvalue*)v1->ptr_value)->class_id !=
+                ((h64gcvalue*)v2->ptr_value)->class_id)) {
+            // Special case: quick fail, don't do an expensive
+            // in-depth .equals() when these aren't even both
+            // object instances of same class.
+            return 0;
+        } else if ((v1->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue*)v1->ptr_value)->type ==
+                H64GCVALUETYPE_STRING) ||
+                v1->type == H64VALTYPE_SHORTSTR ||
+                v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
+            // Strings!
+            if ((v2->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue*)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_STRING) ||
+                    v2->type == H64VALTYPE_SHORTSTR ||
+                    v2->type == H64VALTYPE_CONSTPREALLOCSTR) {
+                return vmstrings_Equality(v1, v2);
+            } else {
+                return 0;
+            }
+            return 1;
+        } else if ((v1->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue*)v1->ptr_value)->type ==
+                H64GCVALUETYPE_BYTES) ||
+                v1->type == H64VALTYPE_SHORTBYTES ||
+                v1->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+            // Bytes!
+            if ((v2->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue*)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_BYTES) ||
+                    v2->type == H64VALTYPE_SHORTBYTES ||
+                    v2->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+                return vmbytes_Equality(v1, v2);
+            } else {
+                return 0;
+            }
+            return 1;
+        } else {
+            // Remaining cases:
+            if (v1->type != v2->type) {
+                return 0;
+            } else if (v1->type == H64VALTYPE_BOOL) {
+                return (
+                    (v1->int_value != 0) == (v2->int_value != 0)
+                );
+            } else if (v1->type == H64VALTYPE_NONE) {
+                return 1;
+            } else if (v1->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+                return (v2->type == H64VALTYPE_UNSPECIFIED_KWARG);
+            } else {
+                // Shouldn't be hit, at least once we're done
+                // FIXME: will still be hit for now
+                h64fprintf(stderr, "UNIMPLEMENTED EQ CASE\n");
+                _exit(1);
+                return 0;
+            }
+        }
+    } else {
+        // Numbers.
+        if (v1->type == H64VALTYPE_FLOAT64 ||
+                v2->type == H64VALTYPE_FLOAT64) {
+            double v1no = 1;
+            if (v1->type == H64VALTYPE_FLOAT64) {
+                v1no = v1->float_value;
+            } else {
+                v1no = v1->int_value;
+            }
+            double v2no = 1;
+            if (v2->type == H64VALTYPE_FLOAT64) {
+                v2no = v2->float_value;
+            } else {
+                v2no = v2->int_value;
+            }
+            return (v1no == v2no);
+        } else {
+            return (
+                v1->int_value == v2->int_value
+            );
+        }
+    }
 }

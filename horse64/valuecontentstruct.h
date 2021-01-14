@@ -101,4 +101,8 @@ uint32_t valuecontent_Hash(
 
 int valuecontent_IsMutable(valuecontent *v);
 
+int valuecontent_CheckEquality(
+    valuecontent *v1, valuecontent *v2
+);
+
 #endif  // HORSE64_VALUECONTENTSTRUCT_H_
