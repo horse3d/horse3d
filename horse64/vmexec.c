@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1510,26 +1511,33 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 vcindex->type != H64VALTYPE_INT64)) {
             RAISE_ERROR(
                 H64STDERROR_TYPEERROR,
-                "indexing value must be a number"
+                "this value must be indexed with a number"
             );
             goto *jumptable[((h64instructionany *)p)->type];
         }
         int64_t index_value = -1;
-        if (likely(vcindex->type == H64VALTYPE_INT64)) {
-            index_value = vcindex->int_value;
-        } else {
-            assert(vcindex->type == H64VALTYPE_FLOAT64);
-            int64_t rounded_value = (
-                (int64_t)roundl(vcindex->float_value)
-            );
-            if (fabs(vcindex->float_value - round(rounded_value)) > 0.001) {
-                RAISE_ERROR(
-                    H64STDERROR_INDEXERROR,
-                    "index must not have fractional part"
+        if (vc->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue*)vc->ptr_value)->type !=
+                H64GCVALUETYPE_MAP) {
+            // Not a map, so index must be integer.
+            // Extract the number:
+            if (likely(vcindex->type == H64VALTYPE_INT64)) {
+                index_value = vcindex->int_value;
+            } else {
+                assert(vcindex->type == H64VALTYPE_FLOAT64);
+                int64_t rounded_value = (
+                    (int64_t)roundl(vcindex->float_value)
                 );
-                goto *jumptable[((h64instructionany *)p)->type];
+                if (fabs(vcindex->float_value -
+                         round(rounded_value)) > 0.001) {
+                    RAISE_ERROR(
+                        H64STDERROR_INDEXERROR,
+                        "index must not have fractional part"
+                    );
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+                index_value = rounded_value;
             }
-            index_value = rounded_value;
         }
         if (vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue*)vc->ptr_value)->type ==
@@ -1539,7 +1547,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     gcval->list_values->list_total_entry_count + 1) {
                 RAISE_ERROR(
                     H64STDERROR_INDEXERROR,
-                    "index outside of range"
+                    "index %" PRId64 " is out of range",
+                    index_value
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
@@ -1552,53 +1561,30 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     index_value,
                     vcset))
                 goto triggeroom;
+        } else if (vc->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue*)vc->ptr_value)->type ==
+                H64GCVALUETYPE_MAP) {
+            h64gcvalue *gcval = ((h64gcvalue*)vc->ptr_value);
+            if (valuecontent_IsMutable(vcindex)) {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "map keys must be of an immutable type"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            if (!vmmap_Set(
+                    gcval->map_values,
+                    vcindex, vcset))
+                goto triggeroom;
         } else if ((vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue*)vc->ptr_value)->type ==
                 H64GCVALUETYPE_STRING) ||
                 vc->type == H64VALTYPE_SHORTSTR) {
-            int64_t assignto_len = -1;
-            char *assignto_buf = NULL;
-            if (vc->type == H64VALTYPE_SHORTSTR) {
-                assignto_len = vc->shortstr_len;
-                assignto_buf = (char *)vc->shortstr_value;
-                    // ^ char* since unaligned
-            } else {
-                h64gcvalue *gcval = ((h64gcvalue*)vc->ptr_value);
-                assignto_len = gcval->str_val.len;
-                assignto_buf = (char *)gcval->str_val.s;
-            }
-            if (index_value < 1 || index_value > assignto_len) {
-                RAISE_ERROR(
-                    H64STDERROR_INDEXERROR,
-                    "index outside of range"
-                );
-                goto *jumptable[((h64instructionany *)p)->type];
-            }
-            assert(assignto_buf != NULL && assignto_len > 0);
-            h64wchar setchar;
-            if (likely(vcset->type == H64VALTYPE_SHORTSTR &&
-                    vcset->shortstr_len == 1)) {
-                setchar = vcset->shortstr_value[0];
-            } else if (likely(vc->type == H64VALTYPE_GCVAL &&
-                    ((h64gcvalue *)vc->ptr_value)->type ==
-                        H64GCVALUETYPE_STRING &&
-                    ((h64gcvalue *)vc->ptr_value)->str_val.len == 1)) {
-                setchar = (
-                    ((h64gcvalue *)vc->ptr_value)->str_val.s[0]
-                );
-            } else {
-                RAISE_ERROR(
-                    H64STDERROR_TYPEERROR,
-                    "can only assign single character string "
-                    "when indexing a string"
-                );
-                goto *jumptable[((h64instructionany *)p)->type];
-            }
-            assert(index_value - 1 >= 0 && index_value - 1 < assignto_len);
-            memcpy(
-                assignto_buf + (index_value - 1) * sizeof(h64wchar),
-                &setchar, sizeof(h64wchar)
+            RAISE_ERROR(
+                H64STDERROR_TYPEERROR,
+                "can not index assign to strings since they are immutable"
             );
+            goto *jumptable[((h64instructionany *)p)->type];
         } else {
             RAISE_ERROR(
                 H64STDERROR_TYPEERROR,

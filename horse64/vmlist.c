@@ -10,6 +10,7 @@
 
 #include "bytecode.h"
 #include "gcvalue.h"
+#include "valuecontentstruct.h"
 #include "vmlist.h"
 
 genericlist *vmlist_New() {
@@ -27,6 +28,22 @@ genericlist *vmlist_New() {
     l->first_block->entry_count = 0;
     l->last_block = l->first_block;
     return l;
+}
+
+int vmlist_Contains(genericlist *l, valuecontent *v) {
+    listblock *block = l->first_block;
+    while (block) {
+        int i = 0;
+        while (i < block->entry_count) {
+            if (valuecontent_CheckEquality(
+                    v, &block->entry_values[i]
+                    ))
+                return 1;
+            i++;
+        }
+        block = block->next_block;
+    }
+    return 0;
 }
 
 int vmlist_Add(

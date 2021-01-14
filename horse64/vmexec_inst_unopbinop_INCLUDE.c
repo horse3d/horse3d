@@ -11,6 +11,8 @@
 
     #include "gcvalue.h"
 #include "valuecontentstruct.h"
+#include "vmstrings.h"
+#include "widechar.h"
 inst_binop: {
         h64instruction_binop *inst = (h64instruction_binop *)p;
         #ifndef NDEBUG
@@ -551,20 +553,26 @@ inst_binop: {
             }
         }
         binop_indexbyexpr: {
-            if (unlikely(v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64)) {
-                RAISE_ERROR(
-                    H64STDERROR_TYPEERROR,
-                    "cannot index using a non-number type"
-                );
-                goto *jumptable[((h64instructionany *)p)->type];
-            }
             int64_t index_by = -1;
-            if (likely(v2->type == H64VALTYPE_INT64)) {
-                index_by = v2->int_value;
-            } else {
-                assert(v2->type == H64VALTYPE_FLOAT64);
-                index_by = roundl(v2->float_value);
+            if (v1->type != H64VALTYPE_GCVAL || (
+                    ((h64gcvalue *)v1->ptr_value)->type !=
+                    H64GCVALUETYPE_MAP
+                    )) {
+                // Index must be int, so convert here:
+                if (unlikely(v2->type != H64VALTYPE_INT64 &&
+                        v2->type != H64VALTYPE_FLOAT64)) {
+                    RAISE_ERROR(
+                        H64STDERROR_TYPEERROR,
+                        "cannot index this using a non-number value"
+                    );
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+                if (likely(v2->type == H64VALTYPE_INT64)) {
+                    index_by = v2->int_value;
+                } else {
+                    assert(v2->type == H64VALTYPE_FLOAT64);
+                    index_by = roundl(v2->float_value);
+                }
             }
             invalidtypes = 0;
             if (v1->type == H64VALTYPE_GCVAL && (
@@ -584,10 +592,84 @@ inst_binop: {
                 }
                 memcpy(tmpresult, v, sizeof(*v));
                 ADDREF_NONHEAP(tmpresult);
+            } else if (v1->type == H64VALTYPE_GCVAL && (
+                    ((h64gcvalue *)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_MAP
+                    )) {
+                valuecontent v = {0};
+                if (!vmmap_Get(
+                        ((h64gcvalue *)v1->ptr_value)->map_values,
+                        v2, &v
+                        )) {
+                    RAISE_ERROR(
+                        H64STDERROR_INDEXERROR,
+                        "key not found in map"
+                    );
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+                memcpy(tmpresult, &v, sizeof(v));
+                ADDREF_NONHEAP(tmpresult);
+            } else if ((v1->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue *)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_STRING
+                    ) || v1->type == H64VALTYPE_CONSTPREALLOCSTR ||
+                    v1->type == H64VALTYPE_SHORTSTR) {
+                char *s = NULL;
+                int64_t slen = -1;
+                int64_t sletters = -1;
+                if (v1->type == H64VALTYPE_GCVAL) {
+                    assert(
+                        ((h64gcvalue *)v1->ptr_value)->type ==
+                        H64GCVALUETYPE_STRING
+                    );
+                    s = (char *)((h64gcvalue *)v1->ptr_value)->str_val.s;
+                    slen = ((h64gcvalue *)v1->ptr_value)->str_val.len;
+                    vmstrings_RequireLetterLen(
+                        &(((h64gcvalue *)v1->ptr_value)->str_val)
+                    );
+                    sletters = ((h64gcvalue *)v1->ptr_value)->str_val.
+                        letterlen;
+                } else {
+                    if (v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
+                        s = (char *)v1->constpreallocstr_value;
+                        slen = v1->constpreallocstr_len;
+                    } else {
+                        s = (char *)v1->shortstr_value;
+                        slen = v1->shortstr_len;
+                    }
+                    sletters = utf32_letters_count((h64wchar *)s, slen);
+                }
+                if (index_by < 1 || index_by > sletters) {
+                    RAISE_ERROR(
+                        H64STDERROR_INDEXERROR,
+                        "index %" PRId64 " is out of range",
+                        (int64_t)index_by
+                    );
+                }
+                while (index_by > 1) {
+                    int64_t len = utf32_letter_len((h64wchar *)s, slen);
+                    assert(len > 0);
+                    s += len * sizeof(h64wchar);
+                    // ^ Multiply, since char * (not h64wchar *)
+                    slen -= len;
+                    sletters--;
+                    index_by--;
+                }
+                if (!valuecontent_SetStringU32(
+                        vmthread, tmpresult,
+                        (h64wchar *)s,
+                        utf32_letter_len((h64wchar *)s, slen)
+                        )) {
+                    RAISE_ERROR(
+                        H64STDERROR_OUTOFMEMORYERROR,
+                        "alloc failure creating result string"
+                    );
+                }
+                ADDREF_NONHEAP(tmpresult);
             } else {
                 RAISE_ERROR(
                     H64STDERROR_TYPEERROR,
-                    "object of this type cannot be indexed"
+                    "given value cannot be indexed"
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }

@@ -25,4 +25,10 @@ int vmmap_Set(
 
 int vmmap_Remove(genericmap *m, valuecontent *key);
 
+int vmmap_Contains(genericmap *m, valuecontent *key);
+
+int vmmap_Get(
+    genericmap *m, valuecontent *key, valuecontent *value
+);
+
 #endif  // HORSE64_VMMAP_H_

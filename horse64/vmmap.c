@@ -102,6 +102,44 @@ void _vmmap_ClearBuckets(genericmap *map) {
     }
 }
 
+int vmmap_Contains(
+        genericmap *m, valuecontent *key
+        ) {
+    return vmmap_Get(m, key, NULL);
+}
+
+int vmmap_Get(
+        genericmap *m, valuecontent *key, valuecontent *value
+        ) {
+    uint32_t hash = valuecontent_Hash(key);
+    if ((m->flags & GENERICMAP_FLAG_LINEAR) != 0) {
+        int i = 0;
+        while (i < m->linear.entry_count) {
+            if (m->linear.entry_hash[i] == hash &&
+                    valuecontent_CheckEquality(
+                    key, &m->linear.key[i])) {
+                return 1;
+            }
+            i++;
+        }
+    } else {
+        uint32_t bucket = (
+            hash % m->hashed.bucket_count
+        );
+        genericmapbucket *b = &m->hashed.bucket[bucket];
+        int i = 0;
+        while (i < b->entry_count) {
+            if (b->entry_hash[i] == hash &&
+                    valuecontent_CheckEquality(
+                    key, &b->key[i])) {
+                return 1;
+            }
+            i++;
+        }
+    }
+    return 0;
+}
+
 int _vmmap_RemoveByHash(
         genericmap *m, uint32_t hash, valuecontent *key
         ) {

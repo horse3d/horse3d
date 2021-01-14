@@ -27,6 +27,17 @@ int valuecontent_SetStringU32(
     valuecontent_Free(v);
     memset(v, 0, sizeof(*v));
 
+    if (slen < VALUECONTENT_SHORTSTRLEN) {
+        v->type = H64VALTYPE_SHORTSTR;
+        if (slen > 0)
+            memcpy(
+                v->shortstr_value, s,
+                slen * sizeof(h64wchar)
+            );
+        v->shortstr_len = slen;
+        return 1;
+    }
+
     v->type = H64VALTYPE_GCVAL;
     v->ptr_value = poolalloc_malloc(
         vmthread->heap, 0
