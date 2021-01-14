@@ -16,7 +16,7 @@ func main {
 }
 ```
 
-You found a **simple & versatile high level language** for backends, mobile,
+You found a **simple & versatile programming language** for backends, mobile,
 and desktop programs. *Horse64*'s [design](./docs/Design.md#overview) is
 focused on improving handling in large projects compared to scripting
 languages like Python, while retaining their ease of use. [Try it
