@@ -12,6 +12,7 @@
 #include "gcvalue.h"
 #include "pipe.h"
 #include "stack.h"
+#include "valuecontentstruct.h"
 #include "vmexec.h"
 
 typedef struct h64pipe {
@@ -68,25 +69,35 @@ int _pipe_DoPipeObject(
     valuecontent_Free(vctarget);
     memset(vctarget, 0, sizeof(*vctarget));
 
-    if (vctarget->type == H64VALTYPE_GCVAL &&
-            ((h64gcvalue*)vctarget->ptr_value)->type ==
+    if (likely(vcsource->type == H64VALTYPE_INT64 ||
+            vcsource->type == H64VALTYPE_FLOAT64 ||
+            vcsource->type == H64VALTYPE_NONE ||
+            vcsource->type == H64VALTYPE_BOOL ||
+            vcsource->type == H64VALTYPE_SHORTSTR ||
+            vcsource->type == H64VALTYPE_SHORTBYTES ||
+            vcsource->type == H64VALTYPE_CLASSREF ||
+            vcsource->type == H64VALTYPE_FUNCREF ||
+            vcsource->type == H64VALTYPE_UNSPECIFIED_KWARG)) {
+        memcpy(vctarget, vcsource, sizeof(*vcsource));
+        ADDREF_NONHEAP(vctarget);
+    } else if (vcsource->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)vcsource->ptr_value)->type ==
             H64GCVALUETYPE_OBJINSTANCE) {
         assert(0);
-    } else if (vctarget->type == H64VALTYPE_GCVAL &&
-            ((h64gcvalue*)vctarget->ptr_value)->type ==
+    } else if (vcsource->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)vcsource->ptr_value)->type ==
             H64GCVALUETYPE_SET) {
         assert(0);
-    } else if (vctarget->type == H64VALTYPE_GCVAL &&
-            ((h64gcvalue*)vctarget->ptr_value)->type ==
+    } else if (vcsource->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)vcsource->ptr_value)->type ==
             H64GCVALUETYPE_LIST) {
         assert(0);
-    } else if (vctarget->type == H64VALTYPE_GCVAL &&
-            ((h64gcvalue*)vctarget->ptr_value)->type ==
+    } else if (vcsource->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)vcsource->ptr_value)->type ==
             H64GCVALUETYPE_MAP) {
         assert(0);
     } else {
-        memcpy(vcsource, vctarget, sizeof(*vcsource));
-        ADDREF_NONHEAP(vctarget);
+        assert(0);
     }
     return 1;
 }

@@ -149,6 +149,9 @@ int vmschedule_AsyncScheduleFunc(
         !parallel || vmexec->program->func[func_id].is_threadable
     );
     int64_t func_slots = STACK_TOTALSIZE(vmthread->stack) - new_func_floor;
+    int64_t copy_slots = (
+        vmexec->program->func[func_id].input_stack_size
+    );
     if (!stack_ToSize(
             newthread->stack, func_slots, 0)) {
         mutex_Lock(access_mutex);
@@ -164,7 +167,7 @@ int vmschedule_AsyncScheduleFunc(
     int object_instances_transferlist_alloc = 64;
     int object_instances_transferlist_onheap = 0;
     int64_t i = 0;
-    while (i < func_slots) {
+    while (i < copy_slots) {
         int result = _pipe_DoPipeObject(
             vmthread, newthread,
             i + new_func_floor, i,

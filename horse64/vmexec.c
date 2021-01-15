@@ -2753,8 +2753,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             return_to_execution_offset
         );
         if (!popfuncframe(
-                vmthread,
-                &vmthread->vmexec_owner->moptions,
+                vmthread, &vmthread->vmexec_owner->moptions,
                 0)) {
             // We cannot really recover from this.
             if (returneduncaughterror)
