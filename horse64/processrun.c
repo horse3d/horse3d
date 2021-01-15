@@ -177,7 +177,7 @@ processrun *processrun_Launch(
 
     // Prepare arguments for launch:
     #if defined(_WIN32) || defined(_WIN64)
-
+    assert(0);  // FIXME
     #else
     process_converted_path = malloc(path_len * 5 + 1);
     if (!process_converted_path)

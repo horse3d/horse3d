@@ -384,6 +384,12 @@ START_TEST (test_map)
         "    assert(map['test'][1] == 1)\n"
         "    assert(map['test'][2] == 2)\n"
         "    assert(map[2] == 4)\n"
+        "    do {\n"
+        "        map[[]] = 5\n"
+        "        raise new RuntimeError('map should ban mutable values')\n"
+        "    } rescue TypeError {\n"
+        "        # Expected branch.\n"
+        "    }\n"
         "    return 0\n"
         "}",
         0

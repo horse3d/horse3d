@@ -509,6 +509,7 @@ int iolib_open(
             "out of memory allocating file object"
         );
     }
+    fileobj->hash = 0;
     fileobj->type = H64GCVALUETYPE_OBJINSTANCE;
     fileobj->heapreferencecount = 0;
     fileobj->externalreferencecount = 1;

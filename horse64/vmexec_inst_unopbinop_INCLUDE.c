@@ -163,6 +163,7 @@ inst_binop: {
                             goto triggeroom;
                         }
                         tmpresult->ptr_value = gcval;
+                        gcval->hash = 0;
                         gcval->type = H64GCVALUETYPE_STRING;
                         gcval->heapreferencecount = 0;
                         gcval->externalreferencecount = 1;

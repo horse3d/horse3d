@@ -1383,6 +1383,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (!vc->ptr_value)
                 goto triggeroom;
             h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+            gcval->hash = 0;
             gcval->type = H64GCVALUETYPE_STRING;
             gcval->heapreferencecount = 0;
             gcval->externalreferencecount = 1;
@@ -1406,6 +1407,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (!vc->ptr_value)
                 goto triggeroom;
             h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+            gcval->hash = 0;
             gcval->type = H64GCVALUETYPE_BYTES;
             gcval->heapreferencecount = 0;
             gcval->externalreferencecount = 1;
@@ -1572,7 +1574,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (valuecontent_IsMutable(vcindex)) {
                 RAISE_ERROR(
                     H64STDERROR_TYPEERROR,
-                    "map keys must be of an immutable type"
+                    "map key must be immutable value"
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
@@ -3146,6 +3148,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (!target->ptr_value)
                 goto triggeroom;
             h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+            gcval->hash = 0;
             gcval->type = H64GCVALUETYPE_STRING;
             gcval->heapreferencecount = 0;
             gcval->externalreferencecount = 1;
@@ -3177,6 +3180,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (!vc->ptr_value)
                 goto triggeroom;
             h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+            gcval->hash = 0;
             gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
             gcval->heapreferencecount = 0;
             gcval->externalreferencecount = 1;
@@ -3292,6 +3296,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (!vc->ptr_value)
                 goto triggeroom;
             h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+            gcval->hash = 0;
             gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
             gcval->heapreferencecount = 0;
             gcval->externalreferencecount = 1;
@@ -3344,6 +3349,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 if (!vc->ptr_value)
                     goto triggeroom;
                 h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+                gcval->hash = 0;
                 gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
                 gcval->heapreferencecount = 0;
                 gcval->externalreferencecount = 1;
@@ -3543,6 +3549,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             if (!vctarget->ptr_value)
                 goto triggeroom;
             h64gcvalue *gcval = (h64gcvalue *)vctarget->ptr_value;
+            gcval->hash = 0;
             gcval->type = H64GCVALUETYPE_OBJINSTANCE;
             gcval->heapreferencecount = 0;
             gcval->externalreferencecount = 1;
@@ -3670,6 +3677,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 if (!vc->ptr_value)
                     goto triggeroom;
                 h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+                gcval->hash = 0;
                 gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
                 gcval->heapreferencecount = 0;
                 gcval->externalreferencecount = 1;
