@@ -121,6 +121,32 @@ START_TEST (test_fibonacci)
 }
 END_TEST
 
+START_TEST (test_fibonacci2)
+{
+    runprog(
+        "test_fibonacci2",
+        "import time from core.horse64.org\n"
+        "func fib(n) {\n"
+        "    if n < 2 {\n"
+        "        return n\n"
+        "    } else {\n"
+        "        return fib(n - 1) + fib(n - 2)\n"
+        "    }\n"
+        "}\n"
+        "func main {\n"
+        "    var start = time.ticks()\n"
+        "    var i = 0\n"
+        "    while i < 1000 {\n"
+        "        print('Fib: ' + fib(40).as_str)\n"
+        "        i += 1\n"
+        "    }\n"
+        "    print('Milliseconds: ' + \n"
+        "          ((time.ticks() - start) * 1000).as_str)\n"
+        "}\n",
+        0
+    );
+}
+
 START_TEST (test_simpleclass)
 {
     runprog(
@@ -398,7 +424,8 @@ START_TEST (test_map)
 END_TEST
 
 TESTS_MAIN(
-    test_fibonacci, test_simpleclass, test_attributeerrors,
+    test_fibonacci, test_fibonacci2,
+    test_simpleclass, test_attributeerrors,
     test_hasattr, test_callwithclass, test_hasattr2,
     test_memberaccesschain,
     test_unicodestrlen, test_numberslist,
