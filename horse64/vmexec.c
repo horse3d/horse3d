@@ -390,7 +390,7 @@ void vmthread_WipeFuncStack(h64vmthread *vmthread) {
     }
 }
 
-#if defined(DEBUGVMEXEC)
+#if defined(DEBUGVMEXEC) && !defined(NDEBUG)
 static int vmthread_PrintExec(
         h64vmthread *vt, funcid_t fid, h64instructionany *inst
         ) {
@@ -444,7 +444,7 @@ static inline int popfuncframe(
     #endif
     vt->stack->current_func_floor = new_floor;
     if (!dontresizestack) {
-        #if defined(DEBUGVMEXEC)
+        #if defined(DEBUGVMEXEC) && !defined(NDEBUG)
         if (moptions->vmexec_debug)
             h64fprintf(
                 stderr, "horsevm: debug: vmexec [t%p:%s] (stack "
@@ -508,12 +508,12 @@ static inline int pushfuncframe(
     if (vt->funcframe_count + 1 > vt->funcframe_alloc) {
         h64vmfunctionframe *new_funcframe = realloc(
             vt->funcframe, sizeof(*new_funcframe) *
-            (vt->funcframe_count + 32)
+            (vt->funcframe_count * 2 + 6)
         );
         if (!new_funcframe)
             return 0;
         vt->funcframe = new_funcframe;
-        vt->funcframe_alloc = vt->funcframe_count + 32;
+        vt->funcframe_alloc = vt->funcframe_count * 2 + 6;
     }
     memset(
         &vt->funcframe[vt->funcframe_count], 0,
@@ -592,7 +592,7 @@ static int pusherrorframe(
         int64_t finally_instruction_offset,
         int error_obj_temporary_slot
         ) {
-    int new_alloc = vmthread->errorframe_count + 10;
+    int new_alloc = vmthread->errorframe_count * 2 + 10;
     if (new_alloc > vmthread->errorframe_alloc ||
             new_alloc < vmthread->errorframe_alloc - 20) {
         h64vmrescueframe *newframes = realloc(
@@ -1332,7 +1332,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         return 0;
     }
     triggeroom: {
-        #if defined(DEBUGVMEXEC)
+        #if defined(DEBUGVMEXEC) && !defined(NDEBUG)
         h64fprintf(stderr, "horsevm: debug: vmexec triggeroom\n");
         #endif
         vmthread_AbortAsyncForegroundWork(vmthread);

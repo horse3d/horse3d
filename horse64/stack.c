@@ -51,7 +51,7 @@ void stack_Shrink(h64stack *st, int64_t total_entries) {
         i--;
     }
     st->entry_count = i;
-    if (st->alloc_count + ALLOC_MAXOVERSHOOT > st->entry_count) {
+    if (st->alloc_count - ALLOC_MAXOVERSHOOT > st->entry_count) {
         int64_t new_alloc = st->entry_count + ALLOC_OVERSHOOT;
         valuecontent *new_entries = realloc(
             st->entry, sizeof(*new_entries) * new_alloc
