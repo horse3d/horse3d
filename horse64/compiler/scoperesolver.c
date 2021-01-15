@@ -1959,8 +1959,10 @@ int scoperesolver_ResolveAST(
                     "variable attributes must not be overriding base class "
                     "attributes",
                     ((expr && expr->type == H64EXPRTYPE_VARDEF_STMT) ?
-                     _shortenedname(namebuf, expr->vardef.identifier) :
-                     NULL)
+                     _shortenedname(namebuf, expr->vardef.identifier) : ((
+                     expr && expr->type == H64EXPRTYPE_FUNCDEF_STMT) ?
+                     _shortenedname(namebuf, expr->funcdef.name) :
+                     "(failed to get name)"))
                 );
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
