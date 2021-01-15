@@ -18,6 +18,9 @@
 
 #define MAX_ERROR_STACK_FRAMES 10
 
+//#define INSTRUCTIONPACKED __attribute__((packed))
+#define INSTRUCTIONPACKED
+
 typedef struct h64debugsymbols h64debugsymbols;
 typedef uint32_t h64wchar;
 typedef struct h64gcvalue h64gcvalue;
@@ -101,75 +104,75 @@ typedef int16_t jumpoffset_t;
 
 typedef struct h64instructionany {
     uint8_t type;
-} __attribute__((packed)) h64instructionany;
+} INSTRUCTIONPACKED h64instructionany;
 
 typedef struct h64instruction_setconst {
     uint8_t type;
     int16_t slot;
     valuecontent content;
-} __attribute__((packed)) h64instruction_setconst;
+} INSTRUCTIONPACKED h64instruction_setconst;
 
 typedef struct h64instruction_setglobal {
     uint8_t type;
     int64_t globalto;
     int16_t slotfrom;
-} __attribute__((packed)) h64instruction_setglobal;
+} INSTRUCTIONPACKED h64instruction_setglobal;
 
 typedef struct h64instruction_getglobal {
     uint8_t type;
     int16_t slotto;
     int64_t globalfrom;
-} __attribute__((packed)) h64instruction_getglobal;
+} INSTRUCTIONPACKED h64instruction_getglobal;
 
 typedef struct h64instruction_setbyindexexpr {
     uint8_t type;
     int16_t slotobjto;
     int16_t slotindexto;
     int16_t slotvaluefrom;
-} __attribute__((packed)) h64instruction_setbyindexexpr;
+} INSTRUCTIONPACKED h64instruction_setbyindexexpr;
 
 typedef struct h64instruction_setbyattributename {
     uint8_t type;
     int16_t slotobjto;
     int64_t nameidx;
     int16_t slotvaluefrom;
-} __attribute__((packed)) h64instruction_setbyattributename;
+} INSTRUCTIONPACKED h64instruction_setbyattributename;
 
 typedef struct h64instruction_setbyattributeidx {
     uint8_t type;
     int16_t slotobjto;
     attridx_t varattrto;
     int16_t slotvaluefrom;
-} __attribute__((packed)) h64instruction_setbyattributeidx;
+} INSTRUCTIONPACKED h64instruction_setbyattributeidx;
 
 typedef struct h64instruction_getfunc {
     uint8_t type;
     int16_t slotto;
     int64_t funcfrom;
-} __attribute__((packed)) h64instruction_getfunc;
+} INSTRUCTIONPACKED h64instruction_getfunc;
 
 typedef struct h64instruction_getclass {
     uint8_t type;
     int16_t slotto;
     classid_t classfrom;
-} __attribute__((packed)) h64instruction_getclass;
+} INSTRUCTIONPACKED h64instruction_getclass;
 
 typedef struct h64instruction_valuecopy {
     uint8_t type;
     int16_t slotto, slotfrom;
-} __attribute__((packed)) h64instruction_valuecopy;
+} INSTRUCTIONPACKED h64instruction_valuecopy;
 
 typedef struct h64instruction_binop {
     uint8_t type;
     uint8_t optype;
     int16_t slotto, arg1slotfrom, arg2slotfrom;
-} __attribute__((packed)) h64instruction_binop;
+} INSTRUCTIONPACKED h64instruction_binop;
 
 typedef struct h64instruction_unop {
     uint8_t type;
     uint8_t optype;
     int16_t slotto, argslotfrom;
-} __attribute__((packed)) h64instruction_unop;
+} INSTRUCTIONPACKED h64instruction_unop;
 
 #define CALLFLAG_UNPACKLASTPOSARG 1
 #define CALLFLAG_ASYNC 2
@@ -179,40 +182,40 @@ typedef struct h64instruction_call {
     int16_t returnto, slotcalledfrom;
     uint8_t flags;
     int16_t posargs, kwargs;
-} __attribute__((packed)) h64instruction_call;
+} INSTRUCTIONPACKED h64instruction_call;
 
 typedef struct h64instruction_callignoreifnone {
     uint8_t type;
     int16_t returnto, slotcalledfrom;
     uint8_t flags;
     int16_t posargs, kwargs;
-} __attribute__((packed)) h64instruction_callignoreifnone;
+} INSTRUCTIONPACKED h64instruction_callignoreifnone;
 
 typedef struct h64instruction_settop {
     uint8_t type;
     int16_t topto;
-} __attribute__ ((packed)) h64instruction_settop;
+} INSTRUCTIONPACKED h64instruction_settop;
 
 typedef struct h64instruction_callsettop {
     uint8_t type;
     int16_t topto;
-} __attribute__((packed)) h64instruction_callsettop;
+} INSTRUCTIONPACKED h64instruction_callsettop;
 
 typedef struct h64instruction_returnvalue {
     uint8_t type;
     int16_t returnslotfrom;
-} __attribute__ ((packed)) h64instruction_returnvalue;
+} INSTRUCTIONPACKED h64instruction_returnvalue;
 
 typedef struct h64instruction_jumptarget {
     uint8_t type;
     jumpoffset_t jumpid;
-} __attribute__ ((packed)) h64instruction_jumptarget;
+} INSTRUCTIONPACKED h64instruction_jumptarget;
 
 typedef struct h64instruction_condjump {
     uint8_t type;
     jumpoffset_t jumpbytesoffset;
     int16_t conditionalslot;
-} __attribute__ ((packed)) h64instruction_condjump;
+} INSTRUCTIONPACKED h64instruction_condjump;
 
 #define CONDJUMPEX_FLAG_JUMPONTRUE 0x1
 #define CONDJUMPEX_FLAG_NOTYPEERROR 0x2
@@ -221,22 +224,22 @@ typedef struct h64instruction_condjumpex {
     uint8_t type, flags;
     jumpoffset_t jumpbytesoffset;
     int16_t conditionalslot;
-} __attribute__ ((packed)) h64instruction_condjumpex;
+} INSTRUCTIONPACKED h64instruction_condjumpex;
 
 typedef struct h64instruction_jump {
     uint8_t type;
     jumpoffset_t jumpbytesoffset;
-} __attribute__ ((packed)) h64instruction_jump;
+} INSTRUCTIONPACKED h64instruction_jump;
 
 typedef struct h64instruction_newiterator {
     uint8_t type;
     int16_t slotiteratorto, slotcontainerfrom;
-} __attribute__ ((packed)) h64instruction_newiterator;
+} INSTRUCTIONPACKED h64instruction_newiterator;
 
 typedef struct h64instruction_iterate {
     uint8_t type;
     int16_t slotvalueto, slotiteratorfrom, jumponend;
-} __attribute__ ((packed)) h64instruction_iterate;
+} INSTRUCTIONPACKED h64instruction_iterate;
 
 #define RESCUEMODE_JUMPONRESCUE 1
 #define RESCUEMODE_JUMPONFINALLY 2
@@ -247,98 +250,98 @@ typedef struct h64instruction_pushrescueframe {
     int16_t sloterrorto;
     jumpoffset_t jumponrescue, jumponfinally;
     int16_t frameid;
-} __attribute__ ((packed)) h64instruction_pushrescueframe;
+} INSTRUCTIONPACKED h64instruction_pushrescueframe;
 
 typedef struct h64instruction_addrescuetypebyref {
     uint8_t type;
     int16_t slotfrom;
     int16_t frameid;
-} __attribute__ ((packed)) h64instruction_addrescuetypebyref;
+} INSTRUCTIONPACKED h64instruction_addrescuetypebyref;
 
 typedef struct h64instruction_addrescuetype {
     uint8_t type;
     classid_t classid;
     int16_t frameid;
-} __attribute__ ((packed)) h64instruction_addrescuetype;
+} INSTRUCTIONPACKED h64instruction_addrescuetype;
 
 typedef struct h64instruction_poprescueframe {
     uint8_t type;
     int16_t frameid;
-} __attribute__ ((packed)) h64instruction_poprescueframe;
+} INSTRUCTIONPACKED h64instruction_poprescueframe;
 
 typedef struct h64instruction_jumptofinally {
     uint8_t type;
     int16_t frameid;
-} __attribute__ ((packed)) h64instruction_jumptofinally;
+} INSTRUCTIONPACKED h64instruction_jumptofinally;
 
 typedef struct h64instruction_getattributebyname {
     uint8_t type;
     int16_t slotto;
     int16_t objslotfrom;
     int64_t nameidx;
-} __attribute__ ((packed)) h64instruction_getattributebyname;
+} INSTRUCTIONPACKED h64instruction_getattributebyname;
 
 typedef struct h64instruction_newlist {
     uint8_t type;
     int16_t slotto;
-} __attribute__ ((packed)) h64instruction_newlist;
+} INSTRUCTIONPACKED h64instruction_newlist;
 
 typedef struct h64instruction_newset {
     uint8_t type;
     int16_t slotto;
-} __attribute__ ((packed)) h64instruction_newset;
+} INSTRUCTIONPACKED h64instruction_newset;
 
 typedef struct h64instruction_newvector {
     uint8_t type;
     int16_t slotto;
-} __attribute__ ((packed)) h64instruction_newvector;
+} INSTRUCTIONPACKED h64instruction_newvector;
 
 typedef struct h64instruction_newmap {
     uint8_t type;
     int16_t slotto;
-} __attribute__ ((packed)) h64instruction_newmap;
+} INSTRUCTIONPACKED h64instruction_newmap;
 
 typedef struct h64instruction_newinstancebyref {
     uint8_t type;
     int16_t slotto;
     int16_t classtypeslotfrom;
-} __attribute__ ((packed)) h64instruction_newinstancebyref;
+} INSTRUCTIONPACKED h64instruction_newinstancebyref;
 
 typedef struct h64instruction_newinstance {
     uint8_t type;
     int16_t slotto;
     classid_t classidcreatefrom;
-} __attribute__ ((packed)) h64instruction_newinstance;
+} INSTRUCTIONPACKED h64instruction_newinstance;
 
 typedef struct h64instruction_getconstructor {
     uint8_t type;
     int16_t slotto;
     int16_t objslotfrom;
-} __attribute__ ((packed)) h64instruction_getconstructor;
+} INSTRUCTIONPACKED h64instruction_getconstructor;
 
 typedef struct h64instruction_awaititem {
     uint8_t type;
     int16_t objslotawait;
-} __attribute__ ((packed)) h64instruction_awaititem;
+} INSTRUCTIONPACKED h64instruction_awaititem;
 
 typedef struct h64instruction_hasattrjump {
     uint8_t type;
     jumpoffset_t jumpbytesoffset;
     int16_t slotvaluecheck;
     int64_t nameidxcheck;
-} __attribute__ ((packed)) h64instruction_hasattrjump;
+} INSTRUCTIONPACKED h64instruction_hasattrjump;
 
 typedef struct h64instruction_raise {
     uint8_t type;
     classid_t error_class_id;
     int16_t sloterrormsgobj;
-} __attribute__ ((packed)) h64instruction_raise;
+} INSTRUCTIONPACKED h64instruction_raise;
 
 typedef struct h64instruction_raisebyref {
     uint8_t type;
     int16_t sloterrorclassrefobj;
     int16_t sloterrormsgobj;
-} __attribute__ ((packed)) h64instruction_raisebyref;
+} INSTRUCTIONPACKED h64instruction_raisebyref;
 
 
 #define H64CLASS_HASH_SIZE 32
