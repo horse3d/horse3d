@@ -2768,7 +2768,8 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         // Place return value:
         if (returnslot >= 0) {
             valuecontent *newvc = stack_GetEntrySlow(
-                stack, returnslot
+                stack,
+                stack->current_func_floor + (int64_t)returnslot
             );
             DELREF_NONHEAP(newvc);
             valuecontent_Free(newvc);
