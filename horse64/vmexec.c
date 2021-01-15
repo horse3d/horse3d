@@ -1797,6 +1797,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         h64closureinfo *cinfo = NULL;
         int closure_arg_count = -1;
         int func_posargs = -1;
+        int func_kwargs = -1;
         int64_t stack_args_bottom = -1;
         int is_cfunc_resume = 0;
 
@@ -1859,10 +1860,13 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             target_func_id = cinfo->closure_func_id;
         }
         assert(target_func_id >= 0);
+        const int _unpacklastposarg = (
+            inst->flags & CALLFLAG_UNPACKLASTPOSARG
+        );
 
         // Validate that the positional argument count fits:
         int effective_posarg_count = inst->posargs;
-        if (unlikely(inst->flags & CALLFLAG_UNPACKLASTPOSARG)) {
+        if (unlikely(_unpacklastposarg)) {
             effective_posarg_count--;
             valuecontent *lastposarg = (
                 STACK_ENTRY(stack, stacktop - 1 - inst->kwargs)
@@ -1893,6 +1897,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             pr->func[target_func_id].kwarg_count +
             closure_arg_count
         );
+        func_kwargs = pr->func[target_func_id].kwarg_count;
         assert(func_posargs >= 0);
         if (unlikely(effective_posarg_count != func_posargs)) {
             if (effective_posarg_count < func_posargs) {
@@ -1929,9 +1934,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         // Make sure keyword arguments are actually known to target,
         // and do assert()s that keyword args are sorted:
-        {
+        if (unlikely(func_kwargs > 0)) {
             if (unlikely(vmthread->kwarg_index_track_count <
-                    pr->func[target_func_id].kwarg_count)) {
+                    func_kwargs)) {
                 int oldcount = vmthread->kwarg_index_track_count;
                 int32_t *new_track_slots = realloc(
                     vmthread->kwarg_index_track_map,
@@ -1987,9 +1992,6 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         }
 
         // Evaluate fast-track:
-        const int _unpacklastposarg = (
-            inst->flags & CALLFLAG_UNPACKLASTPOSARG
-        );
         const int noargreorder = (likely(
             !_unpacklastposarg &&
             inst->posargs == func_posargs &&
@@ -2165,16 +2167,16 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         {
             // Increase to total amount required for target func:
             int result = 1;
-            if (stack_args_bottom +
-                    pr->func[target_func_id].input_stack_size +
-                    pr->func[target_func_id].inner_stack_size +
-                    stack->current_func_floor > STACK_TOTALSIZE(stack)
+            int64_t stack_target_size = (
+                stack_args_bottom +
+                pr->func[target_func_id].input_stack_size +
+                pr->func[target_func_id].inner_stack_size +
+                stack->current_func_floor
+            );
+            if (stack_target_size > STACK_TOTALSIZE(stack)
                     ) {
                 result = stack_ToSize(
-                    stack, stack_args_bottom +
-                    pr->func[target_func_id].input_stack_size +
-                    pr->func[target_func_id].inner_stack_size +
-                    stack->current_func_floor, 0
+                    stack, stack_target_size, 0
                 );
             }
             if (unlikely(!result)) {

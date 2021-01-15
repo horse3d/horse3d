@@ -50,35 +50,35 @@ typedef struct valuecontent {
             h64wchar shortstr_value[
                 VALUECONTENT_SHORTSTRLEN
             ];  // should be 2byte/16bit aligned
-        } __attribute__((packed));
+        };
         struct {   // 8 bytes
             uint8_t shortbytes_len;
             char shortbytes_value[
                 VALUECONTENT_SHORTBYTESLEN
             ];  // should be 2byte/16bit aligned
-        } __attribute__((packed));
+        };
         struct {   // 12 bytes
             h64wchar *constpreallocstr_value;
             int32_t constpreallocstr_len;
-        } __attribute__((packed));
+        };
         struct {   // 12 bytes
             char *constpreallocbytes_value;
             int32_t constpreallocbytes_len;
-        } __attribute__((packed));
+        };
         struct {   // 12 bytes
             classid_t error_class_id;
             h64errorinfo *einfo;
-        } __attribute__((packed));
+        };
         struct {  // 12 bytes
             int32_t vector_len;
             vectorentry *vector_values;
-        } __attribute__((packed));
+        };
         struct {  // 12 bytes
             int suspend_type;
             int64_t suspend_intarg;
-        } __attribute__((packed));
-    } __attribute__((packed));
-} __attribute__((packed)) valuecontent;
+        };
+    };
+} valuecontent;
 
 typedef struct h64vmthread h64vmthread;
 
