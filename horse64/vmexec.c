@@ -1508,7 +1508,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                vc->type != H64VALTYPE_CONSTPREALLOCBYTES);
         valuecontent *vcindex = STACK_ENTRY(stack, inst->slotindexto);
         if (unlikely(vcindex->type != H64VALTYPE_FLOAT64 &&
-                vcindex->type != H64VALTYPE_INT64)) {
+                vcindex->type != H64VALTYPE_INT64 && (
+                vc->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue *)vc->ptr_value)->type !=
+                    H64GCVALUETYPE_MAP
+                ))) {
             RAISE_ERROR(
                 H64STDERROR_TYPEERROR,
                 "this value must be indexed with a number"
@@ -3225,6 +3229,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     len = vmlist_Count(
                         ((h64gcvalue *)vc->ptr_value)->list_values
                     );
+                } else if (((h64gcvalue *)vc->ptr_value)->type ==
+                        H64GCVALUETYPE_MAP) {
+                    len = vmmap_Count(
+                        ((h64gcvalue *)vc->ptr_value)->map_values
+                    );
                 }
             } else if (vc->type == H64VALTYPE_SHORTSTR) {
                 char *ptr = (char*)vc->shortstr_value;
@@ -3412,6 +3421,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         if (!vc->ptr_value)
             goto triggeroom;
         h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+        gcval->hash = 0;
         gcval->type = H64GCVALUETYPE_LIST;
         gcval->heapreferencecount = 0;
         gcval->externalreferencecount = 1;
@@ -3450,6 +3460,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         if (!vc->ptr_value)
             goto triggeroom;
         h64gcvalue *gcval = (h64gcvalue *)vc->ptr_value;
+        gcval->hash = 0;
         gcval->type = H64GCVALUETYPE_MAP;
         gcval->heapreferencecount = 0;
         gcval->externalreferencecount = 1;

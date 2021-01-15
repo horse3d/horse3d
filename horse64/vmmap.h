@@ -16,7 +16,9 @@
 genericmap *vmmap_New();
 
 ATTR_UNUSED static inline int64_t vmmap_Count(genericmap *m) {
-    return m->hashed.entry_count + m->linear.entry_count;
+    if ((m->flags & GENERICMAP_FLAG_LINEAR) != 0)
+        return m->linear.entry_count;
+    return m->hashed.entry_count;
 }
 
 int vmmap_Set(

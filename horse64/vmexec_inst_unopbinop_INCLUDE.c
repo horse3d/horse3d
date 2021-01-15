@@ -563,7 +563,7 @@ inst_binop: {
                         v2->type != H64VALTYPE_FLOAT64)) {
                     RAISE_ERROR(
                         H64STDERROR_TYPEERROR,
-                        "cannot index this using a non-number value"
+                        "this value must be indexed with a number"
                     );
                     goto *jumptable[((h64instructionany *)p)->type];
                 }

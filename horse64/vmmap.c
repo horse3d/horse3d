@@ -118,6 +118,8 @@ int vmmap_Get(
             if (m->linear.entry_hash[i] == hash &&
                     valuecontent_CheckEquality(
                     key, &m->linear.key[i])) {
+                if (value)
+                    memcpy(value, &m->linear.entry[i], sizeof(*value));
                 return 1;
             }
             i++;
