@@ -112,8 +112,6 @@ datapak:
 	mv -f datapak/coreapi.h64pak ./coreapi.h64pak
 	rm -rf datapak
 release:
-	make clean
-	make build-deps DEBUGGABLE=false CC="$(CC)" CXX="$(CXX)"
 	make DEBUGGABLE=false CC="$(CC)" CXX="$(CXX)"
 build-deps:
 	make physfs openssl DEBUGGABLE="$(DEBUGGABLE)" CC="$(CC)" CXX="$(CXX)"
