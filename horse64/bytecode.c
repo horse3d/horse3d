@@ -554,7 +554,13 @@ void h64program_FreeInstructions(
         h64instructionany *inst = (h64instructionany*)p;
         if (inst->type == H64INST_SETCONST) {
             h64instruction_setconst *instsetconst = (void *)p;
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+            // Silence gcc false positive in follow-up line:
+            // Even when instsetconst is unaligned, manual padding
+            // ensures 8-byte alignment of the ->content meber.
             valuecontent_Free(&instsetconst->content);
+            #pragma GCC diagnostic pop
         }
         len -= (int)nextelement;
         p += (ptrdiff_t)nextelement;
