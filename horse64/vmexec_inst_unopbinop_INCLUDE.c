@@ -327,7 +327,13 @@ inst_binop: {
                     }
                     tmpresult->type = H64VALTYPE_FLOAT64;
                     tmpresult->float_value = (v1no * v2no);
-                    if (unlikely(
+                    if (unlikely(isnan(tmpresult->float_value)) {
+                        RAISE_ERROR(
+                            H64STDERROR_MATHERROR,
+                            "division by zero"
+                        );
+                        goto *jumptable[((h64instructionany *)p)->type];
+                    } else if (unlikely(
                             !isfinite(tmpresult->float_value) ||
                             tmpresult->float_value > (double)INT64_MAX ||
                             tmpresult->float_value < (double)INT64_MIN)) {
