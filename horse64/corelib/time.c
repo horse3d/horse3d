@@ -65,7 +65,7 @@ int timelib_sleep(
                 (long double)((int64_t)(INT64_MAX / 1000LL)) - 5.0f
                 ) {
             // (-5.0f for some rounding margin)
-            sleepms = roundl(val);
+            sleepms = clamped_round(val);
         } else {
             sleepms = INT64_MAX / 1000LL;
         }

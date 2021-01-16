@@ -1532,10 +1532,10 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             } else {
                 assert(vcindex->type == H64VALTYPE_FLOAT64);
                 int64_t rounded_value = (
-                    (int64_t)roundl(vcindex->float_value)
+                    (int64_t)clamped_round(vcindex->float_value)
                 );
                 if (fabs(vcindex->float_value -
-                         round(rounded_value)) > 0.001) {
+                         ((double)rounded_value)) > 0.001) {
                     RAISE_ERROR(
                         H64STDERROR_INDEXERROR,
                         "index must not have fractional part"
@@ -4214,7 +4214,7 @@ int vmthread_RunFunctionWithReturnInt(
             *out_returnint = v;
             return result;
         } else if (vc->type == H64VALTYPE_FLOAT64) {
-            int64_t v = roundl(vc->float_value);
+            int64_t v = clamped_round(vc->float_value);
             if (v > INT32_MAX) v = INT32_MAX;
             if (v < INT32_MIN) v = INT32_MIN;
             *out_returnint = v;

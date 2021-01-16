@@ -618,7 +618,7 @@ int iolib_fileread(
     if (vcamount->type == H64VALTYPE_INT64) {
         amount = vcamount->int_value;
     } else if (vcamount->type == H64VALTYPE_FLOAT64) {
-        amount = roundl(vcamount->float_value);
+        amount = clamped_round(vcamount->float_value);
     }
     if (amount == 0 || feof(f)) {
         valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
@@ -913,7 +913,7 @@ int iolib_fileseek(
     if (vcoffset->type != H64VALTYPE_INT64)
         offset = vcoffset->int_value;
     else
-        offset = roundl(vcoffset->float_value);
+        offset = clamped_round(vcoffset->float_value);
 
     int result = -1;
     if (offset < 0) {

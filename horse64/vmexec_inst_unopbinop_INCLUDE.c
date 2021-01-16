@@ -649,7 +649,7 @@ inst_binop: {
                     index_by = v2->int_value;
                 } else {
                     assert(v2->type == H64VALTYPE_FLOAT64);
-                    index_by = roundl(v2->float_value);
+                    index_by = clamped_round(v2->float_value);
                 }
             }
             invalidtypes = 0;
