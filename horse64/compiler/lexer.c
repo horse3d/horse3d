@@ -947,6 +947,27 @@ h64tokenizedfile lexer_ParseFromFile(
                 double value = h64atof(numbuf);
                 result.token[result.token_count].type = H64TK_CONSTANT_FLOAT;
                 result.token[result.token_count].float_value = value;
+                if (!hadoverflowerror && (
+                        value >= (double)INT64_MAX ||
+                        // ^ reminder: double rounds to INT64_MAX + 1
+                        value < (double)INT64_MIN)) {
+                    hadoverflowerror = 1;
+                    if (!result_AddMessage(
+                            &result.resultmsg,
+                            H64MSG_ERROR, _literaloverflowerror, fileuri_s,
+                            line, column
+                            )) {
+                        result_ErrorNoLoc(
+                            &result.resultmsg,
+                            "failed to add result message, out of memory?",
+                            fileuri_s
+                        );
+                        free(buffer);
+                        free(fileuri_s);
+                        free(numbuf);
+                        return result;
+                    }
+                }
             } else if (sawxorb) {
                 assert(numbuflen >= 3);
                 assert(numbuf[0] == '0' && (

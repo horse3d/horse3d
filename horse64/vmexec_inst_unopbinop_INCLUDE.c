@@ -223,7 +223,8 @@ inst_binop: {
                     tmpresult->float_value = (v1no + v2no);
                     if (unlikely(
                             !isfinite(tmpresult->float_value) ||
-                            tmpresult->float_value > (double)INT64_MAX ||
+                            tmpresult->float_value >= (double)INT64_MAX ||
+                            // ^ reminder: double rounds to INT64_MAX + 1
                             tmpresult->float_value < (double)INT64_MIN)) {
                         RAISE_ERROR(
                             H64STDERROR_MATHERROR,
