@@ -22,6 +22,28 @@
 #include "widechar.h"
 
 
+static char INT64_MAX_STR[128];
+static char INT64_MIN_STR[128];
+
+static __attribute__((constructor)) void _set_maxmin_strs() {
+    snprintf(
+        INT64_MAX_STR, sizeof(INT64_MAX_STR) - 1,
+        "%" PRId64, INT64_MAX
+    );
+    INT64_MAX_STR[sizeof(INT64_MAX_STR) - 1] = 0;
+    snprintf(
+        INT64_MIN_STR, sizeof(INT64_MIN_STR) - 1,
+        "%" PRId64, INT64_MIN
+    );
+    INT64_MIN_STR[sizeof(INT64_MIN_STR) - 1] = 0;
+}
+
+
+static char _literaloverflowerror[] = (
+    "unexpected number range overflow when parsing literal"
+);
+
+
 static int _tokenalloc(
         h64tokenizedfile *result,
         int *allocsize
@@ -789,6 +811,7 @@ h64tokenizedfile lexer_ParseFromFile(
             int64_t startline = line;
             int64_t startcolumn = column;
             char *numbuf = malloc(8);
+            int hadoverflowerror = 0;
             int numbufalloc = 8;
             int numbuflen = 0;
             if (c == '-') {
@@ -936,10 +959,58 @@ h64tokenizedfile lexer_ParseFromFile(
                 result.token[result.token_count].type = H64TK_CONSTANT_INT;
                 result.token[result.token_count].int_value = value;
             } else {
+                // Plain decimal system integer.
                 assert(!isbinary && !ishex);
+                if (!hadoverflowerror &&
+                        strlen(numbuf) > strlen(INT64_MAX_STR) &&
+                        strlen(numbuf) > strlen(INT64_MIN_STR)) {  // overflow
+                    hadoverflowerror = 1;
+                    if (!result_AddMessage(
+                            &result.resultmsg,
+                            H64MSG_ERROR, _literaloverflowerror, fileuri_s,
+                            line, column
+                            )) {
+                        result_ErrorNoLoc(
+                            &result.resultmsg,
+                            "failed to add result message, out of memory?",
+                            fileuri_s
+                        );
+                        free(buffer);
+                        free(fileuri_s);
+                        free(numbuf);
+                        return result;
+                    }
+                }
+                // Parse & set integer value:
                 int64_t value = h64atoll(numbuf);
                 result.token[result.token_count].type = H64TK_CONSTANT_INT;
                 result.token[result.token_count].int_value = value;
+                // Make sure we didn't overflow:
+                char num_convertback[128];
+                snprintf(
+                    num_convertback, sizeof(num_convertback),
+                    "%" PRId64, value
+                );
+                num_convertback[sizeof(num_convertback) - 1] = 0;
+                if (!hadoverflowerror &&
+                        strcmp(num_convertback, numbuf) != 0) {  // overflow
+                    hadoverflowerror = 1;
+                    if (!result_AddMessage(
+                            &result.resultmsg,
+                            H64MSG_ERROR, _literaloverflowerror, fileuri_s,
+                            line, column
+                            )) {
+                        result_ErrorNoLoc(
+                            &result.resultmsg,
+                            "failed to add result message, out of memory?",
+                            fileuri_s
+                        );
+                        free(buffer);
+                        free(fileuri_s);
+                        free(numbuf);
+                        return result;
+                    }
+                }
             }
             result.token_count++;
             free(numbuf);
