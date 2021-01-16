@@ -11,6 +11,9 @@
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
+#define DBL_MAX_CONSECUTIVE_INT (9007199254740992LL)
+#define DBL_MIN_CONSECUTIVE_INT (-9007199254740992LL)
+
 #define DEBUG_SOCKETPAIR
 
 #if defined(_WIN32) || defined(_WIN64)

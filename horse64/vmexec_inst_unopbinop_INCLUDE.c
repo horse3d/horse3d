@@ -78,6 +78,15 @@ inst_binop: {
                     tmpresult->float_value = (v1no / v2no);
                     if (isnan(tmpresult->float_value) || v2no == 0) {
                         divisionbyzero = 1;
+                    } else if (unlikely(
+                            !isfinite(tmpresult->float_value) ||
+                            tmpresult->float_value > (double)INT64_MAX ||
+                            tmpresult->float_value < (double)INT64_MIN)) {
+                        RAISE_ERROR(
+                            H64STDERROR_MATHERROR,
+                            "number range overflow"
+                        );
+                        goto *jumptable[((h64instructionany *)p)->type];
                     }
                 } else {
                     tmpresult->type = H64VALTYPE_INT64;
@@ -192,9 +201,9 @@ inst_binop: {
                         }
                     }
                 } else {
-                    // invalid. leave invalidtypes=1
+                    // Invalid, leave invalidtypes=1 set.
                 }
-            } else {  // number addition
+            } else {  // Number addition:
                 invalidtypes = 0;
                 if (v1->type == H64VALTYPE_FLOAT64 ||
                         v2->type == H64VALTYPE_FLOAT64) {
@@ -212,11 +221,21 @@ inst_binop: {
                     }
                     tmpresult->type = H64VALTYPE_FLOAT64;
                     tmpresult->float_value = (v1no + v2no);
+                    if (unlikely(
+                            !isfinite(tmpresult->float_value) ||
+                            tmpresult->float_value > (double)INT64_MAX ||
+                            tmpresult->float_value < (double)INT64_MIN)) {
+                        RAISE_ERROR(
+                            H64STDERROR_MATHERROR,
+                            "number range overflow"
+                        );
+                        goto *jumptable[((h64instructionany *)p)->type];
+                    }
                 } else {
-                    if ((v2->int_value >= 0 &&
+                    if (unlikely((v2->int_value >= 0 &&
                             v1->int_value > INT64_MAX - v2->int_value) ||
                             (v2->int_value < 0 &&
-                             v1->int_value < INT64_MIN - v2->int_value)) {
+                             v1->int_value < INT64_MIN - v2->int_value))) {
                         RAISE_ERROR(
                             H64STDERROR_MATHERROR,
                             "number range overflow"
@@ -255,6 +274,16 @@ inst_binop: {
                     }
                     tmpresult->type = H64VALTYPE_FLOAT64;
                     tmpresult->float_value = (v1no - v2no);
+                    if (unlikely(
+                            !isfinite(tmpresult->float_value) ||
+                            tmpresult->float_value > (double)INT64_MAX ||
+                            tmpresult->float_value < (double)INT64_MIN)) {
+                        RAISE_ERROR(
+                            H64STDERROR_MATHERROR,
+                            "number range overflow"
+                        );
+                        goto *jumptable[((h64instructionany *)p)->type];
+                    }
                 } else {
                     if ((v2->int_value < 0 &&
                             v1->int_value > INT64_MAX + v2->int_value) ||
@@ -298,11 +327,32 @@ inst_binop: {
                     }
                     tmpresult->type = H64VALTYPE_FLOAT64;
                     tmpresult->float_value = (v1no * v2no);
+                    if (unlikely(
+                            !isfinite(tmpresult->float_value) ||
+                            tmpresult->float_value > (double)INT64_MAX ||
+                            tmpresult->float_value < (double)INT64_MIN)) {
+                        RAISE_ERROR(
+                            H64STDERROR_MATHERROR,
+                            "number range overflow"
+                        );
+                        goto *jumptable[((h64instructionany *)p)->type];
+                    }
                 } else {
                     tmpresult->type = H64VALTYPE_INT64;
                     tmpresult->int_value = (
                         v1->int_value * v2->int_value
                     );
+                    if (likely(v1->int_value != 0)) {
+                        if (unlikely(
+                                tmpresult->int_value / v1->int_value !=
+                                v2->int_value)) {
+                            RAISE_ERROR(
+                                H64STDERROR_MATHERROR,
+                                "number range overflow"
+                            );
+                            goto *jumptable[((h64instructionany *)p)->type];
+                        }
+                    }
                 }
             }
             goto binop_done;
@@ -759,10 +809,17 @@ inst_binop: {
             goto unop_done;
         } else if (inst->optype == H64OP_MATH_SUBSTRACT) {
             if (v1->type == H64VALTYPE_FLOAT64) {
+                if (unlikely(v1->int_value < -INT64_MAX)) {
+                    RAISE_ERROR(
+                        H64STDERROR_MATHERROR,
+                        "number range overflow"
+                    );
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
                 tmpresult->type = H64VALTYPE_FLOAT64;
-                tmpresult->int_value = -v1->int_value;
+                tmpresult->float_value = -v1->float_value;
             } else if (v1->type == H64VALTYPE_INT64) {
-                if (v1->int_value == INT64_MIN) {
+                if (unlikely(v1->int_value == INT64_MIN)) {
                     RAISE_ERROR(
                         H64STDERROR_MATHERROR,
                         "number range overflow"
