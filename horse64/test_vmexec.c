@@ -424,6 +424,46 @@ START_TEST (test_map)
 }
 END_TEST
 
+START_TEST (test_overflowint)
+{
+    runprog(
+        "test_overflowint",
+        "func main{\n"
+        "    print('Value 1:')\n"
+        "    print(-1 + (-9223372036854775807))\n"
+        "    do {\n"
+        "        print('Value 2 should be skipped.')\n"
+        "        print(-2 + (-9223372036854775807))\n"
+        "        raise new RuntimeError('should be unreachable')\n"
+        "    } rescue MathError { }\n"
+        "    print('Value 3:')\n"
+        "    print(1 + 9223372036854775806)\n"
+        "    do {\n"
+        "        print('Value 4 should be skipped.')\n"
+        "        print(1 + 9223372036854775807)\n"
+        "        raise new RuntimeError('should be unreachable')\n"
+        "    } rescue MathError { }\n"
+        "    print('Value 5:')\n"
+        "    print(0 - (-9223372036854775807))\n"
+        "    do {\n"
+        "        print('Value 6 should be skipped.')\n"
+        "        print(1 - (-9223372036854775807))\n"
+        "        raise new RuntimeError('should be unreachable')\n"
+        "    } rescue MathError { }\n"
+        "    print('Value 7:')\n"
+        "    print(-9223372036854775807 - 1)\n"
+        "    do {\n"
+        "        print('Value 8 should be skipped.')\n"
+        "        print(-9223372036854775807 - 2)\n"
+        "        raise new RuntimeError('should be unreachable')\n"
+        "    } rescue MathError { }\n"
+        "    return 0\n"
+        "}",
+        0
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_fibonacci2,
     test_simpleclass, test_attributeerrors,
@@ -431,6 +471,6 @@ TESTS_MAIN(
     test_memberaccesschain,
     test_unicodestrlen, test_numberslist,
     test_uri, test_conditionals, test_conditionals2,
-    test_assert1, test_assert2, test_map
+    test_assert1, test_assert2, test_map, test_overflowint
 )
 

@@ -97,6 +97,7 @@ inst_binop: {
                     v1->type != H64VALTYPE_FLOAT64) ||
                     (v2->type != H64VALTYPE_INT64 &&
                     v2->type != H64VALTYPE_FLOAT64))) {
+                // Not numbers.
                 if (likely((
                         ((v1->type == H64VALTYPE_GCVAL &&
                          ((h64gcvalue *)v1->ptr_value)->type ==
@@ -191,7 +192,7 @@ inst_binop: {
                         }
                     }
                 } else {
-                    // invalid
+                    // invalid. leave invalidtypes=1
                 }
             } else {  // number addition
                 invalidtypes = 0;
@@ -212,6 +213,16 @@ inst_binop: {
                     tmpresult->type = H64VALTYPE_FLOAT64;
                     tmpresult->float_value = (v1no + v2no);
                 } else {
+                    if ((v2->int_value >= 0 &&
+                            v1->int_value > INT64_MAX - v2->int_value) ||
+                            (v2->int_value < 0 &&
+                             v1->int_value < INT64_MIN - v2->int_value)) {
+                        RAISE_ERROR(
+                            H64STDERROR_MATHERROR,
+                            "number range overflow"
+                        );
+                        goto *jumptable[((h64instructionany *)p)->type];
+                    }
                     tmpresult->type = H64VALTYPE_INT64;
                     tmpresult->int_value = (
                         v1->int_value + v2->int_value
@@ -245,6 +256,16 @@ inst_binop: {
                     tmpresult->type = H64VALTYPE_FLOAT64;
                     tmpresult->float_value = (v1no - v2no);
                 } else {
+                    if ((v2->int_value < 0 &&
+                            v1->int_value > INT64_MAX + v2->int_value) ||
+                            (v2->int_value >= 0 &&
+                             v1->int_value < INT64_MIN + v2->int_value)) {
+                        RAISE_ERROR(
+                            H64STDERROR_MATHERROR,
+                            "number range overflow"
+                        );
+                        goto *jumptable[((h64instructionany *)p)->type];
+                    }
                     tmpresult->type = H64VALTYPE_INT64;
                     tmpresult->int_value = (
                         v1->int_value - v2->int_value
@@ -736,6 +757,28 @@ inst_binop: {
             tmpresult->type = H64VALTYPE_BOOL;
             tmpresult->int_value = !boolv;
             goto unop_done;
+        } else if (inst->optype == H64OP_MATH_SUBSTRACT) {
+            if (v1->type == H64VALTYPE_FLOAT64) {
+                tmpresult->type = H64VALTYPE_FLOAT64;
+                tmpresult->int_value = -v1->int_value;
+            } else if (v1->type == H64VALTYPE_INT64) {
+                if (v1->int_value == INT64_MIN) {
+                    RAISE_ERROR(
+                        H64STDERROR_MATHERROR,
+                        "number range overflow"
+                    );
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+                tmpresult->type = H64VALTYPE_INT64;
+                tmpresult->int_value = -v1->int_value;
+            } else {
+                RAISE_ERROR(
+                    H64STDERROR_TYPEERROR,
+                    "cannot apply %s operator to given type",
+                    operator_OpPrintedAsStr(inst->optype)
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
         } else {
             h64fprintf(stderr, "unop not implemented\n");
             return 0;
