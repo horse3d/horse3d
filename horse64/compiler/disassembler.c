@@ -266,9 +266,15 @@ int disassembler_PrintInstruction(
     case H64INST_SETCONST: {
         h64instruction_setconst *inst_setconst =
             (h64instruction_setconst*)inst;
+        // Note: we manually align ->content to 8 bytes inside
+        // the inst_setconst struct, so any warnings about
+        // unaligned access should not apply here.
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
         char *s = disassembler_DumpValueContent(
             &inst_setconst->content
         );
+        #pragma GCC diagnostic pop
         if (!s)
             return 0;
         if (!disassembler_Write(di,

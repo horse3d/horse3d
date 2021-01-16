@@ -9,10 +9,13 @@
 // It was split up here to make this code easier to work with,
 // given how giant the source function is in vmexec.c.
 
-    #include "gcvalue.h"
-#include "valuecontentstruct.h"
-#include "vmstrings.h"
-#include "widechar.h"
+// Compilers can be very confused by our goto use here, thinking that
+// in some executions the goto can jump past variable initializations
+// and causing uninitialized use. This is to the best of my knowledge
+// absolutely NOT the case, so we'll ignore the false positives:
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 inst_binop: {
         h64instruction_binop *inst = (h64instruction_binop *)p;
         #ifndef NDEBUG
@@ -278,6 +281,18 @@ inst_binop: {
                                 tmpresult->type = H64VALTYPE_INT64;
                                 tmpresult->int_value = v2->int_value;
                             }
+                        }
+                    }
+                    // See if the result is non-fractional, in which case
+                    // we want to go back to int:
+                    if (likely(tmpresult->type == H64VALTYPE_FLOAT64)) {
+                        // ^ (since the "unexpected jumps" rule above might
+                        // have already converted us to int)
+                        int64_t intval = tmpresult->float_value;
+                        if (unlikely((double)intval ==
+                                (double)tmpresult->float_value)) {
+                            tmpresult->type = H64VALTYPE_INT64;
+                            tmpresult->int_value = intval;
                         }
                     }
                 } else {
@@ -938,3 +953,4 @@ inst_binop: {
         p += sizeof(h64instruction_unop);
         goto *jumptable[((h64instructionany *)p)->type];
     }
+#pragma GCC diagnostic pop
