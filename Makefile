@@ -24,7 +24,7 @@ else
 CFLAGS_OPTIMIZATION:=-O0 -g $(SSEFLAG) -fno-omit-frame-pointer
 endif
 else
-CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -fno-associative-math -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
+CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -fno-math-errno -fno-associative-math -fno-finite-math-only -fomit-frame-pointer -DNDEBUG
 endif
 OPENSSLHOSTOPTION:=linux-generic64
 CXXFLAGS:=-fexceptions
