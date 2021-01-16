@@ -861,6 +861,7 @@ h64tokenizedfile lexer_ParseFromFile(
                         free(fileuri_s);
                         return result;
                     }
+                    numbuf = numbufnew;
                 }
                 numbuf[numbuflen] = c;
                 numbuflen++;
