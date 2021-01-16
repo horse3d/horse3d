@@ -3926,7 +3926,7 @@ int ast_ParseExprStmt(
                 statementmode != STATEMENTMODE_INCLASSFUNC) {
             char buf[256];
             snprintf(buf, sizeof(buf) - 1,
-                "unexpected \"try\", "
+                "unexpected \"do\" block, "
                 "this is only allowed in functions"
             );
             if (!result_AddMessage(
