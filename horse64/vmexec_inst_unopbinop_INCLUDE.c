@@ -60,8 +60,16 @@ inst_binop: {
                 // invalid
             } else {
                 invalidtypes = 0;
+                int nocleandivide = 1;  // whether result might be fractional
+                if (likely(v1->type == H64VALTYPE_INT64 &&
+                        v2->type == H64VALTYPE_INT64)) {
+                    if (likely(v2->int_value != 0 &&
+                            v1->int_value % v2->int_value == 0))
+                        nocleandivide = 0;
+                }
                 if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
+                        v2->type == H64VALTYPE_FLOAT64 ||
+                        nocleandivide) {
                     double v1no = 1;
                     if (v1->type == H64VALTYPE_FLOAT64) {
                         v1no = v1->float_value;
@@ -87,6 +95,13 @@ inst_binop: {
                             "number range overflow"
                         );
                         goto *jumptable[((h64instructionany *)p)->type];
+                    }
+                    // See if the result is non-fractional, in which case
+                    // we want to go back to int:
+                    int64_t intval = tmpresult->float_value;
+                    if ((double)intval == (double)tmpresult->float_value) {
+                        tmpresult->type = H64VALTYPE_INT64;
+                        tmpresult->int_value = intval;
                     }
                 } else {
                     tmpresult->type = H64VALTYPE_INT64;
@@ -207,6 +222,7 @@ inst_binop: {
                 invalidtypes = 0;
                 if (v1->type == H64VALTYPE_FLOAT64 ||
                         v2->type == H64VALTYPE_FLOAT64) {
+                    int mixed = (v1->type != v2->type);
                     double v1no = 1;
                     if (v1->type == H64VALTYPE_FLOAT64) {
                         v1no = v1->float_value;
@@ -231,6 +247,38 @@ inst_binop: {
                             "number range overflow"
                         );
                         goto *jumptable[((h64instructionany *)p)->type];
+                    } else if (unlikely(mixed)) {
+                        // Avoid unexpected jumps in the opposite direction
+                        // of the operation caused by int -> float change:
+                        if (v1->type == H64VALTYPE_INT64) {
+                            assert(v2->type == H64VALTYPE_FLOAT64);
+                            assert(v1->type == H64VALTYPE_INT64);
+                            if (unlikely(v2->float_value < 0.0 &&
+                                    clamped_round(tmpresult->float_value) >
+                                    v1->int_value)) {
+                                tmpresult->type = H64VALTYPE_INT64;
+                                tmpresult->int_value = v1->int_value;
+                            } else if (unlikely(v2->float_value > 0.0 &&
+                                    clamped_round(tmpresult->float_value) <
+                                    v1->int_value)) {
+                                tmpresult->type = H64VALTYPE_INT64;
+                                tmpresult->int_value = v1->int_value;
+                            }
+                        } else {
+                            assert(v1->type == H64VALTYPE_FLOAT64);
+                            assert(v2->type == H64VALTYPE_INT64);
+                            if (unlikely(v1->float_value < 0.0 &&
+                                    clamped_round(tmpresult->float_value) >
+                                    v2->int_value)) {
+                                tmpresult->type = H64VALTYPE_INT64;
+                                tmpresult->int_value = v2->int_value;
+                            } else if (unlikely(v1->float_value > 0.0 &&
+                                    clamped_round(tmpresult->float_value) <
+                                    v2->int_value)) {
+                                tmpresult->type = H64VALTYPE_INT64;
+                                tmpresult->int_value = v2->int_value;
+                            }
+                        }
                     }
                 } else {
                     if (unlikely((v2->int_value >= 0 &&
@@ -261,6 +309,7 @@ inst_binop: {
                 invalidtypes = 0;
                 if (v1->type == H64VALTYPE_FLOAT64 ||
                         v2->type == H64VALTYPE_FLOAT64) {
+                    int mixed = (v1->type != v2->type);
                     double v1no = 1;
                     if (v1->type == H64VALTYPE_FLOAT64) {
                         v1no = v1->float_value;
@@ -284,6 +333,38 @@ inst_binop: {
                             "number range overflow"
                         );
                         goto *jumptable[((h64instructionany *)p)->type];
+                    } else if (unlikely(mixed)) {
+                        // Avoid unexpected jumps in the opposite direction
+                        // of the operation caused by int -> float change:
+                        if (v1->type == H64VALTYPE_INT64) {
+                            assert(v2->type == H64VALTYPE_FLOAT64);
+                            assert(v1->type == H64VALTYPE_INT64);
+                            if (unlikely(v2->float_value < 0.0 &&
+                                    clamped_round(tmpresult->float_value) <
+                                    v1->int_value)) {
+                                tmpresult->type = H64VALTYPE_INT64;
+                                tmpresult->int_value = v1->int_value;
+                            } else if (unlikely(v2->float_value > 0.0 &&
+                                    clamped_round(tmpresult->float_value) >
+                                    v1->int_value)) {
+                                tmpresult->type = H64VALTYPE_INT64;
+                                tmpresult->int_value = v1->int_value;
+                            }
+                        } else {
+                            assert(v1->type == H64VALTYPE_FLOAT64);
+                            assert(v2->type == H64VALTYPE_INT64);
+                            if (unlikely(v1->float_value < 0.0 &&
+                                    clamped_round(tmpresult->float_value) >
+                                    v2->int_value)) {
+                                tmpresult->type = H64VALTYPE_INT64;
+                                tmpresult->int_value = v2->int_value;
+                            } else if (unlikely(v1->float_value > 0.0 &&
+                                    clamped_round(tmpresult->float_value) <
+                                    v2->int_value)) {
+                                tmpresult->type = H64VALTYPE_INT64;
+                                tmpresult->int_value = v2->int_value;
+                            }
+                        }
                     }
                 } else {
                     if ((v2->int_value < 0 &&
