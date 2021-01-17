@@ -593,8 +593,8 @@ depending on a condition.
 Example:
 ```horse64
 func describe_list_size(list) {
-    return given list.len > 100 -> ("a large list" else "a small list")
-    # ^ will return "a large list" if the list is longer than 100 items,
+    return given list.len > 10 -> ("a large list" else "a small list")
+    # ^ will return "a large list" if the list is longer than 10 items,
     # otherwise it will return "a small list".
 }
 ```
