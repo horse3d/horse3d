@@ -647,6 +647,11 @@ The `number` type has the following relevant properties:
 - Numbers support fractional values. However, the precision
   for higher numbers is better if you keep them non-fractional.
 
+- There is no infinity, no "not a number", or any other
+  special value types. Any math operation that doesn't produce
+  a regular number (like division by zero) will return a
+  `MathError`.
+
 **More info on number precision:** As an implementation
 detail, the runtime will try to keep horse64's `number`s as
 64bit integer (C's `int64_t`) unless forced to migrate a
