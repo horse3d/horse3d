@@ -584,6 +584,28 @@ function terminates](Horse64%20Concurrency.md#await).
 Horse64%20Concurrency.md)
 
 
+## given (ternary operator)
+
+The `given` inline expression allows you to have a quick
+inline value conditional that evaluates to a different value
+depending on a condition.
+
+Example:
+```horse64
+func describe_list_size(list) {
+    return given list.len > 100 -> ("a large list" else "a small list")
+    # ^ will return "a large list" if the list is longer than 100 items,
+    # otherwise it will return "a small list".
+}
+```
+
+The `given` expression can be used instead of any regular inline value,
+although we recommend to not overuse this mechanism. If the condition
+is checked in many places in a similar way, you might want to use
+a function declared once in a central place instead, for the sake of
+cleaner code.
+
+
 ## Datatypes
 
 Horse64 is mostly inspired by Python in its core semantics,
