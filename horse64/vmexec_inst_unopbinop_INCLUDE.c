@@ -87,7 +87,7 @@ inst_binop: {
                     }
                     tmpresult->type = H64VALTYPE_FLOAT64;
                     tmpresult->float_value = (v1no / v2no);
-                    if (unlikely(snan(tmpresult->float_value) ||
+                    if (unlikely(isnan(tmpresult->float_value) ||
                             v2no == 0)) {
                         divisionbyzero = 1;
                     } else if (unlikely(
