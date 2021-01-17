@@ -658,7 +658,9 @@ detail, the runtime will try to keep horse64's `number`s as
 value to a 64bit float (C's `double`). For example, a
 division result will be represented and returned as an
 `int64_t` if non-fractional, and only otherwise as `double`.
-Note that `double` type of C has poor precision
+In both cases `type(your_number)` will return `"number"` in
+Horse64, so this difference is only relevant for the following
+practical consideration: the `double` type of C has poor precision
 outside of `-4503599627370496` to `+4503599627370496`,
 so for large values you are advised to stick to non-fractionals
 or expect very inaccurate results.
