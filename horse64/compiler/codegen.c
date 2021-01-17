@@ -3825,6 +3825,10 @@ int _codegencallback_DoCodegen_visit_in(
     } else if (expr->type == H64EXPRTYPE_GIVEN) {
         rinfo->dont_descend_visitation = 1;
 
+        int tmp_result = new1linetemp(
+            func, expr, 1
+        );
+
         int32_t jumpid_false = (
             func->funcdef._storageinfo->jump_targets_used
         );
@@ -3876,6 +3880,19 @@ int _codegencallback_DoCodegen_visit_in(
         if (!result)
             return 0;
 
+        if (expr->given.valueyes->storage.eval_temp_id != tmp_result) {
+            h64instruction_valuecopy inst_vc = {0};
+            inst_vc.type = H64INST_VALUECOPY;
+            inst_vc.slotfrom = expr->given.valueyes->storage.eval_temp_id;
+            inst_vc.slotto = tmp_result;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr, &inst_vc
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+
         h64instruction_jump inst_jump = {0};
         inst_jump.type = H64INST_JUMP;
         inst_jump.jumpbytesoffset = jumpid_end;
@@ -3908,6 +3925,19 @@ int _codegencallback_DoCodegen_visit_in(
         if (!result)
             return 0;
 
+        if (expr->given.valueno->storage.eval_temp_id != tmp_result) {
+            h64instruction_valuecopy inst_vc = {0};
+            inst_vc.type = H64INST_VALUECOPY;
+            inst_vc.slotfrom = expr->given.valueno->storage.eval_temp_id;
+            inst_vc.slotto = tmp_result;
+            if (!appendinst(
+                    rinfo->pr->program, func, expr, &inst_vc
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+
         h64instruction_jumptarget inst_jumptarget2 = {0};
         inst_jumptarget2.type = H64INST_JUMPTARGET;
         inst_jumptarget2.jumpid = jumpid_end;
@@ -3919,6 +3949,7 @@ int _codegencallback_DoCodegen_visit_in(
         }
 
         rinfo->dont_descend_visitation = 1;
+        expr->storage.eval_temp_id = tmp_result;
         return 1;
     } else if (expr->type == H64EXPRTYPE_IF_STMT) {
         rinfo->dont_descend_visitation = 1;

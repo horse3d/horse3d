@@ -469,6 +469,24 @@ START_TEST (test_overflowint)
 }
 END_TEST
 
+START_TEST(test_given)
+{
+    runprog(
+        "test_given",
+        "func describe_list_size(list) {\n"
+        "    return given list.len > 100 -> ('a large list' else 'a small list')\n"
+        "    # ^ will return 'a large list' if the list is longer than 100 items,\n"
+        "    # otherwise it will return 'a small list'.\n"
+        "}\n"
+        "func main {\n"
+        "    print(describe_list_size([1, 2]))\n"
+        "    return true\n"
+        "}\n",
+        0
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_fibonacci2,
     test_simpleclass, test_attributeerrors,
@@ -476,6 +494,7 @@ TESTS_MAIN(
     test_memberaccesschain,
     test_unicodestrlen, test_numberslist,
     test_uri, test_conditionals, test_conditionals2,
-    test_assert1, test_assert2, test_map, test_overflowint
+    test_assert1, test_assert2, test_map, test_overflowint,
+    test_given
 )
 
