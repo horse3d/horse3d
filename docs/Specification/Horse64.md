@@ -698,7 +698,7 @@ functions:
   key to be removed.
 
 
-### Runtime quirks:
+### Datatype Runtime quirks
 
 Please note there are more hidden differentiations in the
 [horsevm runtime](../Misc%20Tooling/horsevm.md) which
@@ -712,20 +712,14 @@ Please note there are more hidden differentiations in the
   instance.
 
 - A function can also be a closure, indirectly causing
-  garbage collector loads through variables captured by
-  reference.
+  garbage collector load through captured values. A
+  reference to a non-closure causes no GC load.
 
-- A hidden special value indicates a keyword argument
-  not being set. This is never exposed to the user outside
-  of bugs.
-
-- Short strings internally have a different type to cut
-  down on allocations and indirections. Longer strings,
-  even if semantically passed by value, actually are kept
-  as a reference type internally to save on memory and copies.
-  But since they cannot reference each other in cycles, they
-  will not increase garbage to be collected - although they will
-  increase the memory graph the GC traverses.
+- Strings and bytes internally different types depending
+  on e.g. length, to cut down on allocations and indirections
+  for short items. Generally, only longer strings will
+  increase the heap graph to be traversed (which can slightly
+  slow the GC), and short ones will be in-place on the stack.
 
 - Numbers internally can be either a 64bit integer, or
   a 64bit floating point value, also see [the section
