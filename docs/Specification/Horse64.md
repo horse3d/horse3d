@@ -611,7 +611,8 @@ to the same underlying data object:
   assigning values of this type to a new variable will create
   a copy, while "no" means it will instead assign "by reference"
   with all created values just referring to the same underlying
-  original object.*
+  original object. All by-value types are also immutable (any
+  modification will return a new copy).*
 
 - **GC'ed** *column: A "yes" entry means any new
   instance of the given data type will cause garbage
@@ -633,6 +634,30 @@ details](./Horse64%20Grammar.md#grammar). Object instances
 can only be created via the `new` operator, or otherwise
 must be specified by identifier - there is no inline
 constructor.
+
+### Numbers
+
+The `number` type has the following relevant properties:
+
+- Numbers in Horse64 are limited to the range
+  `-9223372036854775808` to `+9223372036854775807`, and
+  any math operation (like addition, multiplication, ...)
+  that exceeds this will cause an `OverflowError`.
+
+- Numbers support fractional values. However, the precision
+  for higher numbers is better if you keep them non-fractional.
+
+**More info on number precision:** As an implementation
+detail, the runtime will try to keep horse64's `number`s as
+64bit integer (C's `int64_t`) unless forced to migrate a
+value to a 64bit float (C's `double`). For example, a
+division result will be represented and returned as an
+`int64_t` if non-fractional, and only otherwise as `double`.
+Note that `double` type of C has poor precision
+outside of `-4503599627370496` to `+4503599627370496`,
+so for large values you are advised to stick to non-fractionals
+or expect very inaccurate results.
+
 
 **Containers:**
 
