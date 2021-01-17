@@ -791,7 +791,7 @@ int vmschedule_ExecuteProgram(
     _waited_for_socklist_supervisorPREmutex = mutex_Create();
     if (!_waited_for_socklist_mutex) {
         h64fprintf(stderr, "horsevm: error: vmschedule.c: "
-            " out of memory creating _waited_for_socklist_mutex "
+            "out of memory creating _waited_for_socklist_mutex "
             "or _waited_for_socklist_mutex\n");
         return -1;
     }
@@ -801,7 +801,7 @@ int vmschedule_ExecuteProgram(
     );
     if (!_waited_for_socklist_supervisorunlockevent) {
         h64fprintf(stderr, "horsevm: error: vmschedule.c: "
-            " out of memory creating "
+            "out of memory creating "
             "_waited_for_socklist_supervisorunlockevent\n");
         return -1;
     }
@@ -809,7 +809,7 @@ int vmschedule_ExecuteProgram(
     h64vmexec *mainexec = vmexec_New();
     if (!mainexec) {
         h64fprintf(stderr, "horsevm: error: vmschedule.c: "
-            " out of memory in vmexec_New() during setup\n");
+            "out of memory in vmexec_New() during setup\n");
         return -1;
     }
     assert(mainexec->worker_overview != NULL);
@@ -819,7 +819,7 @@ int vmschedule_ExecuteProgram(
         );
         if (!mainexec->worker_overview->worker_mutex) {
              h64fprintf(stderr, "horsevm: error: vmschedule.c: "
-                " out of memory in mutex_Create() during setup\n");
+                "out of memory in mutex_Create() during setup\n");
             return -1;
         }
     }
@@ -836,6 +836,69 @@ int vmschedule_ExecuteProgram(
     vmthread_SetSuspendState(
         mainthread, SUSPENDTYPE_ASYNCCALLSCHEDULED, -1
     );
+
+    // Before we run anything, we need to convert all globals that use
+    // H64VALTYPE_CONSTPREALLOCSTR into a proper VM string:
+    int i = 0;
+    while (i < pr->globalvar_count) {
+        if (pr->globalvar[i].content.type ==
+                H64VALTYPE_CONSTPREALLOCBYTES) {
+            uint8_t *dupstr = malloc(
+                pr->globalvar[i].content.constpreallocbytes_len
+            );
+            if (!dupstr) {
+                h64fprintf(stderr, "horsevm: error: vmschedule.c: "
+                    "out of memory in preallocbytes duplication "
+                    "during setup\n");
+                return -1;
+            }
+            memcpy(
+                dupstr,
+                pr->globalvar[i].content.constpreallocbytes_value,
+                pr->globalvar[i].content.constpreallocbytes_len
+            );
+            int result = valuecontent_SetBytesU8(
+                mainthread, &pr->globalvar[i].content,
+                dupstr, pr->globalvar[i].content.constpreallocbytes_len
+            );
+            free(dupstr);
+            if (!result) {
+                h64fprintf(stderr, "horsevm: error: vmschedule.c: "
+                    "out of memory in preallocbytes duplication "
+                    "during setup\n");
+                return -1;
+            }
+        } else if (pr->globalvar[i].content.type ==
+                H64VALTYPE_CONSTPREALLOCSTR) {
+            h64wchar *dupstr = malloc(
+                pr->globalvar[i].content.constpreallocstr_len *
+                    sizeof(*dupstr)
+            );
+            if (!dupstr) {
+                h64fprintf(stderr, "horsevm: error: vmschedule.c: "
+                    "out of memory in preallocstr duplication "
+                    "during setup\n");
+                return -1;
+            }
+            memcpy(
+                dupstr, pr->globalvar[i].content.constpreallocstr_value,
+                pr->globalvar[i].content.constpreallocstr_len *
+                    sizeof(*dupstr)
+            );
+            int result = valuecontent_SetStringU32(
+                mainthread, &pr->globalvar[i].content,
+                dupstr, pr->globalvar[i].content.constpreallocstr_len
+            );
+            free(dupstr);
+            if (!result) {
+                h64fprintf(stderr, "horsevm: error: vmschedule.c: "
+                    "out of memory in preallocstr duplication "
+                    "during setup\n");
+                return -1;
+            }
+        }
+        i++;
+    }
 
     assert(pr->main_func_index >= 0);
     memcpy(&mainexec->moptions, moptions, sizeof(*moptions));
@@ -923,7 +986,7 @@ int vmschedule_ExecuteProgram(
     // Spawn all threads other than main thread (that will be us!):
     worker_count = mainexec->worker_overview->worker_count;
     int threaderror = 0;
-    int i = 0;
+    i = 0;
     while (i < worker_count) {
         mainexec->worker_overview->worker[i]->no = i;
         mainexec->worker_overview->worker[i]->moptions = moptions;

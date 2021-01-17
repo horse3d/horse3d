@@ -600,7 +600,49 @@ static int _codegen_call_to(
                     return 0;
                 }
                 // Unknown keyword arg, so hardcode an error:
-                assert(0);
+                const char errmsg[] = (
+                    "called func does not recognize all passed "
+                    "keyword arguments"
+                );
+                h64wchar *msg = NULL;
+                int64_t msglen = 0;
+                msg = utf8_to_utf32(
+                    errmsg, strlen(errmsg), NULL, NULL, &msglen
+                );
+                if (!msg) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
+                int temp2 = new1linetemp(
+                    func, callexpr, 0
+                );
+                h64instruction_setconst inst_str = {0};
+                inst_str.type = H64INST_SETCONST;
+                inst_str.slot = temp2;
+                inst_str.content.type = H64VALTYPE_CONSTPREALLOCSTR;
+                inst_str.content.constpreallocstr_len = msglen;
+                inst_str.content.constpreallocstr_value = msg;
+                if (!appendinst(
+                        rinfo->pr->program, func,
+                        callexpr->inlinecall.arguments.arg_value[i],
+                        &inst_str
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    free(msg);
+                    return 0;
+                }
+                h64instruction_raise inst_raise = {0};
+                inst_raise.type = H64INST_RAISE;
+                inst_raise.error_class_id = H64STDERROR_ARGUMENTERROR;
+                inst_raise.sloterrormsgobj = temp2;
+                if (!appendinst(
+                        rinfo->pr->program, func,
+                        callexpr->inlinecall.arguments.arg_value[i],
+                        &inst_raise
+                        )) {
+                    rinfo->hadoutofmemory = 1;
+                    return 0;
+                }
             } else {
                 h64instruction_setconst inst_setconst = {0};
                 inst_setconst.type = H64INST_SETCONST;
@@ -1383,6 +1425,7 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_FOR_STMT ||
             expr->type == H64EXPRTYPE_WITH_STMT ||
             expr->type == H64EXPRTYPE_RAISE_STMT ||
+            expr->type == H64EXPRTYPE_GIVEN ||
             (expr->type == H64EXPRTYPE_UNARYOP &&
              expr->op.optype == H64OP_NEW)) {
         // Already handled in visit_in
@@ -3777,6 +3820,104 @@ int _codegencallback_DoCodegen_visit_in(
         }
 
         freemultilinetemp(func, itertemp);
+        rinfo->dont_descend_visitation = 1;
+        return 1;
+    } else if (expr->type == H64EXPRTYPE_GIVEN) {
+        rinfo->dont_descend_visitation = 1;
+
+        int32_t jumpid_false = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+
+        rinfo->dont_descend_visitation = 1;
+        int32_t jumpid_end = (
+            func->funcdef._storageinfo->jump_targets_used
+        );
+        func->funcdef._storageinfo->jump_targets_used++;
+
+        rinfo->dont_descend_visitation = 0;
+        int result = ast_VisitExpression(
+            expr->given.condition, expr,
+            &_codegencallback_DoCodegen_visit_in,
+            &_codegencallback_DoCodegen_visit_out,
+            _asttransform_cancel_visit_descend_callback,
+            rinfo
+        );
+        rinfo->dont_descend_visitation = 1;
+        if (!result)
+            return 0;
+
+        h64instruction_condjump inst_condjump = {0};
+        inst_condjump.type = H64INST_CONDJUMP;
+        inst_condjump.conditionalslot = (
+            expr->given.condition->storage.eval_temp_id
+        );
+        inst_condjump.jumpbytesoffset = (
+            jumpid_false
+        );
+        assert(inst_condjump.jumpbytesoffset >= 0);
+        if (!appendinst(
+                rinfo->pr->program, func, expr, &inst_condjump
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        rinfo->dont_descend_visitation = 0;
+        result = ast_VisitExpression(
+            expr->given.valueyes, expr,
+            &_codegencallback_DoCodegen_visit_in,
+            &_codegencallback_DoCodegen_visit_out,
+            _asttransform_cancel_visit_descend_callback,
+            rinfo
+        );
+        rinfo->dont_descend_visitation = 1;
+        if (!result)
+            return 0;
+
+        h64instruction_jump inst_jump = {0};
+        inst_jump.type = H64INST_JUMP;
+        inst_jump.jumpbytesoffset = jumpid_end;
+        if (!appendinst(
+                rinfo->pr->program, func, expr, &inst_jump
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        h64instruction_jumptarget inst_jumptarget = {0};
+        inst_jumptarget.type = H64INST_JUMPTARGET;
+        inst_jumptarget.jumpid = jumpid_false;
+        if (!appendinst(
+                rinfo->pr->program, func, expr, &inst_jumptarget
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
+        rinfo->dont_descend_visitation = 0;
+        result = ast_VisitExpression(
+            expr->given.valueno, expr,
+            &_codegencallback_DoCodegen_visit_in,
+            &_codegencallback_DoCodegen_visit_out,
+            _asttransform_cancel_visit_descend_callback,
+            rinfo
+        );
+        rinfo->dont_descend_visitation = 1;
+        if (!result)
+            return 0;
+
+        h64instruction_jumptarget inst_jumptarget2 = {0};
+        inst_jumptarget2.type = H64INST_JUMPTARGET;
+        inst_jumptarget2.jumpid = jumpid_end;
+        if (!appendinst(
+                rinfo->pr->program, func, expr, &inst_jumptarget2
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+
         rinfo->dont_descend_visitation = 1;
         return 1;
     } else if (expr->type == H64EXPRTYPE_IF_STMT) {

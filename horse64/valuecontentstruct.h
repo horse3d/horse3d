@@ -95,6 +95,12 @@ int valuecontent_SetStringU32(
     h64wchar *u32, int64_t u32len
 );
 
+int valuecontent_SetBytesU8(
+    h64vmthread *vmthread, valuecontent *v,
+    uint8_t *bytes, int64_t byteslen
+);
+
+
 uint32_t valuecontent_Hash(
     valuecontent *v
 );

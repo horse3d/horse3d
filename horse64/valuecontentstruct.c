@@ -20,6 +20,52 @@
 #include "widechar.h"
 
 
+int valuecontent_SetBytesU8(
+        h64vmthread *vmthread, valuecontent *v,
+        uint8_t *bytes, int64_t byteslen
+        ) {
+    valuecontent_Free(v);
+    memset(v, 0, sizeof(*v));
+
+    if (byteslen < VALUECONTENT_SHORTBYTESLEN) {
+        v->type = H64VALTYPE_SHORTBYTES;
+        if (byteslen > 0)
+            memcpy(
+                v->shortbytes_value, bytes,
+                byteslen * sizeof(h64wchar)
+            );
+        v->shortstr_len = byteslen;
+        return 1;
+    }
+
+    v->type = H64VALTYPE_GCVAL;
+    v->ptr_value = poolalloc_malloc(
+        vmthread->heap, 0
+    );
+    if (!v->ptr_value) {
+        v->type = H64VALTYPE_NONE;
+        return 0;
+    }
+    h64gcvalue *gcstr = v->ptr_value;
+    memset(gcstr, 0, sizeof(*gcstr));
+    int result = vmbytes_AllocBuffer(
+        vmthread, &gcstr->bytes_val, byteslen
+    );
+    if (!result) {
+        poolalloc_free(vmthread->heap, v->ptr_value);
+        v->ptr_value = NULL;
+        v->type = H64VALTYPE_NONE;
+        return 0;
+    }
+    memcpy(
+        gcstr->bytes_val.s, bytes,
+        sizeof(*bytes) * byteslen
+    );
+    gcstr->type = H64GCVALUETYPE_BYTES;
+    return 1;
+}
+
+
 int valuecontent_SetStringU32(
         h64vmthread *vmthread, valuecontent *v,
         h64wchar *s, int64_t slen
