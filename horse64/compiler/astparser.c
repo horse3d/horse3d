@@ -2031,6 +2031,7 @@ int ast_ParseExprInline(
                     itemname = _nm_map;
                     ismap = 1;
                     islist = 0;
+                    isset = 0;
                 }
                 i = 0;
             }
