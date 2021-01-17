@@ -30,8 +30,10 @@ func request(target, method="GET", insecure=false,
             "target is not http or https uri"
         )
     }
-    if targendt.protocol.lower() == "http" and not insecure {
-        raise new ValueError("untrusted http target")
+    if target.protocol.lower() == "http" and not insecure {
+        raise new ValueError(
+            "cannot contact untrusted http target with insecure=false"
+        )
     }
     var conn = net.connect(
         target.path, target.port,
@@ -43,12 +45,12 @@ func request(target, method="GET", insecure=false,
     }
     conn.send(
         b"HTTP1/1 GET " +
-            (b"/" if not target.path.begins("/")) +
+            given not target.path.begins("/") -> (b"/" else b"") +
             target.path.as_bytes + b"\r\n" +
         headers.join(":", "\r\n").as_bytes + b"\r\n" +
         b"\r\n"
     )
-    result = conn.receive()
+    var result = conn.receive()
 }
 
 func get(target, insecure=false, bytes_result=true) {
