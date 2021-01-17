@@ -87,7 +87,8 @@ inst_binop: {
                     }
                     tmpresult->type = H64VALTYPE_FLOAT64;
                     tmpresult->float_value = (v1no / v2no);
-                    if (isnan(tmpresult->float_value) || v2no == 0) {
+                    if (unlikely(snan(tmpresult->float_value) ||
+                            v2no == 0)) {
                         divisionbyzero = 1;
                     } else if (unlikely(
                             !isfinite(tmpresult->float_value) ||
@@ -500,7 +501,8 @@ inst_binop: {
                     } else {
                         tmpresult->float_value = fmod(v1no, v2no);
                     }
-                    if (isnan(tmpresult->float_value) || v2no == 0) {
+                    if (unlikely(isnan(tmpresult->float_value) ||
+                            v2no == 0)) {
                         divisionbyzero = 1;
                     }
                 } else {
