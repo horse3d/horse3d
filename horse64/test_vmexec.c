@@ -417,6 +417,11 @@ START_TEST (test_map)
         "    } rescue TypeError {\n"
         "        # Expected branch.\n"
         "    }\n"
+        "    # Test complex map constructor:\n"
+        "    var complexmap = {1 -> [2, 3], 'hello' -> b'test'}\n"
+        "    assert(complexmap.len == 2)\n"
+        "    assert(complexmap[1].len == 2)\n"
+        "    assert(complexmap['hello'].len == 4)\n"
         "    return 0\n"
         "}",
         0

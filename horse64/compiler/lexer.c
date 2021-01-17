@@ -103,7 +103,7 @@ char *lexer_ParseStringLiteral(
     if (!p)
         return NULL;
     int k = 0;
-    int i = 1;
+    int i = 1 + (isbinary ? 1 : 0);
     while (i < (int)strlen(literal) - 1) {
         int charlen = 1;
         if (!isbinary)
@@ -576,14 +576,14 @@ h64tokenizedfile lexer_ParseFromFile(
                  (buffer[i + 1] == '"' || buffer[i + 1] == '\''))) {
             // This is a string or bytes literal.
             post_identifier_is_likely_func = 0;
-            unsigned char startc = c;
             int startcolumn = column;
             int startline = line;
             int isbinary = (c == 'b');
+            unsigned char startc = (isbinary ? buffer[i + 1] : c);
             i++;
             column++;
 
-            char *strbuf = malloc(8);
+            char *strbuf = malloc(32);
             if (!strbuf) {
                  result_ErrorNoLoc(
                     &result.resultmsg,
@@ -596,7 +596,7 @@ h64tokenizedfile lexer_ParseFromFile(
                 return result;
             }
             int hadinvaliderror = 0;
-            int stralloc = 8;
+            int stralloc = 32;
             int strbuflen = 0;
 
             strbuf[strbuflen] = c;

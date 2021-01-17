@@ -322,6 +322,13 @@ static h64wchar *_corelib_value_to_str_do(
             *outlen = c->shortstr_len;
             return buf;
         }
+        case H64VALTYPE_SHORTBYTES: {
+            if (buffree)
+                free(buf);
+            return _corelib_printbytes(
+                c->shortbytes_value, c->shortbytes_len, outlen
+            );
+        }
         case H64VALTYPE_INT64: {
             char nobuf[64];
             h64snprintf(nobuf, 64, "%" PRId64, c->int_value);
