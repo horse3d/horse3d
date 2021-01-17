@@ -670,11 +670,13 @@ or expect very inaccurate results.
 
 The types `list`, `vector`, `map`, `set` are all containers
 that can be used with a `for loop`, see [section on
-loops](#loops-while-for). All of them can old arbitrary
+loops](#loops-while-for). All of them can hold arbitrary
 items of any type (including nested containers) except
 for vectors, which can only hold values of a number type.
 It is valid to add two lists to each other, so cycles are
-permitted.
+permitted. You can index all containers for their contents,
+e.g. `container[1]` for the first contained item - for
+maps, you must specify the key as an index, however.
 
 Containers have the following special attributes for various
 functions:
@@ -682,8 +684,9 @@ functions:
 - `mycontainer.len`: returns the items inside the container
   (for a map, this is the amount of key -> value pairs)
 
-- `mycontainer.add`: for lists and sets, this adds a new item
-  into the container (it will be appended to the end for lists).
+- `mycontainer.add(item)`: for lists and sets, this adds a
+  new item into the container (it will be appended to the
+  end for lists, for sets inserted in arbitrary order).
 
   For maps, use set by index to add a key value
   pair: `map[k] = v`. Map keys must be immutable values.
@@ -691,11 +694,12 @@ functions:
   Vectors are immutable containers, so you cannot directly
   alter contents.
 
-- `mycontainer.remove`: for lists, this specifies an integer
-  index of the item to remove (which must be between 1, and
-  the `.len` of the list). For set, specify the item itself
-  in the set that you want to remove. For a map, specify the
-  key to be removed.
+- `mylist.remove(index)`/`myset.remove(item)`/
+  `mymap.remove(key)`: for lists,
+  this specifies an integer index of the item to remove
+  (which must be between 1, and the `.len` of the list).
+  For set, specify the item itself in the set that you want
+  to remove. For a map, specify the key to be removed.
 
 
 ### Datatype Runtime quirks
@@ -885,17 +889,19 @@ Attribute by identifier operator: `.` (dot).
 *(binary operator)*
 
 Example: `someitem.identifier`.
-The item can be any arbitrary expression, the identifier must
-be an actual identifier and not any other type of expression.
+
+The item can be any arbitrary expression.
 The operator can be applied on any item, even numbers or
 booleans or even none, but will raise an `AttributeError` if
-the given data type doesn't have this attribute. All
-data types have the `.as_str` attribute that returns a
-string representation. For object instances of classes, the
-according attributes as defined by the class are returned.
-Containers and strings have the `.len` attribute which
-returns the number of entries or letters in the string
-respectively.
+the given data type doesn't have this attribute.
+
+For object instances creted from your [classes](
+defining-custom-classes-class-new) via `new`, the attributes
+are as specified by your class. Beyond that, many values
+have special attributes, see the
+[data types section](#datatypes) for these. E.g., all
+values have the `.as_str` attribute that returns a string
+value representing them.
 
 **Call operator:**
 
