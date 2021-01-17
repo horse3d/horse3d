@@ -94,7 +94,7 @@ inst_binop: {
                             tmpresult->float_value > (double)INT64_MAX ||
                             tmpresult->float_value < (double)INT64_MIN)) {
                         RAISE_ERROR(
-                            H64STDERROR_MATHERROR,
+                            H64STDERROR_OVERFLOWERROR,
                             "number range overflow"
                         );
                         goto *jumptable[((h64instructionany *)p)->type];
@@ -246,7 +246,7 @@ inst_binop: {
                             // ^ reminder: double rounds to INT64_MAX + 1
                             tmpresult->float_value < (double)INT64_MIN)) {
                         RAISE_ERROR(
-                            H64STDERROR_MATHERROR,
+                            H64STDERROR_OVERFLOWERROR,
                             "number range overflow"
                         );
                         goto *jumptable[((h64instructionany *)p)->type];
@@ -301,7 +301,7 @@ inst_binop: {
                             (v2->int_value < 0 &&
                              v1->int_value < INT64_MIN - v2->int_value))) {
                         RAISE_ERROR(
-                            H64STDERROR_MATHERROR,
+                            H64STDERROR_OVERFLOWERROR,
                             "number range overflow"
                         );
                         goto *jumptable[((h64instructionany *)p)->type];
@@ -344,7 +344,7 @@ inst_binop: {
                             tmpresult->float_value > (double)INT64_MAX ||
                             tmpresult->float_value < (double)INT64_MIN)) {
                         RAISE_ERROR(
-                            H64STDERROR_MATHERROR,
+                            H64STDERROR_OVERFLOWERROR,
                             "number range overflow"
                         );
                         goto *jumptable[((h64instructionany *)p)->type];
@@ -387,7 +387,7 @@ inst_binop: {
                             (v2->int_value >= 0 &&
                              v1->int_value < INT64_MIN + v2->int_value)) {
                         RAISE_ERROR(
-                            H64STDERROR_MATHERROR,
+                            H64STDERROR_OVERFLOWERROR,
                             "number range overflow"
                         );
                         goto *jumptable[((h64instructionany *)p)->type];
@@ -435,7 +435,7 @@ inst_binop: {
                             tmpresult->float_value > (double)INT64_MAX ||
                             tmpresult->float_value < (double)INT64_MIN)) {
                         RAISE_ERROR(
-                            H64STDERROR_MATHERROR,
+                            H64STDERROR_OVERFLOWERROR,
                             "number range overflow"
                         );
                         goto *jumptable[((h64instructionany *)p)->type];
@@ -450,7 +450,7 @@ inst_binop: {
                                 tmpresult->int_value / v1->int_value !=
                                 v2->int_value)) {
                             RAISE_ERROR(
-                                H64STDERROR_MATHERROR,
+                                H64STDERROR_OVERFLOWERROR,
                                 "number range overflow"
                             );
                             goto *jumptable[((h64instructionany *)p)->type];
@@ -914,7 +914,7 @@ inst_binop: {
             if (v1->type == H64VALTYPE_FLOAT64) {
                 if (unlikely(v1->int_value < -INT64_MAX)) {
                     RAISE_ERROR(
-                        H64STDERROR_MATHERROR,
+                        H64STDERROR_OVERFLOWERROR,
                         "number range overflow"
                     );
                     goto *jumptable[((h64instructionany *)p)->type];
@@ -924,7 +924,7 @@ inst_binop: {
             } else if (v1->type == H64VALTYPE_INT64) {
                 if (unlikely(v1->int_value == INT64_MIN)) {
                     RAISE_ERROR(
-                        H64STDERROR_MATHERROR,
+                        H64STDERROR_OVERFLOWERROR,
                         "number range overflow"
                     );
                     goto *jumptable[((h64instructionany *)p)->type];
