@@ -758,6 +758,52 @@ int ast_ParseExprInlineOperator_Recurse(
                 break;
             }
         }
+        // Special skip over "given" expressions:
+        if (bracket_depth <= 0) {
+            if (tokens[i].type == H64TK_KEYWORD &&
+                    strcmp(tokens[i].str_value, "given") == 0) {
+                int givennesting = 1;
+                // Special: the given expression's conditional can
+                // contain operators. We need to skip past all those,
+                // since they count as nested.
+                int bdepth = bracket_depth;
+                i++;
+                while (i < max_tokens_touse) {
+                    if ((tokens[i].type == H64TK_BRACKET && (
+                            tokens[i].char_value == '(' ||
+                            tokens[i].char_value == '[' ||
+                            tokens[i].char_value == '{')) ||
+                            (tokens[i].type == H64TK_BINOPSYMBOL &&
+                            (tokens[i].int_value == H64OP_CALL ||
+                            tokens[i].int_value == H64OP_INDEXBYEXPR))) {
+                        bdepth++;
+                    } else if (tokens[i].type == H64TK_BRACKET && (
+                            tokens[i].char_value == ')' ||
+                            tokens[i].char_value == ']' ||
+                            tokens[i].char_value == '}')) {
+                        bdepth--;
+                        if (bdepth < bracket_depth)
+                            break;
+                        i++;
+                        continue;
+                    }
+                    if (bdepth <= bracket_depth) {
+                        if (tokens[i].type == H64TK_KEYWORD &&
+                                strcmp(tokens[i].str_value, "given") == 0) {
+                            givennesting++;
+                        } else if (tokens[i].type == H64TK_MAPARROW) {
+                            givennesting--;
+                            if (givennesting <= 0) {
+                                i++;
+                                break;
+                            }
+                        }
+                    }
+                    i++;
+                }
+                continue;
+            }
+        }
         // Bracket handling:
         int is_bracket_op = 0;
         const int is_bracket_like = (
@@ -1939,6 +1985,7 @@ int ast_ParseExprInline(
                 return 0;
             }
             assert(innerexpr != NULL);
+            innerexpr->parent = expr->parent;
             ast_MarkExprDestroyed(expr);
             expr = innerexpr;
             i += tlen;
@@ -1972,6 +2019,317 @@ int ast_ParseExprInline(
             *out_tokenlen = i;
             if (parsefail) *parsefail = 0;
             if (outofmemory) *outofmemory = 0;
+            return 1;
+        } else if (tokens[0].type == H64TK_KEYWORD &&
+                strcmp(tokens[0].str_value, "given") == 0) {
+            expr->type = H64EXPRTYPE_GIVEN;
+            int conditionindex = -1;
+            int i = 1;
+            {
+                int tlen = 0;
+                h64expression *innerexpr = NULL;
+                int inneroom = 0;
+                int innerparsefail = 0;
+                h64parsethis _buf;
+                if (!ast_ParseExprInline(
+                        context, newparsethis(
+                            &_buf, parsethis, tokens + i,
+                            max_tokens_touse - i
+                        ),  // get conditional of 'given' expression
+                        INLINEMODE_GREEDY,
+                        &innerparsefail, &inneroom,
+                        &innerexpr, &tlen, nestingdepth
+                        )) {
+                    if (inneroom) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_MarkExprDestroyed(expr);
+                        return 0;
+                    } else if (innerparsefail) {
+                        if (parsefail) *parsefail = 1;
+                        if (outofmemory) *outofmemory = 0;
+                        ast_MarkExprDestroyed(expr);
+                        return 0;
+                    }
+                    // Nothing was inside the brackets, this is invalid:
+                    char buf[256]; char describebuf[64];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected %s, "
+                        "expected condition for \"given\" expression "
+                        "in line %" PRId64 ", column %" PRId64
+                        " instead",
+                        _describetoken(describebuf,
+                            context->tokenstreaminfo, tokens, i),
+                        _refline(context->tokenstreaminfo, tokens, 0),
+                        _refcol(context->tokenstreaminfo, tokens, 0)
+                    );
+                    if (outofmemory) *outofmemory = 0;
+                    if (parsefail) *parsefail = 1;
+                    if (!result_AddMessage(
+                            context->resultmsg,
+                            H64MSG_ERROR, buf, fileuri,
+                            _refline(context->tokenstreaminfo,
+                            tokens, i),
+                            _refcol(context->tokenstreaminfo,
+                            tokens, i)
+                            )) {
+                        if (outofmemory) *outofmemory = 1;
+                        if (parsefail) *parsefail = 0;
+                    }
+                    ast_MarkExprDestroyed(expr);
+                    return 0;
+                }
+                expr->given.condition = innerexpr;
+                conditionindex = i;
+                i += tlen;
+            }
+            if (i >= max_tokens_touse ||
+                    tokens[i].type != H64TK_MAPARROW) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected \"->\" following "
+                    "\"given\" conditional "
+                    "in line %" PRId64 ", column %" PRId64
+                    " instead",
+                    _describetoken(describebuf,
+                        context->tokenstreaminfo, tokens, i),
+                    _refline(context->tokenstreaminfo,
+                        tokens, conditionindex),
+                    _refcol(context->tokenstreaminfo,
+                        tokens, conditionindex)
+                );
+                if (outofmemory) *outofmemory = 0;
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo,
+                        tokens, i),
+                        _refcol(context->tokenstreaminfo,
+                        tokens, i)
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 0;
+                }
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            i++;
+            if (i >= max_tokens_touse ||
+                    tokens[i].type != H64TK_BRACKET ||
+                    tokens[i].char_value != '(') {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected \"(\" following \"->\" for "
+                    "return values for "
+                    "\"given\" expression "
+                    "in line %" PRId64 ", column %" PRId64
+                    " instead",
+                    _describetoken(describebuf,
+                        context->tokenstreaminfo, tokens, i),
+                    _refline(context->tokenstreaminfo,
+                        tokens, 0),
+                    _refcol(context->tokenstreaminfo,
+                        tokens, 0)
+                );
+                if (outofmemory) *outofmemory = 0;
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo,
+                        tokens, i),
+                        _refcol(context->tokenstreaminfo,
+                        tokens, i)
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 0;
+                }
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            int openbracketidx = i;
+            i++;
+            {
+                int tlen = 0;
+                h64expression *innerexpr = NULL;
+                int inneroom = 0;
+                int innerparsefail = 0;
+                h64parsethis _buf;
+                if (!ast_ParseExprInline(
+                        context, newparsethis(
+                            &_buf, parsethis, tokens + i,
+                            max_tokens_touse - i
+                        ),  // get true value of 'given' expression
+                        INLINEMODE_GREEDY,
+                        &innerparsefail, &inneroom,
+                        &innerexpr, &tlen, nestingdepth
+                        )) {
+                    if (inneroom) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_MarkExprDestroyed(expr);
+                        return 0;
+                    } else if (innerparsefail) {
+                        if (parsefail) *parsefail = 1;
+                        if (outofmemory) *outofmemory = 0;
+                        ast_MarkExprDestroyed(expr);
+                        return 0;
+                    }
+                    // Nothing was inside the brackets, this is invalid:
+                    char buf[256]; char describebuf[64];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected %s, "
+                        "expected true result value for \"given\" "
+                        "in line %" PRId64 ", column %" PRId64
+                        " instead",
+                        _describetoken(describebuf,
+                            context->tokenstreaminfo, tokens, i),
+                        _refline(context->tokenstreaminfo, tokens, 0),
+                        _refcol(context->tokenstreaminfo, tokens, 0)
+                    );
+                    if (!result_AddMessage(
+                            context->resultmsg,
+                            H64MSG_ERROR, buf, fileuri,
+                            _refline(context->tokenstreaminfo,
+                            tokens, i - 1),
+                            _refcol(context->tokenstreaminfo,
+                            tokens, i - 1)
+                            ))
+                        if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 1;
+                    ast_MarkExprDestroyed(expr);
+                    return 0;
+                }
+                expr->given.valueyes = innerexpr;
+                i += tlen;
+            }
+            if (i >= max_tokens_touse ||
+                    tokens[i].type != H64TK_KEYWORD ||
+                    strcmp(tokens[i].str_value, "else") != 0) {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected \"else\" for "
+                    " \"given\" expression "
+                    "in line %" PRId64 ", column %" PRId64
+                    " instead",
+                    _describetoken(describebuf,
+                        context->tokenstreaminfo, tokens, i),
+                    _refline(context->tokenstreaminfo,
+                        tokens, 0),
+                    _refcol(context->tokenstreaminfo,
+                        tokens, 0)
+                );
+                if (outofmemory) *outofmemory = 0;
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo,
+                        tokens, i),
+                        _refcol(context->tokenstreaminfo,
+                        tokens, i)
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 0;
+                }
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            i++;
+            {
+                int tlen = 0;
+                h64expression *innerexpr = NULL;
+                int inneroom = 0;
+                int innerparsefail = 0;
+                h64parsethis _buf;
+                if (!ast_ParseExprInline(
+                        context, newparsethis(
+                            &_buf, parsethis, tokens + i,
+                            max_tokens_touse - i
+                        ),  // get true value of 'given' expression
+                        INLINEMODE_GREEDY,
+                        &innerparsefail, &inneroom,
+                        &innerexpr, &tlen, nestingdepth
+                        )) {
+                    if (inneroom) {
+                        if (outofmemory) *outofmemory = 1;
+                        ast_MarkExprDestroyed(expr);
+                        return 0;
+                    } else if (innerparsefail) {
+                        if (parsefail) *parsefail = 1;
+                        if (outofmemory) *outofmemory = 0;
+                        ast_MarkExprDestroyed(expr);
+                        return 0;
+                    }
+                    // Nothing was inside the brackets, this is invalid:
+                    char buf[256]; char describebuf[64];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unexpected %s, "
+                        "expected false result value for \"given\" "
+                        "in line %" PRId64 ", column %" PRId64
+                        " instead",
+                        _describetoken(describebuf,
+                            context->tokenstreaminfo, tokens, i),
+                        _refline(context->tokenstreaminfo, tokens, 0),
+                        _refcol(context->tokenstreaminfo, tokens, 0)
+                    );
+                    if (!result_AddMessage(
+                            context->resultmsg,
+                            H64MSG_ERROR, buf, fileuri,
+                            _refline(context->tokenstreaminfo,
+                            tokens, i - 1),
+                            _refcol(context->tokenstreaminfo,
+                            tokens, i - 1)
+                            ))
+                        if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 1;
+                    ast_MarkExprDestroyed(expr);
+                    return 0;
+                }
+                expr->given.valueno = innerexpr;
+                i += tlen;
+            }
+            if (i >= max_tokens_touse ||
+                    tokens[i].type != H64TK_BRACKET ||
+                    tokens[i].char_value != ')') {
+                char buf[256]; char describebuf[64];
+                snprintf(buf, sizeof(buf) - 1,
+                    "unexpected %s, "
+                    "expected closing \"(\" for "
+                    "return value opening bracket \"(\" "
+                    "opened "
+                    "in line %" PRId64 ", column %" PRId64
+                    " instead",
+                    _describetoken(describebuf,
+                        context->tokenstreaminfo, tokens, i),
+                    _refline(context->tokenstreaminfo,
+                        tokens, openbracketidx),
+                    _refcol(context->tokenstreaminfo,
+                        tokens, openbracketidx)
+                );
+                if (outofmemory) *outofmemory = 0;
+                if (parsefail) *parsefail = 1;
+                if (!result_AddMessage(
+                        context->resultmsg,
+                        H64MSG_ERROR, buf, fileuri,
+                        _refline(context->tokenstreaminfo,
+                        tokens, i),
+                        _refcol(context->tokenstreaminfo,
+                        tokens, i)
+                        )) {
+                    if (outofmemory) *outofmemory = 1;
+                    if (parsefail) *parsefail = 0;
+                }
+                ast_MarkExprDestroyed(expr);
+                return 0;
+            }
+            i++;
+            if (outofmemory) *outofmemory = 0;
+            if (parsefail) *parsefail = 0;
+            *out_expr = expr;
+            if (out_tokenlen) *out_tokenlen = i;
             return 1;
         } else if (tokens[0].type == H64TK_BRACKET &&
                 (tokens[0].char_value == '[' ||

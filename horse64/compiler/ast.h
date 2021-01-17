@@ -37,6 +37,7 @@ typedef enum h64expressiontype {
     H64EXPRTYPE_SET,
     H64EXPRTYPE_MAP,
     H64EXPRTYPE_VECTOR,
+    H64EXPRTYPE_GIVEN,
     H64EXPRTYPE_WITH_CLAUSE
 } h64expressiontype;
 
@@ -119,6 +120,11 @@ typedef struct h64expression {
             int stmt_count;
             h64expression **stmt;
         } withstmt;
+        struct given {
+            h64expression *condition;
+            h64expression *valueyes;
+            h64expression *valueno;
+        } given;
         struct withclause {
             h64scope *foundinscope;
             h64expression *withitem_value;

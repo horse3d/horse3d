@@ -20,8 +20,8 @@ typedef enum h64tokentype {
     H64TK_INVALID = 0,
     H64TK_IDENTIFIER = 1,
     H64TK_BRACKET,
-    H64TK_COMMA,
-    H64TK_COLON,
+    H64TK_COMMA,  // ,
+    H64TK_COLON,  // :
     H64TK_KEYWORD,
     H64TK_CONSTANT_INT,
     H64TK_CONSTANT_FLOAT,
@@ -31,8 +31,8 @@ typedef enum h64tokentype {
     H64TK_CONSTANT_BYTES,
     H64TK_BINOPSYMBOL,
     H64TK_UNOPSYMBOL,
-    H64TK_INLINEFUNC,
-    H64TK_MAPARROW
+    H64TK_INLINEFUNC,  // =>
+    H64TK_MAPARROW  // ->
 } h64tokentype;
 
 typedef struct h64token {
@@ -64,6 +64,7 @@ ATTR_UNUSED static char *h64keywords[] = {
     "new", "return", "in", "as",
     "protect", "deprecated", "unpack",
     "parallel", "nonparallel", "equals",
+    "given",
     NULL
 };
 

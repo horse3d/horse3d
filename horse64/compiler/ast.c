@@ -483,6 +483,32 @@ int ast_VisitExpression(
                 return 0;
         }
         break;
+    case H64EXPRTYPE_GIVEN:
+        if (expr->given.condition) {
+            if (!ast_VisitExpression(
+                    expr->given.condition, expr,
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
+                    ))
+                return 0;
+        }
+        if (expr->given.valueyes) {
+            if (!ast_VisitExpression(
+                    expr->given.valueyes, expr,
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
+                    ))
+                return 0;
+        }
+        if (expr->given.valueno) {
+            if (!ast_VisitExpression(
+                    expr->given.valueno, expr,
+                    visit_in, visit_out,
+                    cancel_visit_descend_callback, ud
+                    ))
+                return 0;
+        }
+        break;
     default:
         h64fprintf(stderr, "horsec: warning: internal issue, "
             "unhandled expression in ast_VisitExpression(): "
@@ -710,6 +736,9 @@ void ast_FreeExprNonpoolMembers(
         expr->withclause.withitem_identifier = NULL;
         break;
     }
+    case H64EXPRTYPE_GIVEN: {
+        break;
+    }
     default: {
         h64fprintf(stderr, "horsec: warning: internal issue, "
             "unhandled expression in "
@@ -814,6 +843,7 @@ static char _h64exprname_set[] = "H64EXPRTYPE_SET";
 static char _h64exprname_map[] = "H64EXPRTYPE_MAP";
 static char _h64exprname_vector[] = "H64EXPRTYPE_VECTOR";
 static char _h64exprname_with_clause[] = "H64EXPRTYPE_WITH_CLAUSE";
+static char _h64exprname_given[] = "H64EXPRTYPE_GIVEN";
 
 const char *ast_ExpressionTypeToStr(h64expressiontype type) {
     if (type == H64EXPRTYPE_INVALID || type <= 0)
@@ -869,6 +899,8 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_vector;
     case H64EXPRTYPE_WITH_CLAUSE:
         return _h64exprname_with_clause;
+    case H64EXPRTYPE_GIVEN:
+        return _h64exprname_given;
     default:
         return NULL;
     }
@@ -1080,6 +1112,28 @@ jsonvalue *ast_ExpressionToJSON(
             }
 
             current_clause = current_clause->followup_clause;
+        }
+    } else if (e->type == H64EXPRTYPE_GIVEN) {
+        jsonvalue *conditionval = ast_ExpressionToJSON(
+            e->given.condition, fileuri
+        );
+        if (!json_SetDict(v, "condition", conditionval)) {
+            json_Free(conditionval);
+            fail = 1;
+        }
+        jsonvalue *valueyes = ast_ExpressionToJSON(
+            e->given.valueyes, fileuri
+        );
+        if (!json_SetDict(v, "true-value", valueyes)) {
+            json_Free(conditionval);
+            fail = 1;
+        }
+        jsonvalue *valueno = ast_ExpressionToJSON(
+            e->given.valueno, fileuri
+        );
+        if (!json_SetDict(v, "false-value", valueno)) {
+            json_Free(conditionval);
+            fail = 1;
         }
     } else if (e->type == H64EXPRTYPE_WHILE_STMT) {
         jsonvalue *scopeval = scope_ScopeToJSON(&e->whilestmt.scope);
