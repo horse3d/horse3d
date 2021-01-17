@@ -596,7 +596,9 @@ jsonvalue *compiler_TokenizeToJSON(
         ) {
     h64tokenizedfile tfile = {0};
     {
-        uriinfo *fileuri_info = uri_ParseEx(fileuri, "file");
+        uriinfo *fileuri_info = uri_ParseEx(
+            fileuri, "file", URI_PARSEEX_FLAG_GUESSPORT
+        );
         if (!fileuri_info)
             return NULL;
         tfile = lexer_ParseFromFile(

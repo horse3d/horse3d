@@ -15,9 +15,13 @@ typedef struct uriinfo {
     char *path;
 } uriinfo;
 
+
+#define URI_PARSEEX_FLAG_GUESSPORT 0x1
+
 uriinfo *uri_ParseEx(
     const char *uri,
-    const char *default_remote_protocol
+    const char *default_remote_protocol,
+    int flags
 );
 
 uriinfo *uri_Parse(const char *uri);

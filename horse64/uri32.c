@@ -439,7 +439,8 @@ int uri32_CompareEx(
 uri32info *uri32_ParseEx(
         const h64wchar *uri, int64_t urilen,
         const h64wchar *default_remote_protocol,
-        int64_t default_remote_protocol_len
+        int64_t default_remote_protocol_len,
+        int flags
         ) {
     if (!uri)
         return NULL;
@@ -829,6 +830,26 @@ uri32info *uri32_ParseEx(
         uri32_Free(result);
         return NULL;
     }
+
+    // Guess port if we're asked to and none is set:
+    if (result->port < 0 &&
+            (flags & URI32_PARSEEX_FLAG_GUESSPORT) &&
+            result->protocol != NULL &&
+            result->protocollen > 0) {
+        h64wchar httpproto[] = {'h', 't', 't', 'p'};
+        h64wchar httpsproto[] = {'h', 't', 't', 'p', 's'};
+        if (h64casecmp_u32(
+                result->protocol, result->protocollen,
+                httpproto, strlen("http")
+                ) == 0)
+            result->port = 80;
+        else if (h64casecmp_u32(
+                result->protocol, result->protocollen,
+                httpsproto, strlen("https")
+                ) == 0)
+            result->port = 443;
+    }
+
     return result;
 }
 
@@ -836,7 +857,7 @@ uri32info *uri32_Parse(
         const h64wchar *uri, int64_t urilen
         ) {
     const h64wchar https_u32[] = {'h', 't', 't', 'p', 's'};
-    return uri32_ParseEx(uri, urilen, https_u32, strlen("https"));
+    return uri32_ParseEx(uri, urilen, https_u32, strlen("https"), 0);
 }
 
 h64wchar *uriencode(

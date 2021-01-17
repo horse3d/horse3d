@@ -154,7 +154,8 @@ int uri32info_to_uriinfo(
 
 uriinfo *uri_ParseEx(
         const char *uri,
-        const char *default_remote_protocol
+        const char *default_remote_protocol,
+        int flags
         ) {
     if (!uri)
         return NULL;
@@ -185,7 +186,7 @@ uriinfo *uri_ParseEx(
     }
 
     uri32info *result32 = uri32_ParseEx(
-        uriu32, uriu32len, protou32, protou32len
+        uriu32, uriu32len, protou32, protou32len, flags
     );
     free(uriu32);
     free(protou32);
@@ -211,7 +212,7 @@ uriinfo *uri_ParseEx(
 uriinfo *uri_Parse(
         const char *uri
         ) {
-    return uri_ParseEx(uri, "https");
+    return uri_ParseEx(uri, "https", 0);
 }
 
 char *uri_DumpEx(uriinfo *uinfo, int absolutefilepaths);

@@ -41,7 +41,9 @@ h64compileproject *compileproject_New(
     memset(pr, 0, sizeof(*pr));
     warningconfig_Init(&pr->warnconfig);
 
-    uriinfo *uinfo = uri_ParseEx(basefolderuri, "file");
+    uriinfo *uinfo = uri_ParseEx(
+        basefolderuri, "file", URI_PARSEEX_FLAG_GUESSPORT
+    );
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             h64casecmp(uinfo->protocol, "file") != 0) {
         uri_Free(uinfo);
@@ -95,7 +97,7 @@ uriinfo *compileproject_FilePathToURI(
     int _couldbevfs = 0;
     if (!strstr(fileuri, "://"))
         _couldbevfs = 1;
-    uriinfo *uinfo = uri_ParseEx(fileuri, "file");
+    uriinfo *uinfo = uri_ParseEx(fileuri, "file", URI_PARSEEX_FLAG_GUESSPORT);
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             (h64casecmp(uinfo->protocol, "file") != 0 &&
              h64casecmp(uinfo->protocol, "vfs") != 0)) {
@@ -214,7 +216,9 @@ uriinfo *compileproject_ToProjectRelPathURI(
     }
     int isvfs = 0;
     {
-        uriinfo *fileuri_info = uri_ParseEx(fileuri, "file");
+        uriinfo *fileuri_info = uri_ParseEx(
+            fileuri, "file", URI_PARSEEX_FLAG_GUESSPORT
+        );
         if (!fileuri_info) {
             if (outofmemory) *outofmemory = 1;
             return NULL;
@@ -419,7 +423,9 @@ uriinfo *compileproject_GetFileSubProjectURI(
         char **subproject_name, int *outofmemory
         ) {
     // Parse sourcefileuri given to us:
-    uriinfo *uinfo = uri_ParseEx(sourcefileuri, "file");
+    uriinfo *uinfo = uri_ParseEx(
+        sourcefileuri, "file", URI_PARSEEX_FLAG_GUESSPORT
+    );
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             (h64casecmp(uinfo->protocol, "file") != 0 &&
              h64casecmp(uinfo->protocol, "vfs") != 0)) {
@@ -581,7 +587,8 @@ uriinfo *compileproject_GetFileSubProjectURI(
                 }
                 // Ok, return as URI with protocol header stuff:
                 uriinfo *resulturi = uri_ParseEx(
-                    resultpath, (isvfs ? "vfs" : "file")
+                    resultpath, (isvfs ? "vfs" : "file"),
+                    URI_PARSEEX_FLAG_GUESSPORT
                 );
                 free(resultpath);
                 resultpath = NULL;
@@ -622,7 +629,7 @@ uriinfo *compileproject_GetFileSubProjectURI(
     }
     // Ok, return as URI with protocol header stuff:
     uriinfo *resulturi = uri_ParseEx(
-        resultpath, (isvfs ? "vfs" : "file")
+        resultpath, (isvfs ? "vfs" : "file"), URI_PARSEEX_FLAG_GUESSPORT
     );
     free(resultpath);
     resultpath = NULL;
@@ -876,7 +883,8 @@ char *compileproject_ResolveImportToFile(
                 char *resulturi = NULL;
                 {
                     uriinfo *result = uri_ParseEx(
-                        library_sourced_path, "vfs"
+                        library_sourced_path, "vfs",
+                        URI_PARSEEX_FLAG_GUESSPORT
                     );
                     if (result && result->protocol &&
                             strcmp(result->protocol, "file") == 0) {
@@ -947,7 +955,8 @@ char *compileproject_ResolveImportToFile(
             char *resulturi = NULL;
             {
                 uriinfo *result = uri_ParseEx(
-                    library_sourced_path, "vfs"
+                    library_sourced_path, "vfs",
+                    URI_PARSEEX_FLAG_GUESSPORT
                 );
                 if (result && result->protocol &&
                         strcmp(result->protocol, "file") == 0) {
@@ -980,7 +989,8 @@ char *compileproject_ResolveImportToFile(
             char *resulturi = NULL;
             {
                 uriinfo *result = uri_ParseEx(
-                    fullpath, "file"
+                    fullpath, "file",
+                    URI_PARSEEX_FLAG_GUESSPORT
                 );
                 free(fullpath);
                 if (result) {
@@ -1220,7 +1230,9 @@ char *compileproject_FolderGuess(
         char **error
         ) {
     assert(fileuri != NULL);
-    uriinfo *uinfo = uri_ParseEx(fileuri, "file");
+    uriinfo *uinfo = uri_ParseEx(
+        fileuri, "file", URI_PARSEEX_FLAG_GUESSPORT
+    );
     if (!uinfo || !uinfo->path || !uinfo->protocol ||
             h64casecmp(uinfo->protocol, "file") != 0) {
         uri_Free(uinfo);

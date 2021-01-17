@@ -56,9 +56,11 @@ int urilib_parse(
      * @param default_protocol="https" the default protocol to assume
      *     when the URI looks like a remote target, but has no protocol
      *     specified
+     * @param guess_port=true whether to insert commonly known protocol
+     *     ports if missing
      * @returns a @see{URI object|uri.uri}
      */
-    assert(STACK_TOP(vmthread->stack) >= 2);
+    assert(STACK_TOP(vmthread->stack) >= 3);
 
     valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
     char *pathstr = NULL;
@@ -99,9 +101,23 @@ int urilib_parse(
         );
     }
 
+    valuecontent *vcguessport = STACK_ENTRY(vmthread->stack, 2);
+    int guessport = 0;
+    if (vcguessport->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        guessport = 1;
+    } else if (vcguessport->type == H64VALTYPE_BOOL) {
+        guessport = (vcguessport->int_value != 0);
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "guess_port must be a boolean"
+        );
+    }
+
     uri32info *uinfo = uri32_ParseEx(
         (h64wchar *)pathstr, pathlen,
-        (h64wchar *)protostr, protolen
+        (h64wchar *)protostr, protolen,
+        0 | (guessport ? URI32_PARSEEX_FLAG_GUESSPORT : 0)
     );
     if (!uinfo) {
         return vmexec_ReturnFuncError(
@@ -200,10 +216,12 @@ int urilib_parse(
 
 int urilib_RegisterFuncsAndModules(h64program *p) {
     // uri.parse() method:
-    const char *uri_parse_kw_arg_name[] = {NULL, "default_protocol"};
+    const char *uri_parse_kw_arg_name[] = {
+        NULL, "default_protocol", "guess_port"
+    };
     int64_t idx = h64program_RegisterCFunction(
         p, "parse", &urilib_parse,
-        NULL, 2, uri_parse_kw_arg_name,  // fileuri, args
+        NULL, 3, uri_parse_kw_arg_name,  // fileuri, args, kw arg names
         "uri", "core.horse64.org", 1, -1
     );
     if (idx < 0)

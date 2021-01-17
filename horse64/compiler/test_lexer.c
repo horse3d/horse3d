@@ -19,7 +19,7 @@ static uriinfo *_parsedURI = NULL;
 static uriinfo *_parseURI(const char *uri) {
     if (_parsedURI)
         uri_Free(_parsedURI);
-    _parsedURI = uri_ParseEx(uri, "file");
+    _parsedURI = uri_ParseEx(uri, "file", URI_PARSEEX_FLAG_GUESSPORT);
     return _parsedURI;
 }
 
