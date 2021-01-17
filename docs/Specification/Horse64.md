@@ -666,7 +666,7 @@ so for large values you are advised to stick to non-fractionals
 or expect very inaccurate results.
 
 
-**Containers:**
+### Containers
 
 The types `list`, `vector`, `map`, `set` are all containers
 that can be used with a `for loop`, see [section on
@@ -676,7 +676,29 @@ for vectors, which can only hold values of a number type.
 It is valid to add two lists to each other, so cycles are
 permitted.
 
-**Runtime quirks:**
+Containers have the following special attributes for various
+functions:
+
+- `mycontainer.len`: returns the items inside the container
+  (for a map, this is the amount of key -> value pairs)
+
+- `mycontainer.add`: for lists and sets, this adds a new item
+  into the container (it will be appended to the end for lists).
+
+  For maps, use set by index to add a key value
+  pair: `map[k] = v`. Map keys must be immutable values.
+
+  Vectors are immutable containers, so you cannot directly
+  alter contents.
+
+- `mycontainer.remove`: for lists, this specifies an integer
+  index of the item to remove (which must be between 1, and
+  the `.len` of the list). For set, specify the item itself
+  in the set that you want to remove. For a map, specify the
+  key to be removed.
+
+
+### Runtime quirks:
 
 Please note there are more hidden differentiations in the
 [horsevm runtime](../Misc%20Tooling/horsevm.md) which
@@ -706,11 +728,14 @@ Please note there are more hidden differentiations in the
   increase the memory graph the GC traverses.
 
 - Numbers internally can be either a 64bit integer, or
-  a 64bit floating point value. Conversions happen
-  transparently.
+  a 64bit floating point value, also see [the section
+  on numbers](#numbers).
 
 
 ### Data Lifetime and Scopes
+
+This section describes the general lifetime of data, and how
+names describing variables are scoped.
 
 **Code blocks and Scopes:**
 
