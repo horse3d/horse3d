@@ -3319,6 +3319,52 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 (h64gcvalue *)vc->ptr_value
             );
             ADDREF_HEAP(vc);  // for ref by closure
+        } else if ((((vc->type == H64VALTYPE_GCVAL && (
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                    H64GCVALUETYPE_BYTES)) ||
+                vc->type == H64VALTYPE_SHORTBYTES
+                ) || (
+                ((vc->type == H64VALTYPE_GCVAL && (
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                    H64GCVALUETYPE_STRING)) ||
+                vc->type == H64VALTYPE_SHORTSTR
+                ))) && (lookup_func_idx =
+                    corelib_GetStringFuncIdx(
+                        pr, nameidx,
+                        ((vc->type == H64VALTYPE_GCVAL && ( // isbytes = 1
+                        ((h64gcvalue *)vc->ptr_value)->type ==
+                            H64GCVALUETYPE_BYTES)) ||
+                        vc->type == H64VALTYPE_SHORTBYTES)
+                    )) >= 0
+                ) {  // string or bytes attrs
+            target->type = H64VALTYPE_GCVAL;
+            target->ptr_value = poolalloc_malloc(
+                heap, 0
+            );
+            if (!vc->ptr_value)
+                goto triggeroom;
+            h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+            gcval->hash = 0;
+            gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            gcval->closure_info = (
+                malloc(sizeof(*gcval->closure_info))
+            );
+            if (!gcval->closure_info) {
+                poolalloc_free(heap, gcval);
+                target->ptr_value = NULL;
+                goto triggeroom;
+            }
+            memset(gcval->closure_info, 0,
+                    sizeof(*gcval->closure_info));
+            gcval->closure_info->closure_func_id = (
+                lookup_func_idx
+            );
+            gcval->closure_info->closure_self = (
+                (h64gcvalue *)vc->ptr_value
+            );
+            ADDREF_HEAP(vc);  // for ref by closure
         } else if (nameidx >= 0 &&
                 vc->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue *)vc->ptr_value)->type ==

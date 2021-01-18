@@ -487,6 +487,24 @@ START_TEST(test_given)
 }
 END_TEST
 
+START_TEST(test_stringfind)
+{
+    runprog(
+        "test_stringfind",
+        "func main {\n"
+        "    assert('test'.contains('st'))\n"
+        "    assert(not 'test'.contains('se'))\n"
+        "    assert('test'.find('e') == 2)\n"
+        "    assert('test'[3] == 's')\n"
+        "    assert('öüo'.find('o') == 3)\n"
+        "    assert('öü'.contains('ü'))\n"
+        "    return true\n"
+        "}\n",
+        0
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_fibonacci2,
     test_simpleclass, test_attributeerrors,
@@ -495,6 +513,6 @@ TESTS_MAIN(
     test_unicodestrlen, test_numberslist,
     test_uri, test_conditionals, test_conditionals2,
     test_assert1, test_assert2, test_map, test_overflowint,
-    test_given
+    test_given, test_stringfind
 )
 

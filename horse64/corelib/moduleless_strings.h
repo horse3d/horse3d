@@ -20,4 +20,9 @@ typedef struct h64moduleless_strings_indexes {
     int64_t *func_name_idx;
 } h64moduleless_strings_indexes;
 
+funcid_t corelib_GetStringFuncIdx(
+    h64program *p, int64_t nameidx, int isbytes
+);
+
+
 #endif  // HORSE64_CORELIB_MODULELESS_STRINGS_H_
