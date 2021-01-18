@@ -326,21 +326,6 @@ char *lexer_ParseStringLiteral(
     return p;
 }
 
-static int nexttokenisdigit(const char *p, int len) {
-    while (len > 0 && (
-            *p == ' ' || *p == '\t' || *p == '\r' ||
-            *p == '\n')) {
-        len--;
-        p++;
-    }
-    if (len < 0 || *p < '0' || *p > '9')
-        return 0;
-    return 1;
-}
-
-static int is_digit(char c) {
-    return (c >= '0' && c <= '9');
-}
 
 h64tokenizedfile lexer_ParseFromFile(
         uriinfo *fileuri, h64compilewarnconfig *wconfig
