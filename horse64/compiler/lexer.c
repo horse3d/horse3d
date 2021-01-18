@@ -468,7 +468,7 @@ h64tokenizedfile lexer_ParseFromFile(
             i++;
             line++;
             column = 1;
-            if (c == '\r' && i + 1 < (int)size && buffer[i + 1] == '\n')
+            if (c == '\r' && i < (int)size && buffer[i] == '\n')
                 i++;
             continue;
         }
