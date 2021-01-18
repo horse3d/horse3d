@@ -110,12 +110,21 @@ char *lexer_ParseStringLiteral(
             charlen = utf8_char_len((uint8_t*)&literal[i]);
         assert(charlen > 0);
         if (literal[i] != '\\') {
-            if (literal[i] == '\n' || p[k] == '\r') {
+            if (literal[i] == '\n' || literal[i] == '\r') {
+                p[k] = '\n';  // Translate all line breaks to \n
                 line++;
                 column = 1;
-            } else {
-                column++;
+                k++;
+                i++;
+                if (p[k - 1] == '\r' &&
+                        i < (int)strlen(literal) - 1 &&
+                        literal[i] == '\n') {
+                    // Treat windows \r\n as a single char.
+                    i++;
+                }
+                continue;
             }
+            column++;
             int j = 0;
             while (j < charlen) {
                 #ifndef NDEBUG
@@ -301,15 +310,11 @@ char *lexer_ParseStringLiteral(
             #ifndef NDEBUG
             assert(k < plen);
             #endif
-            p[k] = '\\'; k++;
-        }
-        if (i >= (int)strlen(literal) || (
-                literal[i] != '\n' && literal[i] != '\r'
-                )) {
+            p[k] = '\\';
+            k++;
+            i++;
             column++;
-        } else {
-            line++;
-            column = 1;
+            continue;
         }
         i++;
     }
