@@ -3361,8 +3361,20 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             gcval->closure_info->closure_func_id = (
                 lookup_func_idx
             );
-            gcval->closure_info->closure_self = (
-                (h64gcvalue *)vc->ptr_value
+            gcval->closure_info->closure_bound_values = malloc(
+                sizeof(*gcval->closure_info->closure_bound_values) *
+                1
+            );
+            if (!gcval->closure_info->closure_bound_values) {
+                free(gcval->closure_info);
+                poolalloc_free(heap, gcval);
+                target->ptr_value = NULL;
+                goto triggeroom;
+            }
+            gcval->closure_info->closure_bound_values_count = 1;
+            memcpy(
+                &gcval->closure_info->closure_bound_values[0],
+                vc, sizeof(*vc)
             );
             ADDREF_HEAP(vc);  // for ref by closure
         } else if (nameidx >= 0 &&
