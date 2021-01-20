@@ -5,10 +5,11 @@
 #ifndef HORSE64_STACK_H_
 #define HORSE64_STACK_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 
 #include "bytecode.h"
-#include "compileconfig.h"
 
 typedef struct valuecontent valuecontent;
 
@@ -35,7 +36,7 @@ void stack_Free(h64stack *st);
 void stack_PrintDebug(h64stack *st);
 
 
-static inline valuecontent *stack_GetEntrySlow(
+ATTR_UNUSED static inline valuecontent *stack_GetEntrySlow(
         h64stack *st, int64_t index
         ) {
     if (unlikely(index < 0))

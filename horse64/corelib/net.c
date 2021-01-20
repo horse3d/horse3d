@@ -39,6 +39,13 @@ struct netlib_connect_asyncprogress {
     uint8_t failedv6connect;
 };
 
+struct netlib_read_asyncprogress {
+    void (*abortfunc)(void *dataptr);
+    char *readbuf;
+    int64_t readbytes, readalloc;
+    h64socket *connection;
+};
+
 void _netlib_connect_abort(void *dataptr) {
     struct netlib_connect_asyncprogress *adata = dataptr;
     if (adata->resolve_job) {
@@ -93,16 +100,45 @@ int netlib_isip(h64vmthread *vmthread) {
     return 1;
 }
 
+/**
+ * A file object class, returned from @see{net.connect}.
+ *
+ * @class stream
+ */
+
+int netlib_connection_read(h64vmthread *vmthread) {  // net.stream.read()
+    /**
+     * Read from a @see{network stream|net.stream}
+     *
+     * @funcattr stream connect
+     * @param len=-1 the amount of bytes to read
+     * @param upto=none if set to a bytes value,
+     *   when encountering the given bytes
+     *   sequence reading will stop and return only
+     *   data up to and including the sequence
+     * @returns a @see{network stream|net.connect}
+     */
+    assert(STACK_TOP(vmthread->stack) >= 4);
+
+    struct netlib_read_asyncprogress *asprogress = (
+        vmthread->foreground_async_work_dataptr
+    );
+    assert(asprogress != NULL);
+
+    assert(0);  // FIXME
+}
+
 int netlib_connect(h64vmthread *vmthread) {
     /**
-     * Connect to a different host using a TCP/IP connection, optionally
-     * using a TLS/SSL encryption.
+     * Get a network stream, which behind the scenes
+     * connects to a target host using a TCP/IP connection and
+     * optionally using a TLS/SSL encryption.
      *
      * @func connect
      * @param host the host to connect to, either by name or by ip
      * @param port the port of the host to connect to
      * @param encrypt=false whether to connect using TLS/SSL encryption
-     * @returns a @see{network stream|net.connect}
+     * @returns a @see{network stream|net.stream}
      */
     assert(STACK_TOP(vmthread->stack) >= 3);
 

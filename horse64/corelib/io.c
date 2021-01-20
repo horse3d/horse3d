@@ -552,16 +552,11 @@ int iolib_fileread(
      * Read from the given file.
      *
      * @funcattr file read
-     * @param amount=-1 amount of bytes/letters to read. When
+     * @param len=-1 amount of bytes/letters to read. When
      *    the file was opened with binary=true then amount will be
      *    interpreted as bytes, otherwise with binary=false as full
-     *    decoded letters.
-     *
-     *    Important: reading an exact amount of letters is slow,
-     *    because it requires decoding the code point of each part read
-     *    multple times to determine the letter boundaries. Therefore,
-     *    if reading performance is a concern you should read a file
-     *    either in one go with amount=-1, or with binary=true.
+     *    decoded Unicode characters. Specify -1 to read
+     *    everything until the end of the file.
      * @returns the data read, which is a @see{bytes} value when the
      *    file was opened with binary=false, otherwise a @see{string}
      *    value.
@@ -610,7 +605,7 @@ int iolib_fileread(
             vcamount->type != H64VALTYPE_UNSPECIFIED_KWARG) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
-            "amount must be a number"
+            "len must be a number"
         );
     }
     int readbinary = ((cdata->flags & FILEOBJ_FLAGS_BINARY) != 0);
@@ -1052,7 +1047,7 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
         return 0;
 
     // file.read method:
-    const char *io_fileread_kw_arg_name[] = {"amount"};
+    const char *io_fileread_kw_arg_name[] = {"len"};
     idx = h64program_RegisterCFunction(
         p, "read", &iolib_fileread,
         NULL, 1, io_fileread_kw_arg_name,  // fileuri, args
