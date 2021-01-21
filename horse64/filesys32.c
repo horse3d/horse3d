@@ -25,6 +25,10 @@ h64wchar *filesys32_RemoveDoubleSlashes(
 
     if (!path)
         return NULL;
+    if (pathlen <= 0) {
+        if (out_len) *out_len = 0;
+        return malloc(1);
+    }
     h64wchar *p = malloc(sizeof(*path) * pathlen);
     if (!p)
         return NULL;
@@ -211,7 +215,9 @@ h64wchar *filesys32_ToAbsolutePath(
         int64_t *out_len    
         ) {
     if (filesys32_IsAbsolutePath(path, pathlen)) {
-        h64wchar *result = malloc(pathlen * sizeof(*path));
+        h64wchar *result = malloc(
+            (pathlen > 0 ? pathlen : 1) * sizeof(*path)
+        );
         if (result) {
             memcpy(result, path, sizeof(*path) * pathlen);
         }
@@ -404,7 +410,9 @@ h64wchar *filesys32_Join(
     if ((path2_origlen == 1 && path2_orig[0] == '.') ||
             path2_origlen == 0) {
         returnfirst: ;
-        h64wchar *result = malloc(path1len * sizeof(*path1));
+        h64wchar *result = malloc(
+            (path1len > 0 ? path1len : 1) * sizeof(*path1)
+        );
         if (result) {
             memcpy(result, path1, sizeof(*path1) * path1len);
             if (out_len)
@@ -416,7 +424,9 @@ h64wchar *filesys32_Join(
     // Clean up path2 for merging:
     int64_t path2len = path2_origlen;
     h64wchar *path2 = malloc(
-        sizeof(*path2_orig) * path2_origlen
+        sizeof(*path2_orig) * (
+            path2_origlen > 0 ? path2_origlen : 1
+        )
     );
     if (!path2)
         return NULL;

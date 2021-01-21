@@ -292,7 +292,7 @@ int corelib_stringlower(  // $$builtin.$$string_lower
         s = vc->shortstr_value;
         slen = vc->shortstr_len;
     }
-    results = malloc(sizeof(*results) * slen);
+    results = malloc(sizeof(*results) * (slen > 0 ? slen : 1));
     if (!results) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OUTOFMEMORYERROR,
@@ -343,7 +343,7 @@ int corelib_stringupper(  // $$builtin.$$string_upper
         s = vc->shortstr_value;
         slen = vc->shortstr_len;
     }
-    results = malloc(sizeof(*results) * slen);
+    results = malloc(sizeof(*results) * (slen > 0 ? slen : 1));
     if (!results) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OUTOFMEMORYERROR,
@@ -402,7 +402,7 @@ int corelib_stringtrim(  // $$builtin.$$string_trim
             s = vc->shortbytes_value;
             slen = vc->shortbytes_len;
         }
-        trimmed = malloc(slen);
+        trimmed = malloc(slen > 0 ? slen : 1);
         if (!trimmed) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
@@ -460,7 +460,7 @@ int corelib_stringtrim(  // $$builtin.$$string_trim
             s = vc->shortstr_value;
             slen = vc->shortstr_len;
         }
-        trimmed = malloc(sizeof(*trimmed) * slen);
+        trimmed = malloc(sizeof(*trimmed) * (slen > 0 ? slen : 1));
         if (!trimmed) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
