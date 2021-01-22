@@ -616,18 +616,21 @@ being "yes" means assigning it to a new variable will create
 a copy, while "no" means it will be shared "by" reference
 to the same underlying data object:
 
-|*Data Type*  |By value|GC'ed |Literal constructor          |
-|-------------|--------|------|-----------------------------|
-|none         |Yes     |No    |`none`                       |
-|boolean      |Yes     |No    |`yes` or `no`            |
-|number       |Yes     |No    |`-?[0-9]+(\.[0-9]+)?`        |
-|string       |Yes     |No    |`"`, then any utf-8, then `"`|
-|function     |No      |No    | see below                   |
-|list         |No      |Yes   | see below, or `[]` (empty)  |
-|vector       |Yes     |No    | see below                   |
-|map          |No      |Yes   | see below  or `{->}` (empty)|
-|set          |No      |Yes   | see below, or `{}` (empty)  |
-|obj. instance|No      |Yes   | see below                   |
+|*Data Type*  |By value|GC'ed             |Literal constructor             |
+|-------------|--------|------------------|--------------------------------|
+|none         |Yes     |No                |`none`                          |
+|boolean      |Yes     |No                |`yes` or `no`                   |
+|number       |Yes     |No                |`-?[0-9]+(\.[0-9]+)?`           |
+|string       |Yes     |No                | see below, or `"`, letters, `"`|
+|function     |No      |No, unless closure| see below                      |
+|list         |No      |Yes               | see below, or `[]` (empty)     |
+|vector       |Yes     |No                | see below                      |
+|map          |No      |Yes               | see below  or `{->}` (empty)   |
+|set          |No      |Yes               | see below, or `{}` (empty)     |
+|obj. instance|No      |Yes                | see below                     |
+
+- for strings, keep in mind `"` needs to be escaped via `\"`, and `\` in
+general has special values.
 
 - **By value** *column: a "yes" here means
   assigning values of this type to a new variable will create
@@ -655,7 +658,10 @@ sets via `{<expr1>, <expr2>, ...}`, again [see grammar for
 details](./Horse64%20Grammar.md#grammar). Object instances
 can only be created via the `new` operator, or otherwise
 must be specified by identifier - there is no inline
-constructor.
+constructor. Strings can include any valid unicode or
+ascii character other than their starting `"` or opening `'`,
+unless escaped with `\`, and in general `\` does special
+escape sequences (unless prefixed as two, `\\`).
 
 ### Numbers
 
