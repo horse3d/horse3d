@@ -795,6 +795,60 @@ h64tokenizedfile lexer_ParseFromFile(
                 result.token[result.token_count].type = H64TK_INVALID;
             }
             result.token_count++;
+            // Special: if we produced two string or two byte tokens
+            // in a row, merge them:
+            if (likely(result.token_count >= 2)) {
+                if (unlikely((
+                        result.token[result.token_count - 1].type ==
+                            H64TK_CONSTANT_STRING &&
+                        result.token[result.token_count - 2].type ==
+                            H64TK_CONSTANT_STRING)) || (
+                        result.token[result.token_count - 1].type ==
+                            H64TK_CONSTANT_BYTES &&
+                        result.token[result.token_count - 2].type ==
+                            H64TK_CONSTANT_BYTES)) {
+                    char *new_str_value = malloc(
+                        result.token[result.token_count - 1].str_value_len +
+                        result.token[result.token_count - 2].str_value_len +
+                        1
+                    );
+                    if (!new_str_value) {
+                        result_ErrorNoLoc(
+                            &result.resultmsg,
+                            "failed to allocate literal, "
+                            "out of memory?",
+                            fileuri_s
+                        );
+                        free(buffer);
+                        free(fileuri_s);
+                        return result;
+                    }
+                    memcpy(
+                        new_str_value,
+                        result.token[result.token_count - 2].str_value,
+                        result.token[result.token_count - 2].str_value_len
+                    );
+                    memcpy(
+                        new_str_value +
+                        result.token[result.token_count - 2].str_value_len,
+                        result.token[result.token_count - 1].str_value,
+                        result.token[result.token_count - 1].str_value_len
+                    );
+                    new_str_value[
+                        result.token[result.token_count - 1].str_value_len +
+                        result.token[result.token_count - 2].str_value_len
+                    ] = '\0';
+                    free(result.token[result.token_count - 1].str_value);
+                    free(result.token[result.token_count - 2].str_value);
+                    result.token[result.token_count - 2].str_value = (
+                        new_str_value
+                    );
+                    result.token[result.token_count - 2].str_value_len += (
+                        result.token[result.token_count - 1].str_value_len
+                    );
+                    result.token_count--;
+                }
+            }
             continue;
         } else if (c >= '0' && c <= '9') {
             // This is a number literal
