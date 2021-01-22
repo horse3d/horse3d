@@ -793,7 +793,8 @@ int ast_ParseExprInlineOperator_Recurse(
                         if (tokens[i].type == H64TK_KEYWORD &&
                                 strcmp(tokens[i].str_value, "given") == 0) {
                             givennesting++;
-                        } else if (tokens[i].type == H64TK_MAPARROW) {
+                        } else if (tokens[i].type == H64TK_KEYWORD &&
+                                strcmp(tokens[i].str_value, "then") == 0) {
                             givennesting--;
                             if (givennesting <= 0) {
                                 i++;
@@ -957,7 +958,7 @@ int ast_ParseExprInlineOperator_Recurse(
                         H64OP_INDEXBYEXPR) {
                     c = '[';
                 } else {
-                    c = ')';
+                    c = '(';
                 }
             }
             if (parsefail) *parsefail = 1;
