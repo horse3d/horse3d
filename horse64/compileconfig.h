@@ -5,6 +5,23 @@
 #ifndef HORSE64_COMPILECONFIG_H_
 #define HORSE64_COMPILECONFIG_H_
 
+#define DEBUG_SOCKETPAIR
+
+#if defined(_WIN32) || defined(_WIN64)
+// Require Windows 7 or newer:
+#define _WIN32_WINNT 0x0601
+#if defined __MINGW_H
+#define _WIN32_IE 0x0400
+#endif
+#endif
+
+// FD set size on Windows:
+#if defined(_WIN32) || defined(_WIN64)
+#define FD_SETSIZE 2048
+#endif
+
+#define USE_POLL_ON_UNIX 1
+
 #include <math.h>
 #include <stdint.h>
 
@@ -36,22 +53,5 @@ ATTR_UNUSED static int64_t clamped_round(double x) {
     }
     return x;
 }
-
-#define DEBUG_SOCKETPAIR
-
-#if defined(_WIN32) || defined(_WIN64)
-// Require Windows 7 or newer:
-#define _WIN32_WINNT 0x0601
-#if defined __MINGW_H
-#define _WIN32_IE 0x0400
-#endif
-#endif
-
-// FD set size on Windows:
-#if defined(_WIN32) || defined(_WIN64)
-#define FD_SETSIZE 1024
-#endif
-
-#define USE_POLL_ON_UNIX 1
 
 #endif  // HORSE64_COMPILECONFIG_H_

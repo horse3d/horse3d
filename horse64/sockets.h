@@ -43,8 +43,14 @@
 #endif
 #endif
 
+#if defined(_WIN32) || defined(_WIN64)
+typedef uintptr_t h64sockfd_t;
+#else
+typedef int32_t h64sockfd_t;
+#endif
+
 typedef struct h64socket {
-    int fd;
+    h64sockfd_t fd;
     uint32_t flags;
     SSL *sslobj;
 #if defined(_WIN32) || defined(_WIN64)
@@ -65,6 +71,8 @@ typedef struct h64sockset {
     fd_set readset;
     fd_set errorset;
     fd_set writeset;
+    h64sockfd_t *fds;
+    int fds_count;
     #else
     struct pollfd smallset[_pollsmallsetsize];
     struct pollfd *set;
@@ -116,7 +124,7 @@ int sockets_ConnectClient(
 int sockets_WasEverConnected(h64socket *sock);
 
 ATTR_UNUSED static inline int sockset_GetResult(
-        h64sockset *set, int fd, int waittypes
+        h64sockset *set, h64sockfd_t fd, int waittypes
         ) {
     #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
     int result = 0;
@@ -149,22 +157,46 @@ ATTR_UNUSED static inline int sockset_GetResult(
     #endif
 }
 
+#if defined(_WIN32) || defined(_WIN64)
+#define IS_VALID_SOCKET(x) (x != INVALID_SOCKET)
+#define H64CLOSEDSOCK INVALID_SOCKET
+#else
+#define IS_VALID_SOCKET(x) (x >= 0)
+#define H64CLOSEDSOCK -1
+#endif
+
 ATTR_UNUSED static inline int sockset_Add(
-        h64sockset *set, int fd, int waittypes
+        h64sockset *set, h64sockfd_t fd, int waittypes
         ) {
     #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
-    if ((waittypes & H64SOCKSET_WAITREAD) != 0) {
+    if (waittypes == 0)
+        return 1;
+    int found = 0;
+    int i = 0;
+    while (i < set->fds_count) {
+        if (set->fds[i] == fd) {
+            found = 1;
+            break;
+        }
+        i++;
+    }
+    if (!found) {
+        h64sockfd_t *new_fds = realloc(
+            set->fds, sizeof(*set->fds) * (set->fds_count + 1)
+        );
+        if (!new_fds) {
+            return 0;
+        }
+        set->fds = new_fds;
+        set->fds[set->fds_count] = fd;
+        set->fds_count++;
+    }
+    if ((waittypes & H64SOCKSET_WAITREAD) != 0)
         FD_SET(fd, &set->readset);
-        return 1;
-    }
-    if ((waittypes & H64SOCKSET_WAITWRITE) != 0) {
+    if ((waittypes & H64SOCKSET_WAITWRITE) != 0)
         FD_SET(fd, &set->writeset);
-        return 1;
-    }
-    if ((waittypes & H64SOCKSET_WAITERROR) != 0) {
+    if ((waittypes & H64SOCKSET_WAITERROR) != 0)
         FD_SET(fd, &set->errorset);
-        return 1;
-    }
     #else
     if (set->size == 0)
         if (set->fill + 1 > _pollsmallsetsize)
@@ -185,11 +217,11 @@ ATTR_UNUSED static inline int sockset_Add(
 }
 
 void sockset_Remove(
-    h64sockset *set, int fd
+    h64sockset *set, h64sockfd_t fd
 );
 
 void sockset_RemoveWithMask(
-    h64sockset *set, int fd, int waittypes
+    h64sockset *set, h64sockfd_t fd, int waittypes
 );
 
 ATTR_UNUSED static inline void sockset_Clear(
@@ -199,6 +231,7 @@ ATTR_UNUSED static inline void sockset_Clear(
     FD_ZERO(&set->readset);
     FD_ZERO(&set->writeset);
     FD_ZERO(&set->errorset);
+    set->fds_count = 0;
     #else
     set->fill = 0;
     #endif
@@ -208,19 +241,26 @@ ATTR_UNUSED static inline void sockset_Uninit(
         ATTR_UNUSED h64sockset *set
         ) {
     #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
-    return;
+    if (set->fds) {
+        free(set->fds);
+        set->fds = NULL;
+    }
+    set->fds_count = 0;
     #else
     if (set->size != 0) {
         assert(set->set != NULL);
         free(set->set);
         set->set = NULL;
         set->size = 0;
+    } else if (set->set != NULL) {
+        free(set->set);
+        set->set = NULL;
     }
     #endif
 }
 
-int *sockset_GetResultList(
-    h64sockset *set, int *fdbuf, int fdbufsize,
+h64sockfd_t *sockset_GetResultList(
+    h64sockset *set, h64sockfd_t *fdbuf, int fdbufsize,
     int waittypes, int *resultcount
 );
 

@@ -310,7 +310,7 @@ h64socket *sockets_NewBlockingRaw(int v6capable) {
     sock->fd = socket(
         (v6capable ? AF_INET6 : AF_INET), SOCK_STREAM, IPPROTO_TCP
     );
-    if (sock->fd < 0) {
+    if (!IS_VALID_SOCKET(sock->fd)) {
         free(sock);
         return NULL;
     }
@@ -375,8 +375,8 @@ h64socket *sockets_New(int ipv6capable, int tls) {
 }
 
 
-int *sockset_GetResultList(
-        h64sockset *set, int *fdbuf, int fdbufsize,
+h64sockfd_t *sockset_GetResultList(
+        h64sockset *set, h64sockfd_t *fdbuf, int fdbufsize,
         int waittypes, int *result_fd_count
         ) {
     if (!set) {
@@ -399,14 +399,14 @@ int *sockset_GetResultList(
     int i = 0;
     while (i <
             #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
-            FD_SETSIZE
+            set->fds_count
             #else
             set->resultfill
             #endif
             ) {
         int result = 0;
         #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
-        int fd = i;
+        h64sockfd_t fd = set->fds[i];
         if ((waittypes & H64SOCKSET_WAITERROR) != 0 &&
                 FD_ISSET(fd, &set->errorset))
             result |= H64SOCKSET_WAITERROR;
@@ -417,7 +417,7 @@ int *sockset_GetResultList(
                 FD_ISSET(fd, &set->readset))
             result |= H64SOCKSET_WAITREAD;
         #else
-        int fd = resultset[i].fd;
+        h64sockfd_t fd = resultset[i].fd;
         result = (resultset[i].revents & waittypes);
         #endif
         if (result != 0) {
@@ -425,7 +425,7 @@ int *sockset_GetResultList(
                 int newallocsize = allocsize *= 2;
                 if (newallocsize < resultcount + 16)
                     newallocsize = resultcount + 16;
-                int *newfdbuf = NULL;
+                h64sockfd_t *newfdbuf = NULL;
                 if (onheap) {
                     newfdbuf = realloc(
                         fdbuf, sizeof(*newfdbuf) * newallocsize
@@ -736,12 +736,18 @@ int sockets_ConnectClient(
                 #ifndef NDEBUG
                 if (_vmsockets_debug) {
                     #if defined(_WIN32) || defined(_WIN64)
-                    int errno = WSAGetLastError();
+                    int _errno = WSAGetLastError();
                     #endif
                     h64fprintf(stderr, "horsevm: debug: "
                         "sockets_ConnectClient on fd %d "
                         "SSL_connect() failed (errno=%d)\n",
-                        sock->fd, errno);
+                        sock->fd,
+                        #if defined(_WIN32) || defined(_WIN64)
+                        _errno
+                        #else
+                        errno
+                        #endif
+                    );
                 }
                 #endif
             } else {
@@ -778,14 +784,14 @@ void _sockets_CloseNoLock(h64socket *s) {
         ~(uint32_t)(_SOCKFLAG_ISINSENDLIST |
         _SOCKFLAG_SENDWAITSFORREAD)
     );
-    if (s->fd >= 0) {
+    if (IS_VALID_SOCKET(s->fd)) {
         #if defined(_WIN32) || defined(_WIN64)
         closesocket(s->fd);
         #else
         close(s->fd);
         #endif
     }
-    s->fd = -1;
+    s->fd = H64CLOSEDSOCK;
     if (s->sslobj) {
         SSL_free(s->sslobj);
         s->sslobj = NULL;
@@ -846,7 +852,7 @@ int sockets_Send(
 
 int sockets_NeedSend(h64socket *s) {
     mutex_Lock(sockets_needing_send_mutex);
-    if (s->fd < 0 || s->sendbuffill == 0) {
+    if (!IS_VALID_SOCKET(s->fd) || s->sendbuffill == 0) {
         mutex_Release(sockets_needing_send_mutex);
         return 0;
     }
@@ -857,7 +863,7 @@ int sockets_NeedSend(h64socket *s) {
 int _internal_sockets_RegisterForSend(h64socket *s, int lock) {
     if (lock)
         mutex_Lock(sockets_needing_send_mutex);
-    if (s->fd < 0) {
+    if (!IS_VALID_SOCKET(s->fd)) {
         if (lock)
             mutex_Release(sockets_needing_send_mutex);
         return 0;
@@ -921,7 +927,7 @@ void _internal_sockets_UnregisterFromSend(h64socket *s, int lock) {
 
 int _internal_sockets_ProcessSend(h64socket *s) {
     assert(mutex_IsLocked(sockets_needing_send_mutex));
-    if (s->fd < 0)
+    if (!IS_VALID_SOCKET(s->fd))
         return H64SOCKERROR_OPERATIONFAILED;
     assert(s->_resent_attempt_fill <= s->sendbuffill);
     if (s->sendbuffill <= 0)
@@ -1008,7 +1014,7 @@ typedef struct _h64socketpairsetup {
     h64socket *recv_server, *trigger_client;
     char connectkey[256];
     int port;
-    int resultconnfd;
+    h64sockfd_t resultconnfd;
     _Atomic volatile uint8_t connected, failure;
 } _h64socketpairsetup;
 
@@ -1018,7 +1024,7 @@ void sockets_FreeSocketPairSetupData(_h64socketpairsetup *te) {
         return;
     sockets_Destroy(te->recv_server);
     sockets_Destroy(te->trigger_client);
-    if (te->resultconnfd >= 0) {
+    if (IS_VALID_SOCKET(te->resultconnfd)) {
         #if defined(_WIN32) || defined(_WIN64)
         closesocket(te->resultconnfd);
         #else
@@ -1026,14 +1032,14 @@ void sockets_FreeSocketPairSetupData(_h64socketpairsetup *te) {
         #endif
     }
     memset(te, 0, sizeof(*te));
-    te->resultconnfd = -1;
+    te->resultconnfd = H64CLOSEDSOCK;
 }
 
 #define _PAIRKEYSIZE 256
 
 typedef struct _h64socketpairsetup_conn {
     char recvbuf[_PAIRKEYSIZE];
-    int fd;
+    h64sockfd_t fd;
     int recvbuffill;
 } _h64socketpairsetup_conn;
 
@@ -1053,10 +1059,10 @@ static void _threadEventAccepter(void *userdata) {
     int conns_count = 0;
     int conns_onheap = 0;
     while (!te->failure) {
-        int acceptfd = -1;
-        if ((acceptfd = accept(
+        h64sockfd_t acceptfd = H64CLOSEDSOCK;
+        if (IS_VALID_SOCKET(acceptfd = accept(
                 te->recv_server->fd, NULL, NULL
-                )) >= 0) {
+                ))) {
             if (conns_count + 1 > conns_alloc) {
                 if (conns_onheap) {
                     _h64socketpairsetup_conn *connsnew = realloc(
@@ -1161,7 +1167,7 @@ static void _threadEventAccepter(void *userdata) {
             }
             i++;
         }
-        if (te->resultconnfd >= 0)
+        if (IS_VALID_SOCKET(te->resultconnfd))
             break;
     }
     int k = 0;
@@ -1185,7 +1191,7 @@ static void _threadEventAccepter(void *userdata) {
 
 int sockets_NewPair(h64socket **s1, h64socket **s2) {
     _h64socketpairsetup te = {0};
-    te.resultconnfd = -1;
+    te.resultconnfd = H64CLOSEDSOCK;
 
     // Get socket pair:
     te.recv_server = sockets_NewBlockingRaw(1);
@@ -1383,7 +1389,7 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
     }
 
     // Evaluate result:
-    assert(te.resultconnfd >= 0 && te.trigger_client != NULL);
+    assert(IS_VALID_SOCKET(te.resultconnfd) && te.trigger_client != NULL);
     h64socket *sock_one = te.trigger_client;
     te.trigger_client = NULL;
     h64socket *sock_two = malloc(sizeof(*sock_two));
@@ -1422,13 +1428,28 @@ int sockets_NewPair(h64socket **s1, h64socket **s2) {
 }
 
 void sockset_Remove(
-        h64sockset *set, int fd
+        h64sockset *set, h64sockfd_t fd
         ) {
     #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
     FD_CLR(fd, &set->readset);
     FD_CLR(fd, &set->writeset);
     FD_CLR(fd, &set->errorset);
-    return;
+    int i = 0;
+    while (i < set->fds_count) {
+        if (set->fds[i] == fd) {
+            if (i + 1 < set->fds_count)
+                memcpy(
+                    &set->fds[i],
+                    &set->fds[i + 1],
+                    sizeof(*set->fds) * (
+                        set->fds_count - i - 1
+                    )
+                );
+            set->fds_count--;
+            continue;  // no i++
+        }
+        i++;
+    }
     #else
     int i = 0;
     const int count = set->fill;
@@ -1455,7 +1476,7 @@ int sockets_Receive(
         h64socket *s, char *buf, size_t count
         ) {
     mutex_Lock(sockets_needing_send_mutex);
-    if (!s || s->fd < 0) {
+    if (!s || !IS_VALID_SOCKET(s->fd)) {
         mutex_Release(sockets_needing_send_mutex);
         return H64SOCKERROR_CONNECTIONDISCONNECTED;
     }
@@ -1498,12 +1519,15 @@ int sockets_Receive(
                 return H64SOCKERROR_OPERATIONFAILED;
             }
         }
+        s->_ssl_repeat_errortype = 0;
+        s->_receive_reattempt_usedsize = 0;
+        return result;
     } else {
         int result = recv(s->fd, buf, count, 0);
         if (result < 0) {
             #if defined(_WIN32) || defined(_WIN64)
             int err = WSAGetLastError();
-            if (err == WSAEWOULDBLOCK || err == WSAEAGAIN) {
+            if (err == WSAEWOULDBLOCK) {
                 mutex_Release(sockets_needing_send_mutex);
                 return H64SOCKERROR_NEEDTOREAD;
             }
@@ -1524,7 +1548,7 @@ int sockets_Receive(
 }
 
 void sockset_RemoveWithMask(
-        h64sockset *set, int fd, int waittypes
+        h64sockset *set, h64sockfd_t fd, int waittypes
         ) {
     #if defined(_WIN32) || defined(_WIN64) || !defined(CANUSEPOLL)
     if ((waittypes & H64SOCKSET_WAITREAD) != 0)
@@ -1533,6 +1557,11 @@ void sockset_RemoveWithMask(
         FD_CLR(fd, &set->writeset);
     if ((waittypes & H64SOCKSET_WAITERROR) != 0)
         FD_CLR(fd, &set->errorset);
+    if (!FD_ISSET(fd, &set->readset) &&
+            !FD_ISSET(fd, &set->writeset) &&
+            !FD_ISSET(fd, &set->errorset)) {
+        sockset_Remove(set, fd);
+    }
     return;
     #else
     int i = 0;
