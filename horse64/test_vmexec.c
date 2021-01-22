@@ -363,6 +363,25 @@ START_TEST (test_conditionals2)
 }
 END_TEST
 
+START_TEST (test_conditionals3)
+{
+    runprog(
+        "test_conditionals3",
+        "func main {\n"
+        "    var resultvalue = 0\n"
+        "    if yes and no {\n"
+        "        resultvalue += 1\n"
+        "    }\n"
+        "    if no or yes {\n"
+        "        resultvalue += 2\n"
+        "    }\n"
+        "    return resultvalue\n"
+        "}\n",
+        2
+    );
+}
+END_TEST
+
 START_TEST (test_assert1)
 {
     runprog(
@@ -512,6 +531,7 @@ TESTS_MAIN(
     test_memberaccesschain,
     test_unicodestrlen, test_numberslist,
     test_uri, test_conditionals, test_conditionals2,
+    test_conditionals3,
     test_assert1, test_assert2, test_map, test_overflowint,
     test_given, test_stringfind
 )

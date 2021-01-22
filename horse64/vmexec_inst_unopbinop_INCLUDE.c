@@ -534,8 +534,19 @@ inst_binop: {
             goto binop_done;
         }
         binop_cmp_notequal: {
-            h64fprintf(stderr, "oopsie daisy\n");
-            return 0;
+            invalidtypes = 0;
+            tmpresult->type = H64VALTYPE_BOOL;
+            int result = 0;
+            int success = (
+                vmexec_ValueEqualityCheck(
+                    vmthread, v1, v2, &result
+                )
+            );
+            if (!success) {
+                goto triggeroom;
+            }
+            tmpresult->int_value = (result == 0);
+            goto binop_done;
         }
         binop_cmp_largerorequal: {
             if (likely((v1->type != H64VALTYPE_INT64 &&
@@ -685,7 +696,7 @@ inst_binop: {
                 tmpresult->int_value = 0;
                 goto binop_done;
             } else {
-                if (!_vmexec_CondExprValue(v1, &bool2)) {
+                if (!_vmexec_CondExprValue(v2, &bool2)) {
                     RAISE_ERROR(
                         H64STDERROR_TYPEERROR,
                         "this value type cannot be "
@@ -715,7 +726,7 @@ inst_binop: {
                 tmpresult->int_value = 1;
                 goto binop_done;
             } else {
-                if (!_vmexec_CondExprValue(v1, &bool2)) {
+                if (!_vmexec_CondExprValue(v2, &bool2)) {
                     RAISE_ERROR(
                         H64STDERROR_TYPEERROR,
                         "this value type cannot be "
