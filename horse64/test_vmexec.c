@@ -302,11 +302,11 @@ START_TEST (test_conditionals)
         "var resultvalue = 0\n"
         "func sideeffecttrue(v) {\n"
         "    resultvalue += v\n"
-        "    return true\n"
+        "    return yes\n"
         "}\n"
         "func sideeffectfalse(v) {\n"
         "    resultvalue += v\n"
-        "    return false\n"
+        "    return no\n"
         "}\n"
         "func main {\n"
         "    resultvalue = 0\n"
@@ -338,11 +338,11 @@ START_TEST (test_conditionals2)
         "var resultvalue = 0\n"
         "func sideeffecttrue(v) {\n"
         "    resultvalue += v\n"
-        "    return true\n"
+        "    return yes\n"
         "}\n"
         "func sideeffectfalse(v) {\n"
         "    resultvalue += v\n"
-        "    return false\n"
+        "    return no\n"
         "}\n"
         "func main {\n"
         "    resultvalue = 0\n"
@@ -367,7 +367,7 @@ START_TEST (test_assert1)
 {
     runprog(
         "test_assert1",
-        "func main{assert(true)}",
+        "func main{assert(yes)}",
         0
     );
 }
@@ -379,7 +379,7 @@ START_TEST (test_assert2)
         "test_assert2",
         "func main{\n"
         "    do {\n"
-        "        assert(false)\n"
+        "        assert(no)\n"
         "    } rescue AssertionError as e {\n"
         "        if e.is_a(AssertionError) {\n"
         "            return 2\n"
@@ -474,13 +474,13 @@ START_TEST(test_given)
     runprog(
         "test_given",
         "func describe_list_size(list) {\n"
-        "    return given list.len > 100 -> ('a large list' else 'a small list')\n"
+        "    return given list.len > 100 then ('a large list' else 'a small list')\n"
         "    # ^ will return 'a large list' if the list is longer than 100 items,\n"
         "    # otherwise it will return 'a small list'.\n"
         "}\n"
         "func main {\n"
         "    print(describe_list_size([1, 2]))\n"
-        "    return true\n"
+        "    return yes\n"
         "}\n",
         0
     );
@@ -498,7 +498,7 @@ START_TEST(test_stringfind)
         "    assert('test'[3] == 's')\n"
         "    assert('öüo'.find('o') == 3)\n"
         "    assert('öü'.contains('ü'))\n"
-        "    return true\n"
+        "    return yes\n"
         "}\n",
         0
     );

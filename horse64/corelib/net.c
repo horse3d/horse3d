@@ -41,8 +41,12 @@ struct netlib_connect_asyncprogress {
 
 struct netlib_read_asyncprogress {
     void (*abortfunc)(void *dataptr);
+    uint8_t startedread;
     char *readbuf;
     int64_t readbytes, readalloc;
+    int64_t wantamount;
+    int wantendsequencelen;
+    char *wantendsequence;
     h64socket *connection;
 };
 
@@ -66,7 +70,7 @@ int netlib_isip(h64vmthread *vmthread) {
      *
      * @func isip
      * @param hostorip the string for which to check whether it's an IP
-     * @returns `true` if string is an IP, otherwise `false`
+     * @returns `yes` if string is an IP, otherwise `no`
      */
     assert(STACK_TOP(vmthread->stack) >= 1);
 
@@ -113,19 +117,125 @@ int netlib_connection_read(h64vmthread *vmthread) {  // net.stream.read()
      * @funcattr stream connect
      * @param len=-1 the amount of bytes to read
      * @param upto=none if set to a bytes value,
-     *   when encountering the given bytes
+     *   when encountering the given `upto` bytes
      *   sequence reading will stop and return only
-     *   data up to and including the sequence
+     *   data up to and including the sequence. If
+     *   `len` is also set, then reading will occur
+     *   to either the first `upto` occurrence or
+     *   to the maximum `len`, whichever is first.
      * @returns a @see{network stream|net.connect}
      */
-    assert(STACK_TOP(vmthread->stack) >= 4);
+    assert(STACK_TOP(vmthread->stack) >= 3);
 
     struct netlib_read_asyncprogress *asprogress = (
         vmthread->foreground_async_work_dataptr
     );
     assert(asprogress != NULL);
 
-    assert(0);  // FIXME
+    valuecontent *vstream = STACK_ENTRY(vmthread->stack, 2);
+    assert(
+        vstream->type == H64VALTYPE_GCVAL ||
+        ((h64gcvalue *)vstream->ptr_value)->type ==
+            H64GCVALUETYPE_OBJINSTANCE
+    );
+    _connectionobj_cdata *cdata = (
+        ((h64gcvalue *)vstream->ptr_value)->cdata
+    );
+
+    if (!asprogress->startedread) {
+        valuecontent *vclen = STACK_ENTRY(vmthread->stack, 0);
+        int64_t len = -1;
+        if (likely(vclen->type == H64VALTYPE_INT64)) {
+            if (vclen->int_value >= 0)
+                len = vclen->int_value;
+        } else if (vclen->type == H64VALTYPE_FLOAT64) {
+            int64_t flen = clamped_round(vclen->float_value);
+            if (flen >= 0)
+                len = flen;
+        } else if (vclen->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+            len = -1;
+        } else {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_TYPEERROR,
+                "len must be a number"
+            );
+        }
+
+        char *upto = NULL;
+        int64_t upto_len = -1;
+        valuecontent *vcupto = STACK_ENTRY(vmthread->stack, 1);
+        if (likely(vcupto->type == H64VALTYPE_UNSPECIFIED_KWARG ||
+                vcupto->type == H64VALTYPE_NONE)) {
+            // Nothing to do.
+        } else if (vcupto->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)vcupto->ptr_value)->type ==
+                    H64GCVALUETYPE_BYTES) {
+            upto = ((h64gcvalue *)vcupto->ptr_value)->bytes_val.s;
+            upto_len = (
+                ((h64gcvalue *)vcupto->ptr_value)->bytes_val.len
+            );
+        } else if (vcupto->type == H64VALTYPE_SHORTBYTES) {
+            upto = vcupto->shortbytes_value;
+            upto_len = vcupto->shortbytes_len;
+        } else {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_TYPEERROR,
+                "upto must be none or bytes"
+            );
+        }
+        assert(!asprogress->wantendsequence);
+        if (upto && upto_len > 0) {
+            asprogress->wantendsequence = malloc(
+                upto_len
+            );
+            if (!asprogress->wantendsequence) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                    "out of memory allocating upto copy"
+                );
+            }
+            memcpy(
+                asprogress->wantendsequence, upto,
+                upto_len
+            );
+            asprogress->wantendsequencelen = upto_len;
+        }
+        asprogress->wantamount = len;
+    }
+    // (Re?) attempt read:
+    if (asprogress->readbytes < asprogress->wantamount ||
+            asprogress->wantamount < 0) {
+        int64_t readnow = -1;
+        if (asprogress->wantamount >= 0)
+            readnow = asprogress->wantamount - asprogress->readbytes;
+        if (readnow < 0 || readnow > 1024)
+            readnow = 1024;
+        if (readnow + asprogress->readbytes > asprogress->readalloc) {
+            int64_t new_alloc = asprogress->readalloc * 2;
+            if (new_alloc < 1024)
+                new_alloc = 1024;
+            char *newbuf = realloc(
+                asprogress->readbuf, new_alloc
+            );
+            if (!newbuf) {
+                sockets_Close(cdata->connection);
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                    "alloc failure resizing receive buffer"
+                );
+            }
+        }
+        int result = sockets_Receive(
+            cdata->connection,
+            asprogress->readbuf + asprogress->readbytes,
+            readnow
+        );
+        if (result < 0) {
+            if (result == H64SOCKERROR_NEEDTOWRITE) {
+
+            }
+        }
+    }
 }
 
 int netlib_connect(h64vmthread *vmthread) {
@@ -287,7 +397,7 @@ int netlib_connect(h64vmthread *vmthread) {
             asprogress->resolve_job->done);
     if (asprogress->resolve_job->failed_external) {
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "host name resolution failed"
         );
     }
@@ -340,7 +450,7 @@ int netlib_connect(h64vmthread *vmthread) {
         } else if (result != H64SOCKERROR_SUCCESS) {
             if (asprogress->resolve_job->hostlookup.resultip4len <= 0)
                 return vmexec_ReturnFuncError(
-                    vmthread, H64STDERROR_OSERROR,
+                    vmthread, H64STDERROR_RESOURCEERROR,
                     "connection failed"
                 );
             asprogress->failedv6connect = 1;
@@ -381,7 +491,7 @@ int netlib_connect(h64vmthread *vmthread) {
         } else if (result != H64SOCKERROR_SUCCESS) {
             if (asprogress->resolve_job->hostlookup.resultip4len <= 0)
                 return vmexec_ReturnFuncError(
-                    vmthread, H64STDERROR_OSERROR,
+                    vmthread, H64STDERROR_RESOURCEERROR,
                     "connection failed"
                 );
             asprogress->failedv6connect = 1;
@@ -406,7 +516,7 @@ int netlib_connect(h64vmthread *vmthread) {
             );
             if (!vc->ptr_value) {
                 return vmexec_ReturnFuncError(
-                    vmthread, H64STDERROR_OSERROR,
+                    vmthread, H64STDERROR_OUTOFMEMORYERROR,
                     "out of memory allocating connection"
                 );
             }
@@ -422,7 +532,7 @@ int netlib_connect(h64vmthread *vmthread) {
                 poolalloc_free(vmthread->heap, vc->ptr_value);
                 vc->ptr_value = NULL;
                 return vmexec_ReturnFuncError(
-                    vmthread, H64STDERROR_OSERROR,
+                    vmthread, H64STDERROR_OUTOFMEMORYERROR,
                     "out of memory allocating connection"
                 );
             }
@@ -438,7 +548,7 @@ int netlib_connect(h64vmthread *vmthread) {
         }
     }
     return vmexec_ReturnFuncError(
-        vmthread, H64STDERROR_OSERROR,
+        vmthread, H64STDERROR_RESOURCEERROR,
         "connection failed"
     );
 }

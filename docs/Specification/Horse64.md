@@ -211,7 +211,7 @@ refer to variables, see [later section on classes](
 ### Conditionals (if, elseif, else)
 
 Conditionals can be tested with `if` statements, the inner
-code runs if the conditional evaluates to boolean value `true`.
+code runs if the conditional evaluates to boolean value `yes`.
 If the conditional doesn't evaluate to a boolean, a TypeError occurs.
 Otherwise, all `elseif` are tested if present, and `else`
 is taken if all fails.
@@ -240,9 +240,9 @@ if my_tested_value == 5 {
   order first and outside-in/left-to-right second. Evaluation stops early
   for the conditional operators `and` and `or` when the result is obvious:
   a logical `and` combination will only have the right-hand evaluated if
-  the left-hand side wasn't already false. Similarly, `or` will only
+  the left-hand side wasn't already boolean no. Similarly, `or` will only
   evaluate the right-hand if the left-hand hasn't already evaluated
-  to true.
+  to boolean yes.
 
 
 ### Inline expressions
@@ -619,7 +619,7 @@ to the same underlying data object:
 |*Data Type*  |By value|GC'ed |Literal constructor          |
 |-------------|--------|------|-----------------------------|
 |none         |Yes     |No    |`none`                       |
-|boolean      |Yes     |No    |`true` or `false`            |
+|boolean      |Yes     |No    |`yes` or `no`            |
 |number       |Yes     |No    |`-?[0-9]+(\.[0-9]+)?`        |
 |string       |Yes     |No    |`"`, then any utf-8, then `"`|
 |function     |No      |No    | see below                   |
@@ -867,7 +867,7 @@ Comparison operators: `==`, `!=`, `>`, `<`, `>=`, `<=`.
 The first two can be applied to any types, the others
 to a pair of numbers, or a pair of strings which compares
 them based on unicode code point value. All comparisons
-evaluate to either false or true.
+evaluate to either boolean yes or boolean no.
 
 **Boolean operators:**
 
@@ -875,10 +875,10 @@ Boolean operators: `not`, `and`, `or`.
 *(`not` unary, others binary operators)*
 
 All of these can be applied to any pair of booleans,
-and will return a boolean.
+and will return a boolean (yes/no).
 The `and` operator will only evaluate the left-hand side
-if it turns out to be false. The `or` operator will only
-evaluate the left-hand side if it turns out to be true.
+if it turns out to be boolean no. The `or` operator will only
+evaluate the left-hand side if it turns out to be boolean yes.
 
 **New operator:**
 

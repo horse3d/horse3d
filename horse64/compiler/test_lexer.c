@@ -135,7 +135,7 @@ START_TEST (test_separation)
     {
         FILE *f = fopen(".testdata.txt", "wb");
         ck_assert(f != NULL);
-        char s[] = "false";
+        char s[] = "no";
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
         h64tokenizedfile tfile = lexer_ParseFromFile(
@@ -150,7 +150,7 @@ START_TEST (test_separation)
     {
         FILE *f = fopen(".testdata.txt", "wb");
         ck_assert(f != NULL);
-        char s[] = "falseP";
+        char s[] = "noP";
         ck_assert(fwrite(s, 1, strlen(s), f));
         fclose(f);
         h64tokenizedfile tfile = lexer_ParseFromFile(

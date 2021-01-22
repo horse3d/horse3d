@@ -7,12 +7,13 @@ import net from core.horse64.org
 import uri from core.horse64.org
 import system from core.horse64.org
 
-func request(target, method="GET", insecure=false,
+func request(target, method="GET", insecure=no,
              user_agent="horse64-http/" + system.core_version,
-             bytes_result=true) {
+             bytes_result=yes) {
+    const max_header_size = (4096 * 10)
     if type(target) == "string" or type(target) == "bytes" {
         target = uri.parse(
-            target, default_protocol="https", guess_port=true
+            target, default_protocol="https", guess_port=yes
         )
     }
     if not has_attr(target, "host") or not has_attr(target, "path") or
@@ -43,16 +44,24 @@ func request(target, method="GET", insecure=false,
         "User-Agent" -> user_agent,
         "Host" -> target.host + ":" + target.port
     }
-    conn.send(
+    conn.write(
         b"HTTP1/1 GET " +
-            given not target.path.begins("/") -> (b"/" else b"") +
+            given not target.path.begins("/") then (b"/" else b"") +
             target.path.as_bytes + b"\r\n" +
         headers.join(":", "\r\n").as_bytes + b"\r\n" +
         b"\r\n"
     )
-    var result = conn.receive()
+    var result_headers = conn.read(
+        count=(max_header_size, upto=b"\r\n\r\n"
+    )
+    if not result_headers.ends(b"\r\n\r\n") {
+        raise new IOError(
+            "invalid server response with no headers, or "
+            "headers exceeding " + max_header_size.as_str + "bytes"
+        )
+    }
 }
 
-func get(target, insecure=false, bytes_result=true) {
+func get(target, insecure=no, bytes_result=yes) {
     return request(target, method="GET", insecure=insecure)
 }

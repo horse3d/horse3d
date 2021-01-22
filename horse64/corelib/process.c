@@ -24,13 +24,13 @@ int processlib_run(
      * @func run
      * @param path the path of the executable file to be run
      * @param arguments=[] the arguments to be passed to the process
-     * @param background=false whether to run the process in the background
-     *    (true), or whether to wait until it terminates before resuming
-     *    (the default, false).
-     * @param system_commands=true whether to search for command names in
+     * @param background=no whether to run the process in the background
+     *    (=yes), or whether to wait until it terminates before resuming
+     *    (=no, the default).
+     * @param system_commands=yes whether to search for command names in
      *    system-wide folders, other than just the local folder and/or the
      *    exact binary path
-     * @returns a @see{process object|process.process} if background=true,
+     * @returns a @see{process object|process.process} if background=yes,
      *     otherwise returns the exit code of the process as @see{number}.
      */
     assert(STACK_TOP(vmthread->stack) >= 3);

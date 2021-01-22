@@ -187,8 +187,8 @@ char *disassembler_DumpValueContent(valuecontent *vs) {
             return strdup(buf);
         case H64VALTYPE_BOOL:
             if (vs->int_value)
-                return strdup("true");
-            return strdup("false");
+                return strdup("yes");
+            return strdup("no");
         case H64VALTYPE_NONE:
             return strdup("none");
         case H64VALTYPE_UNSPECIFIED_KWARG:

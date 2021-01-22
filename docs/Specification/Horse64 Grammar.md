@@ -139,7 +139,7 @@ kwarglist ::= (kwargitem_1, kwargitem_2, ...) kwarglastitem
 kwargitem ::= identifier '=' expr ','
 kwarglastitem ::= identifier '=' expr
 
-literalexpr ::= "none" | "true" | "false" | numberliteral |
+literalexpr ::= "none" | "yes" | "no" | numberliteral |
                 stringliteral | containerexpr
 
 containerexpr ::= setexpr | mapexpr | listexpr | vectorexpr
@@ -157,6 +157,8 @@ vectorlastitem ::= numberliteral ':' expr
 operatorexpr ::= binopexpr | unopexpr
 binopexpr ::= expr binop expr
 unopexpr ::= unop expr
+
+givenexpr ::= "given" expr "then" '(' expr "else" expr ')'
 
 ```
 

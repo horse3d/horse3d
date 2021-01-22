@@ -73,7 +73,7 @@ int iolib_open(
      *
      * @func open
      * @param path the path of the file to be opened
-     * @param read=true whether the file should be opened for @see(
+     * @param read=yes whether the file should be opened for @see(
               reading|io.file.read).
      * @param write=false whether the file should be opened for @see(
               writing|io.file.write).
@@ -81,12 +81,12 @@ int iolib_open(
               writing should always be appended to the end.
               For opening a file for reading only, this option is ignored.
 
-              **append=true:** the file that is opened for writing will
+              **append=yes:** the file that is opened for writing will
               keep its contents, and reading will occur from the start.
               However, any write will be appended to its end, even when
               @see{seek|io.file.seek}ing to another position for reading.
 
-              **append=false:** the file that is opened for writing will
+              **append=no:** the file that is opened for writing will
               be cleared out on open, and both reading and writing will
               occur from the start, or wherever you @see{seek|io.file.seek}
               to.
@@ -95,21 +95,25 @@ int iolib_open(
               for writing, appending will be disabled. if the file was
               opeend for both writing and reading, appending will be
               enabled. See above for the respective result of that.
-     * @param binary=false whether the file should be read as unchanged
+     * @param binary=no whether the file should be read as unchanged
               binary which will return @see(bytes) when reading, or
               otherwise it will be decoded from utf-8 and return a
               @see(string). When decoding to a string, invalid bytes
               will be replaced by code point U+FFFD which is lossy.
-     * @param allow_bad_encoding=false when reading in non-binary mode,
+     * @param allow_bad_encoding=no when reading in non-binary mode,
               this setting determines whether to throw an EncodingError
               when reading invalid encoding (when this setting is false,
               the default), or whether garbage will be silently surrogate
-              escaped and retained (when this setting is set to true).
+              escaped and retained (when this setting is set to yes).
      * @returns a @see{file object|io.file}
-     * @raises IOERROR raised when there is a failure that is NOT expected
-     *    to go away with retrying, like wrong file type, permission errors,
-     *    full disk, etc.
-     * @raises OSError raised when there is unexpected resource
+     * @raises IOError raised when there is a failure that is NOT expected
+     *    to go away with retrying, like wrong file type, full disk, path
+     *    doesn't point to any existing file, etc.
+     * @raises PermissionError raised when there are insufficient permissions
+     *    for opening the target, for example when opening a read-only file
+     *    for writing, or when opening a file belonging to another user
+     *    without permissions for shared access.
+     * @raises ResourceError raised when there is unexpected resource
      *    exhaustion that MAY go away when retrying, like running out of
      *    file handles, read timeout, and so on.
      */
@@ -304,7 +308,7 @@ int iolib_open(
             );
         } else if (err == ERROR_TOO_MANY_OPEN_FILES) {
             return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_OSERROR,
+                vmthread, H64STDERROR_RESOURCEERROR,
                 "too many open files"
             );
         } else if (err == ERROR_ACCESS_DENIED) {
@@ -314,7 +318,7 @@ int iolib_open(
             );
         } else if (err == ERROR_SHARING_VIOLATION) {
             return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_OSERROR,
+                vmthread, H64STDERROR_RESOURCEERROR,
                 "file in use by other process"
             );
         } else if (err == ERROR_INVALID_NAME) {
@@ -337,7 +341,7 @@ int iolib_open(
             (int)err
         );
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             buf
         );
     }
@@ -347,7 +351,7 @@ int iolib_open(
     if (filedescr < 0) {
         CloseHandle(f2);
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "conversion to FILE* unexpectly failed"
         );
     }
@@ -356,7 +360,7 @@ int iolib_open(
     if (!f) {
         _close(filedescr);
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "conversion to FILE* unexpectly failed"
         );
     }
@@ -439,7 +443,7 @@ int iolib_open(
             );
         else if (errno == ENFILE)
             return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_OSERROR,
+                vmthread, H64STDERROR_RESOURCEERROR,
                 "too many open files"
             );
         else if (errno == ENAMETOOLONG)
@@ -463,7 +467,7 @@ int iolib_open(
             (int)errno
         );
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             buf
         );
     }
@@ -481,14 +485,14 @@ int iolib_open(
                 "permission denied"
             );
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "fstat() failed on file for unknown reason"
         );
     }
     if (S_ISDIR(filestatinfo.st_mode)) {
         fclose(f);
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "path refers to a directory, not a file"
         );
     }
@@ -560,10 +564,10 @@ int iolib_fileread(
      * @returns the data read, which is a @see{bytes} value when the
      *    file was opened with binary=false, otherwise a @see{string}
      *    value.
-     * @raises IOERROR raised when there is a failure that is NOT expected
+     * @raises IOError raised when there is a failure that is NOT expected
      *    to go away with retrying, like wrong file type, permission errors,
      *    full disk, etc.
-     * @raises OSError raised when there is unexpected resource
+     * @raises ResourceError raised when there is unexpected resource
      *    exhaustion that MAY go away when retrying, like running out of
      *    file handles, read timeout, and so on.
      */
@@ -587,7 +591,7 @@ int iolib_fileread(
     if ((cdata->flags & FILEOBJ_FLAGS_CACHEDUNSENTERROR) != 0) {
         cdata->flags &= ~((uint8_t)FILEOBJ_FLAGS_CACHEDUNSENTERROR);
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "unknown read error"
         );
     }
@@ -640,7 +644,7 @@ int iolib_fileread(
     if (ferror(f)) {
         clearerr(f);
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "unknown read error"
         );
     }
@@ -697,7 +701,7 @@ int iolib_fileread(
                         if (readbufheap)
                             free(readbuf);
                         return vmexec_ReturnFuncError(
-                            vmthread, H64STDERROR_OSERROR,
+                            vmthread, H64STDERROR_RESOURCEERROR,
                             "unknown read error"
                         );
                     }
@@ -886,7 +890,7 @@ int iolib_fileseek(
     } else if (ferror(cdata->file_handle) ||
             (cdata->flags & FILEOBJ_FLAGS_CACHEDUNSENTERROR) != 0) {
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "file has encountered read/write error"
         );
     } else if ((cdata->flags & FILEOBJ_FLAGS_BINARY) != 0) {
@@ -918,7 +922,7 @@ int iolib_fileseek(
     }
     if (result != 0) {
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "unexpected seek failure"
         );
     }
@@ -965,7 +969,7 @@ int iolib_fileoffset(
     } else if (ferror(cdata->file_handle) ||
             (cdata->flags & FILEOBJ_FLAGS_CACHEDUNSENTERROR) != 0) {
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "file has encountered read/write error"
         );
     }
@@ -977,7 +981,7 @@ int iolib_fileoffset(
     }
     if (result < 0) {
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OSERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "unexpected ftell64() error"
         );
     }

@@ -30,6 +30,7 @@ typedef int socklen_t;
 #include "threading.h"
 #include "widechar.h"
 
+void _sockets_CloseNoLock(h64socket *s);
 
 extern int _vmsockets_debug;
 static volatile _Atomic int _sockinitdone = 0;
@@ -186,10 +187,17 @@ void _ssend_worker(ATTR_UNUSED void *userdata) {  // socket send worker.
                         sockets_needing_send[i]
                     ));
                 if (sendresult == H64SOCKERROR_NEEDTOWRITE) {
-                    if ((s->flags & _SOCKFLAG_SENDWAITSFORREAD) != 0) {
+                    if (((s->flags & _SOCKFLAG_ISINSENDLIST) != 0 &&
+                            s->flags & _SOCKFLAG_SENDWAITSFORREAD) != 0) {
                         sockset_Remove(
                             &sockets_needing_send_set, s->fd
                         );
+                        s->flags &= (
+                            ~(uint32_t)(_SOCKFLAG_ISINSENDLIST|
+                            _SOCKFLAG_SENDWAITSFORREAD)
+                        );
+                    }
+                    if ((s->flags & _SOCKFLAG_ISINSENDLIST) == 0) {
                         if (!sockset_Add(
                                 &sockets_needing_send_set,
                                 s->fd,
@@ -197,12 +205,20 @@ void _ssend_worker(ATTR_UNUSED void *userdata) {  // socket send worker.
                                 H64SOCKSET_WAITERROR)) {
                             goto errorwithwrite;
                         }
+                        s->flags |= _SOCKFLAG_ISINSENDLIST;
                     }
                 } else if (sendresult == H64SOCKERROR_NEEDTOREAD) {
-                    if ((s->flags & _SOCKFLAG_SENDWAITSFORREAD) == 0) {
+                    if ((s->flags & _SOCKFLAG_ISINSENDLIST) != 0 &&
+                            (s->flags & _SOCKFLAG_SENDWAITSFORREAD) == 0) {
                         sockset_Remove(
                             &sockets_needing_send_set, s->fd
                         );
+                        s->flags &= (
+                            ~(uint32_t)(_SOCKFLAG_ISINSENDLIST |
+                            _SOCKFLAG_SENDWAITSFORREAD)
+                        );
+                    }
+                    if ((s->flags & _SOCKFLAG_ISINSENDLIST) == 0) {
                         if (!sockset_Add(
                                 &sockets_needing_send_set,
                                 s->fd,
@@ -210,18 +226,24 @@ void _ssend_worker(ATTR_UNUSED void *userdata) {  // socket send worker.
                                 H64SOCKSET_WAITERROR)) {
                             goto errorwithwrite;
                         }
+                        s->flags |= (
+                            _SOCKFLAG_ISINSENDLIST |
+                            _SOCKFLAG_SENDWAITSFORREAD
+                        );
                     }
-                } else if (sendresult != H64SOCKERROR_SUCCESS) {
-                    errorwithwrite:
-                    if (s->sslobj)
-                        SSL_free(s->sslobj);
-                    s->sslobj = NULL;
-                    #if defined(_WIN32) || defined(_WIN64)
-                    closesocket(s->fd);
-                    #else
-                    close(s->fd);
-                    #endif
-                    s->fd = -1;
+                } else {
+                    sockset_Remove(
+                        &sockets_needing_send_set, s->fd
+                    );
+                    s->flags &= (
+                        ~(uint32_t)(_SOCKFLAG_ISINSENDLIST |
+                        _SOCKFLAG_SENDWAITSFORREAD)
+                    );
+                    if (sendresult != H64SOCKERROR_SUCCESS) {
+                        errorwithwrite:
+                        _sockets_CloseNoLock(s);  // will change list!!!
+                        continue;  // no i++!!
+                    }
                 }
             } else {
                 #ifndef NDEBUG
@@ -558,7 +580,7 @@ int sockets_ConnectClient(
                         WSAGetLastError() == WSAEWOULDBLOCK) {
                     if (WSAGetLastError() == WSAEWOULDBLOCK)
                         sock->flags &= ~(
-                            (uint16_t)_SOCKFLAG_CONNECTCALLED
+                            (uint32_t)_SOCKFLAG_CONNECTCALLED
                         );
                     return H64SOCKERROR_NEEDTOWRITE;
                 }
@@ -566,7 +588,7 @@ int sockets_ConnectClient(
                 if (errno == EAGAIN || errno == EINPROGRESS) {
                     if (errno == EAGAIN)  // must call connect again
                         sock->flags &= ~(
-                            (uint16_t)_SOCKFLAG_CONNECTCALLED
+                            (uint32_t)_SOCKFLAG_CONNECTCALLED
                         );
                     return H64SOCKERROR_NEEDTOWRITE;
                 }
@@ -629,7 +651,7 @@ int sockets_ConnectClient(
                         WSAGetLastError() == WSAEWOULDBLOCK) {
                     if (WSAGetLastError() == WSAEWOULDBLOCK)
                         sock->flags &= ~(
-                            (uint16_t)_SOCKFLAG_CONNECTCALLED
+                            (uint32_t)_SOCKFLAG_CONNECTCALLED
                         );
                     return H64SOCKERROR_NEEDTOWRITE;
                 }
@@ -637,7 +659,7 @@ int sockets_ConnectClient(
                 if (errno == EAGAIN || errno == EINPROGRESS) {
                     if (errno == EAGAIN)  // must call connect again
                         sock->flags &= ~(
-                            (uint16_t)_SOCKFLAG_CONNECTCALLED
+                            (uint32_t)_SOCKFLAG_CONNECTCALLED
                         );
                     return H64SOCKERROR_NEEDTOWRITE;
                 }
@@ -682,7 +704,7 @@ int sockets_ConnectClient(
 
             // Return failure if we didn't connect:
             if (!definitelyconnected || hadsocketerror) {
-                sock->flags &= ~((uint16_t)_SOCKFLAG_CONNECTCALLED);
+                sock->flags &= ~((uint32_t)_SOCKFLAG_CONNECTCALLED);
                 return H64SOCKERROR_OPERATIONFAILED;
             }
             sock->flags |= _SOCKFLAG_KNOWNCONNECTED;
@@ -745,20 +767,45 @@ int sockets_WasEverConnected(h64socket *sock) {
     return ((sock->flags & _SOCKFLAG_KNOWNCONNECTED) != 0);
 }
 
+void _sockets_CloseNoLock(h64socket *s) {
+    if ((s->flags & _SOCKFLAG_ISINSENDLIST) != 0) {
+        sockset_Remove(
+            &sockets_needing_send_set, s->fd
+        );
+        _internal_sockets_UnregisterFromSend(s, 0);
+    }
+    s->flags &= (
+        ~(uint32_t)(_SOCKFLAG_ISINSENDLIST |
+        _SOCKFLAG_SENDWAITSFORREAD)
+    );
+    if (s->fd >= 0) {
+        #if defined(_WIN32) || defined(_WIN64)
+        closesocket(s->fd);
+        #else
+        close(s->fd);
+        #endif
+    }
+    s->fd = -1;
+    if (s->sslobj) {
+        SSL_free(s->sslobj);
+        s->sslobj = NULL;
+    }
+}
+void sockets_Close(h64socket *s) {
+    if (!s)
+        return;
+    mutex_Lock(sockets_needing_send_mutex);
+    _sockets_CloseNoLock(s);
+    mutex_Release(sockets_needing_send_mutex);
+}
+
 void sockets_Destroy(h64socket *sock) {
     if (!sock)
         return;
-    if ((sock->flags & _SOCKFLAG_ISINSENDLIST) != 0)
-        _internal_sockets_UnregisterFromSend(sock, 1);
-    if (sock->sslobj) {
-        SSL_free(sock->sslobj);
-        sock->sslobj = NULL;
-    }
-    #if defined(_WIN32) || defined(_WIN64)
-    closesocket(sock->fd);
-    #else
-    close(sock->fd);
-    #endif
+    mutex_Lock(sockets_needing_send_mutex);
+    _sockets_CloseNoLock(sock);
+    mutex_Release(sockets_needing_send_mutex);
+    // FIXME: free send buffer
     free(sock);
 }
 
@@ -840,7 +887,7 @@ int _internal_sockets_RegisterForSend(h64socket *s, int lock) {
             mutex_Release(sockets_needing_send_mutex);
         return 0;
     }
-    s->flags &= ~((uint16_t)_SOCKFLAG_SENDWAITSFORREAD);
+    s->flags &= ~((uint32_t)_SOCKFLAG_SENDWAITSFORREAD);
     sockets_needing_send[
         sockets_needing_send_fill
     ] = s;
@@ -894,19 +941,15 @@ int _internal_sockets_ProcessSend(h64socket *s) {
             if (error == SSL_ERROR_WANT_WRITE ||
                     error == SSL_ERROR_WANT_CONNECT) {
                 s->_resent_attempt_fill = sendlen;
+                s->_ssl_repeat_errortype = H64SOCKERROR_NEEDTOWRITE;
                 return H64SOCKERROR_NEEDTOWRITE;
             } else if (error == SSL_ERROR_WANT_READ ||
                     error == SSL_ERROR_WANT_ACCEPT) {
                 s->_resent_attempt_fill = sendlen;
+                s->_ssl_repeat_errortype = H64SOCKERROR_NEEDTOREAD;
                 return H64SOCKERROR_NEEDTOREAD;
             } else {
-                SSL_free(s->sslobj);
-                #if defined(_WIN32) || defined(_WIN64)
-                closesocket(s->fd);
-                #else
-                close(s->fd);
-                #endif
-                s->fd = -1;
+                _sockets_CloseNoLock(s);
                 return H64SOCKERROR_OPERATIONFAILED;
             }
         }
@@ -922,6 +965,9 @@ int _internal_sockets_ProcessSend(h64socket *s) {
                 _internal_sockets_UnregisterFromSend(s, 0);
             }
         }
+        #ifndef NDEBUG
+        s->_ssl_repeat_errortype = 0;
+        #endif
         return H64SOCKERROR_SUCCESS;
     } else {
         int result = send(
@@ -944,12 +990,7 @@ int _internal_sockets_ProcessSend(h64socket *s) {
                 return H64SOCKERROR_NEEDTOWRITE;
             }
             #endif
-            #if defined(_WIN32) || defined(_WIN64)
-            closesocket(s->fd);
-            #else
-            close(s->fd);
-            #endif
-            s->fd = -1;
+            _sockets_CloseNoLock(s);
             return H64SOCKERROR_OPERATIONFAILED;
         }
         s->_resent_attempt_fill = 0;
@@ -1408,6 +1449,78 @@ void sockset_Remove(
         i++;
     }
     #endif
+}
+
+int sockets_Receive(
+        h64socket *s, char *buf, size_t count
+        ) {
+    mutex_Lock(sockets_needing_send_mutex);
+    if (!s || s->fd < 0) {
+        mutex_Release(sockets_needing_send_mutex);
+        return H64SOCKERROR_CONNECTIONDISCONNECTED;
+    }
+    if (count <= 0) {
+        mutex_Release(sockets_needing_send_mutex);
+        return 0;
+    }
+    if ((s->flags & SOCKFLAG_TLS) != 0) {
+        if (s->_resent_attempt_fill > 0) {
+            assert(s->_ssl_repeat_errortype != 0);
+            mutex_Release(sockets_needing_send_mutex);
+            return s->_ssl_repeat_errortype;
+        }
+        if (s->_receive_reattempt_usedsize > 0) {
+            assert(
+                s->_receive_reattempt_usedsize == count
+            );
+        }
+        int result = SSL_read(
+            s->sslobj, buf, count
+        );
+        if (result <= 0) {
+            int error = SSL_get_error(
+                s->sslobj, result
+            );
+            if (error == SSL_ERROR_WANT_WRITE ||
+                    error == SSL_ERROR_WANT_CONNECT) {
+                s->_receive_reattempt_usedsize = count;
+                s->_ssl_repeat_errortype = H64SOCKERROR_NEEDTOWRITE;
+                mutex_Release(sockets_needing_send_mutex);
+                return H64SOCKERROR_NEEDTOWRITE;
+            } else if (error == SSL_ERROR_WANT_READ ||
+                    error == SSL_ERROR_WANT_ACCEPT) {
+                s->_receive_reattempt_usedsize = count;
+                s->_ssl_repeat_errortype = H64SOCKERROR_NEEDTOREAD;
+                mutex_Release(sockets_needing_send_mutex);
+                return H64SOCKERROR_NEEDTOREAD;
+            } else {
+                _sockets_CloseNoLock(s);
+                return H64SOCKERROR_OPERATIONFAILED;
+            }
+        }
+    } else {
+        int result = recv(s->fd, buf, count, 0);
+        if (result < 0) {
+            #if defined(_WIN32) || defined(_WIN64)
+            int err = WSAGetLastError();
+            if (err == WSAEWOULDBLOCK || err == WSAEAGAIN) {
+                mutex_Release(sockets_needing_send_mutex);
+                return H64SOCKERROR_NEEDTOREAD;
+            }
+            #else
+            const int err = errno;
+            if (err == EWOULDBLOCK || err == EAGAIN) {
+                mutex_Release(sockets_needing_send_mutex);
+                return H64SOCKERROR_NEEDTOREAD;
+            }
+            #endif
+        }
+        if (result <= 0) {
+            _sockets_CloseNoLock(s);
+        }
+        mutex_Release(sockets_needing_send_mutex);
+        return result;
+    }
 }
 
 void sockset_RemoveWithMask(

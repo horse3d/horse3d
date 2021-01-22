@@ -55,7 +55,7 @@ typedef struct h64tokenizedfile {
 
 ATTR_UNUSED static char *h64keywords[] = {
     "async", "const", "raise",
-    "if", "while", "func",
+    "if", "while", "func", "then",
     "for", "from", "with",
     "var", "class", "extends",
     "import", "else", "elseif",

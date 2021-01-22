@@ -2344,7 +2344,7 @@ int _codegencallback_DoCodegen_visit_in(
         assert(arg1tmp >= 0);
 
         if (expr->op.optype == H64OP_BOOLCOND_AND) {
-            // If first arg is 'true', resume with regular eval:
+            // If first arg is 'yes', resume with regular eval:
             h64instruction_condjumpex inst_cjump = {0};
             inst_cjump.type = H64INST_CONDJUMPEX;
             inst_cjump.flags |= (
@@ -2360,7 +2360,7 @@ int _codegencallback_DoCodegen_visit_in(
                 return 0;
             }
 
-            // If first arg is NOT 'true', bail early:
+            // If first arg is NOT 'yes', bail early:
             h64instruction_setconst inst_setfalse = {0};
             inst_setfalse.type = H64INST_SETCONST;
             inst_setfalse.content.type = H64VALTYPE_BOOL;
@@ -2387,7 +2387,7 @@ int _codegencallback_DoCodegen_visit_in(
             }
         } else {
             assert(expr->op.optype == H64OP_BOOLCOND_OR);
-            // If first arg is 'false', resume with regular eval:
+            // If first arg is 'no', resume with regular eval:
             h64instruction_condjumpex inst_cjump = {0};
             inst_cjump.type = H64INST_CONDJUMPEX;
             inst_cjump.conditionalslot = arg1tmp;
@@ -2400,7 +2400,7 @@ int _codegencallback_DoCodegen_visit_in(
                 return 0;
             }
 
-            // If first arg is NOT 'false', bail early:
+            // If first arg is NOT 'no', bail early:
             h64instruction_setconst inst_settrue = {0};
             inst_settrue.type = H64INST_SETCONST;
             inst_settrue.content.type = H64VALTYPE_BOOL;

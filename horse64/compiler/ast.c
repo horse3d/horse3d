@@ -1124,14 +1124,14 @@ jsonvalue *ast_ExpressionToJSON(
         jsonvalue *valueyes = ast_ExpressionToJSON(
             e->given.valueyes, fileuri
         );
-        if (!json_SetDict(v, "true-value", valueyes)) {
+        if (!json_SetDict(v, "if-yes-value", valueyes)) {
             json_Free(conditionval);
             fail = 1;
         }
         jsonvalue *valueno = ast_ExpressionToJSON(
             e->given.valueno, fileuri
         );
-        if (!json_SetDict(v, "false-value", valueno)) {
+        if (!json_SetDict(v, "if-no-value", valueno)) {
             json_Free(conditionval);
             fail = 1;
         }

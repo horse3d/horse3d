@@ -9,7 +9,7 @@ func main {
         b = 7
     }
     if (a + b == 13) {
-        return true  # success
+        return yes  # success
     }
-    return false
+    return no
 }

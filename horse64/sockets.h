@@ -45,14 +45,15 @@
 
 typedef struct h64socket {
     int fd;
-    uint16_t flags;
+    uint32_t flags;
     SSL *sslobj;
 #if defined(_WIN32) || defined(_WIN64)
     HANDLE sock_event_read, sock_event_write;
 #endif
     char *sendbuf;
     size_t sendbufsize, sendbuffill;
-    size_t _resent_attempt_fill;
+    size_t _resent_attempt_fill, _ssl_repeat_errortype,
+        _receive_reattempt_usedsize;
 } h64socket;
 
 typedef struct h64threadevent h64threadevent;
@@ -241,6 +242,8 @@ int _internal_sockets_RegisterForSend(h64socket *s, int lock);
 
 int sockets_NeedSend(h64socket *s);
 
+int sockets_Receive(h64socket *s, char *buf, size_t count);
+
 void sockets_Destroy(h64socket *sock);
 
 int sockets_NewPair(h64socket **s1, h64socket **s2);
@@ -250,5 +253,7 @@ int sockets_SetNonblocking(h64socket *sock, int nonblocking);
 int sockets_IsIPv4(const h64wchar *s, int slen);
 
 int sockets_IsIPv6(const h64wchar *s, int slen);
+
+void sockets_Close(h64socket *s);
 
 #endif  // HORSE64_SOCKETS_H_

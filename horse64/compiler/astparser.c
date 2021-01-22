@@ -753,7 +753,9 @@ int ast_ParseExprInlineOperator_Recurse(
             if (tokens[i].type == H64TK_COMMA ||
                     tokens[i].type == H64TK_MAPARROW ||
                     tokens[i].type == H64TK_COLON ||
-                    tokens[i].type == H64TK_INLINEFUNC) {
+                    tokens[i].type == H64TK_INLINEFUNC || (
+                    tokens[i].type == H64TK_KEYWORD &&
+                    strcmp(tokens[i].str_value, "then") == 0)) {
                 operand_max_tokens_touse = i;
                 break;
             }
@@ -2083,11 +2085,12 @@ int ast_ParseExprInline(
                 i += tlen;
             }
             if (i >= max_tokens_touse ||
-                    tokens[i].type != H64TK_MAPARROW) {
+                    tokens[i].type != H64TK_KEYWORD ||
+                    strcmp(tokens[i].str_value, "then") != 0) {
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
-                    "expected \"->\" following "
+                    "expected \"then\" following "
                     "\"given\" conditional "
                     "in line %" PRId64 ", column %" PRId64
                     " instead",
@@ -2121,7 +2124,7 @@ int ast_ParseExprInline(
                 char buf[256]; char describebuf[64];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected %s, "
-                    "expected \"(\" following \"->\" for "
+                    "expected \"(\" following \"then\" for "
                     "return values for "
                     "\"given\" expression "
                     "in line %" PRId64 ", column %" PRId64
@@ -2180,7 +2183,7 @@ int ast_ParseExprInline(
                     char buf[256]; char describebuf[64];
                     snprintf(buf, sizeof(buf) - 1,
                         "unexpected %s, "
-                        "expected true result value for \"given\" "
+                        "expected yes result value for \"given\" "
                         "in line %" PRId64 ", column %" PRId64
                         " instead",
                         _describetoken(describebuf,
@@ -2267,7 +2270,7 @@ int ast_ParseExprInline(
                     char buf[256]; char describebuf[64];
                     snprintf(buf, sizeof(buf) - 1,
                         "unexpected %s, "
-                        "expected false result value for \"given\" "
+                        "expected no result value for \"given\" "
                         "in line %" PRId64 ", column %" PRId64
                         " instead",
                         _describetoken(describebuf,

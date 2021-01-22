@@ -99,11 +99,10 @@ int systemlib_cores(
      * Get the amount of processor cores on the current system.
      *
      * @func cores
-     * @param physical=false
+     * @param physical=no
      *    Whether to return the logical cores of the CPU
-     *    (physical=false, the default) often referred to
-     *    as CPU threads, or the physical
-     *    ones (physical=true).
+     *    (physical=no, the default) which are often also named
+     *    "CPU threads", or the physical cores (physical=yes).
      * @returns the processor cores as a @see{number}.
      */
     assert(STACK_TOP(vmthread->stack) >= 1);

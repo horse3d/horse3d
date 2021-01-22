@@ -149,19 +149,19 @@ void vmthread_SetSuspendState(
 }
 
 int _vmexec_CondExprValue(
-        valuecontent *v, int *truefalse
+        valuecontent *v, int *yesno
         ) {
     if (v->type == H64VALTYPE_BOOL) {
-        *truefalse = (v->int_value != 0);
+        *yesno = (v->int_value != 0);
         return 1;
-    } else if (v->type == H64VALTYPE_NONE) {
-        *truefalse = 0;
+    /*} else if (v->type == H64VALTYPE_NONE) {  // disabled for now
+        *yesno = 0;
         return 1;
     } else if (v->type == H64VALTYPE_GCVAL &&
             ((h64gcvalue *)v->ptr_value)->type ==
             H64GCVALUETYPE_OBJINSTANCE) {
-        *truefalse = 1;
-        return 1;
+        *yesno = 1;
+        return 1;*/
     }
     return 0;
 }
