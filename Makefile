@@ -75,7 +75,7 @@ showvariables:
 	@echo "Program objects: $(PROGRAM_OBJECTS)"
 	@echo "Cross-compile host: $(CROSSCOMPILEHOST)"
 all: wchar_data remove-main-o check-submodules datapak $(PROGRAM_OBJECTS)
-	$(CXX) $(CFLAGS) -o ./"$(BINNAME)$(BINEXT)" $(PROGRAM_OBJECTS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o ./"$(BINNAME)$(BINEXT)" $(PROGRAM_OBJECTS) $(LDFLAGS)
 ifneq ($(DEBUGGABLE),true)
 	$(STRIPTOOL) ./"$(BINNAME)$(BINEXT)"
 endif
