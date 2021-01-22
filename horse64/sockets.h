@@ -197,6 +197,7 @@ ATTR_UNUSED static inline int sockset_Add(
         FD_SET(fd, &set->writeset);
     if ((waittypes & H64SOCKSET_WAITERROR) != 0)
         FD_SET(fd, &set->errorset);
+    return 1;
     #else
     if (set->size == 0)
         if (set->fill + 1 > _pollsmallsetsize)

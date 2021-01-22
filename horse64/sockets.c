@@ -1059,10 +1059,10 @@ static void _threadEventAccepter(void *userdata) {
     int conns_count = 0;
     int conns_onheap = 0;
     while (!te->failure) {
-        h64sockfd_t acceptfd = H64CLOSEDSOCK;
-        if (IS_VALID_SOCKET(acceptfd = accept(
-                te->recv_server->fd, NULL, NULL
-                ))) {
+        h64sockfd_t acceptfd = accept(
+            te->recv_server->fd, NULL, NULL
+        );
+        if (IS_VALID_SOCKET(acceptfd)) {
             if (conns_count + 1 > conns_alloc) {
                 if (conns_onheap) {
                     _h64socketpairsetup_conn *connsnew = realloc(
