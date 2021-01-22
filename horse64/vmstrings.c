@@ -20,30 +20,30 @@
 int vmstrings_Equality(
         valuecontent *v1, valuecontent *v2
         ) {
-    char *s1v = NULL;
-    char *s2v = NULL;
+    h64wchar *s1v = NULL;
+    h64wchar *s2v = NULL;
     int64_t s1l = 0;
     int64_t s2l = 0;
     if (v1->type == H64VALTYPE_SHORTSTR) {
-        s1v = (char*) v1->shortstr_value;
+        s1v = v1->shortstr_value;
         s1l = v1->shortstr_len;
     } else if (v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        s1v = (char*) v1->constpreallocstr_value;
+        s1v = v1->constpreallocstr_value;
         s1l = v1->constpreallocstr_len;
     } else if (v1->type == H64VALTYPE_GCVAL &&
             ((h64gcvalue*)v1->ptr_value)->type == H64GCVALUETYPE_STRING) {
-        s1v = (char*) ((h64gcvalue*)v1->ptr_value)->str_val.s;
+        s1v = ((h64gcvalue*)v1->ptr_value)->str_val.s;
         s1l = ((h64gcvalue*)v1->ptr_value)->str_val.len;
     }
     if (v2->type == H64VALTYPE_SHORTSTR) {
-        s2v = (char*) v2->shortstr_value;
+        s2v = v2->shortstr_value;
         s2l = v2->shortstr_len;
     } else if (v2->type == H64VALTYPE_CONSTPREALLOCSTR) {
-        s2v = (char*) v2->constpreallocstr_value;
+        s2v = v2->constpreallocstr_value;
         s2l = v2->constpreallocstr_len;
     } else if (v2->type == H64VALTYPE_GCVAL &&
             ((h64gcvalue*)v2->ptr_value)->type == H64GCVALUETYPE_STRING) {
-        s2v = (char*) ((h64gcvalue*)v2->ptr_value)->str_val.s;
+        s2v = ((h64gcvalue*)v2->ptr_value)->str_val.s;
         s2l = ((h64gcvalue*)v2->ptr_value)->str_val.len;
     }
     if (!s1v || !s2v || s1l != s2l)
