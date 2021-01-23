@@ -1073,6 +1073,21 @@ int vmschedule_ExecuteProgram(
     thread_Join(
         supervisor_thread
     );
+    {
+        // Free globals before we free anything else:
+        int i = 0;
+        while (i < mainexec->program->globalvar_count) {
+            DELREF_NONHEAP(&mainexec->program->globalvar[i].content);
+            valuecontent_Free(
+                &mainexec->program->globalvar[i].content
+            );
+            memset(
+                &mainexec->program->globalvar[i].content, 0,
+                sizeof(mainexec->program->globalvar[i].content)
+            );
+            i++;
+        }
+    }
     // Clean up everything:
     if (threaderror && mainexec->program_return_value == 0)
         mainexec->program_return_value = -1;
