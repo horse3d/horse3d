@@ -589,7 +589,6 @@ void vmschedule_WorkerRun(void *userdata) {
                     vt->suspend_info->suspendtype = (
                         SUSPENDTYPE_DONE
                     );
-                    vmthread_Free(vt);
                     worker->vmexec->program_return_value = -1;
                 } else if (!hadsuspendevent && !haduncaughterror) {
                     worker->vmexec->program_return_value = rval;
