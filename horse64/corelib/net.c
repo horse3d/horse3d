@@ -105,12 +105,24 @@ int netlib_isip(h64vmthread *vmthread) {
 }
 
 /**
- * A file object class, returned from @see{net.connect}.
+ * A network stream class, returned from @see{net.connect}.
  *
  * @class stream
  */
 
-int netlib_connection_read(h64vmthread *vmthread) {  // net.stream.read()
+int netlib_stream_write(h64vmthread *vmthread) {  // net.stream.write()
+    /**
+     * Write to a @see{network stream|net.stream}
+     *
+     * @funcattr stream connect
+     * @param data the data to write to the stream,
+     *  which must be a @see{bytes} or @see{string} value.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+}
+
+int netlib_stream_read(h64vmthread *vmthread) {  // net.stream.read()
     /**
      * Read from a @see{network stream|net.stream}
      *
@@ -517,7 +529,7 @@ int netlib_connect(h64vmthread *vmthread) {
             if (!vc->ptr_value) {
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                    "out of memory allocating connection"
+                    "out of memory allocating stream"
                 );
             }
             memset(vc->ptr_value, 0, sizeof(h64gcvalue));
@@ -525,7 +537,7 @@ int netlib_connect(h64vmthread *vmthread) {
                 H64GCVALUETYPE_OBJINSTANCE
             );
             ((h64gcvalue *)vc->ptr_value)->class_id = (
-                vmthread->vmexec_owner->program->_net_connection_class_idx
+                vmthread->vmexec_owner->program->_net_stream_class_idx
             );
             _connectionobj_cdata *cdata = malloc(sizeof(*cdata));
             if (!cdata) {
@@ -533,7 +545,7 @@ int netlib_connect(h64vmthread *vmthread) {
                 vc->ptr_value = NULL;
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                    "out of memory allocating connection"
+                    "out of memory allocating stream"
                 );
             }
             memset(cdata, 0, sizeof(*cdata));
@@ -554,11 +566,11 @@ int netlib_connect(h64vmthread *vmthread) {
 }
 
 int netlib_RegisterFuncsAndModules(h64program *p) {
-    // connection class:
-    p->_net_connection_class_idx = h64program_AddClass(
-        p, "connection", NULL, "net", "core.horse64.org"
+    // stream class:
+    p->_net_stream_class_idx = h64program_AddClass(
+        p, "stream", NULL, "net", "core.horse64.org"
     );
-    if (p->_net_connection_class_idx < 0)
+    if (p->_net_stream_class_idx < 0)
         return 0;
 
     // net.connect:
@@ -582,6 +594,30 @@ int netlib_RegisterFuncsAndModules(h64program *p) {
         p, "isip", &netlib_isip,
         NULL, 1, NULL,  // fileuri, args
         "net", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // net.stream.read method:
+    const char *netlib_stream_read_kw_arg_name[] = {
+        "len", "upto"
+    };
+    idx = h64program_RegisterCFunction(
+        p, "read", &netlib_stream_read,
+        NULL, 2, netlib_stream_read_kw_arg_name,  // fileuri, args
+        "net", "core.horse64.org", 1, p->_net_stream_class_idx
+    );
+    if (idx < 0)
+        return 0;
+
+    // net.stream.write method:
+    const char *netlib_stream_write_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "read", &netlib_stream_write,
+        NULL, 1, netlib_stream_write_kw_arg_name,  // fileuri, args
+        "net", "core.horse64.org", 1, p->_net_stream_class_idx
     );
     if (idx < 0)
         return 0;
