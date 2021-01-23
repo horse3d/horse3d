@@ -91,4 +91,9 @@ int vmlist_Remove(genericlist *l, int64_t index);
 
 int vmlist_Contains(genericlist *l, valuecontent *v);
 
+int vmmap_IterateValues(
+    genericlist *l, void *userdata,
+    int (*cb)(void *udata, valuecontent *value)
+);
+
 #endif  // HORSE64_VMLIST_H_

@@ -445,7 +445,7 @@ typedef struct h64program {
 } h64program;
 
 ATTR_UNUSED static char *builtin_type_attributes[] = {
-    "as_bytes",
+    "as_bytes", "join",
     "as_str", "len", "init", "on_cloned", "on_destroy",
     "add", "del", "contains", "is_a", NULL
 };

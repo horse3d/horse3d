@@ -539,6 +539,27 @@ START_TEST(test_bytes_str_conversion)
 }
 END_TEST
 
+START_TEST(test_containerjoin)
+{
+    runprog(
+        "test_containerjoin",
+        "func main {\n"
+        "    var v = ['abc', 'def'].join('123')\n"
+        "    assert(v == 'abc123def')\n"
+        "    assert(['a'].join('blubb') == 'a')\n"
+        "    v = {'abc' -> 'def', 'ghi' -> 'jkl'}.join('123', '456')\n"
+        "    assert(\n"
+        "        v == 'abc123def456ghi123jkl' or\n"
+        "        v == 'ghi123jkl456abc123def' or\n"
+        "    )\n"
+        "    v = {'ab' -> 'cd'}.join('1', '2')\n"
+        "    assert(v == 'ab1cd')\n"
+        "}\n",
+        0
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_fibonacci2,
     test_simpleclass, test_attributeerrors,

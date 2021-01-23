@@ -33,4 +33,14 @@ int vmmap_Get(
     genericmap *m, valuecontent *key, valuecontent *value
 );
 
+valuecontent *vmmap_GetPair(
+    genericmap *m, int64_t idx, valuecontent **value
+);
+
+int vmmap_IteratePairs(
+    genericmap *m, void *userdata,
+    int (*cb)(void *udata, valuecontent *key, valuecontent *value)
+);
+
+
 #endif  // HORSE64_VMMAP_H_

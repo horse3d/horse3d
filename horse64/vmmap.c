@@ -108,6 +108,38 @@ int vmmap_Contains(
     return vmmap_Get(m, key, NULL);
 }
 
+int vmmap_IteratePairs(
+        genericmap *m, void *userdata,
+        int (*cb)(void *udata, valuecontent *key, valuecontent *value)
+        ) {
+    assert(m != NULL);
+    if ((m->flags & GENERICMAP_FLAG_LINEAR) != 0) {
+        int i = 0;
+        while (i < m->linear.entry_count) {
+            valuecontent *key = &m->linear.key[i];
+            valuecontent *value = &m->linear.entry[i];
+            if (!cb(userdata, key, value))
+                return 0;
+            i++;
+        }
+    } else {
+        int k = 0;
+        while (k < m->hashed.bucket_count) {
+            genericmapbucket *b = &m->hashed.bucket[k];
+            int i = 0;
+            while (i < b->entry_count) {
+                valuecontent *key = &b->key[i];
+                valuecontent *value = &b->entry[i];
+                if (!cb(userdata, key, value))
+                    return 0;
+                i++;
+            }
+            k++;
+        }
+    }
+    return 1;
+}
+
 int vmmap_Get(
         genericmap *m, valuecontent *key, valuecontent *value
         ) {

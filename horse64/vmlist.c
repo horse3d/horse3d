@@ -30,6 +30,23 @@ genericlist *vmlist_New() {
     return l;
 }
 
+int vmmap_IterateValues(
+        genericlist *l, void *userdata,
+        int (*cb)(void *udata, valuecontent *value)
+        ) {
+    listblock *block = l->first_block;
+    while (block) {
+        int i = 0;
+        while (i < block->entry_count) {
+            if (!cb(userdata, &block->entry_values[i]))
+                return 0;
+            i++;
+        }
+        block = block->next_block;
+    }
+    return 1;
+}
+
 int vmlist_Contains(genericlist *l, valuecontent *v) {
     listblock *block = l->first_block;
     while (block) {
