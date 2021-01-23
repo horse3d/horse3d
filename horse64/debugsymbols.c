@@ -178,7 +178,10 @@ int64_t h64debugsymbols_AttributeNameToAttributeNameId(
 
             // Built-in names need to be tracked:
             if (symbols->program) {
-                if (strcmp(name, "as_str") == 0) {
+                if (strcmp(name, "as_bytes") == 0) {
+                    symbols->program->as_bytes_name_index = new_id;
+                    symbols->global_attribute_needsidx[new_id] = 1;
+                } else if (strcmp(name, "as_str") == 0) {
                     symbols->program->as_str_name_index = new_id;
                     symbols->global_attribute_needsidx[new_id] = 1;
                 } else if (strcmp(name, "len") == 0) {

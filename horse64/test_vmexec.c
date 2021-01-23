@@ -524,6 +524,21 @@ START_TEST(test_stringfind)
 }
 END_TEST
 
+START_TEST(test_bytes_str_conversion)
+{
+    runprog(
+        "test_bytes_str_conversion",
+        "func main {\n"
+        "    var v = 'abcö'.as_bytes.as_str\n"
+        "    assert(v == 'b\"abc\\\\xc3\\\\xb6\"')\n"
+        "    v = [1, 2].as_str\n"
+        "    assert(v == '[1, 2]')\n"
+        "}\n",
+        0
+    );
+}
+END_TEST
+
 TESTS_MAIN(
     test_fibonacci, test_fibonacci2,
     test_simpleclass, test_attributeerrors,
@@ -533,6 +548,7 @@ TESTS_MAIN(
     test_uri, test_conditionals, test_conditionals2,
     test_conditionals3,
     test_assert1, test_assert2, test_map, test_overflowint,
-    test_given, test_stringfind
+    test_given, test_stringfind,
+    test_bytes_str_conversion
 )
 

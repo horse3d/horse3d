@@ -165,6 +165,7 @@ h64program *h64program_New() {
     p->has_attr_func_idx = -1;
     p->is_a_func_index = -1;
 
+    p->as_bytes_name_index = -1;
     p->as_str_name_index = -1;
     p->len_name_index = -1;
     p->init_name_index = -1;

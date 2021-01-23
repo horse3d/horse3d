@@ -423,6 +423,7 @@ typedef struct h64program {
     h64moduleless_strings_indexes string_indexes;
     h64moduleless_containers_indexes container_indexes;
 
+    int64_t as_bytes_name_index;
     int64_t as_str_name_index;
     int64_t len_name_index;
     int64_t init_name_index;
@@ -444,6 +445,7 @@ typedef struct h64program {
 } h64program;
 
 ATTR_UNUSED static char *builtin_type_attributes[] = {
+    "as_bytes",
     "as_str", "len", "init", "on_cloned", "on_destroy",
     "add", "del", "contains", "is_a", NULL
 };

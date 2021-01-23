@@ -3095,43 +3095,47 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 nameidx == vmexec->program->as_str_name_index
                 ) {  // .as_str
             // See what this actually is as a string with .as_str:
-            h64wchar strvalue[128];
+            h64wchar _strvalue_buf[128];
+            h64wchar *strvalue = _strvalue_buf;
             int64_t strvaluelen = -1;
-            if (vc->type == H64VALTYPE_GCVAL) {
-                if (((h64gcvalue *)vc->ptr_value)->type ==
+            if (vc->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue *)vc->ptr_value)->type ==
                         H64GCVALUETYPE_STRING) {
-                    // Special case, just re-reference string:
-                    if (copyatend) {
-                        // Just leave as is, target and source are the same
-                        p += sizeof(*inst);
-                        goto *jumptable[((h64instructionany *)p)->type];
-                    }
-                    ((h64gcvalue *)vc->ptr_value)->
-                        externalreferencecount++;
-                    target->type = H64VALTYPE_GCVAL;
-                    target->ptr_value = vc->ptr_value;
+                // Special case, just re-reference string:
+                if (copyatend) {
+                    // Just leave as is, target and source are the same
                     p += sizeof(*inst);
                     goto *jumptable[((h64instructionany *)p)->type];
                 }
-            } else if (vc->type != H64VALTYPE_GCVAL) {
+                ((h64gcvalue *)vc->ptr_value)->
+                    externalreferencecount++;
+                target->type = H64VALTYPE_GCVAL;
+                target->ptr_value = vc->ptr_value;
+                goto as_str_done;
+            } else if (vc->type == H64VALTYPE_SHORTSTR) {
+                // Special case 2, we can just quickly duplicate this:
+                target->type = H64VALTYPE_SHORTSTR;
+                target->shortstr_len = vc->shortstr_len;
+                memcpy(
+                    target->shortstr_value,
+                    vc->shortstr_value,
+                    sizeof(*target->shortstr_value) * target->shortstr_len
+                );
+                goto as_str_done;
+            } else {
                 // Handle this with core lib:
                 int64_t slen = 0;
                 h64wchar *sresult = corelib_value_to_str(
                     vmthread, vc,
                     (h64wchar *) strvalue,
-                    sizeof(strvalue) / sizeof(h64wchar), &slen
+                    sizeof(_strvalue_buf) / sizeof(h64wchar), &slen
                 );
                 if (!sresult)
                     goto triggeroom;
                 if (sresult != strvalue) {
-                    memcpy(
-                        strvalue, sresult,
-                        sizeof(strvalue)
-                    );
-                    strvaluelen = sizeof(strvalue);
-                } else {
-                    strvaluelen = slen;
+                    strvalue = sresult;
                 }
+                strvaluelen = slen;
             }
             // If .as_str failed to run, abort with an error:
             if (strvaluelen < 0) {
@@ -3147,8 +3151,11 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             target->ptr_value = poolalloc_malloc(
                 heap, 0
             );
-            if (!target->ptr_value)
+            if (!target->ptr_value) {
+                if (strvalue != _strvalue_buf)
+                    free(strvalue);
                 goto triggeroom;
+            }
             h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
             gcval->hash = 0;
             gcval->type = H64GCVALUETYPE_STRING;
@@ -3158,15 +3165,138 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     vmthread, &gcval->str_val, strvaluelen)) {
                 poolalloc_free(heap, gcval);
                 target->ptr_value = NULL;
+                if (strvalue != _strvalue_buf)
+                    free(strvalue);
                 goto triggeroom;
             }
             memcpy(
                 gcval->str_val.s,
                 strvalue, strvaluelen * sizeof(h64wchar)
             );
+            if (strvalue != _strvalue_buf)
+                free(strvalue);
             assert((unsigned int)gcval->str_val.len ==
                    (unsigned int)strvaluelen);
             ADDREF_NONHEAP(target);
+            as_str_done: ;
+        } else if (nameidx >= 0 &&
+                nameidx == vmexec->program->as_bytes_name_index &&
+                ((vc->type == H64VALTYPE_GCVAL &&
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                        H64GCVALUETYPE_BYTES) ||
+                 vc->type == H64VALTYPE_SHORTBYTES ||
+                 (vc->type == H64VALTYPE_GCVAL &&
+                 ((h64gcvalue *)vc->ptr_value)->type ==
+                        H64GCVALUETYPE_STRING) ||
+                 vc->type == H64VALTYPE_SHORTSTR)
+                ) {  // .as_bytes
+            // See what this actually is as a string with .as_bytes:
+            char _bytesvalue_buf[128];
+            char *bytesvalue = _bytesvalue_buf;
+            int64_t bytesvaluelen = -1;
+            if (vc->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue *)vc->ptr_value)->type ==
+                    H64GCVALUETYPE_BYTES) {
+                // Special case, just re-reference the bytes:
+                if (copyatend) {
+                    // Just leave as is, target and source are the same
+                    p += sizeof(*inst);
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
+                ((h64gcvalue *)vc->ptr_value)->
+                    externalreferencecount++;
+                target->type = H64VALTYPE_GCVAL;
+                target->ptr_value = vc->ptr_value;
+                goto as_bytes_done;
+            } else if (vc->type == H64VALTYPE_SHORTBYTES) {
+                // Special case 2, we can just quickly duplicate this:
+                target->type = H64VALTYPE_SHORTBYTES;
+                target->shortbytes_len = vc->shortbytes_len;
+                memcpy(
+                    target->shortbytes_value,
+                    vc->shortbytes_value,
+                    vc->shortbytes_len
+                );
+                goto as_bytes_done;
+            } else if (vc->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue *)vc->ptr_value)->type ==
+                        H64GCVALUETYPE_STRING) {
+                h64gcvalue *gc = ((h64gcvalue *)vc->ptr_value);
+                uint64_t wantbuflen = (
+                    gc->str_val.len * 5 + 1
+                );
+                if (wantbuflen > sizeof(_bytesvalue_buf)) {
+                    bytesvalue = malloc(wantbuflen);
+                    if (!bytesvalue)
+                        goto triggeroom;
+                }
+                int64_t resultlen = 0;
+                int result = utf32_to_utf8(
+                    gc->str_val.s, gc->str_val.len,
+                    bytesvalue, wantbuflen, &resultlen,
+                    1, 1
+                );
+                if (result) {
+                    bytesvaluelen = resultlen;
+                }
+            } else if (vc->type == H64VALTYPE_SHORTSTR) {
+                uint64_t wantbuflen = (
+                    vc->shortstr_len * 5 + 1
+                );
+                int64_t resultlen = 0;
+                int result = utf32_to_utf8(
+                    vc->shortstr_value, vc->shortstr_len,
+                    bytesvalue, wantbuflen, &resultlen,
+                    1, 1
+                );
+                if (result) {
+                    bytesvaluelen = resultlen;
+                }
+            }
+            // If .as_str failed to run, abort with an error:
+            if (bytesvaluelen < 0) {
+                if (bytesvalue != _bytesvalue_buf)
+                    free(bytesvalue);
+                RAISE_ERROR(
+                    H64STDERROR_RUNTIMEERROR,
+                    "internal error: .as_bytes not "
+                    "implemented for this type"
+                );
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            // Actually set string value that we obtained:
+            target->type = H64VALTYPE_GCVAL;
+            target->ptr_value = poolalloc_malloc(
+                heap, 0
+            );
+            if (!target->ptr_value) {
+                if (bytesvalue != _bytesvalue_buf)
+                    free(bytesvalue);
+                goto triggeroom;
+            }
+            h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+            gcval->hash = 0;
+            gcval->type = H64GCVALUETYPE_BYTES;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            if (!vmbytes_AllocBuffer(
+                    vmthread, &gcval->bytes_val, bytesvaluelen)) {
+                if (bytesvalue != _bytesvalue_buf)
+                    free(bytesvalue);
+                poolalloc_free(heap, gcval);
+                target->ptr_value = NULL;
+                goto triggeroom;
+            }
+            memcpy(
+                gcval->bytes_val.s,
+                bytesvalue, bytesvaluelen
+            );
+            if (bytesvalue != _bytesvalue_buf)
+                free(bytesvalue);
+            assert((unsigned int)gcval->bytes_val.len ==
+                   (unsigned int)bytesvaluelen);
+            ADDREF_NONHEAP(target);
+            as_bytes_done: ;
         } else if (nameidx >= 0 &&
                 nameidx == vmexec->program->is_a_name_index && (
                 (vc->type == H64VALTYPE_GCVAL &&
