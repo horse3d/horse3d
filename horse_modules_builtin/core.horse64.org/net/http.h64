@@ -57,7 +57,7 @@ func request(target, method="GET", insecure=no,
     if not result_headers.ends(b"\r\n\r\n") {
         raise new IOError(
             "invalid server response with no headers, or "
-            "headers exceeding " + max_header_size.as_str + "bytes"
+            "headers exceeding " + max_header_size.as_str + " bytes"
         )
     }
 }
