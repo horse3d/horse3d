@@ -93,12 +93,12 @@ ATTR_UNUSED static int operator_PrecedenceByType(int type) {
     case H64OP_MATH_SUBSTRACT: return 7;
     case H64OP_MATH_BINSHIFTLEFT: return 8;
     case H64OP_MATH_BINSHIFTRIGHT: return 8;
-    case H64OP_CMP_EQUAL: return 9;
-    case H64OP_CMP_NOTEQUAL: return 9;
-    case H64OP_CMP_LARGEROREQUAL: return 10;
-    case H64OP_CMP_SMALLEROREQUAL: return 10;
-    case H64OP_CMP_LARGER: return 10;
-    case H64OP_CMP_SMALLER: return 10;
+    case H64OP_CMP_LARGEROREQUAL: return 9;
+    case H64OP_CMP_SMALLEROREQUAL: return 9;
+    case H64OP_CMP_LARGER: return 9;
+    case H64OP_CMP_SMALLER: return 9;
+    case H64OP_CMP_EQUAL: return 10;
+    case H64OP_CMP_NOTEQUAL: return 10;
     case H64OP_BOOLCOND_NOT: return 11;
     case H64OP_BOOLCOND_AND: return 12;
     case H64OP_BOOLCOND_OR: return 13;
