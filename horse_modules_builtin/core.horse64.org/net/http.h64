@@ -37,16 +37,16 @@ func request(target, method="GET", insecure=no,
         )
     }
     var conn = net.connect(
-        target.path, target.port,
+        target.host, target.port,
         encrypt=(target.protocol.lower() == "https")
     )
     var headers = {
         "User-Agent" -> user_agent,
-        "Host" -> target.host + ":" + target.port
+        "Host" -> target.host + ":" + target.port.as_str
     }
     conn.write(
         b"HTTP1/1 GET " +
-            given not target.path.begins("/") then (b"/" else b"") +
+            given not target.path.starts("/") then (b"/" else b"") +
             target.path.as_bytes + b"\r\n" +
         headers.join(":", "\r\n").as_bytes + b"\r\n" +
         b"\r\n"
