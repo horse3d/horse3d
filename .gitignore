@@ -23,6 +23,7 @@ RECOVERED_FILES
 !/vendor/siphash.c
 !/vendor/openssl
 !/vendor/unicode
+!/vendor/miniz
 /vendor/unicode/unicode_data_header.h
 /horse_modules_builtin/unicode_data__*
 /vendor/unicode/unicode_data__*
