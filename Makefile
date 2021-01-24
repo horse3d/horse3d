@@ -9,6 +9,7 @@ endif
 # -------- DEPENDENCY PATHS, to be located from ./vendor --------
 PHYSFSPATH=$(shell pwd)/$(shell echo -e 'import os\nfor f in os.listdir("./vendor"):\n  if not os.path.isdir("vendor/" + f):\n    continue\n  if f.lower().startswith("physfs-") or f.lower() == "physfs":\n    print("vendor/" + f)\n' | python3)
 OPENSSLPATH=$(shell pwd)/$(shell echo -e 'import os\nfor f in os.listdir("./vendor"):\n  if not os.path.isdir("vendor/" + f):\n    continue\n  if f.lower().startswith("openssl-") or f.lower() == "openssl":\n    print("vendor/" + f)\n' | python3)
+MINIZPATH=$(shell pwd)/$(shell echo -e 'import os\nfor f in os.listdir("./vendor"):\n  if not os.path.isdir("vendor/" + f):\n    continue\n  if f.lower().startswith("miniz-") or f.lower() == "miniz":\n    print("vendor/" + f)\n' | python3)
 
 # -------- CFLAGS & LDFLAGS DEFAULTS --------
 CANUSESSE=`python3 tools/can-use-sse.py`
@@ -28,7 +29,7 @@ CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -flto -fno-unsafe-math-optimizations -
 endif
 OPENSSLHOSTOPTION:=linux-generic64
 CXXFLAGS:=-fexceptions
-CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -I"$(OPENSSLPATH)/include/" -L"$(OPENSSLPATH)" -Wl,-Bdynamic
+CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -D_LARGEFILE64_SOURCE -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -I"$(OPENSSLPATH)/include/" -L"$(OPENSSLPATH)" -Wl,-Bdynamic
 LDFLAGS:= -Wl,-Bstatic -lphysfs -lh64openssl -lh64crypto -Wl,-Bdynamic
 TEST_OBJECTS:=$(patsubst %.c, %.o, $(wildcard ./horse64/test_*.c) $(wildcard ./horse64/compiler/test_*.c))
 ALL_OBJECTS:=$(filter-out ./horse64/vmexec_inst_unopbinop_INCLUDE.o, $(patsubst %.c, %.o, $(wildcard ./horse64/*.c) $(wildcard ./horse64/corelib/*.c) $(wildcard ./horse64/compiler/*.c)) vendor/siphash.o)
@@ -116,7 +117,7 @@ datapak:
 release:
 	make DEBUGGABLE=false CC="$(CC)" CXX="$(CXX)"
 build-deps:
-	make physfs openssl DEBUGGABLE="$(DEBUGGABLE)" CC="$(CC)" CXX="$(CXX)"
+	make physfs openssl miniz DEBUGGABLE="$(DEBUGGABLE)" CC="$(CC)" CXX="$(CXX)"
 
 clean:
 	rm -f $(ALL_OBJECTS) coreapi.h3dpak $(TEST_BINARIES)
@@ -124,6 +125,9 @@ clean:
 physfs:
 	CC="$(CC)" python3 tools/physfsmakefile.py > $(PHYSFSPATH)/Makefile
 	cd $(PHYSFSPATH) && rm -f libphysfs.a && make clean && make CC="$(CC)" CXX="$(CXX)"
+
+miniz:
+	cd $(MINIZPATH) && rm -f ../miniz.c && rm -f ../miniz.h && rm -rf ./amalgamation/ && ./amalgamate.sh && cp ./amalgamation/miniz.c ../miniz.c && cp ./amalgamation/miniz.h ../miniz.h
 
 openssl:
 	cd $(OPENSSLPATH) && rm -f lib*.a && ./Configure $(OPENSSLHOSTOPTION) no-engine no-comp no-hw no-shared threads CC="$(CC)" && make clean && make CC="$(CC)" CXX="$(CXX)" && cp libssl.a libh64openssl.a && cp libcrypto.a libh64crypto.a
