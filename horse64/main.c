@@ -95,7 +95,9 @@ int main(int argc, const char **argv) {
                 return 0;
             }
             if (strcmp(argv[i], "--version") == 0 ||
-                    strcmp(argv[i], "-V") == 0) {
+                    strcmp(argv[i], "-V") == 0 ||
+                    strcmp(argv[i], "-version") == 0 ||
+                    strcmp(argv[i], "-v") == 0) {
                 h64printf(
                     "org.horse64.core horsec/horsevm v%s.\n"
                     "- Corelib version:   %s\n"
