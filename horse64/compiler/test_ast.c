@@ -1,4 +1,4 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -12,6 +12,7 @@
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
+#include "mainpreinit.h"
 #include "filesys.h"
 #include "vfs.h"
 
@@ -21,7 +22,7 @@
 #define PARSETEST_EXPECTFAIL 0
 
 void _parsetest_do(const char *testcode, int expectOK) {
-    vfs_Init(NULL);
+    main_PreInit();
 
     h64compilewarnconfig wconfig;
     memset(&wconfig, 0, sizeof(wconfig));

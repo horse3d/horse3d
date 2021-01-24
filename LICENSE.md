@@ -30,7 +30,7 @@ documentation in `docs/`.*
 Horse64's code is licensed under the BSD-2-clause license:
 
 ```
-Copyright (c) 2020,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
+Copyright (c) 2020-2021,  ellie/@ell1e & Horse64 Team (see AUTHORS.md).
 
 
 Redistribution and use in source and binary forms, with or without
@@ -76,7 +76,7 @@ It should be credited as `Copyright (C) 2020 Horse64 Team (See AUTHORS.md)`.
 Horse64 Logo License (Part 4)
 -----------------------------
 
-Horse64 Logo is Copyright (C)  2020, ellie/@ell1e. All Rights Reserved.
+Horse64 Logo is Copyright (C)  2020-2021, ellie/@ell1e. All Rights Reserved.
 
 The "Horse64 Logo"'s files are located in `misc/` with the filenames starting
 with "logo".

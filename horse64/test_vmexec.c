@@ -1,4 +1,4 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -14,21 +14,17 @@
 #include "compiler/result.h"
 #include "corelib/errors.h"
 #include "debugsymbols.h"
+#include "mainpreinit.h"
 #include "uri.h"
 #include "vfs.h"
 
 #include "testmain.h"
 
-static int _vfsinitdone = 0;
-
 void runprog(
         const char *progname,
         const char *prog, int expected_result
         ) {
-    if (!_vfsinitdone) {
-        _vfsinitdone = 1;
-        vfs_Init(NULL);
-    }
+    main_PreInit();
 
     printf("test_vmexec.c: compiling \"%s\"\n", progname);
     char *error = NULL;

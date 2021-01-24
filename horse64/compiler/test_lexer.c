@@ -1,4 +1,4 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "compiler/lexer.h"
+#include "mainpreinit.h"
 #include "uri.h"
 #include "vfs.h"
 
@@ -25,7 +26,7 @@ static uriinfo *_parseURI(const char *uri) {
 
 START_TEST (test_intliterals)
 {
-    vfs_Init(NULL);
+    main_PreInit();
 
     h64compilewarnconfig wconfig;
     memset(&wconfig, 0, sizeof(wconfig));
@@ -53,7 +54,7 @@ END_TEST
 
 START_TEST (test_unaryminus)
 {
-    vfs_Init(NULL);
+    main_PreInit();
 
     h64compilewarnconfig wconfig;
     memset(&wconfig, 0, sizeof(wconfig));
@@ -100,7 +101,7 @@ END_TEST
 
 START_TEST (test_utf8_literal)
 {
-    vfs_Init(NULL);
+    main_PreInit();
 
     h64compilewarnconfig wconfig;
     memset(&wconfig, 0, sizeof(wconfig));
@@ -127,7 +128,7 @@ END_TEST
 
 START_TEST (test_separation)
 {
-    vfs_Init(NULL);
+    main_PreInit();
 
     h64compilewarnconfig wconfig;
     memset(&wconfig, 0, sizeof(wconfig));
@@ -197,7 +198,7 @@ END_TEST
 
 START_TEST (test_stringliterals)
 {
-    vfs_Init(NULL);
+    main_PreInit();
 
     h64compilewarnconfig wconfig;
     memset(&wconfig, 0, sizeof(wconfig));

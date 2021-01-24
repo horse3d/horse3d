@@ -91,11 +91,12 @@ remove-main-o:
 
 checkdco:
 	python3 tools/check-dco.py
-test: checkdco $(ALL_OBJECTS) $(TEST_BINARIES)
+test: checkdco datapak $(ALL_OBJECTS) $(TEST_BINARIES)
 	for x in $(TEST_BINARIES); do echo ">>> TEST RUN: $$x"; CK_FORK=no valgrind --track-origins=yes --leak-check=full ./$$x || { exit 1; }; done
 	@echo "All tests were run."
 test_%.bin: test_%.c $(PROGRAM_OBJECTS_NO_MAIN)
 	$(CXX) $(CFLAGS) $(CXXFLAGS) -pthread -o ./$(basename $@).bin $(basename $<).o $(PROGRAM_OBJECTS_NO_MAIN) -lcheck -lrt -lsubunit $(LDFLAGS)
+	python3 tools/append-datapak.py ./"$(basename $@).bin" ./coreapi.h64pak
 
 check-submodules:
 	@if [ ! -e "$(PHYSFSPATH)/README.txt" ]; then echo ""; echo -e '\033[0;31m$$(PHYSFSPATH)/README.txt missing. Did you download the submodules?\033[0m'; echo "Try this:"; echo ""; echo "    git submodule init && git submodule update"; echo ""; exit 1; fi

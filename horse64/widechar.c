@@ -35,7 +35,7 @@ void _load_unicode_data() {
             ) || !_exists) {
         loadfail:
         fprintf(stderr, "horsevm: error: fatal, failed "
-            "to unpack integrated unicode data, out of memory?");
+            "to unpack integrated unicode data, out of memory?\n");
         exit(1);
         return;
     }

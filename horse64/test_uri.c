@@ -1,10 +1,11 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
 #include <assert.h>
 #include <check.h>
 
+#include "mainpreinit.h"
 #include "uri.h"
 #include "uri32.h"
 
@@ -12,6 +13,8 @@
 
 START_TEST (test_uribasics)
 {
+    main_PreInit();
+
     // Test escaped space, which should be converted here:
     uriinfo *uri = uri_ParseEx("file:///a%20b", NULL, 0);
     assert(uri->protocol &&

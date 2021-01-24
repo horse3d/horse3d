@@ -18,6 +18,7 @@
 #include "horse64/compiler/main.h"
 #include "horse64/packageversion.h"
 #include "filesys.h"
+#include "mainpreinit.h"
 #include "nonlocale.h"
 #include "vfs.h"
 #include "widechar.h"
@@ -40,18 +41,7 @@ int _actualmain(int argc, const char **argv) {
 #else
 int main(int argc, const char **argv) {
 #endif
-    #if defined(_WIN32) || defined(_WIN64)
-    _setmode(_fileno(stdin), O_BINARY);
-    #else
-    signal(SIGPIPE, SIG_IGN);
-    signal(SIGHUP, SIG_IGN);
-    #endif
-    char *exepath = filesys_GetOwnExecutable();
-    vfs_Init(exepath ? exepath : argv[0]);
-    free(exepath);
-
-    // Load up unicode tables for widechar.c:
-    _load_unicode_data();
+    main_PreInit();
 
     // See if we have a program attached to run:
     int wasrun = 0;

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -13,15 +13,16 @@
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
 #include "compiler/main.h"
-#include "filesys.h"
 #include "compiler/scoperesolver.h"
+#include "filesys.h"
+#include "mainpreinit.h"
 #include "vfs.h"
 
 #include "../testmain.h"
 
 START_TEST (test_scope_import_complex)
 {
-    vfs_Init(NULL);
+    main_PreInit();
 
     h64misccompileroptions moptions = {0};
 
