@@ -1,4 +1,4 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -67,6 +67,8 @@ int64_t vfs_ftell(VFSFILE *f);
 void vfs_fclose(VFSFILE *f);
 
 int vfs_fseek(VFSFILE *f, uint64_t offset);
+
+int vfs_fseektoend(VFSFILE *f);
 
 int vfs_fgetc(VFSFILE *f);
 

@@ -615,7 +615,7 @@ int netlib_RegisterFuncsAndModules(h64program *p) {
         NULL
     };
     idx = h64program_RegisterCFunction(
-        p, "read", &netlib_stream_write,
+        p, "write", &netlib_stream_write,
         NULL, 1, netlib_stream_write_kw_arg_name,  // fileuri, args
         "net", "core.horse64.org", 1, p->_net_stream_class_idx
     );

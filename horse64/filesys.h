@@ -8,6 +8,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
+FILE *filesys_OpenFromPath(
+    const char *path, const char *mode
+);
+
 int filesys_FileExists(const char *path);
 
 int filesys_IsDirectory(const char *path);

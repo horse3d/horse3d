@@ -1,4 +1,4 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -21,6 +21,8 @@
 #include "nonlocale.h"
 #include "vfs.h"
 #include "widechar.h"
+
+void _load_unicode_data();  // widechar.c
 
 
 #define NOBETTERARGPARSE 1
@@ -47,6 +49,9 @@ int main(int argc, const char **argv) {
     char *exepath = filesys_GetOwnExecutable();
     vfs_Init(exepath ? exepath : argv[0]);
     free(exepath);
+
+    // Load up unicode tables for widechar.c:
+    _load_unicode_data();
 
     // See if we have a program attached to run:
     int wasrun = 0;

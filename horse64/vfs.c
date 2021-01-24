@@ -1,4 +1,4 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -26,6 +26,8 @@
 #include "filesys.h"
 #include "nonlocale.h"
 #include "vfs.h"
+#include "vfspartialfileio.h"
+
 
 //#define DEBUG_VFS
 
@@ -122,6 +124,14 @@ int vfs_fseek(VFSFILE *f, uint64_t offset) {
     return (PHYSFS_seek(f->physfshandle, offset) != 0);
 }
 
+int vfs_fseektoend(VFSFILE *f) {
+    if (!f->via_physfs)
+        return (fseek64(f->diskhandle, 0, SEEK_END) == 0);
+
+    return (PHYSFS_seek(f->physfshandle,
+        PHYSFS_fileLength(f->physfshandle)) != 0);
+}
+
 size_t vfs_fread(
         char *buffer, int bytes, int numn, VFSFILE *f
         ) {
@@ -184,14 +194,16 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
             vfile->via_physfs = 1;
             vfile->physfshandle = PHYSFS_openRead(p);
             if (vfile->physfshandle) {
-                vfile->size = (int64_t)PHYSFS_fileLength(vfile->physfshandle);
+                vfile->size = (
+                    (int64_t)PHYSFS_fileLength(vfile->physfshandle)
+                );
                 free(p);
                 return vfile;
             }
         }
         free(p);
     }
-    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
         vfile->via_physfs = 0;
         errno = 0;
         vfile->diskhandle = fopen64(path, mode);
@@ -208,26 +220,49 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
     return 0;
 }
 
-int vfs_AddPak(const char *path) {
+int vfs_AddPakEx(
+        const char *path, uint64_t start_offset, uint64_t max_len,
+        int ignore_extension) {
     if (!path || !filesys_FileExists(path) ||
             filesys_IsDirectory(path) ||
             strlen(path) < strlen(".h64pak") ||
-            memcmp(path + strlen(path) - strlen(".h64pak"),
-                   ".h64pak", strlen(".h64pak")) != 0)
+            (!ignore_extension &&
+             memcmp(path + strlen(path) - strlen(".h64pak"),
+                    ".h64pak", strlen(".h64pak")) != 0))
         return 0;
     #if defined(DEBUG_VFS) && !defined(NDEBUG)
     h64printf("horse64/vfs.c: debug: "
            "adding resource pack: %s\n", path);
     #endif
-    if (!PHYSFS_mount(path, "/", 1)) {
-        h64fprintf(stderr,
-            "horse64/vfs.c: warning: "
-            "failed to add resource pack: %s\n", path
+    if (start_offset == 0 && max_len == 0) {
+        if (!PHYSFS_mount(path, "/", 1)) {
+            return 0;
+        }
+    } else {
+        FILE *f = filesys_OpenFromPath(path, "rb");
+        if (!f) {
+            return 0;
+        }
+        PHYSFS_Io *io = (PHYSFS_Io *)(
+            _PhysFS_Io_partialFileReadOnlyStruct(f, start_offset, max_len)
         );
-        return 0;
+        if (!io) {
+            fclose(f);
+            return 0;
+        }
+        fclose(f);
+        f = NULL;
+        if (!PHYSFS_mountIo(io, path, "/", 1)) {
+            io->destroy(io);
+            return 0;
+        }
     }
 
     return 1;
+}
+
+int vfs_AddPak(const char *path) {
+    return vfs_AddPakEx(path, 0, 0, 0);
 }
 
 char *vfs_NormalizePath(const char *path) {
@@ -429,6 +464,70 @@ int vfs_GetBytesEx(
 
 static int _initdone = 0;
 
+int vfs_AddPaksFromBinaryWithEndOffset(
+        const char *path, int64_t end_offset
+        ) {
+    VFSFILE *f = vfs_fopen(
+        path, "rb", VFSFLAG_NO_VIRTUALPAK_ACCESS
+    );
+    if (!f)
+        return 0;
+    if (vfs_fseektoend(f) < 0) {
+        vfs_fclose(f);
+        return 0;
+    }
+    int64_t file_len = vfs_ftell(f);
+    if (file_len <= 0) {
+        vfs_fclose(f);
+        return 0;
+    }
+    uint64_t end_check = file_len - end_offset;
+    char magic_pakappend[] = (
+        "\x00\xFF\x00H64PAKAPPEND_V1\x00\xFF\x00"
+    );
+    int magiclen = strlen("\x01\xFF\x01H64PAKAPPEND_V1\x01\xFF\x01");
+    if (end_check < magiclen + sizeof(uint64_t) * 2) {
+        vfs_fclose(f);
+        return 1;  // no pak append header, so no pak to find.
+    }
+    if (vfs_fseek(f,
+            end_check - magiclen - sizeof(uint64_t) * 2
+            ) < 0) {
+        vfs_fclose(f);
+        return 0;
+    }
+    char comparedata[256] = {0};
+    if (vfs_fread(comparedata,
+            magiclen + sizeof(uint64_t) * 2,
+            1, f) != 1) {
+        vfs_fclose(f);
+        return 0;
+    }
+    if (memcmp(comparedata + sizeof(uint64_t) * 2, magic_pakappend,
+            magiclen) != 0) {
+        vfs_fclose(f);
+        return 1;  // no pak append header, so no pak to find.
+    }
+    uint64_t pak_start, pak_end;
+    memcpy(&pak_start, comparedata, sizeof(pak_start));
+    memcpy(&pak_end, comparedata + sizeof(pak_start), sizeof(pak_end));
+    if (pak_end != end_check - magiclen -
+            sizeof(uint64_t) * 2 ||
+            pak_start >= pak_end || end_check - pak_start <= 0) {
+        vfs_fclose(f);
+        return 1;  // wrong pak offsets, so no working pak appended
+    }
+    vfs_fclose(f);
+    if (!vfs_AddPakEx(path, pak_start, pak_end - pak_start, 1)) {
+        return 0;
+    }
+    return vfs_AddPaksFromBinaryWithEndOffset(path, file_len - pak_start);
+}
+
+int vfs_AddPaksFromBinary(const char *path) {
+    return vfs_AddPaksFromBinaryWithEndOffset(path, 0);
+}
+
 void vfs_Init(const char *argv0) {
     if (_initdone)
         return;
@@ -436,33 +535,25 @@ void vfs_Init(const char *argv0) {
 
     PHYSFS_init(argv0);
 
-    char *execdir = filesys_GetOwnExecutable();
-    if (execdir) {
-        char *_s = filesys_ParentdirOfItem(execdir);
-        free(execdir);
-        execdir = _s;
-    }
-    if (!execdir) {
+    char *execpath = filesys_GetOwnExecutable();
+    if (!execpath) {
         h64fprintf(
-            stderr, "horse64/vfs.c: warning: "
-            "failed to locate binary directory"
+            stderr, "horse64/vfs.c: error: fatal, "
+            "failed to locate binary directory. "
+            "out of memory?\n"
         );
+        exit(1);
         return;
     }
-    char *coreapipath = filesys_Join(
-        execdir, "coreapi.h64pak"
-    );
-    free(execdir);
-    execdir = NULL;
-    if (!coreapipath) {
+    if (!vfs_AddPaksFromBinary(execpath)) {
         h64fprintf(
-            stderr, "horse64/vfs.c: warning: "
-            "failed to allocate coreapi path"
+            stderr, "horse64/vfs.c: error: fatal, "
+            "failed to load appended VFS data. "
+            "out of memory or disk error??\n"
         );
+        exit(1);
         return;
     }
-    vfs_AddPak(coreapipath);
-    free(coreapipath);
 }
 
 void vfs_FreeFolderList(char **list) {

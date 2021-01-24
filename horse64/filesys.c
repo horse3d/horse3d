@@ -1406,6 +1406,57 @@ int filesys_FolderContainsPath(
     return 1;
 }
 
+FILE *filesys_OpenFromPath(
+        const char *path, const char *mode
+        ) {
+    #if defined(_WIN32) || defined(_WIN64)
+    assert(sizeof(uint16_t) == sizeof(wchar_t));
+    uint16_t *wpath = malloc(
+        sizeof(uint16_t) * (strlen(path) * 2 + 3)
+    );
+    if (!wpath)
+        return NULL;
+    int64_t out_len = 0;
+    int result = utf8_to_utf16(
+        path, strlen(path), wpath,
+        sizeof(uint16_t) * (strlen(path) * 2 + 3),
+        &out_len, 1, 0
+    );
+    if (!result || out_len >= (pathlen * 2 + 3)) {
+        free(wpath);
+        return NULL;
+    }
+    wpath[out_len] = '\0';
+    HANDLE f = CreateFileW(
+        (LPCWSTR)wpath,
+        0 | (mode_read ? GENERIC_READ : 0)
+        | (mode_write ? GENERIC_WRITE : 0),
+        (mode_read ? 0 : FILE_SHARE_READ),
+        NULL,
+        OPEN_EXISTING | (
+            (mode_write && !mode_append) ? CREATE_NEW : 0
+        ),
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+    free(wpath);  wpath = NULL;
+    if (f == INVALID_HANDLE_VALUE)
+        return NULL;
+    int filedescr = _open_osfhandle(
+        (intptr_t)f, _O_RDONLY
+    );
+    if (filedescr < 0) {
+        CloseHandle(f);
+        return NULL;
+    }
+    f = NULL;  // now owned by 'filedescr'
+    FILE *fresult = _fdopen(filedescr, "rb");
+    return fresult;
+    #else
+    return fopen(path, mode);
+    #endif
+}
+
 FILE *filesys_TempFile(
         int subfolder, const char *prefix,
         const char *suffix, char **folder_path,

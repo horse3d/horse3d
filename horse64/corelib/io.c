@@ -286,6 +286,7 @@ int iolib_open(
         }
         i++;
     }
+    wpath[out_len] = '\0';
     HANDLE f2 = CreateFileW(
         (LPCWSTR)wpath,
         0 | (mode_read ? GENERIC_READ : 0)

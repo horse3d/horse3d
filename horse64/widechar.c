@@ -16,8 +16,111 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "vfs.h"
 #include "widechar.h"
 #include "vendor/unicode/unicode_data_header.h"
+
+// The equivalents to the unicode data header "extern" refs:
+uint8_t *_widechartbl_ismodifier = NULL;
+uint8_t *_widechartbl_istag = NULL;
+int64_t *_widechartbl_lowercp = NULL;
+int64_t *_widechartbl_uppercp = NULL;
+
+void _load_unicode_data() {
+    int _exists = 0;
+    if (!vfs_ExistsEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_ismodifier.dat",
+            &_exists, VFSFLAG_NO_REALDISK_ACCESS
+            ) || !_exists) {
+        loadfail:
+        fprintf(stderr, "horsevm: error: fatal, failed "
+            "to unpack integrated unicode data, out of memory?");
+        exit(1);
+        return;
+    }
+    _widechartbl_ismodifier = malloc(
+        sizeof(*_widechartbl_ismodifier) *
+        _widechartbl_arraylen
+    );
+    if (!_widechartbl_ismodifier)
+        goto loadfail;
+    if (!vfs_GetBytesEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_ismodifier.dat",
+            0, sizeof(*_widechartbl_ismodifier) *
+            _widechartbl_arraylen,
+            (char *)_widechartbl_ismodifier,
+            VFSFLAG_NO_REALDISK_ACCESS))
+        goto loadfail;
+
+    if (!vfs_ExistsEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_istag.dat",
+            &_exists, VFSFLAG_NO_REALDISK_ACCESS
+            ) || !_exists) {
+        goto loadfail;
+    }
+    _widechartbl_istag = malloc(
+        sizeof(*_widechartbl_istag) *
+        _widechartbl_arraylen
+    );
+    if (!_widechartbl_istag)
+        goto loadfail;
+    if (!vfs_GetBytesEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_istag.dat",
+            0, sizeof(*_widechartbl_istag) *
+            _widechartbl_arraylen,
+            (char *)_widechartbl_istag,
+            VFSFLAG_NO_REALDISK_ACCESS))
+        goto loadfail;
+
+    if (!vfs_ExistsEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_lowercp.dat",
+            &_exists, VFSFLAG_NO_REALDISK_ACCESS
+            ) || !_exists) {
+        goto loadfail;
+    }
+    _widechartbl_lowercp = malloc(
+        sizeof(*_widechartbl_lowercp) *
+        _widechartbl_arraylen
+    );
+    if (!_widechartbl_lowercp)
+        goto loadfail;
+    if (!vfs_GetBytesEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_lowercp.dat",
+            0, sizeof(*_widechartbl_lowercp) *
+            _widechartbl_arraylen,
+            (char *)_widechartbl_lowercp,
+            VFSFLAG_NO_REALDISK_ACCESS))
+        goto loadfail;
+
+    if (!vfs_ExistsEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_uppercp.dat",
+            &_exists, VFSFLAG_NO_REALDISK_ACCESS
+            ) || !_exists) {
+        goto loadfail;
+    }
+    _widechartbl_uppercp = malloc(
+        sizeof(*_widechartbl_uppercp) *
+        _widechartbl_arraylen
+    );
+    if (!_widechartbl_uppercp)
+        goto loadfail;
+    if (!vfs_GetBytesEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_uppercp.dat",
+            0, sizeof(*_widechartbl_uppercp) *
+            _widechartbl_arraylen,
+            (char *)_widechartbl_uppercp,
+            VFSFLAG_NO_REALDISK_ACCESS))
+        goto loadfail;
+}
+
 
 static int is_utf8_start(uint8_t c) {
     if ((int)(c & 0xE0) == (int)0xC0) {  // 110xxxxx

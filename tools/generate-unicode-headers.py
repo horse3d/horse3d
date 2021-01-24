@@ -3,6 +3,8 @@
 
 
 import os
+import shutil
+import struct
 import sys
 import textwrap
 
@@ -67,72 +69,77 @@ with open(os.path.join(
     #include <stdint.h>
 
     """))
-    arraylen = (highest_cp_seen - smallest_cp_seen) + 1
+    f.write("static int64_t _widechartbl_lowest_cp = " +
+            str(smallest_cp_seen) + "LL;\n\n")
     f.write("static int64_t _widechartbl_highest_cp = " +
             str(highest_cp_seen) + "LL;\n\n")
-    f.write("static uint8_t _widechartbl_ismodifier[] = {\n    ")
-    ctr = 0
+    f.write("static int64_t _widechartbl_arraylen = " +
+            str((highest_cp_seen - smallest_cp_seen) + 1) + ";")
+    f.write("extern uint8_t *_widechartbl_ismodifier;")
+    f.write("extern uint8_t *_widechartbl_istag;");
+    f.write("extern int64_t *_widechartbl_lowercp;");
+    f.write("extern int64_t *_widechartbl_uppercp;");
+
+arraylen = (highest_cp_seen - smallest_cp_seen) + 1
+
+with open(os.path.join(
+        os.path.abspath(os.path.dirname(__file__)),
+        "..", "vendor", "unicode", "unicode_data___widechartbl_ismodifier.dat"),
+        "wb") as f:
     i = smallest_cp_seen
-    while i < highest_cp_seen:
-        if i > smallest_cp_seen:
-            f.write(",")
-        ctr += 1
-        if ctr > 37:
-            f.write("\n    ")
-            ctr = 1
-        if i in chars:
-            f.write("1" if chars[i][2] else "0")
-        else:
-            f.write("0")
+    while i <= highest_cp_seen:
+        f.write(struct.pack(
+            "<B", 1 if i in chars and chars[i][2] else 0
+        ))
         i += 1
-    f.write("\n};\n")
-    f.write("static uint8_t _widechartbl_istag[] = {\n    ")
-    ctr = 0
+
+with open(os.path.join(
+        os.path.abspath(os.path.dirname(__file__)),
+        "..", "vendor", "unicode", "unicode_data___widechartbl_istag.dat"),
+        "wb") as f:
     i = smallest_cp_seen
-    while i < highest_cp_seen:
-        if i > smallest_cp_seen:
-            f.write(",")
-        ctr += 1
-        if ctr > 37:
-            f.write("\n    ")
-            ctr = 1
-        if i in chars:
-            f.write("1" if chars[i][3] else "0")
-        else:
-            f.write("0")
+    while i <= highest_cp_seen:
+        f.write(struct.pack(
+            "<B", 1 if i in chars and chars[i][3] else 0
+        ))
         i += 1
-    f.write("\n};\n")
-    f.write("static int64_t _widechartbl_lowercp[] = {\n    ")
-    ctr = 0
+
+with open(os.path.join(
+        os.path.abspath(os.path.dirname(__file__)),
+        "..", "vendor", "unicode", "unicode_data___widechartbl_lowercp.dat"),
+        "wb") as f:
     i = smallest_cp_seen
-    while i < highest_cp_seen:
-        if i > smallest_cp_seen:
-            f.write(",")
-        ctr += 1
-        if ctr > 14:
-            f.write("\n    ")
-            ctr = 1
+    while i <= highest_cp_seen:
         if i in chars:
-            f.write(str(chars[i][4]) + "LL")
+            f.write(struct.pack("<q", chars[i][4]))
         else:
-            f.write("-1LL")
+            f.write(struct.pack("<q", -1))
         i += 1
-    f.write("\n};\n")
-    f.write("static int64_t _widechartbl_uppercp[] = {\n    ")
-    ctr = 0
+
+with open(os.path.join(
+        os.path.abspath(os.path.dirname(__file__)),
+        "..", "vendor", "unicode", "unicode_data___widechartbl_uppercp.dat"),
+        "wb") as f:
     i = smallest_cp_seen
-    while i < highest_cp_seen:
-        if i > smallest_cp_seen:
-            f.write(",")
-        ctr += 1
-        if ctr > 14:
-            f.write("\n    ")
-            ctr = 1
+    while i <= highest_cp_seen:
         if i in chars:
-            f.write(str(chars[i][5]) + "LL")
+            f.write(struct.pack("<q", chars[i][5]))
         else:
-            f.write("-1LL")
+            f.write(struct.pack("<q", -1))
         i += 1
-    f.write("\n};\n")
+
+for fname in os.listdir(os.path.join(
+        os.path.abspath(os.path.dirname(__file__)),
+        "..", "vendor", "unicode")):
+    if fname.startswith("unicode_data__") and fname.endswith(".dat"):
+        src_path = os.path.join(
+            os.path.abspath(os.path.dirname(__file__)),
+            "..", "vendor", "unicode", fname)
+        dest_path = os.path.join(
+            os.path.abspath(os.path.dirname(__file__)),
+            "..", "horse_modules_builtin", fname)
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
+        shutil.copyfile(src_path, dest_path)
 
 print("Generated.")

@@ -79,8 +79,9 @@ all: wchar_data remove-main-o check-submodules datapak $(PROGRAM_OBJECTS)
 ifneq ($(DEBUGGABLE),true)
 	$(STRIPTOOL) ./"$(BINNAME)$(BINEXT)"
 endif
+	python3 tools/append-datapak.py ./"$(BINNAME)$(BINEXT)" ./coreapi.h64pak
 wchar_data:
-	tools/generate-unicode-headers.py
+	python3 tools/generate-unicode-headers.py
 remove-main-o:
 	rm -f horse64/main.o
 %.o: %.c $.h
