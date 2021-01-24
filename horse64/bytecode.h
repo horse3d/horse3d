@@ -1,4 +1,4 @@
-// Copyright (c) 2020-21, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
@@ -409,6 +409,8 @@ typedef struct h64globalvar {
 } h64globalvar;
 
 typedef struct h64program {
+    // !!! IMPORTANT !!! KEEP IN SYNC WITH:
+    // bytecodeserializer.c's h64program_Dump and h64program_Restore.
     classid_t classes_count;
     h64class *classes;
 
