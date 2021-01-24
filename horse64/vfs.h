@@ -11,7 +11,6 @@
 #define VFSFLAG_NO_REALDISK_ACCESS 1
 #define VFSFLAG_NO_VIRTUALPAK_ACCESS 2
 
-int vfs_AddPak(const char *path);
 
 int vfs_Exists(const char *path, int *result, int flags);
 
