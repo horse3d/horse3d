@@ -76,8 +76,11 @@ int main(int argc, const char **argv) {
                           "Compile .h64 code and "
                           "show overview info of bytecode.\n");
                 h64printf("  - \"compile\"           "
-                          "Compile .h64 code "
-                          "and output executable.\n");
+                          "Compile code from .h64 file "
+                          "to standalone executable.\n");
+                h64printf("  - \"exec\"              "
+                          "Run the given argument as literal code "
+                          "immediately.\n");
                 h64printf("  - \"get_asm\"           "
                           "Translate to .hasm\n");
                 h64printf("  - \"get_ast\"           "
@@ -87,7 +90,7 @@ int main(int argc, const char **argv) {
                 h64printf("  - \"get_tokens\"        "
                           "Get Tokenization of code\n");
                 h64printf("  - \"run\"               "
-                          "Compile .h64 code, and "
+                          "Compile .h64 code from a file, and "
                           "run it immediately.\n");
                 return 0;
             }
