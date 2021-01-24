@@ -5,6 +5,6 @@
 #ifndef HORSE64_VERSION_H_
 #define HORSE64_VERSION_H_
 
-#define CORELIB_VERSION "2020.12.dev"
+#define CORELIB_VERSION "2021.01.dev"
 
 #endif  // HORSE64_VERSION_H_
