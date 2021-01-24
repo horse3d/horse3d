@@ -31,7 +31,8 @@
         }\
         *out = new_out;\
     }\
-    memcpy(*out + *out_len, (char*)(item), (int64_t)(itemsize));
+    memcpy(*out + *out_len, (char*)(item), (int64_t)(itemsize));\
+    *out_len += (int64_t)(itemsize);
 
 #define _DUMP(item) _DUMPSIZE(&(item), sizeof(item))
 
@@ -99,7 +100,9 @@ int h64program_Dump(h64program *p, char **out, int64_t *out_len) {
             );
             _DUMP(f->async_progress_struct_size);
 
-            int32_t len = strlen(f->cfunclookup);
+            int32_t len = (
+                f->cfunclookup ? strlen(f->cfunclookup) : 0
+            );
             _DUMP(len);
             _DUMPSIZE(
                 f->cfunclookup, len

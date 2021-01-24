@@ -10,6 +10,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "bytecode.h"
+#include "bytecodeserialize.h"
 #include "compiler/astparser.h"
 #include "compiler/codemodule.h"
 #include "compiler/compileproject.h"
@@ -27,12 +29,13 @@
 static int _compileargparse(
         const char *cmd,
         const char **argv, int argc, int argoffset,
-        char **fileuriorexec,
+        char **fileuriorexec, char **out_file,
         h64compilewarnconfig *wconfig,
         h64misccompileroptions *miscoptions
         ) {
     if (wconfig) warningconfig_Init(wconfig);
     int doubledashed = 0;
+    *out_file = NULL;
     *fileuriorexec = NULL;
     int i = argoffset;
     while (i < argc) {
@@ -78,8 +81,8 @@ static int _compileargparse(
             }
             if (!*fileuriorexec) {
                 h64fprintf(stderr, "horsec: error: "
-                    "out of memory parsing arguments");
-                return 0;
+                    "out of memory parsing arguments\n");
+                goto failquit;
             }
         } else if (strcmp(argv[i], "--") == 0) {
             doubledashed = 1;
@@ -136,7 +139,39 @@ static int _compileargparse(
             if (*fileuriorexec)
                 free(*fileuriorexec);
             *fileuriorexec = NULL;
-            return 0;
+            if (*out_file)
+                free(*out_file);
+            *out_file = NULL;
+            return 1;
+        } else if ((strcmp(argv[i], "-o") == 0 ||
+                strcmp(argv[i], "--output") == 0) &&
+                strcmp(cmd, "compile") == 0) {
+            if (*out_file) {
+                h64fprintf(stderr, "horsec: error: %s: "
+                    "-o/--output can only be specified "
+                    "once\n", cmd);
+                goto failquit;
+            }
+            if (i + 1 >= argc || argv[i + 1][0] == '-') {
+                h64fprintf(stderr, "horsec: error: %s: "
+                    "-o/--output need argument\n", cmd);
+                failquit: ;
+                if (*out_file)
+                    free(*out_file);
+                *out_file = NULL;
+                if (*fileuriorexec)
+                    free(*fileuriorexec);
+                *fileuriorexec = NULL;
+                return 0;
+            }
+            *out_file = strdup(argv[i + 1]);
+            if (!*out_file) {
+                h64fprintf(stderr, "horsec: error: "
+                    "out of memory parsing arguments\n");
+                goto failquit;
+            }
+            i += 2;
+            continue;
         } else if (strcmp(argv[i], "--from-stdin") == 0 && (
                 strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0 ||
@@ -149,10 +184,7 @@ static int _compileargparse(
                 h64fprintf(stderr, "horsec: error: %s: "
                     "cannot specify file argument but also "
                     "--from-stdin\n", cmd);
-                if (*fileuriorexec)
-                    free(*fileuriorexec);
-                *fileuriorexec = NULL;
-                return 0;
+                goto failquit;
             }
             miscoptions->from_stdin = 1;
         } else if (strcmp(cmd, "get_tokens") != 0 &&
@@ -228,10 +260,7 @@ static int _compileargparse(
                 stderr, "horsec: error: %s: unrecognized option: %s\n",
                 cmd, argv[i]
             );
-            if (*fileuriorexec)
-                free(*fileuriorexec);
-            *fileuriorexec = NULL;
-            return 0;
+            goto failquit;
         }
         i++;
     }
@@ -239,7 +268,12 @@ static int _compileargparse(
         h64fprintf(stderr,
             "horsec: error: %s: need argument \"file\"\n", cmd
         );
-        return 0;
+        goto failquit;
+    }
+    if (!*out_file && strcmp(cmd, "compile") == 0) {
+        h64fprintf(stderr, "horsec: error: "
+            "missing -o/--output argument for compile action\n");
+        goto failquit;
     }
     return 1;
 }
@@ -293,6 +327,23 @@ static void printmsg(
     h64fprintf(output_fd, "%s\n", msg->message);
 }
 
+int compiler_WriteProgram(
+        const char *crossplatform_target,
+        const char *targetfile,
+        const char *bytes, int64_t byteslen
+        ) {
+    FILE *f = filesys_OpenFromPath(
+        targetfile, "wb"
+    );
+    if (!f)
+        return 0;
+    uint64_t result = fwrite(bytes, 1, byteslen, f);
+    fclose(f);
+    if (result != (uint64_t)bytes)
+        return 0;
+    return 1;
+}
+
 #define COMPILEEX_MODE_COMPILE 1
 #define COMPILEEX_MODE_RUN 2
 #define COMPILEEX_MODE_CODEINFO 3
@@ -321,13 +372,18 @@ int compiler_command_CompileEx(
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
     char *fileuriorexec = NULL;
+    char *outputfile = NULL;
     char *tempfilepath = NULL;
     char *tempfilefolder = NULL;
     if (!_compileargparse(
             command, argv, argc, argoffset,
-            &fileuriorexec, &wconfig, &moptions
+            &fileuriorexec, &outputfile, &wconfig, &moptions
             ))
         return 0;
+    assert(
+        (outputfile == NULL && mode != COMPILEEX_MODE_COMPILE) ||
+        (outputfile != NULL && mode == COMPILEEX_MODE_COMPILE)
+    );
     assert(fileuriorexec != NULL || moptions.from_stdin);
     if (mode == COMPILEEX_MODE_EXEC || moptions.from_stdin) {
         execarg = fileuriorexec;
@@ -338,6 +394,7 @@ int compiler_command_CompileEx(
             char *buf = malloc(bufsize);
             if (!buf) {
                 free(fileuriorexec);
+                free(outputfile);
                 h64fprintf(
                     stderr, "horsec: error: OOM reading from stdin\n"
                 );
@@ -349,6 +406,7 @@ int compiler_command_CompileEx(
                     char *newbuf = realloc(buf, newbufsize);
                     if (!newbuf) {
                         free(fileuriorexec);
+                        free(outputfile);
                         h64fprintf(stderr, "horsec: error: "
                             "OOM reading from stdin\n");
                         return 0;
@@ -375,6 +433,7 @@ int compiler_command_CompileEx(
         if (!tempfile) {
             assert(tempfilefolder == NULL);
             free(fileuriorexec);
+            free(outputfile);
             h64fprintf(stderr, "horsec: error: out of memory or "
                 "internal error with temporary file\n");
             return 0;
@@ -403,6 +462,7 @@ int compiler_command_CompileEx(
                 free(tempfilefolder);
             }
             free(fileuriorexec);
+            free(outputfile);
             free(execarg);
             return 0;
         }
@@ -477,8 +537,11 @@ int compiler_command_CompileEx(
         free(tempfilefolder);
     }
     free(fileuriorexec);
+    fileuriorexec = NULL;
     free(fileuri);
+    fileuri = NULL;
     free(execarg);
+    execarg = NULL;
     int nosuccess = (
         haderrormessages || !ast->resultmsg.success ||
         !project->resultmsg->success
@@ -509,16 +572,41 @@ int compiler_command_CompileEx(
             compileproject_Free(project);
             if (return_int)
                 *return_int = resultcode;
+            free(outputfile);
             return 1;
         } else {
             h64fprintf(stderr, "horsec: error: "
                 "not running program due to compile errors\n");
         }
+    } else if (mode == COMPILEEX_MODE_COMPILE) {
+        char *out = NULL;
+        int64_t outlen = 0;
+        if (!h64program_Dump(
+                project->program, &out, &outlen
+                )) {
+            h64fprintf(stderr, "horsec: error: "
+                "internal error, failed to dump code\n");
+            compileproject_Free(project);  // This indirectly frees 'ast'!
+            free(outputfile);
+            return 0;
+        }
+        assert(outputfile != NULL && outlen > 0);
+        if (compiler_WriteProgram(
+                NULL, outputfile, out, outlen
+                )) {
+            h64fprintf(stderr, "horsec: error: "
+                "failed to write to output file\n");
+            compileproject_Free(project);  // This indirectly frees 'ast'!
+            free(outputfile);
+            return 0;
+        }
+        nosuccess = 0;
     } else {
         h64fprintf(stderr, "horsec: error: internal error: "
             "unhandled compile mode %d\n", mode);
     }
     compileproject_Free(project);  // This indirectly frees 'ast'!
+    free(outputfile);
     return !nosuccess;
 }
 
@@ -701,12 +789,13 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
     char *fileuri = NULL;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
+    char *output_file = NULL;
     if (!_compileargparse(
             "get_tokens", argv, argc, argoffset,
-            &fileuri, &wconfig, &moptions
+            &fileuri, &output_file, &wconfig, &moptions
             ))
         return 0;
-    assert(fileuri != NULL);
+    assert(fileuri != NULL && output_file == NULL);
 
     jsonvalue *v = compiler_TokenizeToJSON(
         &moptions, fileuri, &wconfig
@@ -728,12 +817,13 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
     char *fileuri = NULL;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
+    char *output_file = NULL;
     if (!_compileargparse(
             "get_ast", argv, argc, argoffset,
-            &fileuri, &wconfig, &moptions
+            &fileuri, &output_file, &wconfig, &moptions
             ))
         return 0;
-    assert(fileuri != NULL);
+    assert(fileuri != NULL && output_file == NULL);
 
     jsonvalue *v = compiler_ParseASTToJSON(
         &moptions, fileuri, &wconfig, 0
@@ -757,12 +847,13 @@ int compiler_command_GetResolvedAST(
     char *fileuri = NULL;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
+    char *output_file = NULL;
     if (!_compileargparse(
             "get_resolved_ast", argv, argc, argoffset,
-            &fileuri, &wconfig, &moptions
+            &fileuri, &output_file, &wconfig, &moptions
             ))
         return 0;
-    assert(fileuri != NULL);
+    assert(fileuri != NULL && output_file == NULL);
 
     jsonvalue *v = compiler_ParseASTToJSON(
         &moptions, fileuri, &wconfig, 1
