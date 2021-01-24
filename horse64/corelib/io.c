@@ -291,7 +291,7 @@ int iolib_open(
         (LPCWSTR)wpath,
         0 | (mode_read ? GENERIC_READ : 0)
         | (mode_write ? GENERIC_WRITE : 0),
-        (mode_read ? 0 : FILE_SHARE_READ),
+        (mode_write ? 0 : FILE_SHARE_READ),
         NULL,
         OPEN_EXISTING | (
             (mode_write && !mode_append) ? CREATE_NEW : 0

@@ -1418,20 +1418,23 @@ FILE *filesys_OpenFromPath(
         return NULL;
     int64_t out_len = 0;
     int result = utf8_to_utf16(
-        path, strlen(path), wpath,
+        (const uint8_t*) path, strlen(path), wpath,
         sizeof(uint16_t) * (strlen(path) * 2 + 3),
         &out_len, 1, 0
     );
-    if (!result || out_len >= (pathlen * 2 + 3)) {
+    if (!result || out_len >= (strlen(path) * 2 + 3)) {
         free(wpath);
         return NULL;
     }
     wpath[out_len] = '\0';
+    int mode_read = strstr(mode, "r") || strstr(mode, "a");
+    int mode_write = strstr(mode, "w") || strstr(mode, "a");
+    int mode_append = strstr(mode, "r+") || strstr(mode, "a");
     HANDLE f = CreateFileW(
         (LPCWSTR)wpath,
         0 | (mode_read ? GENERIC_READ : 0)
         | (mode_write ? GENERIC_WRITE : 0),
-        (mode_read ? 0 : FILE_SHARE_READ),
+        ((mode_write ? 0 : FILE_SHARE_READ),
         NULL,
         OPEN_EXISTING | (
             (mode_write && !mode_append) ? CREATE_NEW : 0
