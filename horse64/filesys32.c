@@ -2,8 +2,16 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
-
 #include "compileconfig.h"
+
+#define _FILE_OFFSET_BITS 64
+#ifndef __USE_LARGEFILE64
+#define __USE_LARGEFILE64 1
+#endif
+#ifndef _LARGEFILE64_SOURCE
+#define _LARGEFILE64_SOURCE
+#endif
+#define _LARGEFILE_SOURCE
 
 #include <assert.h>
 #include <stdlib.h>

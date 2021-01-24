@@ -2,12 +2,14 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
-#include "compileconfig.h"
-
 #define _FILE_OFFSET_BITS 64
-#define __USE_LARGEFILE64
-#define _LARGEFILE_SOURCE
+#ifndef __USE_LARGEFILE64
+#define __USE_LARGEFILE64 1
+#endif
+#ifndef _LARGEFILE64_SOURCE
 #define _LARGEFILE64_SOURCE
+#endif
+#define _LARGEFILE_SOURCE
 #if defined(_WIN32) || defined(_WIN64)
 #define fseek64 _fseeki64
 #define ftell64 _ftelli64
@@ -15,6 +17,8 @@
 #define fseek64 fseeko64
 #define ftell64 ftello64
 #endif
+
+#include "compileconfig.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 int _close(
