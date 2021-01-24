@@ -23,6 +23,26 @@ int64_t h64archive_GetEntryCount(h64archive *a);
 
 const char *h64archive_GetEntryName(h64archive *a, uint64_t entry);
 
+int64_t h64archive_GetEntrySize(h64archive *a, uint64_t entry);
+
+typedef enum h64archive_adderror {
+    H64ARCHIVE_ADDERROR_SUCCESS = 0,
+    H64ARCHIVE_ADDERROR_IOERROR = -1,
+    H64ARCHIVE_ADDERROR_OUTOFMEMORY = -2,
+    H64ARCHIVE_ADDERROR_INVALIDNAME = -3,
+    H64ARCHIVE_ADDERROR_DUPLICATENAME = -4
+} h64archive_adderror;
+
+int h64archive_AddFileFromMem(
+    h64archive *a, const char *filename,
+    const char *bytes, uint64_t byteslen
+);
+
+int h64archive_ReadFileByteSlice(
+    h64archive *a, int64_t entry,
+    uint64_t offset, char *buf, size_t readlen
+);
+
 void h64archive_Close(h64archive *a);
 
 h64archive *archive_FromFilePath(

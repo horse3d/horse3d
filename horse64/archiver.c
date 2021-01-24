@@ -28,10 +28,13 @@
 #include <stdlib.h>
 
 #include "archiver.h"
+#include "filesys.h"
 #include "nonlocale.h"
 #include "uri.h"
 #include "vfs.h"
 #include "vfsstruct.h"
+
+#define UNCACHED_FILE_SIZE (1024 * 5)
 
 typedef struct h64archive {
     h64archivetype archive_type;
@@ -43,6 +46,13 @@ typedef struct h64archive {
         char *_last_returned_name;
     };
     VFSFILE *f;
+    struct {
+        int extract_cache_count;
+        char **extract_cache_temp_path;
+        char **extract_cache_temp_folder;
+        char **extract_cache_orig_name;
+        char *_read_buf;
+    };
 } h64archive;
 
 int64_t h64archive_GetEntryCount(h64archive *a) {
@@ -53,6 +63,21 @@ int64_t h64archive_GetEntryCount(h64archive *a) {
     } else {
         return -1;
     }
+}
+
+int64_t h64archive_GetEntrySize(h64archive *a, uint64_t entry) {
+    if (a->archive_type == H64ARCHIVE_TYPE_ZIP) {
+        mz_zip_archive_file_stat stat = {0};
+        mz_bool result = mz_zip_reader_file_stat(
+            &a->zip_archive, entry, &stat
+        );
+        if (!result)
+            return -1;
+        if (stat.m_uncomp_size > (uint64_t)INT64_MAX)
+            return -1;
+        return stat.m_uncomp_size;
+    }
+    return -1;
 }
 
 const char *h64archive_GetEntryName(h64archive *a, uint64_t entry) {
@@ -87,6 +112,306 @@ const char *h64archive_GetEntryName(h64archive *a, uint64_t entry) {
     }
 }
 
+int _h64archive_ReadFileToMemDirectly(
+        h64archive *a, int64_t entry, char *buf, size_t buflen
+        ) {
+    if (a->archive_type == H64ARCHIVE_TYPE_ZIP) {
+        mz_bool result = mz_zip_reader_extract_to_mem(
+            &a->zip_archive, entry, buf, buflen, 0
+        );
+        if (!result)
+            return 0;
+        return 1;
+    }
+    return 0;
+}
+
+int _h64archive_ReadFileToFPtr(
+        h64archive *a, int64_t entry, FILE *f
+        ) {
+    const char *e = h64archive_GetEntryName(a, entry);
+    if (!e)
+        return 0;
+    if (a->archive_type == H64ARCHIVE_TYPE_ZIP) {
+        mz_bool result = mz_zip_reader_extract_file_to_cfile(
+            &a->zip_archive, e, f, 0
+        );
+        if (!result)
+            return 0;
+        return 1;
+    }
+    return 0;
+}
+
+const char *_h64archive_GetFileCachePath(
+        h64archive *a, int64_t entry
+        ) {
+    const char *e = h64archive_GetEntryName(a, entry);
+    if (!e)
+        return NULL;
+    int64_t i = 0;
+    while (i < a->extract_cache_count) {
+        if (strcmp(a->extract_cache_orig_name[i], e) == 0)
+            return a->extract_cache_temp_path[i];
+        i++;
+    }
+    char **orig_name_new = realloc(
+        a->extract_cache_orig_name,
+        sizeof(*a->extract_cache_orig_name) *
+            (a->extract_cache_count + 1)
+    );
+    if (!orig_name_new)
+        return NULL;
+    a->extract_cache_orig_name = orig_name_new;
+    char **temp_name_new = realloc(
+        a->extract_cache_temp_path,
+        sizeof(*a->extract_cache_temp_path) *
+            (a->extract_cache_count + 1)
+    );
+    if (!temp_name_new)
+        return NULL;
+    a->extract_cache_temp_path = temp_name_new;
+    char **temp_path_new = realloc(
+        a->extract_cache_temp_folder,
+        sizeof(*a->extract_cache_temp_folder) *
+            (a->extract_cache_count + 1)
+    );
+    if (!temp_path_new)
+        return NULL;
+    a->extract_cache_temp_folder = temp_path_new;
+
+    char *folder_path = NULL;
+    char *full_path = NULL;
+    FILE *f = filesys_TempFile(
+        1, "h64archive-", "", &folder_path, &full_path
+    );
+    if (!f) {
+        return NULL;
+    }
+    if (!_h64archive_ReadFileToFPtr(a, entry, f)) {
+        free(full_path);
+        free(folder_path);
+        fclose(f);
+        return NULL;
+    }
+    fclose(f);
+    a->extract_cache_orig_name[
+        a->extract_cache_count
+    ] = strdup(e);
+    if (!a->extract_cache_orig_name[
+            a->extract_cache_count
+            ]) {
+        filesys_RemoveFile(full_path);
+        filesys_RemoveFolder(folder_path, 1);
+        free(full_path);
+        free(folder_path);
+        return NULL;
+    }
+    a->extract_cache_temp_path[
+        a->extract_cache_count
+    ] = full_path;
+    a->extract_cache_temp_folder[
+        a->extract_cache_count
+    ] = folder_path;
+    a->extract_cache_count++;
+    return full_path;
+}
+
+int h64archive_ReadFileByteSlice(
+        h64archive *a, int64_t entry,
+        uint64_t offset, char *buf, size_t readlen
+        ) {
+    int64_t fsize = h64archive_GetEntrySize(a, entry);
+    if (fsize < 0)
+        return 0;
+    if (offset + readlen > (uint64_t)fsize)
+        return 0;
+    if (fsize < UNCACHED_FILE_SIZE) {
+        if (!a->_read_buf) {
+            a->_read_buf = malloc(UNCACHED_FILE_SIZE);
+            if (!a->_read_buf)
+                return 0;
+        }
+        int result = _h64archive_ReadFileToMemDirectly(
+            a, entry, a->_read_buf, fsize
+        );
+        if (!result)
+            return 0;
+        memcpy(
+            buf, a->_read_buf + offset, readlen
+        );
+        return 1;
+    }
+    const char *file_path = _h64archive_GetFileCachePath(
+        a, entry
+    );
+    if (!file_path)
+        return 0;
+    FILE *f = filesys_OpenFromPath(file_path, "rb");
+    if (!f)
+        return 0;
+    if (fseek64(f, offset, SEEK_SET) != 0) {
+        fclose(f);
+        return 0;
+    }
+    size_t result = fread(buf, 1, readlen, f);
+    fclose(f);
+    if (result == readlen)
+        return 1;
+    return 0;
+}
+
+int _h64archive_EnableWriting(h64archive *a) {
+    if (a->archive_type == H64ARCHIVE_TYPE_ZIP) {
+        if (a->in_writing_mode)
+            return 1;
+        if (a->cached_entry) {
+            int64_t i = 0;
+            while (i < a->cached_entry_count) {
+                free(a->cached_entry[i]);
+                i++;
+            }
+            free(a->cached_entry);
+        }
+        a->cached_entry_count = h64archive_GetEntryCount(a);
+        a->cached_entry = malloc(
+            sizeof(a->cached_entry) * (
+                a->cached_entry_count > 0 ?
+                a->cached_entry_count : 1
+            )
+        );
+        if (!a->cached_entry) {
+            a->cached_entry_count = 0;
+            return 0;
+        }
+        int64_t i = 0;
+        while (i < a->cached_entry_count) {
+            const char *e = h64archive_GetEntryName(
+                a, i
+            );
+            if (e)
+                a->cached_entry[i] = strdup(e);
+            if (!a->cached_entry[i]) {
+                int64_t k = 0;
+                while (k < i) {
+                    free(a->cached_entry[k]);
+                    k++;
+                }
+                free(a->cached_entry);
+                a->cached_entry = NULL;
+                a->cached_entry_count = 0;
+                return 0;
+            }
+            i++;
+        }
+        mz_bool result = mz_zip_writer_init_from_reader_v2(
+            &a->zip_archive, NULL,
+            MZ_ZIP_FLAG_WRITE_ZIP64 |
+            MZ_ZIP_FLAG_CASE_SENSITIVE |
+            MZ_ZIP_FLAG_WRITE_ALLOW_READING
+        );
+        if (!result) {
+            return 0;
+        }
+        return 1;
+    }
+    return 1;
+}
+
+int _h64archive_AddFile_CheckName(
+        h64archive *a, const char *filename,
+        char **cleaned_name
+        ) {
+    if (strlen(filename) == 0 ||
+            filename[strlen(filename) - 1] == '/' ||
+            filename[strlen(filename) - 1] == '\\' ||
+            filename[0] == '/' || filename[0] == '\\'
+            )
+        return H64ARCHIVE_ADDERROR_INVALIDNAME;
+    unsigned int i = 0;
+    while (i < strlen(filename)) {
+        if (!is_valid_utf8_char(
+                (uint8_t *)(filename + i), strlen(filename + i)
+                )) {
+            return H64ARCHIVE_ADDERROR_INVALIDNAME;
+        }
+        i += utf8_char_len((uint8_t *)(filename + i));
+    }
+    char *clean_name = strdup(filename);
+    if (!clean_name)
+        return H64ARCHIVE_ADDERROR_OUTOFMEMORY;
+    i = 0;
+    while (i < strlen(clean_name)) {
+        if (clean_name[i] == '\\')
+            clean_name[i] = '/';
+        if (clean_name[i] == '/' &&
+                i + 1 < strlen(clean_name) &&
+                clean_name[i + 1] == '/') {
+            memcpy(
+                &clean_name[i], &clean_name[i + 1],
+                strlen(clean_name) - i - 1
+            );
+            continue;  // no i++ here!
+        }
+        i++;
+    }
+    int64_t entry_count = h64archive_GetEntryCount(a);
+    int64_t i2 = 0;
+    while (i2 < entry_count) {
+        const char *e = h64archive_GetEntryName(a, i2);
+        if (!e) {
+            free(clean_name);
+            return H64ARCHIVE_ADDERROR_OUTOFMEMORY;
+        }
+        if (strcmp(e, clean_name) == 0)
+            return H64ARCHIVE_ADDERROR_DUPLICATENAME;
+        i2++;
+    }
+    *cleaned_name = clean_name;
+    return H64ARCHIVE_ADDERROR_SUCCESS;
+}
+
+int h64archive_AddFileFromMem(
+        h64archive *a, const char *filename,
+        const char *bytes, uint64_t byteslen
+        ) {
+    char *cleaned_name = NULL;
+    int result = _h64archive_AddFile_CheckName(
+        a, filename, &cleaned_name
+    );
+    if (result != H64ARCHIVE_ADDERROR_SUCCESS)
+        return result;
+    if (!_h64archive_EnableWriting(a)) {
+        free(cleaned_name);
+        return H64ARCHIVE_ADDERROR_IOERROR;
+    }
+    if (a->archive_type == H64ARCHIVE_TYPE_ZIP) {
+        char **_expanded_names = realloc(
+            a->cached_entry,
+            sizeof(*a->cached_entry) * (a->cached_entry_count + 1)
+        );
+        if (!_expanded_names) {
+            free(cleaned_name);
+            return H64ARCHIVE_ADDERROR_OUTOFMEMORY;
+        }
+        a->cached_entry = _expanded_names;
+        mz_bool result2 = mz_zip_writer_add_mem(
+            &a->zip_archive, cleaned_name, bytes, byteslen,
+            MZ_BEST_COMPRESSION
+        );
+        if (!result2) {
+            free(cleaned_name);
+            return H64ARCHIVE_ADDERROR_IOERROR;
+        }
+        a->cached_entry[a->cached_entry_count] = cleaned_name;
+        a->cached_entry_count++;
+        return 1;
+    } else {
+        free(cleaned_name);
+        return H64ARCHIVE_ADDERROR_OUTOFMEMORY;
+    }
+}
+
 void h64archive_Close(h64archive *a) {
     if (a->archive_type == H64ARCHIVE_TYPE_ZIP) {
         if (a->in_writing_mode) {
@@ -105,6 +430,24 @@ void h64archive_Close(h64archive *a) {
         free(a->_last_returned_name);
     }
     vfs_fclose(a->f);
+    {
+        int64_t i = 0;
+        while (i < a->extract_cache_count) {
+            filesys_RemoveFile(
+                a->extract_cache_temp_path[i]
+            );
+            filesys_RemoveFolder(
+                a->extract_cache_temp_folder[i], 1
+            );
+            free(a->extract_cache_temp_path[i]);
+            free(a->extract_cache_temp_folder[i]);
+            free(a->extract_cache_orig_name[i]);
+            i++;
+        }
+        free(a->extract_cache_orig_name);
+        free(a->extract_cache_temp_path);
+        free(a->extract_cache_temp_folder);
+    }
     free(a);
 }
 

@@ -1488,11 +1488,12 @@ FILE *filesys_OpenFromPath(
     #endif
 }
 
-FILE *filesys_TempFile(
+FILE *_filesys_TempFile_SingleTry(
         int subfolder, const char *prefix,
         const char *suffix, char **folder_path,
-        char **path
+        char **path, int *do_retry
         ) {
+    *do_retry = 0;
     char *tempbuf = NULL;
     int64_t tempbuffill = 0;
     #if defined(_WIN32) || defined(_WIN64)
@@ -1578,6 +1579,11 @@ FILE *filesys_TempFile(
     free(tempbuf);
     if (subfolder) {
         if (!filesys_CreateDirectory(combined_path, 1)) {
+            if (filesys_FileExists(combined_path)) {
+                // Oops, somebody was faster/we hit an existing
+                // folder out of pure luck. Retry.
+                *do_retry = 1;
+            }
             free(combined_path);
             return NULL;
         }
@@ -1634,6 +1640,25 @@ FILE *filesys_TempFile(
         return NULL;
     }
     return f;
+}
+
+FILE *filesys_TempFile(
+        int subfolder, const char *prefix,
+        const char *suffix, char **folder_path,
+        char **path
+        ) {
+    while (1) {
+        int retry = 0;
+        FILE *f = _filesys_TempFile_SingleTry(
+            subfolder, prefix,
+            suffix, folder_path,
+            path, &retry
+        );
+        if (!f && !retry)
+            return NULL;
+        if (f)
+            return f;
+    }
 }
 
 char *filesys_Normalize(const char *path) {
