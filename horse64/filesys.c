@@ -28,10 +28,10 @@
 #include <pwd.h>
 #endif
 #include <dirent.h>
-#include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif
+#include <errno.h>
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #include <shlobj.h>
@@ -1441,7 +1441,7 @@ FILE *filesys_OpenFromPath(
         (LPCWSTR)wpath,
         0 | (mode_read ? GENERIC_READ : 0)
         | (mode_write ? GENERIC_WRITE : 0),
-        ((mode_write ? 0 : FILE_SHARE_READ),
+        (mode_write ? 0 : FILE_SHARE_READ),
         NULL,
         OPEN_EXISTING | (
             (mode_write && !mode_append) ? CREATE_NEW : 0
