@@ -62,6 +62,8 @@ size_t vfs_fread(
 
 size_t vfs_freadline(VFSFILE *f, char *buf, size_t bufsize);
 
+int vfs_fwritable(VFSFILE *f);
+
 int64_t vfs_ftell(VFSFILE *f);
 
 void vfs_fclose(VFSFILE *f);
@@ -73,6 +75,10 @@ int vfs_fseektoend(VFSFILE *f);
 int vfs_fgetc(VFSFILE *f);
 
 int vfs_peakc(VFSFILE *f);
+
+size_t vfs_fwrite(const char *buffer, int bytes, int numn, VFSFILE *f);
+
+VFSFILE *vfs_fdup(VFSFILE *f);
 
 void vfs_FreeFolderList(char **list);
 

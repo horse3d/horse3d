@@ -1418,8 +1418,10 @@ FILE *filesys_OpenFromPath(
     uint16_t *wpath = malloc(
         sizeof(uint16_t) * (strlen(path) * 2 + 3)
     );
-    if (!wpath)
+    if (!wpath) {
+        errno = ENOMEM;
         return NULL;
+    }
     int64_t out_len = 0;
     int result = utf8_to_utf16(
         (const uint8_t*) path, strlen(path), wpath,
@@ -1428,6 +1430,7 @@ FILE *filesys_OpenFromPath(
     );
     if (!result || out_len >= (strlen(path) * 2 + 3)) {
         free(wpath);
+        errno = ENOMEM;
         return NULL;
     }
     wpath[out_len] = '\0';
@@ -1447,20 +1450,41 @@ FILE *filesys_OpenFromPath(
         NULL
     );
     free(wpath);  wpath = NULL;
-    if (f == INVALID_HANDLE_VALUE)
+    if (f == INVALID_HANDLE_VALUE) {
+        uint32_t err = GetLastError();
+        if (err == ERROR_SHARING_VIOLATION ||
+                err == ERROR_ACCESS_DENIED) {
+            errno = EACCESS;
+        } else if (err== ERROR_PATH_NOT_FOUND ||
+                err == ERROR_FILE_NOT_FOUND) {
+            errno = ENOENT;
+        } else if ((err == ERROR_TOO_MANY_OPEN_FILES) {
+            errno = EMFILE;
+        } else if ( == ERROR_INVALID_NAME ||
+                err == ERROR_LABEL_TOO_LONG ||
+                err == ERROR_BUFFER_OVERFLOW ||
+                err == ERROR_FILENAME_EXCED_RANGE
+                ) {
+            errno = EINVAL;
+        } else {
+            errno = ENOMEM;
+        }
         return NULL;
+    }
     int filedescr = _open_osfhandle(
         (intptr_t)f, _O_RDONLY
     );
     if (filedescr < 0) {
+        errno = ENOMEM;
         CloseHandle(f);
         return NULL;
     }
     f = NULL;  // now owned by 'filedescr'
+    errno = 0;
     FILE *fresult = _fdopen(filedescr, "rb");
     return fresult;
     #else
-    return fopen(path, mode);
+    return fopen64(path, mode);
     #endif
 }
 
@@ -1598,7 +1622,7 @@ FILE *filesys_TempFile(
         *folder_path = NULL;
         *path = combined_path;
     }
-    FILE *f = fopen(*path, "wb");
+    FILE *f = filesys_OpenFromPath(*path, "wb");
     if (!f) {
         if (*folder_path) {
             filesys_RemoveFolder(*folder_path, 0);

@@ -26,25 +26,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#if defined(_WIN_32) || defined(_WIN64)
+#include <windows.h>
+#endif
 
 #include "filesys.h"
 #include "nonlocale.h"
 #include "vfs.h"
 #include "vfspartialfileio.h"
+#include "vfsstruct.h"
 
 
 //#define DEBUG_VFS
-
-
-typedef struct VFSFILE {
-    int via_physfs;
-    union {
-        PHYSFS_File *physfshandle;
-        FILE *diskhandle;
-    };
-    int64_t size;
-    uint64_t offset;
-} VFSFILE;
 
 void vfs_fclose(VFSFILE *f) {
     if (!f->via_physfs)
@@ -86,6 +80,63 @@ int vfs_peakc(VFSFILE *f) {
     if (result == 1)
         return (int)buf[0];
     return -1;
+}
+
+int vfs_fwritable(VFSFILE *f) {
+    return (!f->via_physfs);
+}
+
+size_t vfs_fwrite(const char *buffer, int bytes, int numn, VFSFILE *f) {
+    if (f->via_physfs)
+        return 0;
+    return fwrite(buffer, bytes, numn, f->diskhandle);
+}
+
+VFSFILE *vfs_fdup(VFSFILE *f) {
+    VFSFILE *fnew = malloc(sizeof(*fnew));
+    if (!fnew)
+        return NULL;
+    memcpy(fnew, f, sizeof(*f));
+    fnew->mode = strdup(f->mode);
+    if (!fnew->mode) {
+        free(fnew);
+        return NULL;
+    }
+    fnew->path = NULL;
+    if (!fnew->via_physfs) {
+        #if defined(_WIN32) || defined(_WIN64)
+        fnew->diskhandle = _fdopen(_dup(
+            _fileno(fnew->diskhandle
+            )), f->mode);
+        #else
+        fnew->diskhandle = fdopen(dup(
+            fileno(fnew->diskhandle)),
+            f->mode);
+        #endif
+        if (!fnew->diskhandle) {
+            free(fnew->mode);
+            free(fnew);
+            return NULL;
+        }
+        return fnew;
+    } else {
+        fnew->path = strdup(f->path);
+        if (!fnew->path) {
+            free(fnew->mode);
+            free(fnew);
+            return NULL;
+        }
+        fnew->physfshandle = (
+            PHYSFS_openRead(f->path)
+        );
+        if (!fnew->physfshandle) {
+            free(fnew->path);
+            free(fnew->mode);
+            free(fnew);
+            return NULL;
+        }
+        return fnew;
+    }
 }
 
 size_t vfs_freadline(VFSFILE *f, char *buf, size_t bufsize) {
@@ -183,6 +234,11 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
         return 0;
     }
     memset(vfile, 0, sizeof(*vfile));
+    vfile->mode = strdup(mode);
+    if (!vfile->mode) {
+        free(vfile);
+        return 0;
+    }
     vfile->size = -1;
 
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
@@ -191,6 +247,7 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
             #if !defined(_WIN32) && !defined(_WIN64)
             errno = ENOMEM;
             #endif
+            free(vfile->mode);
             free(vfile);
             return 0;
         }
@@ -198,6 +255,16 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
             vfile->via_physfs = 1;
             vfile->physfshandle = PHYSFS_openRead(p);
             if (vfile->physfshandle) {
+                {
+                    // HACK: we need this, since physfs has no dup call...
+                    vfile->path = strdup(path);
+                    if (!vfile->path) {
+                        PHYSFS_close(vfile->physfshandle);
+                        free(vfile->mode);
+                        free(vfile);
+                        return 0;
+                    }
+                }
                 vfile->size = (
                     (int64_t)PHYSFS_fileLength(vfile->physfshandle)
                 );
@@ -210,13 +277,16 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
         vfile->via_physfs = 0;
         errno = 0;
-        vfile->diskhandle = fopen64(path, mode);
-        if (vfile->diskhandle) {
-            return vfile;
+        vfile->diskhandle = filesys_OpenFromPath(path, mode);
+        if (!vfile->diskhandle) {
+            free(vfile->mode);
+            free(vfile);
+            return 0;
         }
         return vfile;
     }
 
+    free(vfile->mode);
     free(vfile);
     #if !defined(_WIN32) && !defined(_WIN64)
     errno = ENOENT;

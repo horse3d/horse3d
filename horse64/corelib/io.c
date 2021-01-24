@@ -87,18 +87,20 @@ int iolib_open(
 
               **append=yes:** the file that is opened for writing will
               keep its contents, and reading will occur from the start.
-              However, any write will be appended to its end, even when
-              @see{seek|io.file.seek}ing to another position for reading.
+              However, any write will always append to its end, ignoring
+              @see{seeks|io.file.seek}. The file must exist when opened
+              even if writing is enabled, or you'll get an @see{IOError}.
 
-              **append=no:** the file that is opened for writing will
-              be cleared out on open, and both reading and writing will
-              occur from the start, or wherever you @see{seek|io.file.seek}
-              to.
+              **append=no:** if writing is enabled the file will
+              be cleared on open, and both reading and writing will
+              occur from the start of the file, or wherever you
+              @see{seek|io.file.seek} to. The file will be creeated if
+              it doesn't exist yet and was opened for writing, otherwise
+              a missing file causes an @see{IOError}.
 
-              **append=io.APPEND_DEFAULT:** if the file is opened just
-              for writing, appending will be disabled. if the file was
-              opeend for both writing and reading, appending will be
-              enabled. See above for the respective result of that.
+              **append=io.APPEND_DEFAULT:** make append mode depend
+              on write/read. A file opened for both will use
+              append=yes, all other cases use append=no.
      * @param binary=no whether the file should be read as unchanged
               binary which will return @see(bytes) when reading, or
               otherwise it will be decoded from utf-8 and return a
@@ -237,16 +239,16 @@ int iolib_open(
     if (mode_write && mode_read) {
         flags |= FILEOBJ_FLAGS_WRITE;
         flags |= FILEOBJ_FLAGS_READ;
-        if (mode_append)
-            memcpy(modestr, "a+b", strlen("a+b"));
-        else
-            memcpy(modestr, "r+b", strlen("r+b"));
+        // Use "r+b" even for append, since we don't want to
+        // create a file if it doesn't exist. Instead, if we
+        // manage to open it we will change modes later:
+        memcpy(modestr, "r+b", strlen("r+b"));
         if (mode_append)
             flags |= FILEOBJ_FLAGS_APPEND;
     } else if (mode_write) {
         flags |= FILEOBJ_FLAGS_WRITE;
         if (mode_append)
-            memcpy(modestr, "ab", strlen("ab"));
+            memcpy(modestr, "rb", strlen("ab"));  // See note on r+b above.
         else
             memcpy(modestr, "wb", strlen("wb"));
         if (mode_append)
@@ -294,7 +296,8 @@ int iolib_open(
     HANDLE f2 = CreateFileW(
         (LPCWSTR)wpath,
         0 | (mode_read ? GENERIC_READ : 0)
-        | (mode_write ? GENERIC_WRITE : 0),
+        | (mode_write ? GENERIC_WRITE : 0)
+        | (mode_write ? FILE_APPEND_DATA : 0),
         (mode_write ? 0 : FILE_SHARE_READ),
         NULL,
         OPEN_EXISTING | (
@@ -332,12 +335,16 @@ int iolib_open(
                 "given path name is invalid"
             );
         } else if (err == ERROR_LABEL_TOO_LONG ||
-                err == ERROR_BUFFER_OVERFLOW ||
                 err == ERROR_FILENAME_EXCED_RANGE
                 ) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
                 "given path name too long"
+            );
+        } else if (err == ERROR_BUFFER_OVERFLOW) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory opening file"
             );
         }
         char buf[256];
@@ -420,12 +427,13 @@ int iolib_open(
         utf8buf[1] = '\0';
     }
     errno = 0;
-    FILE *f = fopen64(
+    FILE *f3 = fopen64(
         utf8buf, modestr
     );
-    if (!f) {
+    if (!f3) {
         if (freeutf8buf)
             free(utf8buf);
+        handlelinuxfileerror: ;
         if (errno == EACCES)
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_PERMISSIONERROR,
@@ -461,6 +469,11 @@ int iolib_open(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
                 "out of memory opening file"
             );
+        else if (errno == EINVAL)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "given path name is invalid"
+            );
         else if (errno == ENXIO)
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
@@ -478,7 +491,19 @@ int iolib_open(
     }
     if (freeutf8buf)
         free(utf8buf);
-
+    FILE *f = NULL;
+    if (mode_append) {
+        if (mode_read)
+            memcpy(modestr, "a+b", strlen("a+b"));
+        else
+            memcpy(modestr, "ab", strlen("ab"));
+        f = freopen64(NULL, modestr, f3);
+        if (!f) {
+            goto handlelinuxfileerror;
+        }
+    } else {
+        f = f3;
+    }
     // Make sure we didn't open a directory:
     errno = 0;
     struct stat filestatinfo;

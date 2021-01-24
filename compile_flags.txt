@@ -4,3 +4,5 @@
 -Wall
 -Wextra
 -DBUILD_TIME="clangd_placeholder"
+-I./vendor/miniz/include/
+-I./vendor/physfs/src/

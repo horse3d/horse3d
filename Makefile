@@ -29,7 +29,7 @@ CFLAGS_OPTIMIZATION:=-Ofast -s $(SSEFLAG) -flto -fno-unsafe-math-optimizations -
 endif
 OPENSSLHOSTOPTION:=linux-generic64
 CXXFLAGS:=-fexceptions
-CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -D_LARGEFILE64_SOURCE -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -I"$(OPENSSLPATH)/include/" -L"$(OPENSSLPATH)" -Wl,-Bdynamic
+CFLAGS:= -DBUILD_TIME=\"`date -u +'%Y-%m-%dT%H:%M:%S'`\" -D_LARGEFILE64_SOURCE -Wall -Wextra -Wno-unused-function -Wno-unused-but-set-variable -Wno-unused-variable $(CFLAGS_OPTIMIZATION) -I. -Ihorse64/ -I"$(MINIZPATH)/include/" -I"vendor/" -I"$(PHYSFSPATH)/src/" -L"$(PHYSFSPATH)" -I"$(OPENSSLPATH)/include/" -L"$(OPENSSLPATH)" -Wl,-Bdynamic
 LDFLAGS:= -Wl,-Bstatic -lphysfs -lh64openssl -lh64crypto -Wl,-Bdynamic
 TEST_OBJECTS:=$(patsubst %.c, %.o, $(wildcard ./horse64/test_*.c) $(wildcard ./horse64/compiler/test_*.c))
 ALL_OBJECTS:=$(filter-out ./horse64/vmexec_inst_unopbinop_INCLUDE.o, $(patsubst %.c, %.o, $(wildcard ./horse64/*.c) $(wildcard ./horse64/corelib/*.c) $(wildcard ./horse64/compiler/*.c)) vendor/siphash.o)
@@ -127,7 +127,7 @@ physfs:
 	cd $(PHYSFSPATH) && rm -f libphysfs.a && make clean && make CC="$(CC)" CXX="$(CXX)"
 
 miniz:
-	cd $(MINIZPATH) && rm -f ../miniz.c && rm -f ../miniz.h && rm -rf ./amalgamation/ && ./amalgamate.sh && cp ./amalgamation/miniz.c ../miniz.c && cp ./amalgamation/miniz.h ../miniz.h
+	cd $(MINIZPATH) && mkdir -p ./include/miniz/ && rm -f ./include/miniz/miniz.c && rm -f ./include/miniz/miniz.h && rm -rf ./amalgamation/ && ./amalgamate.sh && cp ./amalgamation/miniz.c ./include/miniz/miniz.c && cp ./amalgamation/miniz.h ./include/miniz/miniz.h
 
 openssl:
 	cd $(OPENSSLPATH) && rm -f lib*.a && ./Configure $(OPENSSLHOSTOPTION) no-engine no-comp no-hw no-shared threads CC="$(CC)" && make clean && make CC="$(CC)" CXX="$(CXX)" && cp libssl.a libh64openssl.a && cp libcrypto.a libh64crypto.a
