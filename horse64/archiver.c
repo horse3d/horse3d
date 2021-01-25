@@ -80,6 +80,61 @@ int64_t h64archive_GetEntrySize(h64archive *a, uint64_t entry) {
     return -1;
 }
 
+char *h64archive_NormalizeName(const char *name) {
+    char *nname = strdup(name);
+    if (!nname)
+        return NULL;
+    uint64_t i = 0;
+    while (i < strlen(nname)) {
+        if (nname[i] == '\\')
+            nname[i] = '/';
+        if (nname[i] == '/' &&
+                i + 1 < strlen(nname) &&
+                nname[i + 1] == '/') {
+            memcpy(
+                &nname[i], &nname[i + 1],
+                strlen(nname) - i
+            );
+            continue;  // no i++ here!
+        }
+        i++;
+    }
+    if (strlen(nname) > 0 && name[strlen(nname) - 1] == '/')
+        nname[strlen(nname) - 1] = '\0';
+    return nname;
+}
+
+int h64archive_GetEntryIndex(
+        h64archive *a, const char *filename, int64_t *index
+        ) {
+    char *cleanname = h64archive_NormalizeName(filename);
+    int64_t entry_count = h64archive_GetEntryCount(a);
+    int64_t i2 = 0;
+    while (i2 < entry_count) {
+        const char *e = h64archive_GetEntryName(a, i2);
+        if (!e) {
+            free(cleanname);
+            return 0;
+        }
+        char *eclean = h64archive_NormalizeName(e);
+        if (!eclean) {
+            free(cleanname);
+            return 0;
+        }
+        if (strcmp(e, cleanname) == 0) {
+            free(eclean);
+            free(cleanname);
+            *index = i2;
+            return 1;
+        }
+        free(eclean);
+        i2++;
+    }
+    free(cleanname);
+    *index = -1;
+    return 1;
+}
+
 const char *h64archive_GetEntryName(h64archive *a, uint64_t entry) {
     if (a->archive_type == H64ARCHIVE_TYPE_ZIP) {
         if (a->in_writing_mode) {
@@ -337,24 +392,9 @@ int _h64archive_AddFile_CheckName(
         }
         i += utf8_char_len((uint8_t *)(filename + i));
     }
-    char *clean_name = strdup(filename);
+    char *clean_name = h64archive_NormalizeName(filename);
     if (!clean_name)
         return H64ARCHIVE_ADDERROR_OUTOFMEMORY;
-    i = 0;
-    while (i < strlen(clean_name)) {
-        if (clean_name[i] == '\\')
-            clean_name[i] = '/';
-        if (clean_name[i] == '/' &&
-                i + 1 < strlen(clean_name) &&
-                clean_name[i + 1] == '/') {
-            memcpy(
-                &clean_name[i], &clean_name[i + 1],
-                strlen(clean_name) - i - 1
-            );
-            continue;  // no i++ here!
-        }
-        i++;
-    }
     int64_t entry_count = h64archive_GetEntryCount(a);
     int64_t i2 = 0;
     while (i2 < entry_count) {
@@ -363,8 +403,17 @@ int _h64archive_AddFile_CheckName(
             free(clean_name);
             return H64ARCHIVE_ADDERROR_OUTOFMEMORY;
         }
-        if (strcmp(e, clean_name) == 0)
+        char *eclean = h64archive_NormalizeName(e);
+        if (!eclean) {
+            free(clean_name);
+            return H64ARCHIVE_ADDERROR_OUTOFMEMORY;
+        }
+        if (strcmp(eclean, clean_name) == 0) {
+            free(eclean);
+            free(clean_name);
             return H64ARCHIVE_ADDERROR_DUPLICATENAME;
+        }
+        free(eclean);
         i2++;
     }
     *cleaned_name = clean_name;

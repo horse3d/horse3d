@@ -38,6 +38,10 @@ int h64archive_AddFileFromMem(
     const char *bytes, uint64_t byteslen
 );
 
+int h64archive_GetEntryIndex(
+    h64archive *a, const char *filename, int64_t *index
+);
+
 int h64archive_ReadFileByteSlice(
     h64archive *a, int64_t entry,
     uint64_t offset, char *buf, size_t readlen

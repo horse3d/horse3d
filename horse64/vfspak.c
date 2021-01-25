@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "archiver.h"
 #include "filesys.h"
 #include "vfs.h"
 #include "vfspak.h"
@@ -132,6 +133,10 @@ int vfs_GetEmbbeddedPakInfo(
     memset(*einfo, 0, sizeof(**einfo));
     (*einfo)->data_start_offset = pak_start;
     (*einfo)->data_end_offset = pak_end;
+    (*einfo)->full_with_header_start_offset = pak_start;
+    (*einfo)->full_with_header_end_offset = (
+        pak_end + magiclen + sizeof(uint64_t) * 2
+    );
     embeddedvfspakinfo *next_einfo = NULL;
     if (!vfs_GetEmbbeddedPakInfo(
             path, file_len - pak_start, &next_einfo
@@ -141,6 +146,26 @@ int vfs_GetEmbbeddedPakInfo(
         return 0;
     }
     (*einfo)->next = next_einfo;
+    return 1;
+}
+
+int vfs_HasEmbbededPakGivenFilePath(
+        embeddedvfspakinfo *einfo, const char *binary_path,
+        const char *file_path, int *out_result
+        ) {
+    h64archive *a = archive_FromFilePathSlice(
+        binary_path, einfo->data_start_offset,
+        einfo->data_end_offset - einfo->data_start_offset,
+        0, 0, H64ARCHIVE_TYPE_AUTODETECT
+    );
+    if (!a) {
+        return 0;
+    }
+    int64_t idx = -1;
+    if (!h64archive_GetEntryIndex(a, file_path, &idx)) {
+        return 0;
+    }
+    *out_result = (idx >= 0);
     return 1;
 }
 

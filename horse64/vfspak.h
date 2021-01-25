@@ -11,8 +11,14 @@ typedef struct embeddedvfspakinfo embeddedvfspakinfo;
 
 typedef struct embeddedvfspakinfo {
     uint64_t data_start_offset, data_end_offset;
+    uint64_t full_with_header_start_offset, full_with_header_end_offset;
     embeddedvfspakinfo *next;
 } embeddedvfspakinfo;
+
+int vfs_HasEmbbededPakGivenFilePath(
+    embeddedvfspakinfo *einfo, const char *binary_path,
+    const char *file_path, int *out_result
+);
 
 int vfs_AddPak(const char *path);
 
