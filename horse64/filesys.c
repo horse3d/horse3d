@@ -33,8 +33,11 @@
 #endif
 #include <errno.h>
 #if defined(_WIN32) || defined(_WIN64)
+#define _O_RDONLY 0x0000
+#include <malloc.h>
 #include <windows.h>
 #include <shlobj.h>
+int _open_osfhandle(intptr_t osfhandle, int flags);
 #endif
 
 #define MACAPPDATA_SUFFIX "/Libraries/Application Support/"
