@@ -121,7 +121,6 @@ VFSFILE *vfs_fdup(VFSFILE *f) {
             free(fnew);
             return NULL;
         }
-        return fnew;
     } else {
         fnew->path = strdup(f->path);
         if (!fnew->path) {
@@ -138,8 +137,22 @@ VFSFILE *vfs_fdup(VFSFILE *f) {
             free(fnew);
             return NULL;
         }
-        return fnew;
+        int seekworked = 0;
+        int64_t pos = PHYSFS_tell(f->physfshandle);
+        if (pos >= 0) {
+            if (PHYSFS_seek(f->physfshandle, pos) == 0) {
+                seekworked = 1;
+            }
+        }
+        if (!seekworked) {
+            PHYSFS_close(f->physfshandle);
+            free(fnew->path);
+            free(fnew->mode);
+            free(fnew);
+            return NULL;
+        }
     }
+    return fnew;
 }
 
 size_t vfs_freadline(VFSFILE *f, char *buf, size_t bufsize) {
@@ -176,18 +189,55 @@ int vfs_feof(VFSFILE *f) {
 }
 
 int vfs_fseek(VFSFILE *f, uint64_t offset) {
-    if (!f->via_physfs)
-        return (fseek64(f->diskhandle, offset, SEEK_SET) == 0);
-
-    return (PHYSFS_seek(f->physfshandle, offset) != 0);
+    uint64_t startoffset = 0;
+    if (f->is_limited) {
+        startoffset = f->limit_start;
+        if (offset > f->limit_len)
+            return -1;
+    }
+    if (!f->via_physfs) {
+        if (fseek64(f->diskhandle,
+                offset + startoffset, SEEK_SET) == 0) {
+            f->offset = offset;
+            return 0;
+        }
+        return -1;
+    }
+    if (PHYSFS_seek(f->physfshandle, offset + startoffset) != 0) {
+        f->offset = offset;
+        return 0;
+    }
+    return -1;
 }
 
 int vfs_fseektoend(VFSFILE *f) {
-    if (!f->via_physfs)
-        return (fseek64(f->diskhandle, 0, SEEK_END) == 0);
-
-    return (PHYSFS_seek(f->physfshandle,
-        PHYSFS_fileLength(f->physfshandle)) != 0);
+    if (f->is_limited)
+        return vfs_fseek(f, f->limit_len);
+    if (!f->via_physfs) {
+        if (fseek64(f->diskhandle, 0, SEEK_END) == 0) {
+            int64_t tellpos = ftell64(f->diskhandle);
+            if (tellpos >= 0) {
+                f->offset = tellpos;
+                return 1;
+            }
+            // Otherwise, try to revert:
+            fseek64(f->diskhandle, f->offset, SEEK_SET);
+            return 0;
+        }
+        return 0;
+    }
+    if (PHYSFS_seek(f->physfshandle,
+            PHYSFS_fileLength(f->physfshandle)) != 0) {
+        int64_t tellpos = PHYSFS_tell(f->physfshandle);
+        if (tellpos >= 0) {
+            f->offset = tellpos;
+            return 1;
+        }
+        // Otherwise, try to revert:
+        PHYSFS_seek(f->physfshandle, f->offset);
+        return 0;
+    }
+    return 0;
 }
 
 size_t vfs_fread(
@@ -196,8 +246,26 @@ size_t vfs_fread(
     if (bytes <= 0 || numn <= 0)
         return 0;
 
-    if (!f->via_physfs)
-        return fread(buffer, bytes, numn, f->diskhandle);
+    if (f->is_limited) {
+        while (numn > 0 &&
+                f->offset + (bytes * numn) > f->limit_start +
+                f->limit_len) {
+            if (bytes == 1) {
+                numn = ((f->limit_len + f->limit_start) - f->offset);
+                break;
+            }
+            numn--;
+        }
+        if (numn <= 0)
+            return 0;
+    }
+
+    if (!f->via_physfs) {
+        size_t result = fread(buffer, bytes, numn, f->diskhandle);
+        if (result > 0)
+            f->offset += result;
+        return result;
+    }
 
     if (bytes == 1) {
         size_t result = PHYSFS_readBytes(
@@ -226,6 +294,64 @@ size_t vfs_fread(
         }
     }
     return result;
+}
+
+int vfs_flimitslice(VFSFILE *f, uint64_t fileoffset, uint64_t maxlen) {
+    if (!f)
+        return 0;
+
+    // Get the old position to revert to if stuff goes wrong:
+    int64_t pos = (
+        f->via_physfs ? ftell64(f->diskhandle) :
+        PHYSFS_tell(f->physfshandle)
+    );
+    if (pos < 0)
+        return 0;
+
+    // Get the file's current true size:
+    int64_t size = -1;
+    if (!f->via_physfs) {
+        if (fseek64(f->diskhandle, 0, SEEK_END) != 0) {
+            // at least TRY to seek back:
+            fseek64(f->diskhandle, pos, SEEK_SET);
+            return 0;
+        }
+        size = ftell64(f->diskhandle);
+        if (fseek64(f->diskhandle, pos, SEEK_SET) != 0) {  // revert back
+            // ... nothing we can do?
+            return 0;
+        }
+    } else {
+        size = PHYSFS_fileLength(f->physfshandle);
+    }
+    if (size < 0) {
+        return 0;
+    }
+
+    // Make sure the window applied is sane:
+    if (fileoffset + maxlen > (uint64_t)size)
+        return 0;
+    int64_t newpos = pos;
+    if ((uint64_t)newpos < fileoffset)
+        newpos = fileoffset;
+    if ((uint64_t)newpos > fileoffset + maxlen)
+        newpos = fileoffset + maxlen;
+
+    // Now, try to seek to the new position that is now inside the window:
+    if (f->via_physfs ? PHYSFS_seek(f->physfshandle, newpos) == 0 :
+            fseek64(f->diskhandle, newpos, SEEK_SET) == 0) {
+        if (f->via_physfs) {  // at least TRY to seek back
+            PHYSFS_seek(f->physfshandle, pos);
+        } else {
+            fseek64(f->diskhandle, pos, SEEK_SET);
+        }
+        return 0;
+    }
+    // Apply the new window:
+    f->limit_start = fileoffset;
+    f->limit_len = maxlen;
+    f->is_limited = 1;
+    return 1;
 }
 
 VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {

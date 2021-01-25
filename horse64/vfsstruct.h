@@ -10,13 +10,14 @@
 #include <stdio.h>
 
 typedef struct VFSFILE {
-    int via_physfs;
+    uint8_t via_physfs, is_limited;
     union {
         PHYSFS_File *physfshandle;
         FILE *diskhandle;
     };
     int64_t size;
     uint64_t offset;
+    uint64_t limit_start, limit_len;
     char *mode, *path;
 } VFSFILE;
 

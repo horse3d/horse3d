@@ -79,6 +79,8 @@ size_t vfs_fwrite(const char *buffer, int bytes, int numn, VFSFILE *f);
 
 VFSFILE *vfs_fdup(VFSFILE *f);
 
+int vfs_flimitslice(VFSFILE *f, uint64_t fileoffset, uint64_t maxlen);
+
 void vfs_FreeFolderList(char **list);
 
 int vfs_ListFolder(

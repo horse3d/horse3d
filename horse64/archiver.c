@@ -565,15 +565,15 @@ h64archive *archive_FromVFSHandle(
     return archive_FromVFSHandleEx(f, 0, type);
 }
 
-h64archive *archive_FromFilePath(
-        const char *path, int createifmissing,
-        int vfsflags, h64archivetype type
+h64archive *archive_FromFilePathSlice(
+        const char *pathoruri, uint64_t fileoffset, uint64_t maxlen,
+        int createifmissing, int vfsflags, h64archivetype type
         ) {
     int was_originally_fileuri = 0;
     {
         char header[32];
-        if (strlen(path) > strlen("file://")) {
-            memcpy(header, path, strlen("file://"));
+        if (strlen(pathoruri) > strlen("file://")) {
+            memcpy(header, pathoruri, strlen("file://"));
             header[strlen("file://")] = '\0';
             was_originally_fileuri = (
                 h64casecmp(header, "file://") == 0 ||
@@ -581,8 +581,10 @@ h64archive *archive_FromFilePath(
             );
         }
     }
+
+    // Parse path as URI to see if it's VFS or not:
     uriinfo *uri = uri_ParseEx(
-        path, "file", 0
+        pathoruri, "file", 0
     );
     if (!uri)
         return NULL;
@@ -591,25 +593,64 @@ h64archive *archive_FromFilePath(
               (vfsflags & VFSFLAG_NO_REALDISK_ACCESS) == 0))) {
         vfsflags |= VFSFLAG_NO_VIRTUALPAK_ACCESS;
     } else if (h64casecmp(uri->protocol, "vfs") == 0) {
-        if ((vfsflags & VFSFLAG_NO_VIRTUALPAK_ACCESS) != 0)
+        if ((vfsflags & VFSFLAG_NO_VIRTUALPAK_ACCESS) != 0) {
+            uri_Free(uri);
             return NULL;
+        }
         vfsflags |= VFSFLAG_NO_REALDISK_ACCESS;
     }
+    if (h64casecmp(uri->protocol, "file") != 0 &&
+            h64casecmp(uri->protocol, "vfs") != 0) {
+        uri_Free(uri);
+        return NULL;
+    }
+
     // Get the VFS file:
     errno = 0;
     VFSFILE *f = vfs_fopen(
         uri->path, "r+b", vfsflags
     );
+    uri_Free(uri);
     if (!f && errno == ENOENT && createifmissing) {
         f = vfs_fopen(
             uri->path, "w+b", VFSFLAG_NO_VIRTUALPAK_ACCESS
         );
     }
     if (f) {
+        // Make sure the offset parameters are applied & valid:
+        if (fileoffset > 0 || maxlen > 0) {
+            if (vfs_fseektoend(f) != 0) {
+                vfs_fclose(f);
+                return NULL;
+            }
+            int64_t end = vfs_ftell(f);
+            if (end < 0 || fileoffset + maxlen > (uint64_t)end ||
+                    fileoffset >= (uint64_t)end) {
+                vfs_fclose(f);
+                return NULL;
+            }
+            if (maxlen == 0) {
+                maxlen = (uint64_t)end - fileoffset;
+            }
+            if (!vfs_flimitslice(f, fileoffset, maxlen)) {
+                vfs_fclose(f);
+                return NULL;
+            }
+        }
+        // Now load archive:
         h64archive *a = archive_FromVFSHandleEx(f, createifmissing, type);
         vfs_fclose(f);
         return a;
     }
     vfs_fclose(f);
     return NULL;
+}
+
+h64archive *archive_FromFilePath(
+        const char *pathoruri, int createifmissing, int vfsflags,
+        h64archivetype type
+        ) {
+    return archive_FromFilePathSlice(
+        pathoruri, 0, 0, createifmissing, vfsflags, type
+    );
 }

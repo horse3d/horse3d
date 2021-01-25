@@ -50,4 +50,9 @@ h64archive *archive_FromFilePath(
     h64archivetype type
 );
 
+h64archive *archive_FromFilePathSlice(
+    const char *pathoruri, uint64_t fileoffset, uint64_t maxlen,
+    int createifmissing, int vfsflags, h64archivetype type
+);
+
 #endif  // HORSE64_ARCHIVER_H_
