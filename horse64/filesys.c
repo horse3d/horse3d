@@ -1428,7 +1428,7 @@ FILE *filesys_OpenFromPath(
         sizeof(uint16_t) * (strlen(path) * 2 + 3),
         &out_len, 1, 0
     );
-    if (!result || out_len >= (strlen(path) * 2 + 3)) {
+    if (!result || (uint64_t)out_len >= (uint64_t)(strlen(path) * 2 + 3)) {
         free(wpath);
         errno = ENOMEM;
         return NULL;
@@ -1454,13 +1454,13 @@ FILE *filesys_OpenFromPath(
         uint32_t err = GetLastError();
         if (err == ERROR_SHARING_VIOLATION ||
                 err == ERROR_ACCESS_DENIED) {
-            errno = EACCESS;
+            errno = EACCES;
         } else if (err== ERROR_PATH_NOT_FOUND ||
                 err == ERROR_FILE_NOT_FOUND) {
             errno = ENOENT;
-        } else if ((err == ERROR_TOO_MANY_OPEN_FILES) {
+        } else if (err == ERROR_TOO_MANY_OPEN_FILES) {
             errno = EMFILE;
-        } else if ( == ERROR_INVALID_NAME ||
+        } else if (err == ERROR_INVALID_NAME ||
                 err == ERROR_LABEL_TOO_LONG ||
                 err == ERROR_BUFFER_OVERFLOW ||
                 err == ERROR_FILENAME_EXCED_RANGE
