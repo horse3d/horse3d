@@ -86,14 +86,14 @@ int filesys32_ListFolder(
         *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
         return 0;
     }
-    memcpy(p, folderpath, strlen(folderpath) + 1);
-    if (p[strlen(p) - 1] != '\\') {
-        p[strlen(p) + 1] = '\0';
-        p[strlen(p)] = '\\';
+    memcpy(p, folderpath, wcslen(folderpath) + 1);
+    if (p[wcslen(p) - 1] != '\\') {
+        p[wcslen(p) + 1] = '\0';
+        p[wcslen(p)] = '\\';
     }
-    p[strlen(p) + 1] = '\0';
-    p[strlen(p)] = '*';
-    free(folderpath);
+    p[wcslen(p) + 1] = '\0';
+    p[wcslen(p)] = '*';
+    free((void *)folderpath);
     folderpath = NULL;
     HANDLE hFind = FindFirstFileW(p, &ffd);
     if (hFind == INVALID_HANDLE_VALUE) {
@@ -185,7 +185,8 @@ int filesys32_ListFolder(
             isfirst = 0;
         } else {
             if (FindNextFileW(hFind, &ffd) == 0) {
-                if (GetLastError() != ERROR_NO_MORE_FILES) {
+                uint32_t werror = GetLastError();
+                if (werror != ERROR_NO_MORE_FILES) {
                     *error = FS32_LISTFOLDERERR_OTHERERROR;
                     if (werror == ERROR_NOT_ENOUGH_MEMORY)
                         *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
@@ -199,7 +200,7 @@ int filesys32_ListFolder(
         int64_t entryNameLen = 0;
         h64wchar *entryName = utf16_to_utf32(
             (uint16_t *)entryNameWide, wcslen(entryNameWide),
-            entryNameLen, 1, &_conversionoom
+            &entryNameLen, 1, &_conversionoom
         );
         if (!entryName) {
             *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
@@ -322,8 +323,8 @@ int filesys32_ListFolder(
             memcpy(fullPathList[k], path32, sizeof(*path32) * path32len);
             fullPathListLen[k] = path32len;
             #if defined(_WIN32) || defined(_WIN64)
-            if (path32len > 0 && (fullPathList[k][path32len - 1] != '/'
-                    fullPathList[k][path32len - 1] != '\\')) {
+            if (path32len > 0 && fullPathList[k][path32len - 1] != '/' &&
+                    fullPathList[k][path32len - 1] != '\\') {
                 fullPathList[k][path32len] = '\\';
                 fullPathListLen[k]++;
             }
