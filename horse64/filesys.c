@@ -46,6 +46,7 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 
 
 #include "filesys.h"
+#include "filesys32.h"
 #include "nonlocale.h"
 #include "secrandom.h"
 #include "stringhelpers.h"
@@ -92,75 +93,76 @@ int filesys_IsSymlink(const char *path, int *result) {
     #endif
 }
 
-int filesys_RemoveFolder(const char *path, int recursive) {
+int filesys_RemoveFolderRecursively(const char *path) {
     #if defined(_WIN32) || defined(_WIN64)
-    if (recursive) {
-        SHFILEOPSTRUCT shfo = {
-            NULL, FO_DELETE, path, NULL,
-            FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION,
-            FALSE, NULL, NULL
-        };
-        if (SHFileOperation(&shfo) != 0)
-            return 0;
-        return (shfo.fAnyOperationsAborted == 0);
-    } else {
-        return (RemoveDirectoryA(path) != 0);
-    }
+    SHFILEOPSTRUCT shfo = {
+        NULL, FO_DELETE, path, NULL,
+        FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION,
+        FALSE, NULL, NULL
+    };
+    if (SHFileOperation(&shfo) != 0)
+        return 0;
+    return (shfo.fAnyOperationsAborted == 0);
     #else
-    if (recursive) {
-        char **contents = NULL;
-        int listingworked = filesys_ListFolder(
-            path, &contents, 1
-        );
-        if (!listingworked) {
-            assert(contents == NULL);
+    char **contents = NULL;
+    int listingworked = filesys_ListFolder(
+        path, &contents, 1
+    );
+    if (!listingworked) {
+        assert(contents == NULL);
+        return 0;
+    }
+    int k = 0;
+    while (contents[k]) {
+        int islink = 0;
+        if (!filesys_IsSymlink(contents[k], &islink)) {
+            filesys_FreeFolderList(contents);
             return 0;
         }
-        int k = 0;
-        while (contents[k]) {
-            int islink = 0;
-            if (!filesys_IsSymlink(contents[k], &islink)) {
+        if (islink) {
+            int result = filesys_RemoveFileOrEmptyDir(contents[k]);
+            if (!result) {
                 filesys_FreeFolderList(contents);
                 return 0;
             }
-            if (islink) {
-                int result = remove(contents[k]);
-                if (result < 0) {
-                    filesys_FreeFolderList(contents);
-                    return 0;
-                }
-            } else if (filesys_IsDirectory(contents[k])) {
-                if (!filesys_RemoveFolder(contents[k], 1)) {
-                    filesys_FreeFolderList(contents);
-                    return 0;
-                }
-            } else {
-                if (!filesys_RemoveFile(contents[k])) {
-                    filesys_FreeFolderList(contents);
-                    return 0;
-                }
+        } else if (filesys_IsDirectory(contents[k])) {
+            if (!filesys_RemoveFolderRecursively(contents[k])) {
+                // FIXME: this can blow up the stack.
+                filesys_FreeFolderList(contents);
+                return 0;
             }
-            k++;
+        } else {
+            if (!filesys_RemoveFileOrEmptyDir(contents[k])) {
+                filesys_FreeFolderList(contents);
+                return 0;
+            }
         }
-        filesys_FreeFolderList(contents);
-        return filesys_RemoveFolder(path, 0);
-    } else {
-        return (rmdir(path) == 0);
+        k++;
     }
+    filesys_FreeFolderList(contents);
+    return filesys_RemoveFileOrEmptyDir(path);
     #endif
 }
 
-int filesys_RemoveFile(const char *path) {
-    int result = remove(path);
-    if (result < 0)
+int filesys_RemoveFileOrEmptyDir(const char *path) {
+    int64_t resultlen = 0;
+    h64wchar *result = utf8_to_utf32(
+        path, strlen(path), NULL, NULL, &resultlen
+    );
+    if (!result)
         return 0;
-    return 1;
+    int err = 0;
+    int removeresult = filesys32_RemoveFileOrEmptyDir(
+        result, resultlen, &err
+    );
+    free(result);
+    return removeresult;
 }
 
 char *filesys_RemoveDoubleSlashes(
         const char *path, int couldbewinpath
         ) {
-    // MAINTENANCE NOTE: KEEP IN SYNC WITH filesys_RemoveDoubleSlashes()!!!
+    // MAINTENANCE NOTE: KEEP IN SYNC WITH filesys32_RemoveDoubleSlashes()!!!
 
     if (!path)
         return NULL;

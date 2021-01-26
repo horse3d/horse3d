@@ -16,9 +16,9 @@ int filesys_FileExists(const char *path);
 
 int filesys_IsDirectory(const char *path);
 
-int filesys_RemoveFolder(const char *path, int recursive);
+int filesys_RemoveFolderRecursively(const char *path);
 
-int filesys_RemoveFile(const char *path);
+int filesys_RemoveFileOrEmptyDir(const char *path);
 
 const char *filesys_AppDataSubFolder(
     const char *appname

@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #if defined(_WIN32) || defined(_WIN64)
 #define _O_RDONLY 0x0000
 #include <malloc.h>
@@ -27,6 +28,7 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 #if !defined(ANDROID) && !defined(__ANDROID__)
 #include <pwd.h>
 #endif
+#include <fcntl.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -48,6 +50,96 @@ void filesys32_FreeFolderList(h64wchar **list, int64_t *listlen) {
     }
     if (listlen)
         free(listlen);
+}
+
+int filesys32_RemoveFileOrEmptyDir(
+        const h64wchar *path32, int64_t path32len, int *error
+        ) {
+    #if defined(_WIN32) || defined(_WIN64)
+    assert(sizeof(wchar_t) == sizeof(uint16_t));
+    wchar_t targetpath = malloc(
+        sizeof(*targetpath) * (path32len * 2 + 1)
+    );
+    if (!targetpath) {
+        *error = FS32_REMOVEERR_OUTOFMEMORY;
+        return 0;
+    }
+    int64_t targetpathlen = 0;
+    int result = utf32_to_utf16(
+        path32, path32len, targetpath,
+        sizeof(*targetpath) * (path32len * 2 + 1),
+        &targetpathlen, 1
+    );
+    if (!result || targetpathlen >= (path32len * 2 + 1)) {
+        *error = FS32_REMOVEERR_OUTOFMEMORY;
+        return 0;
+    }
+    targetpath[targetpathlen] = '\0';
+    if (DeleteFileW(targetpath) != TRUE) {
+        uint32_t werror = GetLastError();
+        *error = FS32_REMOVEFILEERR_OTHERERROR;
+        if (werror == ERROR_DIRECTORY_NOT_SUPPORTED ||
+                werror == ERROR_DIRECTORY) {
+            if (RemoveDirectoryW(targetpath) != TRUE) {
+                free(targetpath);
+                werror = GetLastError();
+                *error = FS32_REMOVEFILEERR_OTHERERROR;
+                if (werror == ERROR_PATH_NOT_FOUND ||
+                        werror == ERROR_FILE_NOT_FOUND ||
+                        werror == ERROR_INVALID_PARAMETER ||
+                        werror == ERROR_INVALID_NAME ||
+                        werror == ERROR_INVALID_DRIVE)
+                    *error = FS32_REMOVEERR_NOSUCHFILE;
+                else if (werror == ERROR_ACCESS_DENIED)
+                    *error = FS32_REMOVEERR_NOPERMISSION;
+                else if (werror == ERROR_NOT_ENOUGH_MEMORY)
+                    *error = FS32_REMOVEERR_OUTOFMEMORY;
+                return 0;
+            }
+            free(targetpath);
+            *error = FS32_REMOVEFILEERR_SUCCESS;
+            return 1;
+        }
+        free(targetpath);
+        if (werror == ERROR_PATH_NOT_FOUND ||
+                werror == ERROR_FILE_NOT_FOUND ||
+                werror == ERROR_INVALID_PARAMETER ||
+                werror == ERROR_INVALID_NAME ||
+                werror == ERROR_INVALID_DRIVE)
+            *error = FS32_REMOVEERR_NOSUCHFILE;
+        else if (werror == ERROR_ACCESS_DENIED)
+            *error = FS32_REMOVEERR_NOPERMISSION;
+        else if (werror == ERROR_NOT_ENOUGH_MEMORY)
+            *error = FS32_REMOVEERR_OUTOFMEMORY;
+        return 0;
+    }
+    free(targetpath);
+    *error = FS32_REMOVEERR_SUCCESS;
+    #else
+    int64_t plen = 0;
+    char *p = malloc(path32len * 5 + 1);
+    if (!p) {
+        *error = FS32_REMOVEERR_OUTOFMEMORY;
+        return 0;
+    }
+    int result = utf32_to_utf8(
+        path32, path32len, p, path32len * 5 + 1,
+        &plen, 1, 1
+    );
+    if (!result || plen >= path32len * 5 + 1) {
+        free(p);
+        *error = FS32_REMOVEERR_OUTOFMEMORY;
+        return 0;
+    }
+    p[plen] = '\0';
+    errno = 0;
+    result = remove(p);
+    if (result != 0) {
+        return 0;
+    }
+    *error = FS32_REMOVEERR_SUCCESS;
+    #endif
+    return 1;
 }
 
 int filesys32_ListFolder(
@@ -73,8 +165,7 @@ int filesys32_ListFolder(
         sizeof(*folderpath) * (path32len * 2 + 1),
         &folderpathlen, 1
     );
-    if (!result || folderpathlen >=
-            sizeof(*folderpath) * (path32len * 2)) {
+    if (!result || folderpathlen >= (path32len * 2)) {
         free(folderpath);
         *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
         return NULL;
@@ -588,8 +679,10 @@ int filesys32_AssumeCaseSensitiveHostFS() {
 }
 
 int filesys32_WinApiInsensitiveCompare(
-        const h64wchar *path1_o, int64_t path1len_o,
-        const h64wchar *path2_o, int64_t path2len_o,
+        ATTR_UNUSED const h64wchar *path1_o,
+        ATTR_UNUSED int64_t path1len_o,
+        ATTR_UNUSED const h64wchar *path2_o,
+        ATTR_UNUSED int64_t path2len_o,
         int *wasoom
         ) {
     #if defined(_WIN32) || defined(_WIN64)

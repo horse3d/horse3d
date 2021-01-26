@@ -69,6 +69,7 @@ typedef struct _fileobj_cdata {
     uint64_t text_offset;
 } __attribute__((packed)) _fileobj_cdata;
 
+
 int iolib_open(
         h64vmthread *vmthread
         ) {

@@ -14,6 +14,31 @@ void filesys32_FreeFolderList(
 );
 
 enum {
+    FS32_REMOVEDIR_SUCCESS = 0,
+    FS32_REMOVEDIR_OUTOFMEMORY = -1,
+    FS32_REMOVEDIR_NOPERMISSION = -2,
+    FS32_REMOVEDIR_NOSUCHTARGET = -3,
+    FS32_REMOVEDIR_OTHERERROR = -4
+};
+
+int filesys32_RemoveFolderRecursively(
+    const h64wchar *path, int64_t pathlen, int *error
+);
+
+enum {
+    FS32_REMOVEERR_SUCCESS = 0,
+    FS32_REMOVEERR_OUTOFMEMORY = -1,
+    FS32_REMOVEERR_NOPERMISSION = -2,
+    FS32_REMOVEERR_NOSUCHTARGET = -3,
+    FS32_REMOVEERR_NONEMPTYDIRECTORY = -4,
+    FS32_REMOVEERR_OTHERERROR = -5
+};
+
+int filesys32_RemoveFileOrEmptyDir(
+    const h64wchar *path, int64_t pathlen, int *error
+);
+
+enum {
     FS32_LISTFOLDERERR_SUCCESS = 0,
     FS32_LISTFOLDERERR_OUTOFMEMORY = -1,
     FS32_LISTFOLDERERR_NOPERMISSION = -2,
