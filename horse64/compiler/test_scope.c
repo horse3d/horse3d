@@ -35,7 +35,7 @@ START_TEST (test_scope_import_complex)
 
     if (filesys_FileExists(testfolder_path)) {
         ck_assert(filesys_IsDirectory(testfolder_path));
-        int result = filesys_RemoveFolder(testfolder_path, 1);
+        int result = filesys_RemoveFolderRecursively(testfolder_path);
         assert(result != 0);
     }
     assert(filesys_FileExists(testfolder_path) == 0);

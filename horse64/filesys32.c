@@ -134,6 +134,7 @@ int filesys32_RemoveFileOrEmptyDir(
     p[plen] = '\0';
     errno = 0;
     result = remove(p);
+    free(p);
     if (result != 0) {
         return 0;
     }
