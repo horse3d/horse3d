@@ -57,7 +57,7 @@ int filesys32_RemoveFileOrEmptyDir(
         ) {
     #if defined(_WIN32) || defined(_WIN64)
     assert(sizeof(wchar_t) == sizeof(uint16_t));
-    wchar_t targetpath = malloc(
+    wchar_t *targetpath = malloc(
         sizeof(*targetpath) * (path32len * 2 + 1)
     );
     if (!targetpath) {
@@ -89,7 +89,7 @@ int filesys32_RemoveFileOrEmptyDir(
                         werror == ERROR_INVALID_PARAMETER ||
                         werror == ERROR_INVALID_NAME ||
                         werror == ERROR_INVALID_DRIVE)
-                    *error = FS32_REMOVEERR_NOSUCHFILE;
+                    *error = FS32_REMOVEERR_NOSUCHTARGET;
                 else if (werror == ERROR_ACCESS_DENIED)
                     *error = FS32_REMOVEERR_NOPERMISSION;
                 else if (werror == ERROR_NOT_ENOUGH_MEMORY)
@@ -106,7 +106,7 @@ int filesys32_RemoveFileOrEmptyDir(
                 werror == ERROR_INVALID_PARAMETER ||
                 werror == ERROR_INVALID_NAME ||
                 werror == ERROR_INVALID_DRIVE)
-            *error = FS32_REMOVEERR_NOSUCHFILE;
+            *error = FS32_REMOVEERR_NOSUCHTARGET;
         else if (werror == ERROR_ACCESS_DENIED)
             *error = FS32_REMOVEERR_NOPERMISSION;
         else if (werror == ERROR_NOT_ENOUGH_MEMORY)
@@ -153,7 +153,7 @@ int filesys32_ListFolder(
     assert(sizeof(wchar_t) == sizeof(uint16_t));
     WIN32_FIND_DATAW ffd;
     int isfirst = 1;
-    wchar_t folderpath = malloc(
+    wchar_t *folderpath = malloc(
         sizeof(*folderpath) * (path32len * 2 + 1)
     );
     if (!folderpath) {
