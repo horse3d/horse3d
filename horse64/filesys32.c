@@ -23,6 +23,11 @@
 #include <malloc.h>
 #include <windows.h>
 #include <shlobj.h>
+#if defined(__MING32__) || defined(__MINGW64__)
+#ifndef ERROR_DIRECTORY_NOT_SUPPORTED
+#define ERROR_DIRECTORY_NOT_SUPPORTED (0x150)
+#endif
+#endif
 int _open_osfhandle(intptr_t osfhandle, int flags);
 #else
 #if !defined(ANDROID) && !defined(__ANDROID__)
