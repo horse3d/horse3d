@@ -1607,7 +1607,7 @@ FILE *_filesys_TempFile_SingleTry(
             strlen("tempfile") + (suffix ? strlen(suffix) : 0) + 1
         );
         if (!file_path) {
-            filesys_RemoveFolder(*folder_path, 0);
+            filesys_RemoveFileOrEmptyDir(*folder_path);
             free(combined_path);
             return NULL;
         }
@@ -1645,7 +1645,7 @@ FILE *_filesys_TempFile_SingleTry(
     FILE *f = filesys_OpenFromPath(*path, "wb");
     if (!f) {
         if (*folder_path) {
-            filesys_RemoveFolder(*folder_path, 0);
+            filesys_RemoveFolderRecursively(*folder_path);
             free(*folder_path);
             *folder_path = NULL;
         }

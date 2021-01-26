@@ -256,8 +256,8 @@ const char *_h64archive_GetFileCachePath(
     if (!a->extract_cache_orig_name[
             a->extract_cache_count
             ]) {
-        filesys_RemoveFile(full_path);
-        filesys_RemoveFolder(folder_path, 1);
+        filesys_RemoveFileOrEmptyDir(full_path);
+        filesys_RemoveFolderRecursively(folder_path);
         free(full_path);
         free(folder_path);
         return NULL;
@@ -482,11 +482,11 @@ void h64archive_Close(h64archive *a) {
     {
         int64_t i = 0;
         while (i < a->extract_cache_count) {
-            filesys_RemoveFile(
+            filesys_RemoveFileOrEmptyDir(
                 a->extract_cache_temp_path[i]
             );
-            filesys_RemoveFolder(
-                a->extract_cache_temp_folder[i], 1
+            filesys_RemoveFolderRecursively(
+                a->extract_cache_temp_folder[i]
             );
             free(a->extract_cache_temp_path[i]);
             free(a->extract_cache_temp_folder[i]);

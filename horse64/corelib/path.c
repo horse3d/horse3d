@@ -22,6 +22,69 @@
 /// @module path Work with file system paths and folders.
 
 
+
+int pathlib_remove(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Remove the target represented given by the filesystem path, which
+     * may be a file or a directory.
+     *
+     * @func remove
+     * @param path the filesystem path of the item to be removed
+     * @param recursive=no whether a non-empty directory will cause an
+     *     IOError (default, recursive=no), or the items will also be
+     *     recursively removed (recursive=yes).
+     * @raises IOError raised when there was an error removing the item
+     *     that will likely persist on immediate retry, like lack of
+     *     permissions, the target not existing, and so on.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a write timeout, and similar.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vccomponents = STACK_ENTRY(vmthread->stack, 0);
+    if (vccomponents->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vccomponents->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.len
+        );
+    } else if (vccomponents->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vccomponents->shortstr_value;
+        pathlen = vccomponents->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+    int recursive = 0;
+    valuecontent *vcrecursive = STACK_ENTRY(vmthread->stack, 1);
+    if (vcrecursive->type == H64VALTYPE_BOOL) {
+        recursive = (vcrecursive->int_value != 0);
+    } else if (vcrecursive->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        recursive = 0;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "recursive argument must be a boolean"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    vcresult->type = H64VALTYPE_NONE;
+    return 1;
+}
+
 int pathlib_list(
         h64vmthread *vmthread
         ) {
@@ -64,7 +127,7 @@ int pathlib_list(
     } else {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
-            "components argument must be a list"
+            "path argument must be a string"
         );
     }
     int full_paths = 0;
@@ -275,6 +338,18 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "join", &pathlib_join,
         NULL, 1, path_join_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // path.remove:
+    const char *path_remove_kw_arg_name[] = {
+        NULL, "recursive"
+    };
+    idx = h64program_RegisterCFunction(
+        p, "remove", &pathlib_remove,
+        NULL, 1, path_remove_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)

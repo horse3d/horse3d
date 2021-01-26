@@ -456,8 +456,8 @@ int compiler_command_CompileEx(
                 "internal error with temporary file\n");
             freeanderrorquit:
             if (tempfilepath) {
-                filesys_RemoveFile(tempfilepath);
-                filesys_RemoveFolder(tempfilefolder, 1);
+                filesys_RemoveFileOrEmptyDir(tempfilepath);
+                filesys_RemoveFolderRecursively(tempfilefolder);
                 free(tempfilepath);
                 free(tempfilefolder);
             }
@@ -531,8 +531,8 @@ int compiler_command_CompileEx(
         i++;
     }
     if (tempfilepath) {
-        filesys_RemoveFile(tempfilepath);
-        filesys_RemoveFolder(tempfilefolder, 1);
+        filesys_RemoveFileOrEmptyDir(tempfilepath);
+        filesys_RemoveFolderRecursively(tempfilefolder);
         free(tempfilepath);
         free(tempfilefolder);
     }
