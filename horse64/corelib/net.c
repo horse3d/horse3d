@@ -260,6 +260,8 @@ int netlib_connect(h64vmthread *vmthread) {
      * @param host the host to connect to, either by name or by ip
      * @param port the port of the host to connect to
      * @param encrypt=false whether to connect using TLS/SSL encryption
+     * @raises ResourcError raised when host name resolution or connection
+     *    fails, for whatever reason (other than local out of memory).
      * @returns a @see{network stream|net.stream}
      */
     assert(STACK_TOP(vmthread->stack) >= 3);
