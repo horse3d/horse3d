@@ -71,7 +71,7 @@ int filesys32_RemoveFileOrEmptyDir(
     }
     int64_t targetpathlen = 0;
     int result = utf32_to_utf16(
-        path32, path32len, targetpath,
+        path32, path32len, (char *)targetpath,
         sizeof(*targetpath) * (path32len * 2 + 1),
         &targetpathlen, 1
     );
@@ -82,13 +82,13 @@ int filesys32_RemoveFileOrEmptyDir(
     targetpath[targetpathlen] = '\0';
     if (DeleteFileW(targetpath) != TRUE) {
         uint32_t werror = GetLastError();
-        *error = FS32_REMOVEFILEERR_OTHERERROR;
+        *error = FS32_REMOVEERR_OTHERERROR;
         if (werror == ERROR_DIRECTORY_NOT_SUPPORTED ||
                 werror == ERROR_DIRECTORY) {
             if (RemoveDirectoryW(targetpath) != TRUE) {
                 free(targetpath);
                 werror = GetLastError();
-                *error = FS32_REMOVEFILEERR_OTHERERROR;
+                *error = FS32_REMOVEERR_OTHERERROR;
                 if (werror == ERROR_PATH_NOT_FOUND ||
                         werror == ERROR_FILE_NOT_FOUND ||
                         werror == ERROR_INVALID_PARAMETER ||
@@ -102,7 +102,7 @@ int filesys32_RemoveFileOrEmptyDir(
                 return 0;
             }
             free(targetpath);
-            *error = FS32_REMOVEFILEERR_SUCCESS;
+            *error = FS32_REMOVEERR_SUCCESS;
             return 1;
         }
         free(targetpath);
@@ -167,14 +167,14 @@ int filesys32_ListFolder(
     }
     int64_t folderpathlen = 0;
     int result = utf32_to_utf16(
-        path32, path32len, folderpath,
+        path32, path32len, (char *)folderpath,
         sizeof(*folderpath) * (path32len * 2 + 1),
         &folderpathlen, 1
     );
     if (!result || folderpathlen >= (path32len * 2)) {
         free(folderpath);
         *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
-        return NULL;
+        return 0;
     }
     folderpath[folderpathlen] = '\0';
     wchar_t *p = malloc(wcslen(folderpath) + 3);
