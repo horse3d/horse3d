@@ -271,6 +271,7 @@ static h64wchar *_corelib_value_to_str_do(
                                 if (!newbuf) {
                                     if (buffree)
                                         free(buf);
+                                    free(innerval);
                                     return NULL;
                                 }
                                 memcpy(
@@ -286,6 +287,7 @@ static h64wchar *_corelib_value_to_str_do(
                                 buf + buffill, innerval,
                                 innerlen * sizeof(h64wchar)
                             );
+                            free(innerval);
                             buffill += innerlen;
                             if (likely(entry_offset + 1 <
                                     total_entry_count)) {
@@ -603,6 +605,7 @@ int corelib_print(  // $$builtin.print
     );
     if (!result) {
         free(outbuf);
+        free(s);
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OUTOFMEMORYERROR,
             "alloc failure while printing value"
@@ -614,6 +617,7 @@ int corelib_print(  // $$builtin.print
         outbuf[utf8len] = '\0';
     h64printf("%s", outbuf);
     free(outbuf);
+    free(s);
     h64printf("\n");
     return 1;
 }
