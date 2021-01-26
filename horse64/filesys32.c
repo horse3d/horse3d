@@ -156,7 +156,7 @@ int filesys32_ListFolder(
             *error = FS32_LISTFOLDERERR_OUTOFFDS;
         else if (errno == ENOMEM)
             *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
-        else if (errno == ENOTDIR)
+        else if (errno == ENOTDIR || errno == ENOENT)
             *error = FS32_LISTFOLDERERR_TARGETNOTDIRECTORY;
         else if (errno == EACCES)
             *error = FS32_LISTFOLDERERR_NOPERMISSION;
