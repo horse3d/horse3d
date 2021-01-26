@@ -368,8 +368,9 @@ static int vmschedule_RunMainThreadLaunchFunc(
             h64fprintf(stderr, "horsevm: error: vmschedule.c: "
                 " fatal error in %s, "
                 "out of memory?\n", debug_func_name);
-            vmthread_Free(mainthread);
             worker->vmexec->program_return_value = -1;
+            // Note: DON'T free threads here just yet,
+            // will be done on shutdown.
             return 0;
         } else if (!hadsuspendevent && !haduncaughterror) {
             worker->vmexec->program_return_value = rval;
@@ -377,8 +378,9 @@ static int vmschedule_RunMainThreadLaunchFunc(
         if (haduncaughterror) {
             assert(einfo.error_class_id >= 0);
             _printuncaughterror(pr, &einfo);
-            vmthread_Free(mainthread);
             worker->vmexec->program_return_value = -1;
+            // Note: DON'T free threads here just yet,
+            // will be done on shutdown.
             return 0;
         }
         if (!hadsuspendevent) {
