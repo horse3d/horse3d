@@ -618,6 +618,13 @@ int filesys_ListFolder(const char *path,
     HANDLE hFind = FindFirstFile(p, &ffd);
     if (hFind == INVALID_HANDLE_VALUE) {
         free(p);
+        if (GetLastError() == ERROR_NO_MORE_FILES) {
+            *contents = malloc(sizeof(*contents) * 1);
+            if (!*contents)
+                return 0;
+            (*contents)[0] = NULL;
+            return 1;
+        }
         return 0;
     }
     free(p);
@@ -627,6 +634,8 @@ int filesys_ListFolder(const char *path,
         return 0;
     #endif
     char **list = malloc(sizeof(char*));
+    if (!list)
+        return 0;
     list[0] = NULL;
     char **fullPathList = NULL;
     int entriesSoFar = 0;

@@ -11,6 +11,7 @@
 #include "corelib/errors.h"
 #include "filesys32.h"
 #include "path.h"
+#include "poolalloc.h"
 #include "stack.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
@@ -19,6 +20,143 @@
 
 
 /// @module path Work with file system paths and folders.
+
+
+int pathlib_list(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Return the list of files found in the directory pointed to
+     * by the given filesystem path.
+     *
+     * @func list
+     * @param path the directory path to list files from as a @see{string}.
+     * @param full_path=no whether to return just the names of the entries
+     *     themselves (full_path=no, the default), or each name appended to
+     *     the directory path argument you submitted as a combined path
+     *     (full_path=yes).
+     * @raises IOError raised when there was an error accessing the directory
+     *     that will likely persist on immediate retry, like lack of
+     *     permissions, the target not being a directory, and so on.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a read timeout, and similar.
+     * @returns a @see{list} with the names of all items contained in the
+     *          given directory.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vccomponents = STACK_ENTRY(vmthread->stack, 0);
+    if (vccomponents->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vccomponents->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.len
+        );
+    } else if (vccomponents->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vccomponents->shortstr_value;
+        pathlen = vccomponents->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "components argument must be a list"
+        );
+    }
+    int full_paths = 0;
+    valuecontent *vcfullpath = STACK_ENTRY(vmthread->stack, 1);
+    if (vcfullpath->type == H64VALTYPE_BOOL) {
+        full_paths = (vcfullpath->int_value != 0);
+    } else if (vcfullpath->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        full_paths = 0;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "full_path argument must be a boolean"
+        );
+    }
+
+    int error = FS32_LISTFOLDERERR_OTHERERROR;
+    h64wchar **contents = NULL;
+    int64_t *contentslen = NULL;
+    int result = filesys32_ListFolder(
+        pathstr, pathlen, &contents, &contentslen,
+        full_paths, &error
+    );
+    if (!result) {
+        if (error == FS32_LISTFOLDERERR_OUTOFMEMORY) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory while computing path listing"
+            );
+        } else if (error == FS32_LISTFOLDERERR_NOPERMISSION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no permission to access given directory path for listing"
+            );
+        } else if (error == FS32_LISTFOLDERERR_TARGETNOTDIRECTORY) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "target path is not a directory"
+            );
+        } else if (error == FS32_LISTFOLDERERR_OUTOFFDS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "out of file descriptors"
+            );
+        }
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unspecified other access error (disk i/o issue?)"
+        );
+    }
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    vcresult->type = H64VALTYPE_GCVAL;
+    h64gcvalue *gcval = poolalloc_malloc(
+        vmthread->heap, 0
+    );
+    if (!gcval) {
+        oomfinallist: ;
+        filesys32_FreeFolderList(contents, contentslen);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory while assembling result"
+        );
+    }
+    vcresult->ptr_value = gcval;
+    gcval->type = H64GCVALUETYPE_LIST;
+    gcval->hash = 0;
+    gcval->list_values = vmlist_New();
+    if (!gcval->list_values) {
+        poolalloc_free(vmthread->heap, gcval);
+        vcresult->ptr_value = NULL;
+        goto oomfinallist;
+    }
+    int64_t i = 0;
+    while (contents[i]) {
+        valuecontent s = {0};
+        if (!valuecontent_SetStringU32(
+                vmthread, &s, contents[i], contentslen[i]
+                ))
+            goto oomfinallist;
+        ADDREF_NONHEAP(&s);
+        int result = vmlist_Set(gcval->list_values, i + 1, &s);
+        DELREF_NONHEAP(&s);
+        valuecontent_Free(&s);
+        if (!result)
+            goto oomfinallist;
+        i++;
+    }
+    filesys32_FreeFolderList(contents, contentslen);
+    return 1;
+}
 
 int pathlib_join(
         h64vmthread *vmthread
@@ -41,23 +179,15 @@ int pathlib_join(
                 H64GCVALUETYPE_LIST) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
-            "path must be a string"
-        );
-    }
-    valuecontent *vcargs = STACK_ENTRY(vmthread->stack, 0);
-    if ((vcargs->type != H64VALTYPE_GCVAL ||
-            ((h64gcvalue*)(vcargs->ptr_value))->type !=
-                H64GCVALUETYPE_LIST) &&
-            vcargs->type != H64VALTYPE_UNSPECIFIED_KWARG) {
-        return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_TYPEERROR,
             "components argument must be a list"
         );
     }
 
     h64wchar *result = NULL;
     int64_t resultlen = 0;
-    genericlist *l = ((h64gcvalue*)(vcargs->ptr_value))->list_values;
+    genericlist *l = (
+        ((h64gcvalue*)(vccomponents->ptr_value))->list_values
+    );
     const int64_t len = vmlist_Count(l);
     if (len == 0) {
         return vmexec_ReturnFuncError(
@@ -145,6 +275,18 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "join", &pathlib_join,
         NULL, 1, path_join_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // path.list:
+    const char *path_list_kw_arg_name[] = {
+        NULL, "full_path"
+    };
+    idx = h64program_RegisterCFunction(
+        p, "list", &pathlib_list,
+        NULL, 2, path_list_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)

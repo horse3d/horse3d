@@ -5,9 +5,28 @@
 #ifndef HORSE64_FILESYS32_H_
 #define HORSE64_FILESYS32_H_
 
+#include <stdint.h>
+
 #include "widechar.h"
 
+void filesys32_FreeFolderList(
+    h64wchar **list, int64_t *listlen
+);
 
+enum {
+    FS32_LISTFOLDERERR_SUCCESS = 0,
+    FS32_LISTFOLDERERR_OUTOFMEMORY = -1,
+    FS32_LISTFOLDERERR_NOPERMISSION = -2,
+    FS32_LISTFOLDERERR_TARGETNOTDIRECTORY = -3,
+    FS32_LISTFOLDERERR_OUTOFFDS = -4,
+    FS32_LISTFOLDERERR_OTHERERROR = -5
+};
+
+int filesys32_ListFolder(
+    const h64wchar *path, int64_t pathlen,
+    h64wchar ***contents, int64_t **contentslen,
+    int returnFullPath, int *error
+);
 
 h64wchar *filesys32_RemoveDoubleSlashes(
     const h64wchar *path, int64_t pathlen,
