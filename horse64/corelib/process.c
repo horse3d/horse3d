@@ -75,11 +75,12 @@ int processlib_run(
 }
 
 int processlib_RegisterFuncsAndModules(h64program *p) {
+    int64_t idx;
+
     // process.run:
     const char *process_run_kw_arg_name[] = {
         NULL, "arguments", "background", "system_commands"
     };
-    int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "run", &processlib_run,
         NULL, 3, process_run_kw_arg_name,  // fileuri, args

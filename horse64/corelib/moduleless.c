@@ -22,6 +22,7 @@
 #include "corelib/moduleless.h"
 #include "corelib/moduleless_containers.h"
 #include "corelib/moduleless_strings.h"
+#include "corelib/path.h"
 #include "corelib/system.h"
 #include "corelib/time.h"
 #include "corelib/uri.h"
@@ -646,6 +647,10 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
 
     // 'uri' module:
     if (!urilib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'path' module:
+    if (!pathlib_RegisterFuncsAndModules(p))
         return 0;
 
     // Container func attributes:
