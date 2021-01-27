@@ -154,6 +154,14 @@ int netlib_stream_read(h64vmthread *vmthread) {  // net.stream.read()
         ((h64gcvalue *)vstream->ptr_value)->cdata
     );
 
+    if (!IS_VALID_SOCKET(asprogress->connection->fd) &&
+            (!asprogress->startedread ||
+             asprogress->readbytes <= 0)) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_IOERROR,
+            "connection is closed"
+        );
+    }
     if (!asprogress->startedread) {
         valuecontent *vclen = STACK_ENTRY(vmthread->stack, 0);
         int64_t len = -1;
@@ -242,12 +250,46 @@ int netlib_stream_read(h64vmthread *vmthread) {  // net.stream.read()
             asprogress->readbuf + asprogress->readbytes,
             readnow
         );
-        if (result < 0) {
+        if (result <= 0) {
             if (result == H64SOCKERROR_NEEDTOWRITE) {
-
+                return vmschedule_SuspendFunc(
+                    vmthread, SUSPENDTYPE_SOCKWAIT_WRITABLEORERROR,
+                    (uintptr_t)(cdata->connection->fd)
+                );
+            } else if (result == H64SOCKERROR_NEEDTOREAD) {
+                return vmschedule_SuspendFunc(
+                    vmthread, SUSPENDTYPE_SOCKWAIT_READABLEORERROR,
+                    (uintptr_t)(cdata->connection->fd)
+                );
+            } else {
+                sockets_Close(cdata->connection);
+                if (asprogress->readbytes <= 0) {
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_IOERROR,
+                        "connection is closed"
+                    );
+                } else {
+                    // Resume and return the data we got so far.
+                }
             }
+        } else {
+            asprogress->readbytes += result;
         }
     }
+    assert(asprogress->readbytes >= asprogress->wantamount ||
+        !IS_VALID_SOCKET(asprogress->connection->fd));
+
+    // Return what we got:
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    if (!valuecontent_SetBytesU8(
+            vmthread, vcresult, (uint8_t *)asprogress->readbuf,
+            asprogress->readbytes)) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory allocating bytes result"
+        );
+    }
+    return 1;
 }
 
 int netlib_connect(h64vmthread *vmthread) {
