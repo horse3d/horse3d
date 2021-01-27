@@ -101,8 +101,11 @@ int filesys32_RemoveFileOrEmptyDir(
                     *error = FS32_REMOVEERR_OUTOFMEMORY;
                 else if (werror == ERROR_TOO_MANY_OPEN_FILES)
                     *error = FS32_REMOVEERR_OUTOFFDS;
-                else if (werror == ERROR_PATH_BUSY)
+                else if (werror == ERROR_PATH_BUSY ||
+                        werror == ERROR_BUSY)
                     *error = FS32_REMOVEERR_DIRISBUSY;
+                else if (werror == ERROR_DIR_NOT_EMPTY)
+                    *error = FS32_REMOVEERR_NONEMPTYDIRECTORY;
                 return 0;
             }
             free(targetpath);
@@ -122,7 +125,8 @@ int filesys32_RemoveFileOrEmptyDir(
             *error = FS32_REMOVEERR_OUTOFMEMORY;
         else if (werror == ERROR_TOO_MANY_OPEN_FILES)
             *error = FS32_REMOVEERR_OUTOFFDS;
-        else if (werror == ERROR_PATH_BUSY)
+        else if (werror == ERROR_PATH_BUSY ||
+                werror == ERROR_BUSY)
             *error = FS32_REMOVEERR_DIRISBUSY;
         return 0;
     }
@@ -828,7 +832,8 @@ int filesys32_TargetExists(
         } else if (werror == ERROR_ACCESS_DENIED ||
                 werror == ERROR_NOT_ENOUGH_MEMORY ||
                 werror == ERROR_TOO_MANY_OPEN_FILES ||
-                werror == ERROR_PATH_BUSY) {
+                werror == ERROR_PATH_BUSY ||
+                werror == ERROR_BUSY)) {
             *result = 0;
             return 0;  // unexpected I/O error!
         }
