@@ -9,8 +9,27 @@
 
 #include "widechar.h"
 
+
+int filesys32_TargetExists(
+    const h64wchar *path, int64_t pathlen, int *result
+);
+
 void filesys32_FreeFolderList(
     h64wchar **list, int64_t *listlen
+);
+
+enum {
+    FS32_MKDIRERR_SUCCESS = 0,
+    FS32_MKDIRERR_OUTOFMEMORY = -1,
+    FS32_MKDIRERR_NOPERMISSION = -2,
+    FS32_MKDIRERR_TARGETALREADYEXISTS = -3,
+    FS32_MKDIRERR_OUTOFFDS = -4,
+    FS32_MKDIRERR_PARENTSDONTEXIST = -5,
+    FS32_MKDIRERR_OTHERERROR = -6
+};
+
+int filesys32_CreateDirectory(
+    h64wchar *path, int64_t pathlen, int user_readable_only
 );
 
 enum {

@@ -383,7 +383,7 @@ int filesys_CreateDirectory(const char *path, int user_readable_only) {
     if (user_readable_only)
         return (mkdir(path, 0700) == 0);
     else
-        return (mkdir(path, 0755) == 0);
+        return (mkdir(path, 0775) == 0);
     #elif defined(_WIN32) || defined(_WIN64)
     return (CreateDirectory(path, NULL) != 0);
     #else

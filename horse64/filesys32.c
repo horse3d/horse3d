@@ -707,6 +707,171 @@ int filesys32_RemoveFolderRecursively(
     return 1;
 }
 
+int filesys32_CreateDirectory(
+        h64wchar *path, int64_t pathlen,
+        int user_readable_only
+        ) {
+    #if defined(_WIN32) || defined(_WIN64)
+    wchar_t *targetpath = malloc(
+        sizeof(*targetpath) * (path32len * 2 + 1)
+    );
+    if (!targetpath) {
+        return FS32_MKDIRERR_OUTOFMEMORY;
+    }
+    int64_t targetpathlen = 0;
+    int uresult = utf32_to_utf16(
+        path32, path32len, (char *)targetpath,
+        sizeof(*targetpath) * (path32len * 2 + 1),
+        &targetpathlen, 1
+    );
+    if (!uresult || targetpathlen >= (path32len * 2 + 1)) {
+        free(targetpath);
+        return FS32_MKDIRERR_OUTOFMEMORY;
+    }
+    targetpath[targetpathlen] = '\0';
+    BOOL result = CreateDirectoryW(targetpath, NULL);
+    free(targetpath);
+    if (result == FALSE) {
+        uint32_t werror = GetLastError();
+        if (werror == ERROR_PATH_NOT_FOUND ||
+                werror == ERROR_FILE_NOT_FOUND ||
+                werror == ERROR_INVALID_PARAMETER ||
+                werror == ERROR_INVALID_NAME ||
+                werror == ERROR_INVALID_DRIVE) {
+            return FS32_MKDIRERR_PARENTSDONTEXIST;
+        } else if (werror == ERROR_ACCESS_DENIED) {
+            return FS32_MKDIRERR_NOPERMISSION;
+        } else if (werror == ERROR_NOT_ENOUGH_MEMORY) {
+            return FS32_MKDIRERR_OUTOFMEMORY;
+        } else if (werror == ERROR_TOO_MANY_OPEN_FILES) {
+            return FS32_MKDIRERR_OUTOFFDS;
+        } else if (werror == ERROR_ALREADY_EXISTS) {
+            return FS32_MKDIRERR_TARGETALREADYEXISTS;
+        }
+        return FS32_MKDIRERR_OTHERERROR;
+    }
+    return 1;
+    #else
+    char *targetpath = malloc(
+        sizeof(*targetpath) * (pathlen * 5 + 1)
+    );
+    if (!targetpath) {
+        return FS32_MKDIRERR_OUTOFMEMORY;
+    }
+    int64_t targetpathlen = 0;
+    int uresult = utf32_to_utf8(
+        path, pathlen, (char *)targetpath,
+        sizeof(*targetpath) * (pathlen * 2 + 1),
+        &targetpathlen, 1, 0
+    );
+    if (!uresult || targetpathlen >= (pathlen * 5 + 1)) {
+        free(targetpath);
+        return FS32_MKDIRERR_OUTOFMEMORY;
+    }
+    targetpath[targetpathlen] = '\0';
+    int statresult = (
+        mkdir(targetpath,
+              (user_readable_only ? 0700 : 0775) == 0));
+    free(targetpath);
+    if (!statresult) {
+        if (errno == EACCES || errno == EPERM) {
+            return FS32_MKDIRERR_NOPERMISSION;
+        } else if (errno == EMFILE || errno == ENFILE) {
+            return FS32_MKDIRERR_OUTOFFDS;
+        } else if (errno == ENOMEM) {
+            return FS32_MKDIRERR_OUTOFMEMORY;
+        } else if (errno == ENOENT) {
+            return FS32_MKDIRERR_PARENTSDONTEXIST;
+        } else if (errno == EEXIST) {
+            return FS32_MKDIRERR_TARGETALREADYEXISTS;
+        }
+        return FS32_MKDIRERR_OTHERERROR;
+    }
+    return 1;
+    #endif
+}
+
+int filesys32_TargetExists(
+        const h64wchar *path, int64_t pathlen, int *result
+        ) {
+    #if defined(_WIN32) || defined(_WIN64)
+    wchar_t *targetpath = malloc(
+        sizeof(*targetpath) * (path32len * 2 + 1)
+    );
+    if (!targetpath) {
+        *result = 0;
+        return 0;
+    }
+    int64_t targetpathlen = 0;
+    int uresult = utf32_to_utf16(
+        path32, path32len, (char *)targetpath,
+        sizeof(*targetpath) * (path32len * 2 + 1),
+        &targetpathlen, 1
+    );
+    if (!uresult || targetpathlen >= (path32len * 2 + 1)) {
+        free(targetpath);
+        *result = 0;
+        return 0;
+    }
+    targetpath[targetpathlen] = '\0';
+    DWORD dwAttrib = GetFileAttributesW(targetpath);
+    free(targetpath);
+    if (dwAttrib == INVALID_FILE_ATTRIBUTES) {
+        uint32_t werror = GetLastError();
+        if (werror == ERROR_PATH_NOT_FOUND ||
+                werror == ERROR_FILE_NOT_FOUND ||
+                werror == ERROR_INVALID_PARAMETER ||
+                werror == ERROR_INVALID_NAME ||
+                werror == ERROR_INVALID_DRIVE) {
+            *result = 0;
+            return 1;
+        } else if (werror == ERROR_ACCESS_DENIED ||
+                werror == ERROR_NOT_ENOUGH_MEMORY ||
+                werror == ERROR_TOO_MANY_OPEN_FILES ||
+                error == ERROR_PATH_BUSY) {
+            *result = 0;
+            return 0;  // unexpected I/O error!
+        }
+        *result = 0;
+        return 1;
+    }
+    return (dwAttrib != INVALID_FILE_ATTRIBUTES);
+    #else
+    char *targetpath = malloc(
+        sizeof(*targetpath) * (pathlen * 5 + 1)
+    );
+    if (!targetpath) {
+        *result = 0;
+        return 0;
+    }
+    int64_t targetpathlen = 0;
+    int uresult = utf32_to_utf8(
+        path, pathlen, (char *)targetpath,
+        sizeof(*targetpath) * (pathlen * 2 + 1),
+        &targetpathlen, 1, 0
+    );
+    if (!uresult || targetpathlen >= (pathlen * 5 + 1)) {
+        free(targetpath);
+        *result = 0;
+        return 0;
+    }
+    targetpath[targetpathlen] = '\0';
+    struct stat sb = {0};
+    int statresult = (stat(targetpath, &sb) == 0);
+    free(targetpath);
+    if (!statresult) {
+        if (errno == EACCES || errno == EPERM ||
+                errno == EMFILE || errno == ENFILE ||
+                errno == ENOMEM) {
+            *result = 0;
+            return 0;  // unexpected I/O error!
+        }
+    }
+    *result = statresult;
+    return 1;
+    #endif
+}
+
 h64wchar *filesys32_RemoveDoubleSlashes(
         const h64wchar *path, int64_t pathlen,
         int couldbewinpath, int64_t *out_len

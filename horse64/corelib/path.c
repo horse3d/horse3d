@@ -22,6 +22,142 @@
 /// @module path Work with file system paths and folders.
 
 
+int pathlib_add_dir(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Add a new directory at the given target path. The parent
+     * directories must already exist.
+     *
+     * @func add_dir
+     * @param path the filesystem path for the new directory to be added
+     * @raises IOError raised when there was an error adding the directory
+     *     that will likely persist on immediate retry, like lack of
+     *     permissions, the target already exists, and so on.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a write timeout, and similar.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vccomponents = STACK_ENTRY(vmthread->stack, 0);
+    if (vccomponents->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vccomponents->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.len
+        );
+    } else if (vccomponents->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vccomponents->shortstr_value;
+        pathlen = vccomponents->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    int result = 0;
+    if ((result = filesys32_CreateDirectory(
+            pathstr, pathlen, 0)) < 0) {
+        if (result == FS32_MKDIRERR_TARGETALREADYEXISTS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "target already exists"
+            );
+        } else if (result == FS32_MKDIRERR_NOPERMISSION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "permission denied"
+            );
+        } else if (result == FS32_MKDIRERR_PARENTSDONTEXIST) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "parent directory missing"
+            );
+        } else if (result == FS32_MKDIRERR_OUTOFFDS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "out of file descriptors"
+            );
+        } else if (result == FS32_MKDIRERR_OUTOFMEMORY) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory creating directory"
+            );
+        }
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unexpected type of I/O error"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    return 1;
+}
+
+int pathlib_exists(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Check if the target represented given by the filesystem path exists,
+     * as a directory, file, or whatever it might be.
+     *
+     * @func exists
+     * @param path the filesystem path to check for existence
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a write timeout, and similar.
+     * @return @see{yes} if target path points to something that exists,
+     *         otherwise @see{no}
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vccomponents = STACK_ENTRY(vmthread->stack, 0);
+    if (vccomponents->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vccomponents->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.len
+        );
+    } else if (vccomponents->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vccomponents->shortstr_value;
+        pathlen = vccomponents->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    int result = 0;
+    if (!filesys32_TargetExists(
+            pathstr, pathlen, &result)) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "unexpected type of I/O error"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    return 1;
+}
 
 int pathlib_remove(
         h64vmthread *vmthread
@@ -431,6 +567,30 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "remove", &pathlib_remove,
         NULL, 1, path_remove_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // path.add_dir:
+    const char *path_add_dir_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "add_dir", &pathlib_add_dir,
+        NULL, 1, path_add_dir_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // path.exists:
+    const char *path_exists_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "exists", &pathlib_exists,
+        NULL, 1, path_exists_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)
