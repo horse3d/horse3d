@@ -796,7 +796,7 @@ int filesys32_ChangeDirectory(
                 werror == ERROR_INVALID_PARAMETER ||
                 werror == ERROR_INVALID_NAME ||
                 werror == ERROR_INVALID_DRIVE ||
-                werror == ERROR_BAD_PATHNAME) {) {
+                werror == ERROR_BAD_PATHNAME) {
             return FS32_CHDIRERR_TARGETNOTADIRECTORY;
         } else if (werror == ERROR_ACCESS_DENIED) {
             return FS32_CHDIRERR_NOPERMISSION;
