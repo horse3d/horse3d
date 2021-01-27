@@ -78,6 +78,87 @@ int pathlib_remove(
         );
     }
 
+    int error = 0;
+    int result = filesys32_RemoveFolderRecursively(
+        pathstr, pathlen, &error
+    );
+    if (!result && error == FS32_REMOVEDIR_NOTADIR) {
+        result = filesys32_RemoveFileOrEmptyDir(
+            pathstr, pathlen, &error
+        );
+        if (!result) {
+            if (error == FS32_REMOVEERR_DIRISBUSY) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_RESOURCEERROR,
+                    "directory is in use by process "
+                    "and cannot be deleted"
+                );
+            } else if (error == FS32_REMOVEERR_NONEMPTYDIRECTORY) {
+                // Oops, seems like something concurrently
+                // filled in files again.
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_RESOURCEERROR,
+                    "recursive delete encountered unexpected re-added "
+                    "file"
+                );
+            } else if (error == FS32_REMOVEERR_NOPERMISSION) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_IOERROR,
+                    "permission denied"
+                );
+            } else if (error == FS32_REMOVEERR_NOSUCHTARGET) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_IOERROR,
+                    "no such file or directory"
+                );
+            } else if (error == FS32_REMOVEERR_OUTOFFDS) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_RESOURCEERROR,
+                    "out of file descriptors"
+                );
+            }
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "unexpected type of I/O error"
+            );
+        }
+    } else if (!result) {
+        if (error == FS32_REMOVEDIR_DIRISBUSY) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "directory is in use by process "
+                "and cannot be deleted"
+            );
+        } else if (error == FS32_REMOVEDIR_NONEMPTYDIRECTORY) {
+            // Oops, seems like something concurrently
+            // filled in files again.
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "encountered unexpected re-added "
+                "file"
+            );
+        } else if (error == FS32_REMOVEDIR_NOPERMISSION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "permission denied"
+            );
+        } else if (error == FS32_REMOVEDIR_NOSUCHTARGET) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no such file or directory"
+            );
+        } else if (error == FS32_REMOVEDIR_OUTOFFDS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "out of file descriptors"
+            );
+        }
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unexpected type of I/O error"
+        );
+    }
+
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
     valuecontent_Free(vcresult);
@@ -159,7 +240,7 @@ int pathlib_list(
         } else if (error == FS32_LISTFOLDERERR_NOPERMISSION) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
-                "no permission to access given directory path for listing"
+                "permission denied"
             );
         } else if (error == FS32_LISTFOLDERERR_TARGETNOTDIRECTORY) {
             return vmexec_ReturnFuncError(
@@ -174,7 +255,7 @@ int pathlib_list(
         }
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_RESOURCEERROR,
-            "unspecified other access error (disk i/o issue?)"
+            "unexpected type of I/O error"
         );
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);

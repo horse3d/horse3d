@@ -18,7 +18,11 @@ enum {
     FS32_REMOVEDIR_OUTOFMEMORY = -1,
     FS32_REMOVEDIR_NOPERMISSION = -2,
     FS32_REMOVEDIR_NOSUCHTARGET = -3,
-    FS32_REMOVEDIR_OTHERERROR = -4
+    FS32_REMOVEDIR_OUTOFFDS = -4,
+    FS32_REMOVEDIR_DIRISBUSY = -5,
+    FS32_REMOVEDIR_NOTADIR = -6,
+    FS32_REMOVEDIR_NONEMPTYDIRECTORY = -7,
+    FS32_REMOVEDIR_OTHERERROR = -8
 };
 
 int filesys32_RemoveFolderRecursively(
@@ -31,7 +35,9 @@ enum {
     FS32_REMOVEERR_NOPERMISSION = -2,
     FS32_REMOVEERR_NOSUCHTARGET = -3,
     FS32_REMOVEERR_NONEMPTYDIRECTORY = -4,
-    FS32_REMOVEERR_OTHERERROR = -5
+    FS32_REMOVEERR_OUTOFFDS = -5,
+    FS32_REMOVEERR_DIRISBUSY = -6,
+    FS32_REMOVEERR_OTHERERROR = -6
 };
 
 int filesys32_RemoveFileOrEmptyDir(
@@ -44,8 +50,15 @@ enum {
     FS32_LISTFOLDERERR_NOPERMISSION = -2,
     FS32_LISTFOLDERERR_TARGETNOTDIRECTORY = -3,
     FS32_LISTFOLDERERR_OUTOFFDS = -4,
-    FS32_LISTFOLDERERR_OTHERERROR = -5
+    FS32_LISTFOLDERERR_SYMLINKSWEREEXCLUDED = -5,
+    FS32_LISTFOLDERERR_OTHERERROR = -6
 };
+
+int filesys32_ListFolderEx(
+    const h64wchar *path, int64_t pathlen,
+    h64wchar ***contents, int64_t **contentslen,
+    int returnFullPath, int allowsymlink, int *error
+);
 
 int filesys32_ListFolder(
     const h64wchar *path, int64_t pathlen,
