@@ -796,7 +796,7 @@ int filesys32_TargetExists(
         ) {
     #if defined(_WIN32) || defined(_WIN64)
     wchar_t *targetpath = malloc(
-        sizeof(*targetpath) * (path32len * 2 + 1)
+        sizeof(*targetpath) * (pathlen * 2 + 1)
     );
     if (!targetpath) {
         *result = 0;
@@ -804,11 +804,11 @@ int filesys32_TargetExists(
     }
     int64_t targetpathlen = 0;
     int uresult = utf32_to_utf16(
-        path32, path32len, (char *)targetpath,
-        sizeof(*targetpath) * (path32len * 2 + 1),
+        path, pathlen, (char *)targetpath,
+        sizeof(*targetpath) * (pathlen * 2 + 1),
         &targetpathlen, 1
     );
-    if (!uresult || targetpathlen >= (path32len * 2 + 1)) {
+    if (!uresult || targetpathlen >= (pathlen * 2 + 1)) {
         free(targetpath);
         *result = 0;
         return 0;
@@ -828,7 +828,7 @@ int filesys32_TargetExists(
         } else if (werror == ERROR_ACCESS_DENIED ||
                 werror == ERROR_NOT_ENOUGH_MEMORY ||
                 werror == ERROR_TOO_MANY_OPEN_FILES ||
-                error == ERROR_PATH_BUSY) {
+                werror == ERROR_PATH_BUSY) {
             *result = 0;
             return 0;  // unexpected I/O error!
         }
