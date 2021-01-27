@@ -896,7 +896,7 @@ int filesys32_TargetExists(
                 werror == ERROR_NOT_ENOUGH_MEMORY ||
                 werror == ERROR_TOO_MANY_OPEN_FILES ||
                 werror == ERROR_PATH_BUSY ||
-                werror == ERROR_BUSY)) {
+                werror == ERROR_BUSY) {
             *result = 0;
             return 0;  // unexpected I/O error!
         }
