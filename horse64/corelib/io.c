@@ -86,7 +86,7 @@ int iolib_open(
      * @param path the path of the file to be opened
      * @param read=yes whether the file should be opened for @see(
               reading|io.file.read).
-     * @param write=false whether the file should be opened for @see(
+     * @param write=no whether the file should be opened for @see(
               writing|io.file.write).
      * @param append=io.APPEND_DEFAULT whether if opening writing, the
               writing should always be appended to the end.
@@ -115,7 +115,7 @@ int iolib_open(
               will be replaced by code point U+FFFD which is lossy.
      * @param allow_bad_encoding=no when reading in non-binary mode,
               this setting determines whether to throw an EncodingError
-              when reading invalid encoding (when this setting is false,
+              when reading invalid encoding (when this setting is no,
               the default), or whether garbage will be silently surrogate
               escaped and retained (when this setting is set to yes).
      * @returns a @see{file object|io.file}
@@ -801,12 +801,12 @@ int iolib_fileread(
      *
      * @funcattr file read
      * @param len=-1 amount of bytes/letters to read. When
-     *    the file was opened with binary=true then amount will be
-     *    interpreted as bytes, otherwise with binary=false as full
+     *    the file was opened with binary=yes then amount will be
+     *    interpreted as bytes, otherwise with binary=no as full
      *    decoded Unicode characters. Specify -1 to read
      *    everything until the end of the file.
      * @returns the data read, which is a @see{bytes} value when the
-     *    file was opened with binary=false, otherwise a @see{string}
+     *    file was opened with binary=yes, otherwise a @see{string}
      *    value.
      * @raises IOError raised when there is a failure that is NOT expected
      *    to go away with retrying, like reading from a file only opened
