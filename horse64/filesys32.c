@@ -763,6 +763,84 @@ int filesys32_RemoveFolderRecursively(
     return 1;
 }
 
+int filesys32_ChangeDirectory(
+        h64wchar *path, int64_t pathlen
+        ) {
+    if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
+        return FS32_CHDIRERR_TARGETNOTADIRECTORY;
+    }
+
+    #if defined(_WIN32) || defined(_WIN64)
+    wchar_t *targetpath = malloc(
+        sizeof(*targetpath) * (pathlen * 2 + 1)
+    );
+    if (!targetpath) {
+        return FS32_CHDIRERR_OUTOFMEMORY;
+    }
+    int64_t targetpathlen = 0;
+    int uresult = utf32_to_utf16(
+        path, pathlen, (char *)targetpath,
+        sizeof(*targetpath) * (pathlen * 2 + 1),
+        &targetpathlen, 1
+    );
+    if (!uresult || targetpathlen >= (pathlen * 2 + 1)) {
+        free(targetpath);
+        return FS32_CHDIRERR_OUTOFMEMORY;
+    }
+    targetpath[targetpathlen] = '\0';
+    BOOL result = SetCurrentDirectoryW(targetpath);
+    free(targetpath);
+    if (result == FALSE) {
+        uint32_t werror = GetLastError();
+        if (werror == ERROR_PATH_NOT_FOUND ||
+                werror == ERROR_FILE_NOT_FOUND ||
+                werror == ERROR_INVALID_PARAMETER ||
+                werror == ERROR_INVALID_NAME ||
+                werror == ERROR_INVALID_DRIVE ||
+                werror == ERROR_BAD_PATHNAME) {) {
+            return FS32_CHDIRERR_TARGETNOTADIRECTORY;
+        } else if (werror == ERROR_ACCESS_DENIED) {
+            return FS32_CHDIRERR_NOPERMISSION;
+        } else if (werror == ERROR_NOT_ENOUGH_MEMORY) {
+            return FS32_CHDIRERR_OUTOFMEMORY;
+        }
+        return FS32_CHDIRERR_OTHERERROR;
+    }
+    return 1;
+    #else
+    char *targetpath = malloc(
+        sizeof(*targetpath) * (pathlen * 5 + 1)
+    );
+    if (!targetpath) {
+        return FS32_MKDIRERR_OUTOFMEMORY;
+    }
+    int64_t targetpathlen = 0;
+    int uresult = utf32_to_utf8(
+        path, pathlen, (char *)targetpath,
+        sizeof(*targetpath) * (pathlen * 2 + 1),
+        &targetpathlen, 1, 0
+    );
+    if (!uresult || targetpathlen >= (pathlen * 5 + 1)) {
+        free(targetpath);
+        return FS32_MKDIRERR_OUTOFMEMORY;
+    }
+    targetpath[targetpathlen] = '\0';
+    int statresult = chdir(targetpath);
+    free(targetpath);
+    if (statresult < 0) {
+        if (errno == EACCES || errno == EPERM) {
+            return FS32_CHDIRERR_NOPERMISSION;
+        } else if (errno == ENOMEM) {
+            return FS32_CHDIRERR_OUTOFMEMORY;
+        } else if (errno == ENOENT) {
+            return FS32_CHDIRERR_TARGETNOTADIRECTORY;
+        }
+        return FS32_CHDIRERR_OTHERERROR;
+    }
+    return 1;
+    #endif
+}
+
 int filesys32_CreateDirectory(
         h64wchar *path, int64_t pathlen,
         int user_readable_only

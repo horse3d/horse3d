@@ -19,6 +19,18 @@ void filesys32_FreeFolderList(
 );
 
 enum {
+    FS32_CHDIRERR_SUCCESS = 0,
+    FS32_CHDIRERR_NOPERMISSION = -1,
+    FS32_CHDIRERR_TARGETNOTADIRECTORY = -2,
+    FS32_CHDIRERR_OUTOFMEMORY = -3,
+    FS32_CHDIRERR_OTHERERROR = -4
+};
+
+int filesys32_ChangeDirectory(
+    h64wchar *path, int64_t pathlen
+);
+
+enum {
     FS32_MKDIRERR_SUCCESS = 0,
     FS32_MKDIRERR_OUTOFMEMORY = -1,
     FS32_MKDIRERR_NOPERMISSION = -2,

@@ -597,7 +597,7 @@ int iolib_filewrite(
      *    exhaustion that MAY go away when retrying, like running out of
      *    file handles, read timeout, and so on.
      */
-    assert(STACK_TOP(vmthread->stack) >= 2);
+    assert(STACK_TOP(vmthread->stack) >= 1);
 
     valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);  // first closure arg
     assert(vc->type == H64VALTYPE_GCVAL);

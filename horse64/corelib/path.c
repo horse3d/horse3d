@@ -38,7 +38,7 @@ int pathlib_add_dir(
      *     away on retry, like an unexpected disk input output error,
      *     a write timeout, and similar.
      */
-    assert(STACK_TOP(vmthread->stack) >= 2);
+    assert(STACK_TOP(vmthread->stack) >= 1);
 
     h64wchar *pathstr = NULL;
     int64_t pathlen = 0;
@@ -119,7 +119,7 @@ int pathlib_exists(
      * @return @see{yes} if target path points to something that exists,
      *         otherwise @see{no}
      */
-    assert(STACK_TOP(vmthread->stack) >= 2);
+    assert(STACK_TOP(vmthread->stack) >= 1);
 
     h64wchar *pathstr = NULL;
     int64_t pathlen = 0;
@@ -146,6 +146,131 @@ int pathlib_exists(
     int result = 0;
     if (!filesys32_TargetExists(
             pathstr, pathlen, &result)) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "unexpected type of I/O error"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    return 1;
+}
+
+
+int pathlib_get_cwd(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Get the 'current directory' path.
+     *
+     * @func get_cwd
+     * @raises IOError raised when there was an error changing directory
+     *     that will likely persist on immediate retry, like the target
+     *     existing directory not existing.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     or similar.
+     * @return the current directory as a @see{string}
+     */
+    assert(STACK_TOP(vmthread->stack) >= 0);
+    if (STACK_TOP(vmthread->stack) < 1) {
+        // Ensure space for return value
+        if (!stack_ToSize(
+                vmthread->stack, vmthread->stack->entry_count + 1, 0
+                )) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory resizing stack for return value"
+            );
+        }
+    }
+
+    int64_t resultlen = 0;
+    h64wchar *result = filesys32_GetCurrentDirectory(
+        &resultlen
+    );
+    if (!result) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unexpectedly failed to get current directory"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    if (!valuecontent_SetStringU32(
+            vmthread, vcresult, result, resultlen)) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory returning current directory"
+        );
+    }
+    return 1;
+}
+
+int pathlib_set_cwd(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Change the 'current directory' to the given path.
+     *
+     * @func set_cwd
+     * @param path the target directory to change current directory to
+     * @raises IOError raised when there was an error changing directory
+     *     that will likely persist on immediate retry, like the target
+     *     existing directory not existing.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     or similar.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vccomponents = STACK_ENTRY(vmthread->stack, 0);
+    if (vccomponents->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vccomponents->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.len
+        );
+    } else if (vccomponents->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vccomponents->shortstr_value;
+        pathlen = vccomponents->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+    int result = filesys32_ChangeDirectory(
+        pathstr, pathlen
+    );
+    if (result < 0) {
+        if (result == FS32_CHDIRERR_NOPERMISSION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "permission denied"
+            );
+        } else if (result == FS32_CHDIRERR_OUTOFMEMORY) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "out of memory trying to change directory"
+            );
+        } else if (result == FS32_CHDIRERR_TARGETNOTADIRECTORY) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "target directory does not exist"
+            );
+        }
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OUTOFMEMORYERROR,
             "unexpected type of I/O error"
@@ -560,13 +685,37 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     if (idx < 0)
         return 0;
 
+    // path.set_cwd:
+    const char *path_set_cwd_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "set_cwd", &pathlib_set_cwd,
+        NULL, 1, path_set_cwd_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // path.get_cwd:
+    const char *path_get_cwd_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "get_cwd", &pathlib_get_cwd,
+        NULL, 0, path_get_cwd_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
     // path.remove:
     const char *path_remove_kw_arg_name[] = {
         NULL, "recursive"
     };
     idx = h64program_RegisterCFunction(
         p, "remove", &pathlib_remove,
-        NULL, 1, path_remove_kw_arg_name,  // fileuri, args
+        NULL, 2, path_remove_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)
