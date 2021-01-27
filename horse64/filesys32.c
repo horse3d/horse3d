@@ -130,8 +130,7 @@ int filesys32_RemoveFileOrEmptyDir(
                         werror == ERROR_BUSY ||
                         werror == ERROR_CURRENT_DIRECTORY)
                     *error = FS32_REMOVEERR_DIRISBUSY;
-                else if (werror == ERROR_DIR_NOT_EMPTY ||
-                        )
+                else if (werror == ERROR_DIR_NOT_EMPTY)
                     *error = FS32_REMOVEERR_NONEMPTYDIRECTORY;
                 return 0;
             }
@@ -271,7 +270,7 @@ int filesys32_ListFolderEx(
         *error = FS32_LISTFOLDERERR_OTHERERROR;
         if (werror == ERROR_PATH_NOT_FOUND ||
                 werror == ERROR_FILE_NOT_FOUND)
-            *error = F32_LISTFOLDERERR_NOSUCHTARGET;
+            *error = FS32_LISTFOLDERERR_NOSUCHTARGET;
         else if (werror == ERROR_INVALID_PARAMETER ||
                 werror == ERROR_INVALID_NAME ||
                 werror == ERROR_INVALID_DRIVE ||
