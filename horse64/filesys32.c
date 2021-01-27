@@ -713,18 +713,18 @@ int filesys32_CreateDirectory(
         ) {
     #if defined(_WIN32) || defined(_WIN64)
     wchar_t *targetpath = malloc(
-        sizeof(*targetpath) * (path32len * 2 + 1)
+        sizeof(*targetpath) * (pathlen * 2 + 1)
     );
     if (!targetpath) {
         return FS32_MKDIRERR_OUTOFMEMORY;
     }
     int64_t targetpathlen = 0;
     int uresult = utf32_to_utf16(
-        path32, path32len, (char *)targetpath,
-        sizeof(*targetpath) * (path32len * 2 + 1),
+        path, pathlen, (char *)targetpath,
+        sizeof(*targetpath) * (pathlen * 2 + 1),
         &targetpathlen, 1
     );
-    if (!uresult || targetpathlen >= (path32len * 2 + 1)) {
+    if (!uresult || targetpathlen >= (pathlen * 2 + 1)) {
         free(targetpath);
         return FS32_MKDIRERR_OUTOFMEMORY;
     }
