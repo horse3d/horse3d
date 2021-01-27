@@ -70,6 +70,12 @@ typedef struct _fileobj_cdata {
 } __attribute__((packed)) _fileobj_cdata;
 
 
+/**
+ * A file object class, returned from @see{io.open}.
+ *
+ * @class file
+ */
+
 int iolib_open(
         h64vmthread *vmthread
         ) {
@@ -574,30 +580,19 @@ int iolib_open(
     return 1;
 }
 
-/**
- * A file object class, returned from @see{io.open}.
- *
- * @class file
- */
-
-int iolib_fileread(
+int iolib_filewrite(
         h64vmthread *vmthread
         ) {
     /**
-     * Read from the given file.
+     * Write to the given file.
      *
-     * @funcattr file read
-     * @param len=-1 amount of bytes/letters to read. When
-     *    the file was opened with binary=true then amount will be
-     *    interpreted as bytes, otherwise with binary=false as full
-     *    decoded Unicode characters. Specify -1 to read
-     *    everything until the end of the file.
-     * @returns the data read, which is a @see{bytes} value when the
-     *    file was opened with binary=false, otherwise a @see{string}
-     *    value.
+     * @funcattr file write
+     * @param data the data to write, which must be @see{bytes} if
+     *    the file was opened with binary=yes, and otherwise must
+     *    be @see{string}.
      * @raises IOError raised when there is a failure that is NOT expected
-     *    to go away with retrying, like wrong file type, permission errors,
-     *    full disk, etc.
+     *    to go away with retrying, like writing to a file only opened
+     *    for reading.
      * @raises ResourceError raised when there is unexpected resource
      *    exhaustion that MAY go away when retrying, like running out of
      *    file handles, read timeout, and so on.
@@ -623,7 +618,225 @@ int iolib_fileread(
         cdata->flags &= ~((uint8_t)FILEOBJ_FLAGS_CACHEDUNSENTERROR);
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_RESOURCEERROR,
-            "unknown read error"
+            "unknown I/O error"
+        );
+    }
+
+    if ((cdata->flags & FILEOBJ_FLAGS_WRITE) == 0) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_IOERROR,
+            "not opened for writing"
+        );
+    }
+
+    valuecontent *vcwriteobj = STACK_ENTRY(vmthread->stack, 0);
+    h64wchar *writestr = NULL;
+    int64_t writestrlen = 0;
+    int64_t writestrletters = 0;
+    char *writebytes = NULL;
+    int64_t writebyteslen = 0;
+    if (vcwriteobj->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue *)vcwriteobj->ptr_value)->type ==
+                H64GCVALUETYPE_STRING) {
+        writestr = (
+            ((h64gcvalue *)vcwriteobj->ptr_value)->str_val.s
+        );
+        writestrlen = (
+            ((h64gcvalue *)vcwriteobj->ptr_value)->str_val.len
+        );
+        vmstrings_RequireLetterLen(
+            &(((h64gcvalue *)vcwriteobj->ptr_value)->str_val)
+        );
+        writestrletters = (
+            ((h64gcvalue *)vcwriteobj->ptr_value)->str_val.letterlen
+        );
+    } else if (vcwriteobj->type == H64VALTYPE_SHORTSTR) {
+        writestr = vcwriteobj->shortstr_value;
+        writestrlen = vcwriteobj->shortstr_len;
+        writestrletters = (
+            utf32_letters_count(writestr, writestrlen)
+        );
+    } else if (vcwriteobj->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue *)vcwriteobj->ptr_value)->type ==
+                H64GCVALUETYPE_BYTES) {
+        writebytes = (
+            ((h64gcvalue *)vcwriteobj->ptr_value)->bytes_val.s
+        );
+        writebyteslen = (
+            ((h64gcvalue *)vcwriteobj->ptr_value)->bytes_val.len
+        );
+    } else if (vcwriteobj->type == H64VALTYPE_SHORTSTR) {
+        writebytes = vcwriteobj->shortbytes_value;
+        writebyteslen = vcwriteobj->shortbytes_len;
+    }
+    int readbinary = ((cdata->flags & FILEOBJ_FLAGS_BINARY) != 0);
+    if (writestr == NULL && !readbinary) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "data argument must be string for non-binary file"
+        );
+    }
+    if (writebytes == NULL && !readbinary) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "data argument must be bytes for binary file"
+        );
+    }
+
+    if ((cdata->flags & FILEOBJ_FLAGS_LASTWASWRITE) == 0) {
+        fflush(f);
+        fseek64(f, 0, SEEK_CUR);
+        cdata->flags |= ((uint8_t)FILEOBJ_FLAGS_LASTWASWRITE);
+    }
+
+    // If we're writing a string, convert to bytes first:
+    int64_t writelenresult = writebyteslen;
+    int freebytes = 0;
+    if (writestr) {
+        assert(!writebytes);
+        writebytes = malloc(writestrlen * 5 + 1);
+        if (!writebytes) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory on write data conversion"
+            );
+        }
+        freebytes = 1;
+        int result = utf32_to_utf8(
+            writestr, writestrlen,
+            writebytes, writestrlen * 5 + 1,
+            &writebyteslen, 1, 1
+        );
+        if (!result || writebyteslen >= writestrlen * 5 + 1) {
+            if (freebytes)
+                free(writebytes);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RUNTIMEERROR,
+                "internal error: unicode conversion "
+                "unexpectedly failed"
+            );
+        }
+        writebytes[writebyteslen] = '\0';
+        writelenresult = writestrletters;
+    }
+
+    // If nothing to write, bail out early:
+    if (writebyteslen == 0) {
+        valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+        DELREF_NONHEAP(vcresult);
+        valuecontent_Free(vcresult);
+        vcresult->type = H64VALTYPE_INT64;
+        vcresult->int_value = 0;
+        return 1;
+    }
+
+    // Write out data:
+    size_t written = fwrite(
+        writebytes, 1, writebyteslen, f
+    );
+    if (written < (size_t)writebyteslen) {
+        if (written == 0) {
+            writelenresult = 0;
+        } else if (written > 0 && writestr) {
+            // Find out the amount of letters we wrote:
+            writelenresult = 0;
+            int64_t istr = 0;
+            int64_t ibytes = 0;
+            while (ibytes < (int64_t)written) {
+                int next_char_len = utf32_letter_len(
+                    writestr + istr, writestrlen - istr
+                );
+                assert(next_char_len > 0);
+                int entireletterlen = 0;
+                int k = 0;
+                while (k < next_char_len) {
+                    int utf8len = utf8_char_len(
+                        (const uint8_t *)writebytes + ibytes
+                    );
+                    if (utf8len < 1)
+                        utf8len = 1;
+                    entireletterlen += utf8len;
+                    ibytes += utf8len;
+                    istr += 1;
+                    k++;
+                }
+                if (ibytes > (int64_t)written)
+                    break;
+                writelenresult++;
+            }
+            assert(writelenresult <= writestrletters);
+        } else if (written > 0) {
+            writelenresult = written;
+        }
+        if (writelenresult > 0) {
+            // Return the written amount first, delay
+            // reporting the error until later:
+            cdata->flags |= (FILEOBJ_FLAGS_CACHEDUNSENTERROR);
+            valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+            DELREF_NONHEAP(vcresult);
+            valuecontent_Free(vcresult);
+            vcresult->type = H64VALTYPE_INT64;
+            vcresult->int_value = writelenresult;
+            return 1;
+        }
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unknown I/O error"
+        );
+    } else {
+        valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+        DELREF_NONHEAP(vcresult);
+        valuecontent_Free(vcresult);
+        vcresult->type = H64VALTYPE_INT64;
+        vcresult->int_value = writelenresult;
+        return 1;
+    }
+}
+
+int iolib_fileread(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Read from the given file.
+     *
+     * @funcattr file read
+     * @param len=-1 amount of bytes/letters to read. When
+     *    the file was opened with binary=true then amount will be
+     *    interpreted as bytes, otherwise with binary=false as full
+     *    decoded Unicode characters. Specify -1 to read
+     *    everything until the end of the file.
+     * @returns the data read, which is a @see{bytes} value when the
+     *    file was opened with binary=false, otherwise a @see{string}
+     *    value.
+     * @raises IOError raised when there is a failure that is NOT expected
+     *    to go away with retrying, like reading from a file only opened
+     *    for writing.
+     * @raises ResourceError raised when there is unexpected resource
+     *    exhaustion that MAY go away when retrying, like running out of
+     *    file handles, read timeout, and so on.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);  // first closure arg
+    assert(vc->type == H64VALTYPE_GCVAL);
+    h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
+    assert(gcvalue->type == H64GCVALUETYPE_OBJINSTANCE);
+    assert(gcvalue->class_id ==
+           vmthread->vmexec_owner->program->_io_file_class_idx);
+    _fileobj_cdata *cdata = (gcvalue->cdata);
+    FILE *f = cdata->file_handle;
+
+    if (!f) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_IOERROR,
+            "file was closed"
+        );
+    }
+    if ((cdata->flags & FILEOBJ_FLAGS_CACHEDUNSENTERROR) != 0) {
+        cdata->flags &= ~((uint8_t)FILEOBJ_FLAGS_CACHEDUNSENTERROR);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unknown i/o error"
         );
     }
 
@@ -676,13 +889,13 @@ int iolib_fileread(
         clearerr(f);
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_RESOURCEERROR,
-            "unknown read error"
+            "unknown I/O error"
         );
     }
     if ((cdata->flags & FILEOBJ_FLAGS_LASTWASWRITE) != 0) {
         cdata->flags &= ~((uint8_t)FILEOBJ_FLAGS_LASTWASWRITE);
         fflush(f);
-        fseek(f, 0, SEEK_CUR);
+        fseek64(f, 0, SEEK_CUR);
     }
 
     // Read from file up to requested amount:
@@ -733,7 +946,7 @@ int iolib_fileread(
                             free(readbuf);
                         return vmexec_ReturnFuncError(
                             vmthread, H64STDERROR_RESOURCEERROR,
-                            "unknown read error"
+                            "unknown I/O error"
                         );
                     }
                     cdata->flags |= FILEOBJ_FLAGS_CACHEDUNSENTERROR;
@@ -1086,6 +1299,16 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "read", &iolib_fileread,
         NULL, 1, io_fileread_kw_arg_name,  // fileuri, args
+        "io", "core.horse64.org", 1, p->_io_file_class_idx
+    );
+    if (idx < 0)
+        return 0;
+
+    // file.write method:
+    const char *io_filewrite_kw_arg_name[] = {NULL};
+    idx = h64program_RegisterCFunction(
+        p, "write", &iolib_filewrite,
+        NULL, 1, io_filewrite_kw_arg_name,  // fileuri, args
         "io", "core.horse64.org", 1, p->_io_file_class_idx
     );
     if (idx < 0)
