@@ -31,6 +31,7 @@ typedef enum stderrorclassnum {
     H64STDERROR_INVALIDNOASYNCRESOURCEERROR,
     H64STDERROR_ENCODINGERROR,
     H64STDERROR_ASSERTIONERROR,
+    H64STDERROR_NOTIMPLEMENTEDERROR,
     H64STDERROR_TOTAL_COUNT
 } stderrorclassnum;
 
@@ -52,6 +53,7 @@ ATTR_UNUSED static const char *stderrorclassnames[] = {
     "InvalidNoasyncResourceError",
     "EncodingError",
     "AssertionError",
+    "NotImplementedError",
     NULL
 };
 

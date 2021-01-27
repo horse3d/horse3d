@@ -62,6 +62,15 @@ void _netlib_connect_abort(void *dataptr) {
     }
 }
 
+
+void _netlib_read_abort(void *dataptr) {
+    struct netlib_connect_asyncprogress *adata = dataptr;
+    if (adata->connection) {
+        sockets_Close(adata->connection);
+        adata->connection = NULL;
+    }
+}
+
 int netlib_isip(h64vmthread *vmthread) {
     /**
      * Check if a given @see(string) refers to an IPv4 or IPv6 address,
@@ -143,6 +152,7 @@ int netlib_stream_read(h64vmthread *vmthread) {  // net.stream.read()
         vmthread->foreground_async_work_dataptr
     );
     assert(asprogress != NULL);
+    asprogress->abortfunc = &_netlib_read_abort;
 
     valuecontent *vstream = STACK_ENTRY(vmthread->stack, 2);
     assert(
@@ -313,6 +323,7 @@ int netlib_connect(h64vmthread *vmthread) {
         vmthread->foreground_async_work_dataptr
     );
     assert(asprogress != NULL);
+    asprogress->abortfunc = &_netlib_connect_abort;
 
     valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
     char *hoststr = NULL;
@@ -410,7 +421,8 @@ int netlib_connect(h64vmthread *vmthread) {
             malloc(hostlen * sizeof(h64wchar))
         );
         if (!asprogress->resolve_job->hostlookup.host) {
-            asyncjob_Free(asprogress->resolve_job);  /// still owned by us
+            asyncjob_Free(asprogress->resolve_job);
+            // ^ still owned by us on failure
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
                 "out of memory during host lookup"
@@ -431,7 +443,8 @@ int netlib_connect(h64vmthread *vmthread) {
                 result);
         #endif
         if (!result) {
-            asyncjob_Free(asprogress->resolve_job);  /// still owned by us
+            asyncjob_Free(asprogress->resolve_job);
+            // ^ still owned by us on failure
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
                 "out of memory during host lookup"

@@ -33,10 +33,11 @@ typedef struct h64asyncsysjob {
         } hostlookup;
         struct runcmd {
             h64wchar *cmd;
-            int cmdlen;
-            h64wchar *arg;
-            int *arglen;
+            int64_t cmdlen;
+            h64wchar **arg;
+            int64_t *arglen;
             int argcount;
+            int search_in_path;
         } runcmd;
     };
 } h64asyncsysjob;

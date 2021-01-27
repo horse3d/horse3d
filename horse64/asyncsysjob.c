@@ -80,6 +80,21 @@ void _asyncjob_FreeNoLock(h64asyncsysjob *job) {
         job->hostlookup.resultip4 = NULL;
         free(job->hostlookup.resultip6);
         job->hostlookup.resultip6 = NULL;
+    } else if (job->type == ASYNCSYSJOB_RUNCMD) {
+        if (job->runcmd.arg) {
+            int i = 0;
+            while (i < job->runcmd.argcount) {
+                free(job->runcmd.arg[i]);
+                i++;
+            }
+            free(job->runcmd.arg);
+            job->runcmd.arg = NULL;
+            job->runcmd.argcount = 0;
+        }
+        if (job->runcmd.cmd) {
+            free(job->runcmd.cmd);
+            job->runcmd.cmd = NULL;
+        }
     }
     poolalloc_free(asyncsysjob_allocator, job);
 }
@@ -400,6 +415,15 @@ void asyncsysjobworker_Do(void *userdata) {
                     ourjob);
             #endif
             continue;
+        } else if (ourjob != NULL &&
+                ourjob->type == ASYNCSYSJOB_RUNCMD) {
+            #ifndef NDEBUG
+            if (_vmasyncjobs_debug)
+                h64fprintf(stderr, "horsevm: debug: "
+                    "run cmd launch... (job ptr=%p)\n",
+                    ourjob);
+            #endif
+            assert(0);
         }
         threadevent_WaitUntilSet(
             async_worker_event[worker_id],
