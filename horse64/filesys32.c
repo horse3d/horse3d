@@ -44,6 +44,26 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 #include "widechar.h"
 
 
+int filesys32_IsObviouslyInvalidPath(
+        const h64wchar *p, int64_t plen
+        ) {
+    int64_t i = 0;
+    while (i < plen) {
+        if (p[i] == '\0')
+            return 1;
+        #if defined(_WIN32) || defined(_WIN64)
+        if (p[i] == '*' || p[i] == '%' ||
+                (p[i] == ':' && i != 2) ||
+                p[i] == '"' || p[i] == '?' ||
+                p[i] == '|' || p[i] == '>' ||
+                p[i] == '<')
+            return 1;
+        #endif
+        i++;
+    }
+    return 0;
+}
+
 void filesys32_FreeFolderList(h64wchar **list, int64_t *listlen) {
     if (list) {
         int64_t k = 0;
@@ -60,6 +80,10 @@ void filesys32_FreeFolderList(h64wchar **list, int64_t *listlen) {
 int filesys32_RemoveFileOrEmptyDir(
         const h64wchar *path32, int64_t path32len, int *error
         ) {
+    if (filesys32_IsObviouslyInvalidPath(path32, path32len)) {
+        *error = FS32_REMOVEERR_NOSUCHTARGET;
+        return 0;
+    }
     #if defined(_WIN32) || defined(_WIN64)
     assert(sizeof(wchar_t) == sizeof(uint16_t));
     wchar_t *targetpath = malloc(
@@ -95,16 +119,19 @@ int filesys32_RemoveFileOrEmptyDir(
                         werror == ERROR_INVALID_NAME ||
                         werror == ERROR_INVALID_DRIVE)
                     *error = FS32_REMOVEERR_NOSUCHTARGET;
-                else if (werror == ERROR_ACCESS_DENIED)
+                else if (werror == ERROR_ACCESS_DENIED ||
+                        werror == ERROR_WRITE_PROTECT)
                     *error = FS32_REMOVEERR_NOPERMISSION;
                 else if (werror == ERROR_NOT_ENOUGH_MEMORY)
                     *error = FS32_REMOVEERR_OUTOFMEMORY;
                 else if (werror == ERROR_TOO_MANY_OPEN_FILES)
                     *error = FS32_REMOVEERR_OUTOFFDS;
                 else if (werror == ERROR_PATH_BUSY ||
-                        werror == ERROR_BUSY)
+                        werror == ERROR_BUSY ||
+                        werror == ERROR_CURRENT_DIRECTORY)
                     *error = FS32_REMOVEERR_DIRISBUSY;
-                else if (werror == ERROR_DIR_NOT_EMPTY)
+                else if (werror == ERROR_DIR_NOT_EMPTY ||
+                        )
                     *error = FS32_REMOVEERR_NONEMPTYDIRECTORY;
                 return 0;
             }
@@ -119,7 +146,8 @@ int filesys32_RemoveFileOrEmptyDir(
                 werror == ERROR_INVALID_NAME ||
                 werror == ERROR_INVALID_DRIVE)
             *error = FS32_REMOVEERR_NOSUCHTARGET;
-        else if (werror == ERROR_ACCESS_DENIED)
+        else if (werror == ERROR_ACCESS_DENIED ||
+                werror == ERROR_WRITE_PROTECT)
             *error = FS32_REMOVEERR_NOPERMISSION;
         else if (werror == ERROR_NOT_ENOUGH_MEMORY)
             *error = FS32_REMOVEERR_OUTOFMEMORY;
@@ -177,6 +205,11 @@ int filesys32_ListFolderEx(
         h64wchar ***contents, int64_t **contentslen,
         int returnFullPath, int allowsymlink, int *error
         ) {
+    if (filesys32_IsObviouslyInvalidPath(path32, path32len)) {
+        *error = FS32_LISTFOLDERERR_TARGETNOTDIRECTORY;
+        return 0;
+    }
+
     // Start scanning the files:
     #if defined(_WIN32) || defined(_WIN64)
     assert(sizeof(wchar_t) == sizeof(uint16_t));
@@ -237,10 +270,12 @@ int filesys32_ListFolderEx(
         }
         *error = FS32_LISTFOLDERERR_OTHERERROR;
         if (werror == ERROR_PATH_NOT_FOUND ||
-                werror == ERROR_FILE_NOT_FOUND ||
-                werror == ERROR_INVALID_PARAMETER ||
+                werror == ERROR_FILE_NOT_FOUND)
+            *error = F32_LISTFOLDERERR_NOSUCHTARGET;
+        else if (werror == ERROR_INVALID_PARAMETER ||
                 werror == ERROR_INVALID_NAME ||
-                werror == ERROR_INVALID_DRIVE)
+                werror == ERROR_INVALID_DRIVE ||
+                werror == ERROR_DIRECTORY_NOT_SUPPORTED)
             *error = FS32_LISTFOLDERERR_TARGETNOTDIRECTORY;
         else if (werror == ERROR_ACCESS_DENIED)
             *error = FS32_LISTFOLDERERR_NOPERMISSION;
@@ -517,6 +552,11 @@ int filesys32_ListFolder(
 int filesys32_RemoveFolderRecursively(
         const h64wchar *path32, int64_t path32len, int *error
         ) {
+    if (filesys32_IsObviouslyInvalidPath(path32, path32len)) {
+        *error = FS32_REMOVEDIR_NOTADIR;
+        return 0;
+    }
+
     int final_error = FS32_REMOVEDIR_SUCCESS;
     const h64wchar *scan_next = path32;
     int64_t scan_next_len = path32len;
@@ -538,7 +578,9 @@ int filesys32_RemoveFolderRecursively(
             );
             if (!listingworked) {
                 if (operror == FS32_LISTFOLDERERR_TARGETNOTDIRECTORY ||
-                        operror == FS32_LISTFOLDERERR_SYMLINKSWEREEXCLUDED) {
+                        operror == FS32_LISTFOLDERERR_SYMLINKSWEREEXCLUDED ||
+                        (firstitem && operror ==
+                            FS32_LISTFOLDERERR_NOSUCHTARGET)) {
                     // It's a file or symlink.
                     // If it's a file, and this is our first item, error:
                     if (firstitem && operror ==
@@ -548,9 +590,15 @@ int filesys32_RemoveFolderRecursively(
                         *error = FS32_REMOVEDIR_NOTADIR;
                         assert(!contents && queue_len == 0);
                         return 0;
+                    } else if (firstitem &&
+                            operror == FS32_LISTFOLDERERR_NOSUCHTARGET) {
+                        *error = FS32_REMOVEDIR_NOSUCHTARGET;
+                        assert(!contents && queue_len == 0);
+                        return 0;
                     }
                     // Instantly remove it instead:
-                    if (!filesys32_RemoveFileOrEmptyDir(
+                    if (operror != FS32_LISTFOLDERERR_NOSUCHTARGET &&
+                            !filesys32_RemoveFileOrEmptyDir(
                             scan_next, scan_next_len, &operror
                             )) {
                         if (operror == FS32_REMOVEERR_NOSUCHTARGET) {
@@ -604,6 +652,10 @@ int filesys32_RemoveFolderRecursively(
                         final_error = (
                             FS32_REMOVEDIR_NONEMPTYDIRECTORY
                         );
+                    else if (operror == FS32_REMOVEERR_NOSUCHTARGET)
+                        final_error = (
+                            FS32_REMOVEDIR_NOSUCHTARGET
+                        );
                 }
             } else if (contents[0]) {  // one new item or more
                 int64_t addc = 0;
@@ -648,7 +700,7 @@ int filesys32_RemoveFolderRecursively(
                     sizeof(*contentslen) * addc
                 );
                 queue_len += addc;
-                free(contents);  // we copied the contents, so only free outer
+                free(contents);  // we copied contents, so only free outer
                 free(contentslen);
             } else {
                 filesys32_FreeFolderList(contents, contentslen);
@@ -715,6 +767,10 @@ int filesys32_CreateDirectory(
         h64wchar *path, int64_t pathlen,
         int user_readable_only
         ) {
+    if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
+        return FS32_MKDIRERR_INVALIDNAME;
+    }
+
     #if defined(_WIN32) || defined(_WIN64)
     wchar_t *targetpath = malloc(
         sizeof(*targetpath) * (pathlen * 2 + 1)
@@ -751,6 +807,8 @@ int filesys32_CreateDirectory(
             return FS32_MKDIRERR_OUTOFFDS;
         } else if (werror == ERROR_ALREADY_EXISTS) {
             return FS32_MKDIRERR_TARGETALREADYEXISTS;
+        } else if (werror == ERROR_BAD_PATHNAME) {
+            return FS32_MKDIRERR_INVALIDNAME;
         }
         return FS32_MKDIRERR_OTHERERROR;
     }
@@ -798,6 +856,11 @@ int filesys32_CreateDirectory(
 int filesys32_TargetExists(
         const h64wchar *path, int64_t pathlen, int *result
         ) {
+    if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
+        *result = 0;
+        return 0;
+    }
+
     #if defined(_WIN32) || defined(_WIN64)
     wchar_t *targetpath = malloc(
         sizeof(*targetpath) * (pathlen * 2 + 1)
