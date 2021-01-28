@@ -1,0 +1,9 @@
+
+func main {
+    var l = [1, 2, 3]
+    var inlinel_len = [1, 2].len
+    l.add(4)
+    return l.len + inlinel_len
+}
+
+# expected return value: 6

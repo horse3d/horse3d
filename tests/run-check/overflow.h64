@@ -1,0 +1,34 @@
+
+func main{
+    print('Value 1:')
+    print(-1 + (-9223372036854775807))
+    do {
+        print('Value 2 should be skipped.')
+        print(-2 + (-9223372036854775807))
+        raise new RuntimeError('should be unreachable')
+    } rescue MathError { }
+    print('Value 3:')
+    print(1 + 9223372036854775806)
+    do {
+        print('Value 4 should be skipped.')
+        print(1 + 9223372036854775807)
+        raise new RuntimeError('should be unreachable')
+    } rescue MathError { }
+    print('Value 5:')
+    print(0 - (-9223372036854775807))
+    do {
+        print('Value 6 should be skipped.')
+        print(1 - (-9223372036854775807))
+        raise new RuntimeError('should be unreachable')
+    } rescue MathError { }
+    print('Value 7:')
+    print(-9223372036854775807 - 1)
+    do {
+        print('Value 8 should be skipped.')
+        print(-9223372036854775807 - 2)
+        raise new RuntimeError('should be unreachable')
+    } rescue MathError { }
+    return 0
+}
+
+# expected return value: 0

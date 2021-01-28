@@ -1,0 +1,15 @@
+
+
+class bla {
+    func bla {
+        self.x()
+        print('Hello')
+    }
+}
+
+func main{
+    var blaobj = new bla()
+    blaobj.blargh()  # this should give a compile error
+}
+
+# expected return value: -1

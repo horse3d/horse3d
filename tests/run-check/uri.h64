@@ -1,0 +1,10 @@
+
+import uri from core.horse64.org
+
+
+func main {
+    var myuri = uri.parse('file://test.html')
+    return myuri.protocol.len * 2 + myuri.path.len
+}
+
+# expected return value: "file".len * 2 + "test.html".len

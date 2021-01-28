@@ -1,0 +1,13 @@
+
+func main {
+    do {
+        assert(no)
+    } rescue AssertionError as e {
+        if e.is_a(AssertionError) {
+            return 2
+        }
+    }
+    return 0
+}
+
+# expected return value: 2

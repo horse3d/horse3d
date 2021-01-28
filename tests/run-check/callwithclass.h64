@@ -1,0 +1,12 @@
+
+func otherfunc(a1, a2) {
+    return 5
+}
+
+func main{
+    var i = 5
+    var i2 = otherfunc(i, 'abc' + 'def')
+    return 5
+}
+
+# expected return value: 5

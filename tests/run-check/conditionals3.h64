@@ -1,0 +1,14 @@
+
+
+func main {
+    var resultvalue = 0
+    if yes and no {
+        resultvalue += 1
+    }
+    if no or yes {
+        resultvalue += 2
+    }
+    return resultvalue
+}
+
+# expected return value: 2

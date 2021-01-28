@@ -1,0 +1,7 @@
+
+func main {
+    var s1 = 'a'  var s2 = 'bc'
+    print(s1.len.as_str + ', ' + s2.len.as_str)
+}
+
+# expected return value: 0

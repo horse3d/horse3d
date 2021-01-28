@@ -16,9 +16,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+#include "threading.h"
+#include "vendor/unicode/unicode_data_header.h"
 #include "vfs.h"
 #include "widechar.h"
-#include "vendor/unicode/unicode_data_header.h"
 
 // The equivalents to the unicode data header "extern" refs:
 uint8_t *_widechartbl_ismodifier = NULL;
@@ -771,4 +773,95 @@ void utf32_toupper(h64wchar *s, int64_t slen) {
             s[i] = uppered;
         i++;
     }
+}
+
+// Short-hand function:
+h64wchar *AS_U32(const char *s, int64_t *out_len) {
+    h64wchar *result = utf8_to_utf32(
+        s, strlen(s),
+        NULL, NULL, out_len
+    );
+    return result;
+}
+
+// Short-hand function:
+char *AS_U8(const h64wchar *s, int64_t slen) {
+    char *result_spacy = malloc(
+        slen * 5 + 2
+    );
+    if (!result_spacy)
+        return NULL;
+    int64_t resultlen = 0;
+    int result = utf32_to_utf8(
+        s, slen, result_spacy, slen * 5 + 2,
+        &resultlen, 1, 1
+    );
+    if (!result || resultlen >= slen * 5 + 2) {
+        free(result_spacy);
+        return NULL;
+    }
+    result_spacy[resultlen] = '\0';
+    char *u8 = strdup(result_spacy);
+    free(result_spacy);
+    return u8;
+}
+
+struct u8tmpstorage {
+    int64_t bufsize;
+    char *buf;
+};
+
+int32_t _u8tmpstorage_type = -1;
+
+void _clear_u8tmp_storage(
+        uint32_t type_id, void *storageptr,
+        ATTR_UNUSED uint64_t bytes
+        ) {
+    assert((int32_t)type_id == _u8tmpstorage_type);
+    struct u8tmpstorage *storage = storageptr;
+    if (storage->buf)
+        free(storage->buf);
+    storage->buf = NULL;
+}
+
+static __attribute__((constructor)) void _init_u8tmp_storage() {
+    if (_u8tmpstorage_type >= 0)
+        return;
+    _u8tmpstorage_type = threadlocalstorage_RegisterType(
+        sizeof(struct u8tmpstorage), &_clear_u8tmp_storage
+    );
+    if (_u8tmpstorage_type < 0) {
+        fprintf(stderr,
+            "widechar.c: error: failed to allocate "
+            "thread-local storge for AS_U8_TMP()\n"
+        );
+        exit(1);
+        return;
+    }
+}
+
+const char *AS_U8_TMP(const h64wchar *s, int64_t slen) {
+    struct u8tmpstorage *store = (
+        threadlocalstorage_GetByType(_u8tmpstorage_type)
+    );
+    if (!store)
+        return NULL;
+    int64_t buflen_needed = slen * 5 + 2;
+    if (!store->buf || store->bufsize < buflen_needed) {
+        free(store->buf);
+        store->buf = malloc(buflen_needed);
+        if (!store->buf)
+            return NULL;
+        store->bufsize = buflen_needed;
+    }
+    int64_t resultlen = 0;
+    int result = utf32_to_utf8(
+        s, slen, store->buf, store->bufsize,
+        &resultlen, 1, 1
+    );
+    if (!result || resultlen >= store->bufsize) {
+        return NULL;
+    }
+    store->buf[resultlen] = '\0';
+    return store->buf;
 }

@@ -14,24 +14,24 @@ typedef struct semaphore semaphore;
 typedef struct threadinfo thread;
 
 
-semaphore* semaphore_Create(int value);
+semaphore *semaphore_Create(int value);
 
-void semaphore_Wait(semaphore* s);
+void semaphore_Wait(semaphore *s);
 
-void semaphore_Post(semaphore* s);
+void semaphore_Post(semaphore *s);
 
-void semaphore_Destroy(semaphore* s) ;
+void semaphore_Destroy(semaphore *s);
 
 
-mutex* mutex_Create();
+mutex *mutex_Create();
 
-void mutex_Lock(mutex* m);
+void mutex_Lock(mutex *m);
 
-int mutex_TryLock(mutex* m);
+int mutex_TryLock(mutex *m);
 
-void mutex_Release(mutex* m);
+void mutex_Release(mutex *m);
 
-void mutex_Destroy(mutex* m);
+void mutex_Destroy(mutex *m);
 
 int mutex_IsLocked(mutex *m);  // ONLY FOR DEBUG PURPOSES (slow!)
 
@@ -47,8 +47,10 @@ thread *thread_Spawn(
 
 thread *thread_SpawnWithPriority(
     int priority,
-    void (*func)(void* userdata), void *userdata
+    void (*func)(void *userdata), void *userdata
 );
+
+uint64_t thread_GetId(thread *t);
 
 void thread_Detach(thread *t);
 
@@ -56,6 +58,16 @@ void thread_Join(thread *t);
 
 int thread_InMainThread();
 
+uint64_t thread_GetOurThreadId();
+
+int32_t threadlocalstorage_RegisterType(
+    uint64_t bytes, void (*clearHandler)(
+        uint32_t storage_type_id, void *storageptr,
+        uint64_t storage_bytes
+    )
+);
+
+void *threadlocalstorage_GetByType(int32_t type);
 
 typedef struct threadevent threadevent;
 typedef struct h64socket h64socket;
@@ -78,5 +90,6 @@ int threadevent_WaitUntilSet(
 );
 
 void threadevent_FlushWakeUpEvents(threadevent *te);
+
 
 #endif  // HORSE64_THREADING_H_

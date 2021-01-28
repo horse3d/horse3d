@@ -5,7 +5,11 @@
 #ifndef HORSE64_WIDECHAR_H_
 #define HORSE64_WIDECHAR_H_
 
+#include "compileconfig.h"
+
+#include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 typedef uint32_t __attribute__((__may_alias__)) h64wchar;
 
@@ -89,5 +93,11 @@ int utf16_to_utf8(
 void utf32_tolower(h64wchar *s, int64_t slen);
 
 void utf32_toupper(h64wchar *s, int64_t slen);
+
+h64wchar *AS_U32(const char *s, int64_t *out_len);
+
+char *AS_U8(const h64wchar *s, int64_t slen);
+
+const char *AS_U8_TMP(const h64wchar *s, int64_t slen);
 
 #endif  // HORSE64_WIDECHAR_H_

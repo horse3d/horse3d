@@ -1,0 +1,15 @@
+
+func main {
+    var v = ['abc', 'def'].join('123')
+    assert(v == 'abc123def')
+    assert(['a'].join('blubb') == 'a')
+    v = {'abc' -> 'def', 'ghi' -> 'jkl'}.join('123', '456')
+    assert(
+        v == 'abc123def456ghi123jkl' or
+        v == 'ghi123jkl456abc123def'
+    )
+    v = {'ab' -> 'cd'}.join('1', '2')
+    assert(v == 'ab1cd')
+}
+
+# expected result value: 0

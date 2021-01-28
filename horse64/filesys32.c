@@ -12,6 +12,13 @@
 #define _LARGEFILE64_SOURCE
 #endif
 #define _LARGEFILE_SOURCE
+#if defined(_WIN32) || defined(_WIN64)
+#define fseek64 _fseeki64
+#define ftell64 _ftelli64
+#else
+#define fseek64 fseeko64
+#define ftell64 ftello64
+#endif
 
 #include <assert.h>
 #include <errno.h>
@@ -44,6 +51,93 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 #include "widechar.h"
 
 
+FILE *filesys32_OpenFromPath(
+        const h64wchar *path, int64_t pathlen,
+        const char *mode
+        ) {
+    #if defined(_WIN32) || defined(_WIN64)
+    assert(sizeof(uint16_t) == sizeof(wchar_t));
+    uint16_t *wpath = malloc(
+        sizeof(uint16_t) * (strlen(path) * 2 + 3)
+    );
+    if (!wpath) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    int64_t out_len = 0;
+    int result = utf32_to_utf16(
+        path, pathlen, (char *) wpath,
+        sizeof(uint16_t) * (strlen(path) * 2 + 3),
+        &out_len, 1
+    );
+    if (!result || (uint64_t)out_len >=
+            (uint64_t)(strlen(path) * 2 + 3)) {
+        free(wpath);
+        errno = ENOMEM;
+        return NULL;
+    }
+    wpath[out_len] = '\0';
+    int mode_read = strstr(mode, "r") || strstr(mode, "a");
+    int mode_write = strstr(mode, "w") || strstr(mode, "a");
+    int mode_append = strstr(mode, "r+") || strstr(mode, "a");
+    HANDLE f = CreateFileW(
+        (LPCWSTR)wpath,
+        0 | (mode_read ? GENERIC_READ : 0)
+        | (mode_write ? GENERIC_WRITE : 0),
+        (mode_write ? 0 : FILE_SHARE_READ),
+        NULL,
+        OPEN_EXISTING | (
+            (mode_write && !mode_append) ? CREATE_NEW : 0
+        ),
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+    free(wpath);  wpath = NULL;
+    if (f == INVALID_HANDLE_VALUE) {
+        uint32_t err = GetLastError();
+        if (err == ERROR_SHARING_VIOLATION ||
+                err == ERROR_ACCESS_DENIED) {
+            errno = EACCES;
+        } else if (err== ERROR_PATH_NOT_FOUND ||
+                err == ERROR_FILE_NOT_FOUND) {
+            errno = ENOENT;
+        } else if (err == ERROR_TOO_MANY_OPEN_FILES) {
+            errno = EMFILE;
+        } else if (err == ERROR_INVALID_NAME ||
+                err == ERROR_LABEL_TOO_LONG ||
+                err == ERROR_BUFFER_OVERFLOW ||
+                err == ERROR_FILENAME_EXCED_RANGE
+                ) {
+            errno = EINVAL;
+        } else {
+            errno = ENOMEM;
+        }
+        return NULL;
+    }
+    int filedescr = _open_osfhandle(
+        (intptr_t)f, _O_RDONLY
+    );
+    if (filedescr < 0) {
+        errno = ENOMEM;
+        CloseHandle(f);
+        return NULL;
+    }
+    f = NULL;  // now owned by 'filedescr'
+    errno = 0;
+    FILE *fresult = _fdopen(filedescr, "rb");
+    return fresult;
+    #else
+    char *pathu8 = AS_U8(path, pathlen);
+    if (!pathu8) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    FILE *f = fopen64(pathu8, mode);
+    free(pathu8);
+    return f;
+    #endif
+}
+
 int filesys32_IsObviouslyInvalidPath(
         const h64wchar *p, int64_t plen
         ) {
@@ -62,6 +156,59 @@ int filesys32_IsObviouslyInvalidPath(
         i++;
     }
     return 0;
+}
+
+char *filesys23_ContentsAsStr(
+        const h64wchar *path, int64_t pathlen, int *error
+        ) {
+    FILE *f = filesys32_OpenFromPath(
+        path, pathlen, "rb"
+    );
+    if (!f) {
+        *error = FS32_CONTENTASSTR_OTHERERROR;
+        if (errno == EACCES)
+            *error = FS32_CONTENTASSTR_NOPERMISSION;
+        else if (errno == ENOENT)
+            *error = FS32_CONTENTASSTR_TARGETNOTAFILE;
+        else if (errno == EMFILE || errno == ENFILE)
+            *error = FS32_CONTENTASSTR_OUTOFFDS;
+        else if (errno == EINVAL)
+            *error = FS32_CONTENTASSTR_INVALIDFILENAME;
+        else if (errno == ENOMEM)
+            *error = FS32_CONTENTASSTR_OUTOFMEMORY;
+        return NULL;
+    }
+    if (fseek64(f, 0, SEEK_END) != 0) {
+        *error = FS32_CONTENTASSTR_IOERROR;
+        fclose(f);
+        return NULL;
+    }
+    int64_t len = ftell64(f);
+    if (len < 0) {
+        *error = FS32_CONTENTASSTR_IOERROR;
+        fclose(f);
+        return NULL;
+    }
+    if (fseek64(f, 0, SEEK_SET) != 0) {
+        *error = FS32_CONTENTASSTR_IOERROR;
+        fclose(f);
+        return NULL;
+    }
+    char *resultstr = malloc(len + 1);
+    if (!resultstr) {
+        *error = FS32_CONTENTASSTR_OUTOFMEMORY;
+        fclose(f);
+        return NULL;
+    }
+    size_t result = fread(resultstr, 1, len, f);
+    fclose(f);
+    if ((int64_t)result != len) {
+        *error = FS32_CONTENTASSTR_IOERROR;
+        free(resultstr);
+        return NULL;
+    }
+    resultstr[len] = '\0';
+    return resultstr;
 }
 
 void filesys32_FreeFolderList(h64wchar **list, int64_t *listlen) {
@@ -333,6 +480,7 @@ int filesys32_ListFolderEx(
     }
     free(p);
     if (!d) {
+        printf("errno: %d\n", errno);
         *error = FS32_LISTFOLDERERR_OTHERERROR;
         if (errno == EMFILE || errno == ENFILE)
             *error = FS32_LISTFOLDERERR_OUTOFFDS;

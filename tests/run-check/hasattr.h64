@@ -1,0 +1,16 @@
+
+class bla {
+    func bla {
+        if has_attr(self, 'x') {
+            self.x()
+        }
+        print('Hello')
+    }
+}
+
+func main{
+    var blaobj = new bla()
+    blaobj.bla()
+}
+
+# expected return value: 0

@@ -1,0 +1,23 @@
+
+import time from core.horse64.org
+
+func fib(n) {
+    if n < 2 {
+        return n
+    } else {
+        return fib(n - 1) + fib(n - 2)
+    }
+}
+
+func main {
+    var start = time.ticks()
+    var i = 0
+    while i < 10 {
+        print('Fib: ' + fib(10).as_str)
+        i += 1
+    }
+    print('Milliseconds: ' +
+          ((time.ticks() - start) * 1000).as_str)
+}
+
+# expected return value: 0

@@ -1,0 +1,13 @@
+
+func describe_list_size(list) {
+    return given list.len > 100 then ('a large list' else 'a small list')
+    # ^ will return 'a large list' if the list is longer than 100 items,
+    # otherwise it will return 'a small list'.
+}
+
+func main {
+    print(describe_list_size([1, 2]))
+    return yes
+}
+
+# expected return value: 0

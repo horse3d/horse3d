@@ -1,0 +1,32 @@
+
+import uri from core.horse64.org
+
+
+var resultvalue = 0
+
+func sideeffecttrue(v) {
+    resultvalue += v
+    return yes
+}
+
+func sideeffectfalse(v) {
+    resultvalue += v
+    return no
+}
+
+func main {
+    resultvalue = 0
+    if sideeffecttrue(5) or sideeffecttrue(7) or
+            sideeffectfalse(3) {
+        resultvalue += 1
+    }
+    # resultvalue should now be 5+1=6.
+    if sideeffectfalse(5) or (sideeffecttrue(7) and
+            sideeffectfalse(3)) {
+        resultvalue += 17
+    }
+    # resultvalue should now be 5+1+5+7+3=21.
+    return resultvalue
+}
+
+# expected return value: 21

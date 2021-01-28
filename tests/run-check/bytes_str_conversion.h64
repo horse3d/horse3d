@@ -1,0 +1,9 @@
+
+func main {
+    var v = 'abcö'.as_bytes.as_str
+    assert(v == 'b\"abc\\xc3\\xb6\"')
+    v = [1, 2].as_str
+    assert(v == '[1, 2]')
+}
+
+# expected return value: 0

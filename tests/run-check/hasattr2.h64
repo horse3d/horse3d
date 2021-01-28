@@ -1,0 +1,24 @@
+
+class bla {
+    var varattr = 5
+    func funcattr{
+        return 6
+    }
+}
+
+func main {
+    var result = 0
+    var blaobj = new bla()
+    if has_attr(blaobj, 'varattr') {
+        result += blaobj.varattr
+    }
+    if has_attr(blaobj, 'funcattr') {
+        result += blaobj.funcattr()
+    }
+    if has_attr(blaobj, 'invalidattr') {
+        result = 0
+    }
+    return result
+}
+
+# expected return value: 11

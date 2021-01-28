@@ -1,0 +1,12 @@
+
+func main {
+    assert('test'.contains('st'))
+    assert(not 'test'.contains('se'))
+    assert('test'.find('e') == 2)
+    assert('test'[3] == 's')
+    assert('öüo'.find('o') == 3)
+    assert('öü'.contains('ü'))
+    return yes
+}
+
+# expected return value: 0

@@ -6,9 +6,9 @@
 #define HORSE64_FILESYS32_H_
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include "widechar.h"
-
 
 int filesys32_TargetExists(
     const h64wchar *path, int64_t pathlen, int *result
@@ -93,6 +93,21 @@ int filesys32_ListFolderEx(
     int returnFullPath, int allowsymlink, int *error
 );
 
+enum {
+    FS32_CONTENTASSTR_SUCCESS = 0,
+    FS32_CONTENTASSTR_OUTOFMEMORY = -1,
+    FS32_CONTENTASSTR_NOPERMISSION = -2,
+    FS32_CONTENTASSTR_TARGETNOTAFILE = -3,
+    FS32_CONTENTASSTR_OUTOFFDS = -4,
+    FS32_CONTENTASSTR_INVALIDFILENAME = -5,
+    FS32_CONTENTASSTR_IOERROR = -6,
+    FS32_CONTENTASSTR_OTHERERROR = -7
+};
+
+char *filesys23_ContentsAsStr(
+    const h64wchar *path, int64_t pathlen, int *error
+);
+
 int filesys32_ListFolder(
     const h64wchar *path, int64_t pathlen,
     h64wchar ***contents, int64_t **contentslen,
@@ -140,5 +155,10 @@ h64wchar *filesys32_Join(
 int filesys32_IsAbsolutePath(const h64wchar *path, int64_t pathlen);
 
 h64wchar *filesys32_GetCurrentDirectory(int64_t *out_len);
+
+FILE *filesys32_OpenFromPath(
+    const h64wchar *path, int64_t pathlen,
+    const char *mode
+);  // sets errno in case of errors (even on winows!!)
 
 #endif  // HORSE64_FILESYS32_H_

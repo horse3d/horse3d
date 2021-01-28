@@ -58,7 +58,7 @@ ATTR_UNUSED static inline double h64atof(const char *s) {
     #endif
 }
 
-ATTR_UNUSED static inline long long int h64atoll(const char *s) {
+ATTR_UNUSED static inline int64_t h64atoll(const char *s) {
     return h64strtoll(s, NULL, 10);
 }
 

@@ -4,6 +4,8 @@
 
 #include <assert.h>
 #include <check.h>
+#include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 
 #include "bytecode.h"
@@ -14,7 +16,10 @@
 #include "compiler/result.h"
 #include "corelib/errors.h"
 #include "debugsymbols.h"
+#include "filesys.h"
+#include "filesys32.h"
 #include "mainpreinit.h"
+#include "nonlocale.h"
 #include "uri.h"
 #include "vfs.h"
 
@@ -96,476 +101,315 @@ void runprog(
     assert(resultcode == expected_result);
 }
 
-START_TEST (test_fibonacci)
-{
-    runprog(
-        "test_fibonacci",
-        "func fib(n) {\n"
-        "    var a = 0\n"
-        "    var b = 1\n"
-        "    while n > 0 {\n"
-        "        var tmp = b\n"
-        "        b += a\n"
-        "        a = tmp\n"
-        "        n -= 1\n"
-        "    }\n"
-        "    return a\n"
-        "}\n"
-        "func main {return fib(40)}\n",
-        102334155
-    );
+static char *extract_expected_result_str(const char *filecontents) {
+    const int len = strlen(filecontents);
+    int lastlinestart = 0;
+    int lineisnoncomment = 0;
+    int lineiscomment = 0;
+    char linebuf[4096] = {0};
+    int i = 0;
+    while (i <= len) {
+        if (i >= len || filecontents[i] == '\n' ||
+                filecontents[i] == '\r') {
+            if (lineiscomment) {
+                int linelen = i - lastlinestart;
+                if (linelen > (int)sizeof(linebuf) - 1)
+                    linelen = sizeof(linebuf) - 1;
+                memcpy(
+                    linebuf,
+                    &filecontents[lastlinestart],
+                    linelen
+                );
+                linebuf[linelen] = '\0';
+                while (linebuf[0] == ' ' || linebuf[0] == '\t')
+                    memmove(linebuf, linebuf + 1, strlen(linebuf));
+                if (linebuf[0] == '#')
+                    memmove(linebuf, linebuf + 1, strlen(linebuf));
+                while (linebuf[0] == ' ' || linebuf[0] == '\t')
+                    memmove(linebuf, linebuf + 1, strlen(linebuf));
+                int k = 0;
+                while (k < (int)strlen(linebuf)) {
+                    if (linebuf[k] >= 'A' && linebuf[k] <= 'Z')
+                        linebuf[k] = tolower(linebuf[k]);
+                    k++;
+                }
+                if (memcmp(linebuf, "expected result value:",
+                        strlen("expected result value:")) == 0) {
+                    return strdup(linebuf);
+                } else if (memcmp(linebuf, "expected return value:",
+                        strlen("expected return value:")) == 0) {
+                    return strdup(linebuf);
+                }
+            }
+            if (i >= len)
+                break;
+            lastlinestart = i + 1;
+            lineisnoncomment = 0;
+            lineiscomment = 0;
+            i++;
+            continue;
+        }
+        if (!lineisnoncomment && filecontents[i] == '#') {
+            lineiscomment = 1;
+        } else if (!lineiscomment &&
+                (filecontents[i] != ' ' || filecontents[i] != '\r' ||
+                 filecontents[i] != '\n' || filecontents[i] != '\t')) {
+            lineisnoncomment = 1;
+        }
+        i++;
+    }
+    return NULL;
 }
-END_TEST
 
-START_TEST (test_fibonacci2)
-{
-    runprog(
-        "test_fibonacci2",
-        "import time from core.horse64.org\n"
-        "func fib(n) {\n"
-        "    if n < 2 {\n"
-        "        return n\n"
-        "    } else {\n"
-        "        return fib(n - 1) + fib(n - 2)\n"
-        "    }\n"
-        "}\n"
-        "func main {\n"
-        "    var start = time.ticks()\n"
-        "    var i = 0\n"
-        "    while i < 10 {\n"
-        "        print('Fib: ' + fib(10).as_str)\n"
-        "        i += 1\n"
-        "    }\n"
-        "    print('Milliseconds: ' + \n"
-        "          ((time.ticks() - start) * 1000).as_str)\n"
-        "}\n",
-        0
-    );
+static int _is_expected_value_op(char c) {
+    return (c == '.' || c == '*' || c == '+');
 }
-END_TEST
 
-START_TEST (test_simpleclass)
-{
-    runprog(
-        "test_simpleclass",
-        "class bla {func bla{print('Hello')}} "
-        "func main{var blaobj = new bla()  blaobj.bla()}",
-        0
-    );
+static int _expected_value_op_priority(char c) {
+    if (c == '.')
+        return 1;
+    else if (c == '*')
+        return 2;
+    else if (c == '+')
+        return 3;
+    return 0;
 }
-END_TEST
 
-START_TEST (test_attributeerrors)
-{
-    runprog(
-        "test_attributeerrors",
-        "class bla {func bla{self.x()  print('Hello')}} "
-        "func main{var blaobj = new bla()  blaobj.blargh()}",
-        -1
+int parse_expected_value_opstring(const char *orig_s, int64_t *result) {
+    char *s = strdup(orig_s);
+    if (!s)
+        return 0;
+    while (s[0] == ' ' || s[0] == '\t')
+        memmove(s, s + 1, strlen(s));
+    while (strlen(s) > 0 && (s[strlen(s) - 1] == ' ' ||
+            s[strlen(s) - 1] == '\t'))
+        s[strlen(s) - 1] = '\0';
+    int most_outer_opindex = -1;
+    char most_outer_opchar = 0;
+    char inquote = 0;
+    int i = 0;
+    while (i < (int)strlen(s)) {
+        if (inquote != 0 && s[i] == '\\') {
+            i += 2;
+            continue;
+        } else if (inquote == 0 && (s[i] == '\'' ||
+                s[i] == '"')) {
+            inquote = s[i];
+            i++;
+            continue;
+        } else if (inquote == s[i]) {
+            inquote = 0;
+            i++;
+            continue;
+        } else if (inquote == 0 && _is_expected_value_op(s[i])) {
+            if (most_outer_opchar == 0 ||
+                    (_expected_value_op_priority(
+                        most_outer_opchar
+                     ) < _expected_value_op_priority(s[i]))) {
+                most_outer_opchar = s[i];
+                most_outer_opindex = i;
+            }
+        }
+        i++;
+    }
+    if (most_outer_opindex < 0) {
+        // Ok, this must be a single value. Let's see what it is:
+        while (s[0] == ' ' || s[0] == '\t')
+            memmove(s, s + 1, strlen(s));
+        while (strlen(s) > 0 && (s[strlen(s) - 1] == ' ' ||
+                s[strlen(s) - 1] == ' '))
+            s[strlen(s) - 1] = '\0';
+        if ((s[0] >= '0' && s[0] <= '9') ||
+                (s[0] == '-' &&
+                 s[1] >= '0' && s[1] <= '9')) {
+            int nondigit = 0;
+            int k = 0;
+            while (k < (int)strlen(s)) {
+                if (k == 0 && s[0] == '-') {
+                    k++;
+                    continue;
+                }
+                if (s[k] < '0' || s[k] > '9') {
+                    nondigit = 1;
+                    break;
+                }
+                k++;
+            }
+            if (nondigit) {
+                free(s);
+                return 0;
+            }
+            *result = h64atoll(s);
+            free(s);
+            return 1;
+        }
+        free(s);
+        return 0;
+    }
+    char *lefthalf = strdup(s);
+    if (!lefthalf) {
+        free(s);
+        return 0;
+    }
+    lefthalf[most_outer_opindex] = '\0';
+    char *righthalf = strdup(s);
+    if (!righthalf) {
+        free(s);
+        free(lefthalf);
+        return 0;
+    }
+    memmove(
+        righthalf, righthalf + most_outer_opindex + 1,
+        strlen(righthalf) - most_outer_opindex
     );
+    if (most_outer_opchar == '.') {
+        if (strcmp(righthalf, "len") != 0) {
+            free(s); free(lefthalf); free(righthalf);
+            return 0;
+        }
+        if (strlen(lefthalf) < 2 ||
+                ((lefthalf[0] != '\'' ||
+                  lefthalf[strlen(lefthalf) - 1] != '\'') &&
+                 (lefthalf[0] != '"' ||
+                  lefthalf[strlen(lefthalf) - 1] != '"'))) {
+            free(s); free(lefthalf); free(righthalf);
+            return 0;
+        }
+        *result = strlen(lefthalf) - 2;
+        // ^ wrong when escaped, we don't care for now.
+        free(s); free(lefthalf); free(righthalf);
+        return 1;
+    } else if (most_outer_opchar == '*') {
+        int64_t lresult, rresult;
+        if (!parse_expected_value_opstring(
+                lefthalf, &lresult) ||
+                !parse_expected_value_opstring(
+                righthalf, &rresult)) {
+            free(s); free(lefthalf); free(righthalf);
+            return 0;
+        }
+        free(s); free(lefthalf); free(righthalf);
+        *result = lresult * rresult;
+        return 1;
+    } else if (most_outer_opchar == '+') {
+        int64_t lresult, rresult;
+        if (!parse_expected_value_opstring(
+                lefthalf, &lresult) ||
+                !parse_expected_value_opstring(
+                righthalf, &rresult)) {
+            free(s); free(lefthalf); free(righthalf);
+            return 0;
+        }
+        free(s); free(lefthalf); free(righthalf);
+        *result = lresult + rresult;
+        return 1;
+    } else {
+        assert(0);
+        return 0;
+    }
 }
-END_TEST
 
-START_TEST (test_hasattr)
+int parse_expected_value(const char *filecontents, int64_t *result) {
+    char *orig_s = extract_expected_result_str(filecontents);
+    if (!orig_s)
+        return 0;
+    char s[4096];
+    memcpy(s, orig_s,
+        (strlen(orig_s) + 1) < sizeof(s) ?
+         (strlen(orig_s) + 1) : sizeof(s));
+    s[sizeof(s) - 1] = '\0';
+    free(orig_s);
+    int i = 0;
+    while (i <= (int)strlen(s)) {
+        if (s[i] == ':') {
+            memmove(s, s + i + 1, strlen(s) - i);
+            break;
+        }
+        i++;
+    }
+    while (s[0] == ' '|| s[0] == '\t')
+        memmove(s, s + 1, strlen(s));
+    while (strlen(s) > 0 && (s[strlen(s) - 1] == ' ' ||
+            s[strlen(s) - 1] == '\t'))
+        s[strlen(s) - 1] = '\0';
+    if (strlen(s) == 0)
+        return 0;
+    return parse_expected_value_opstring(s, result);
+}
+
+START_TEST (test_runchecks_files)
 {
-    runprog(
-        "test_hasattr",
-        "class bla {\n"
-        "    func bla{\n"
-        "        if has_attr(self, 'x') {\n"
-        "            self.x()\n"
-        "        }\n"
-        "        print('Hello')\n"
-        "    }\n"
-        "}\n"
-        "\n"
-        "func main{\n"
-        "    var blaobj = new bla()\n"
-        "    blaobj.bla()\n"
-        "}\n",
-        0
+    // Quick parse tests for our own helper thing:
+    int64_t resultv;
+    assert(
+        parse_expected_value_opstring("'hello'.len", &resultv) &&
+        resultv == 5
     );
-}
-END_TEST
-
-START_TEST (test_callwithclass)
-{
-    runprog(
-        "test_callwithclass",
-        "func otherfunc(a1, a2) {return 5}\n"
-        "func main{\n"
-        "    var i = 5\n"
-        "    var i2 = otherfunc(i, 'abc' + 'def')\n"
-        "    return 5\n"
-        "}\n",
-        5
+    assert(
+        parse_expected_value_opstring("'hello'.len * 2", &resultv) &&
+        resultv == 10
     );
-}
-END_TEST
-
-START_TEST (test_hasattr2)
-{
-    runprog(
-        "test_hasattr2",
-        "class bla {\n"
-        "    var varattr = 5\n"
-        "    func funcattr{\n"
-        "        return 6\n"
-        "    }\n"
-        "}\n"
-        "func main{\n"
-        "    var result = 0\n"
-        "    var blaobj = new bla()\n"
-        "    if has_attr(blaobj, 'varattr') {\n"
-        "        result += blaobj.varattr\n"
-        "    }\n"
-        "    if has_attr(blaobj, 'funcattr') {\n"
-        "        result += blaobj.funcattr()\n"
-        "    }\n"
-        "    if has_attr(blaobj, 'invalidattr') {\n"
-        "        result = 0\n"
-        "    }\n"
-        "    return result\n"
-        "}\n",
-        11
+    assert(
+        parse_expected_value_opstring("'hello'.len + 2 * 3", &resultv) &&
+        resultv == 11
     );
-}
-END_TEST
-
-START_TEST (test_memberaccesschain)
-{
-    runprog(
-        "test_memberaccesschain",
-        "func main {\n"
-        "    var s1 = 'a'  var s2 = 'bc'"
-        "    print(s1.len.as_str + ', ' + s2.len.as_str)\n"
-        "}\n",
-        0
+    assert(
+        parse_expected_value_opstring("'hello'.len * 2 + 3", &resultv) &&
+        resultv == 13
     );
-}
-END_TEST
 
-START_TEST (test_unicodestrlen)
-{
-    runprog(
-        "test_unicodestrlen",
-        "func main {\n"
-        "    var s1 = 'us flag: \\u1F1FA\\u1F1F8'\n"
-        "    var s2 = 'english flag: \\u1F3F4\\uE0067\\uE0062"
-        "\\uE0065\\uE006E\\uE0067\\uE007F'\n"
-        "    return s1.len + s2.len\n"
-        "}\n",
-        10 + 15
+    // Scan subfolder for tests:
+    int64_t subfolderpath_len = 0;
+    h64wchar *subfolderpath = AS_U32(
+        "tests/run-check/", &subfolderpath_len
     );
-}
-END_TEST
-
-START_TEST (test_numberslist)
-{
-    runprog(
-        "test_numberslist",
-        "func main {\n"
-        "    var l = [1, 2, 3]\n"
-        "    var inlinel_len = [1, 2].len\n"
-        "    l.add(4)\n"
-        "    return l.len + inlinel_len\n"
-        "}\n",
-        6
+    assert(subfolderpath != NULL);
+    h64wchar **contents = NULL;
+    int64_t *contentslen = NULL;
+    int error = 0;
+    int result = filesys32_ListFolder(
+        subfolderpath, subfolderpath_len,
+        &contents, &contentslen, 1, &error
     );
+    assert(result != 0);
+    int i = 0;
+    while (contents[i]) {  // Cycle through scan results.
+        h64printf(
+            "test_vmexec.c: reading test file: %s\n",
+            AS_U8_TMP(contents[i], contentslen[i])
+        );
+
+        // Extract test file contents:
+        int error = 0;
+        char *test_contents = filesys23_ContentsAsStr(
+            contents[i], contentslen[i], &error
+        );
+        assert(test_contents != NULL);
+
+        // Parse expected test return value from inline comment:
+        int64_t expected_value = -1;
+        int parseresult = parse_expected_value(
+            test_contents, &expected_value
+        );
+        assert(parseresult != 0);
+        h64printf(
+            "test_vmexec.c: expected value: %" PRId64 "\n",
+            expected_value
+        );
+
+        // Run the test:
+        runprog(
+            AS_U8_TMP(contents[i], contentslen[i]),
+            test_contents,
+            expected_value
+        );
+        free(test_contents);
+        i++;
+    }
+    filesys32_FreeFolderList(contents, contentslen);
 }
-END_TEST
-
-START_TEST (test_uri)
-{
-    runprog(
-        "test_uri",
-        "import uri from core.horse64.org\n"
-        "func main {\n"
-        "    var myuri = uri.parse('file://test.html')\n"
-        "    return myuri.protocol.len * 2 + myuri.path.len"
-        "}\n",
-        strlen("file") * 2 + strlen("test.html")
-    );
-}
-END_TEST
-
-
-START_TEST (test_conditionals)
-{
-    runprog(
-        "test_conditionals",
-        "import uri from core.horse64.org\n"
-        "var resultvalue = 0\n"
-        "func sideeffecttrue(v) {\n"
-        "    resultvalue += v\n"
-        "    return yes\n"
-        "}\n"
-        "func sideeffectfalse(v) {\n"
-        "    resultvalue += v\n"
-        "    return no\n"
-        "}\n"
-        "func main {\n"
-        "    resultvalue = 0\n"
-        "    if sideeffecttrue(5) or sideeffecttrue(7) {\n"
-        "    }\n"
-        "    # resultvalue should be 5 now.\n"
-        "    if sideeffectfalse(5) or sideeffecttrue(7) {\n"
-        "    }\n"
-        "    # resultvalue should be 5+5+7=17 now.\n"
-        "    if sideeffectfalse(2) and sideeffecttrue(3) {\n"
-        "    }\n"
-        "    # resultvalue should be 5+5+7+2=19 now.\n"
-        "    if sideeffecttrue(2) and sideeffecttrue(3) {\n"
-        "    }\n"
-        "    # resultvalue should be 5+5+7+2+2+3=24 now.\n"
-        "    return resultvalue\n"
-        "}\n",
-        24
-    );
-}
-END_TEST
-
-
-START_TEST (test_conditionals2)
-{
-    runprog(
-        "test_conditionals2",
-        "import uri from core.horse64.org\n"
-        "var resultvalue = 0\n"
-        "func sideeffecttrue(v) {\n"
-        "    resultvalue += v\n"
-        "    return yes\n"
-        "}\n"
-        "func sideeffectfalse(v) {\n"
-        "    resultvalue += v\n"
-        "    return no\n"
-        "}\n"
-        "func main {\n"
-        "    resultvalue = 0\n"
-        "    if sideeffecttrue(5) or sideeffecttrue(7) or\n"
-        "            sideeffectfalse(3) {\n"
-        "        resultvalue += 1\n"
-        "    }\n"
-        "    # resultvalue should now be 5+1=6.\n"
-        "    if sideeffectfalse(5) or (sideeffecttrue(7) and\n"
-        "            sideeffectfalse(3)) {\n"
-        "        resultvalue += 17\n"
-        "    }\n"
-        "    # resultvalue should now be 5+1+5+7+3=21.\n"
-        "    return resultvalue\n"
-        "}\n",
-        21
-    );
-}
-END_TEST
-
-START_TEST (test_conditionals3)
-{
-    runprog(
-        "test_conditionals3",
-        "func main {\n"
-        "    var resultvalue = 0\n"
-        "    if yes and no {\n"
-        "        resultvalue += 1\n"
-        "    }\n"
-        "    if no or yes {\n"
-        "        resultvalue += 2\n"
-        "    }\n"
-        "    return resultvalue\n"
-        "}\n",
-        2
-    );
-}
-END_TEST
-
-START_TEST (test_assert1)
-{
-    runprog(
-        "test_assert1",
-        "func main{assert(yes)}",
-        0
-    );
-}
-END_TEST
-
-START_TEST (test_assert2)
-{
-    runprog(
-        "test_assert2",
-        "func main{\n"
-        "    do {\n"
-        "        assert(no)\n"
-        "    } rescue AssertionError as e {\n"
-        "        if e.is_a(AssertionError) {\n"
-        "            return 2\n"
-        "        }\n"
-        "    }\n"
-        "    return 0\n"
-        "}",
-        2
-    );
-}
-END_TEST
-
-START_TEST (test_map)
-{
-    runprog(
-        "test_map",
-        "func main{\n"
-        "    var map = {->}\n"
-        "    assert(not map.contains(2))\n"
-        "    map[2] = 3\n"
-        "    assert(map.contains(2))\n"
-        "    assert(map[2] == 3)\n"
-        "    assert(map.len == 1)\n"
-        "    map[2] = 4\n"
-        "    assert(map.len == 1)\n"
-        "    map['test'] = [1, 2]\n"
-        "    assert(map.len == 2)\n"
-        "    assert(type(map['test']) == 'list')\n"
-        "    assert(map['test'][1] == 1)\n"
-        "    assert(map['test'][2] == 2)\n"
-        "    assert(map[2] == 4)\n"
-        "    do {\n"
-        "        map[[]] = 5\n"
-        "        raise new RuntimeError('map should ban mutable values')\n"
-        "    } rescue TypeError {\n"
-        "        # Expected branch.\n"
-        "    }\n"
-        "    # Test complex map constructor:\n"
-        "    var complexmap = {1 -> [2, 3], 'hello' -> b'test'}\n"
-        "    assert(complexmap.len == 2)\n"
-        "    assert(complexmap[1].len == 2)\n"
-        "    assert(complexmap['hello'].len == 4)\n"
-        "    return 0\n"
-        "}",
-        0
-    );
-}
-END_TEST
-
-START_TEST (test_overflowint)
-{
-    runprog(
-        "test_overflowint",
-        "func main{\n"
-        "    print('Value 1:')\n"
-        "    print(-1 + (-9223372036854775807))\n"
-        "    do {\n"
-        "        print('Value 2 should be skipped.')\n"
-        "        print(-2 + (-9223372036854775807))\n"
-        "        raise new RuntimeError('should be unreachable')\n"
-        "    } rescue MathError { }\n"
-        "    print('Value 3:')\n"
-        "    print(1 + 9223372036854775806)\n"
-        "    do {\n"
-        "        print('Value 4 should be skipped.')\n"
-        "        print(1 + 9223372036854775807)\n"
-        "        raise new RuntimeError('should be unreachable')\n"
-        "    } rescue MathError { }\n"
-        "    print('Value 5:')\n"
-        "    print(0 - (-9223372036854775807))\n"
-        "    do {\n"
-        "        print('Value 6 should be skipped.')\n"
-        "        print(1 - (-9223372036854775807))\n"
-        "        raise new RuntimeError('should be unreachable')\n"
-        "    } rescue MathError { }\n"
-        "    print('Value 7:')\n"
-        "    print(-9223372036854775807 - 1)\n"
-        "    do {\n"
-        "        print('Value 8 should be skipped.')\n"
-        "        print(-9223372036854775807 - 2)\n"
-        "        raise new RuntimeError('should be unreachable')\n"
-        "    } rescue MathError { }\n"
-        "    return 0\n"
-        "}",
-        0
-    );
-}
-END_TEST
-
-START_TEST(test_given)
-{
-    runprog(
-        "test_given",
-        "func describe_list_size(list) {\n"
-        "    return given list.len > 100 then ('a large list' else 'a small list')\n"
-        "    # ^ will return 'a large list' if the list is longer than 100 items,\n"
-        "    # otherwise it will return 'a small list'.\n"
-        "}\n"
-        "func main {\n"
-        "    print(describe_list_size([1, 2]))\n"
-        "    return yes\n"
-        "}\n",
-        0
-    );
-}
-END_TEST
-
-START_TEST(test_stringfind)
-{
-    runprog(
-        "test_stringfind",
-        "func main {\n"
-        "    assert('test'.contains('st'))\n"
-        "    assert(not 'test'.contains('se'))\n"
-        "    assert('test'.find('e') == 2)\n"
-        "    assert('test'[3] == 's')\n"
-        "    assert('öüo'.find('o') == 3)\n"
-        "    assert('öü'.contains('ü'))\n"
-        "    return yes\n"
-        "}\n",
-        0
-    );
-}
-END_TEST
-
-START_TEST(test_bytes_str_conversion)
-{
-    runprog(
-        "test_bytes_str_conversion",
-        "func main {\n"
-        "    var v = 'abcö'.as_bytes.as_str\n"
-        "    assert(v == 'b\"abc\\\\xc3\\\\xb6\"')\n"
-        "    v = [1, 2].as_str\n"
-        "    assert(v == '[1, 2]')\n"
-        "}\n",
-        0
-    );
-}
-END_TEST
-
-START_TEST(test_containerjoin)
-{
-    runprog(
-        "test_containerjoin",
-        "func main {\n"
-        "    var v = ['abc', 'def'].join('123')\n"
-        "    assert(v == 'abc123def')\n"
-        "    assert(['a'].join('blubb') == 'a')\n"
-        "    v = {'abc' -> 'def', 'ghi' -> 'jkl'}.join('123', '456')\n"
-        "    assert(\n"
-        "        v == 'abc123def456ghi123jkl' or\n"
-        "        v == 'ghi123jkl456abc123def' or\n"
-        "    )\n"
-        "    v = {'ab' -> 'cd'}.join('1', '2')\n"
-        "    assert(v == 'ab1cd')\n"
-        "}\n",
-        0
-    );
-}
-END_TEST
 
 TESTS_MAIN(
-    test_fibonacci, test_fibonacci2,
-    test_simpleclass, test_attributeerrors,
-    test_hasattr, test_callwithclass, test_hasattr2,
-    test_memberaccesschain,
-    test_unicodestrlen, test_numberslist,
-    test_uri, test_conditionals, test_conditionals2,
-    test_conditionals3,
-    test_assert1, test_assert2, test_map, test_overflowint,
-    test_given, test_stringfind,
-    test_bytes_str_conversion
+    test_runchecks_files
 )
 

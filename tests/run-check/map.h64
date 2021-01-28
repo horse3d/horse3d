@@ -1,0 +1,31 @@
+
+func main {
+    var map = {->}
+    assert(not map.contains(2))
+    map[2] = 3
+    assert(map.contains(2))
+    assert(map[2] == 3)
+    assert(map.len == 1)
+    map[2] = 4
+    assert(map.len == 1)
+    map['test'] = [1, 2]
+    assert(map.len == 2)
+    assert(type(map['test']) == 'list')
+    assert(map['test'][1] == 1)
+    assert(map['test'][2] == 2)
+    assert(map[2] == 4)
+    do {
+        map[[]] = 5
+        raise new RuntimeError('map should ban mutable values')
+    } rescue TypeError {
+        # Expected branch.
+    }
+    # Test complex map constructor:
+    var complexmap = {1 -> [2, 3], 'hello' -> b'test'}
+    assert(complexmap.len == 2)
+    assert(complexmap[1].len == 2)
+    assert(complexmap['hello'].len == 4)
+    return 0
+}
+
+# expected return value: 0

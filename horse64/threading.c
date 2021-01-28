@@ -41,6 +41,27 @@
 #include "threading.h"
 
 
+#ifndef ISWIN
+static pthread_t mainThread;
+#else
+static DWORD mainThread;
+#endif
+
+static int _markedmainthread = 0;
+
+__attribute__((constructor)) void thread_MarkAsMainThread(void) {
+    if (_markedmainthread)
+        return;
+    // Mark current thread as main thread
+    _markedmainthread = 1;
+#ifndef ISWIN
+    mainThread = pthread_self();
+#else
+    mainThread = GetCurrentThreadId();
+#endif
+}
+
+
 typedef struct mutex {
 #ifdef ISWIN
     HANDLE m;
@@ -70,14 +91,233 @@ typedef struct threadinfo {
 #else
     pthread_t t;
 #endif
+    semaphore *_setid_semaphore;
+    uint64_t id;
 } thread;
+
+#define IDTOSTORAGEMAP_BUCKETS 64
+
+typedef struct threadlocalstoragetype {
+    uint64_t bytes;
+    void (*clearHandler)(
+        uint32_t storage_type_id, void *storageptr,
+        uint64_t storage_bytes
+    );
+    int idtostoragemap_bucketitems[IDTOSTORAGEMAP_BUCKETS];
+    uint64_t *idtostoragemap_bucketidlist[IDTOSTORAGEMAP_BUCKETS];
+    char **idtostoragemap_bucketbytes[IDTOSTORAGEMAP_BUCKETS];
+} threadlocalstoragetype;
+
+mutex *_tls_type_access = NULL;
+int32_t _tls_type_count = 0;
+threadlocalstoragetype *_tls_type = NULL;
+
+void *threadlocalstorage_GetByType(int32_t type) {
+    uint64_t tid = thread_GetOurThreadId();
+    mutex_Lock(_tls_type_access);
+    if (type < 0 || type >= _tls_type_count) {
+        mutex_Release(_tls_type_access);
+        return NULL;
+    }
+    int bucket = (int)(
+        (uint64_t)tid % (uint64_t)IDTOSTORAGEMAP_BUCKETS
+    );
+    threadlocalstoragetype *tltype = &_tls_type[type];
+    int k = 0;
+    while (k < tltype->idtostoragemap_bucketitems[bucket]) {
+        if (tltype->idtostoragemap_bucketidlist[bucket][k] == tid) {
+            char *resultptr = (
+                tltype->idtostoragemap_bucketbytes[bucket][k]
+            );
+            mutex_Release(_tls_type_access);
+            return resultptr;
+        }
+        k++;
+    }
+    // Ok, not found in bucket. Need to add new entry to bucket!
+    // 1. Add space in the actual data pointer list of the bucket:
+    int current_id_count = tltype->idtostoragemap_bucketitems[bucket];
+    char **new_bytes = realloc(
+        tltype->idtostoragemap_bucketbytes[bucket],
+        sizeof(*tltype->idtostoragemap_bucketbytes[bucket]) *
+            (current_id_count + 1)
+    );
+    if (!new_bytes) {
+        mutex_Release(_tls_type_access);
+        return NULL;
+    }
+    tltype->idtostoragemap_bucketbytes[bucket] = new_bytes;
+    // 2. Add space in the thread id list of the bucket:
+    uint64_t *new_idtostoragemap_bucketidlist = realloc(
+        tltype->idtostoragemap_bucketidlist[bucket],
+        sizeof(*tltype->idtostoragemap_bucketidlist[bucket]) *
+            (current_id_count + 1)
+    );
+    if (!new_idtostoragemap_bucketidlist) {
+        mutex_Release(_tls_type_access);
+        return NULL;
+    }
+    tltype->idtostoragemap_bucketidlist[bucket] = (
+        new_idtostoragemap_bucketidlist
+    );
+    // 3. Allocate data pointer for this bucket:
+    tltype->idtostoragemap_bucketbytes[bucket][current_id_count] = (
+        malloc(tltype->bytes)
+    );
+    if (!tltype->idtostoragemap_bucketbytes[bucket][current_id_count]) {
+        mutex_Release(_tls_type_access);
+        return NULL;
+    }
+
+    // Ok, everything allocated. Clear out new data for this thread,
+    // remember that we added a new thread's data, and return:
+    char *resultdata = (
+        tltype->idtostoragemap_bucketbytes[bucket][current_id_count]
+    );
+    memset(
+        resultdata, 0, tltype->bytes
+    );
+    tltype->idtostoragemap_bucketidlist[bucket][current_id_count] = tid;
+    tltype->idtostoragemap_bucketitems[bucket]++;
+    mutex_Release(_tls_type_access);
+    return resultdata;
+}
+
+int threadlocalstorage_CleanTypeForThread(
+        uint64_t tid, int32_t type
+        ) {
+    mutex_Lock(_tls_type_access);
+    if (type < 0 || type >= _tls_type_count) {
+        mutex_Release(_tls_type_access);
+        return 1;
+    }
+    int bucket = (int)(
+        (uint64_t)tid % (uint64_t)IDTOSTORAGEMAP_BUCKETS
+    );
+    // Call the clean function on all this thread's data:
+    threadlocalstoragetype *tltype = &_tls_type[type];
+    int k = 0;
+    while (k < tltype->idtostoragemap_bucketitems[bucket]) {
+        if (tltype->idtostoragemap_bucketidlist[bucket][k] == tid) {
+            char *dataptr = (
+                tltype->idtostoragemap_bucketbytes[bucket][k]
+            );
+            if (!dataptr) {
+                k++;
+                continue;
+            }
+            void (*clearHandler)(
+                uint32_t storage_type_id, void *storageptr,
+                uint64_t storage_bytes
+            ) = tltype->clearHandler;
+            tltype->idtostoragemap_bucketbytes[bucket][k] = (
+                NULL
+            );
+            uint64_t bytesamount = tltype->bytes;
+            mutex_Release(_tls_type_access);
+            clearHandler(type, dataptr, bytesamount);
+            free(dataptr);
+            return 1;
+        }
+        k++;
+    }
+    mutex_Release(_tls_type_access);
+    return 0;
+}
+
+int threadlocalstorage_UnallocateTypeForThread(
+        uint64_t tid, int32_t type
+        ) {
+    mutex_Lock(_tls_type_access);
+    if (type < 0 || type >= _tls_type_count) {
+        mutex_Release(_tls_type_access);
+        return 1;
+    }
+    int bucket = (int)(
+        (uint64_t)tid % (uint64_t)IDTOSTORAGEMAP_BUCKETS
+    );
+    // Call the clean function on all this thread's data:
+    threadlocalstoragetype *tltype = &_tls_type[type];
+    int k = 0;
+    while (k < tltype->idtostoragemap_bucketitems[bucket]) {
+        if (tltype->idtostoragemap_bucketidlist[bucket][k] == tid) {
+            if (tltype->idtostoragemap_bucketbytes[bucket][k]) {
+                mutex_Release(_tls_type_access);
+                return 0;
+            }
+            if (k + 1 < tltype->idtostoragemap_bucketitems[bucket]) {
+                memmove(
+                    &tltype->idtostoragemap_bucketbytes[bucket][k],
+                    &tltype->idtostoragemap_bucketbytes[bucket][k + 1],
+                    sizeof(tltype->idtostoragemap_bucketbytes[bucket][k])
+                );
+                memmove(
+                    &tltype->idtostoragemap_bucketidlist[bucket][k],
+                    &tltype->idtostoragemap_bucketidlist[bucket][k + 1],
+                    sizeof(tltype->idtostoragemap_bucketidlist[bucket][k])
+                );
+            }
+            tltype->idtostoragemap_bucketitems[bucket]--;
+            continue;
+        }
+        k++;
+    }
+    mutex_Release(_tls_type_access);
+    return 1;
+}
+
+void threadlocalstorage_CleanForThread(uint64_t tid) {
+    // Clean out all the registered local storage we can find:
+    int cleaned_something = 1;
+    while (cleaned_something) {
+        cleaned_something = 0;
+        mutex_Lock(_tls_type_access);
+        uint32_t type_id = 0;
+        while (type_id < _tls_type_count) {
+            mutex_Release(_tls_type_access);
+            cleaned_something = (
+                cleaned_something ||
+                threadlocalstorage_CleanTypeForThread(tid, type_id)
+            );
+            mutex_Lock(_tls_type_access);
+            type_id++;
+        }
+        mutex_Release(_tls_type_access);
+    }
+    // Now, actually remove the thread from the buckets:
+    // (The thread should no longer be running any code right now,
+    // so it should be impossible for any storage to have popped
+    // back up in parallel after the above cleaning ended)
+    mutex_Lock(_tls_type_access);
+    uint32_t type_id = 0;
+    while (type_id < _tls_type_count) {
+        mutex_Release(_tls_type_access);
+        int unallocate_result = (
+            threadlocalstorage_UnallocateTypeForThread(tid, type_id)
+        );
+        assert(unallocate_result != 0);  // that should be impossible
+        mutex_Lock(_tls_type_access);
+        type_id++;
+    }
+    mutex_Release(_tls_type_access);
+}
+
 
 #if defined(__APPLE__) || defined(__OSX__)
 uint64_t _last_sem_id = 0;
 mutex *synchronize_sem_id = NULL;
 uint64_t uniquesemidpart = 0;
+static int _macos_semaphore_initdone = 0;
 __attribute__((constructor)) void __init_semId_synchronize() {
+    if (_macos_semaphore_initdone)
+        return;
+    _macos_semaphore_initdone = 1;
     synchronize_sem_id = mutex_Create();
+    if (!synchronize_sem_id) {
+        fprintf(stderr, "threading.c: error: failed to "
+            "create semaphore naming synchronizer, fatal\n");
+        _exit(1);
+    }
     secrandom_GetBytes(
         (char*)&uniquesemidpart, sizeof(uniquesemidpart)
     );
@@ -85,8 +325,8 @@ __attribute__((constructor)) void __init_semId_synchronize() {
 #endif
 
 
-semaphore* semaphore_Create(int value) {
-    semaphore* s = malloc(sizeof(*s));
+semaphore *semaphore_Create(int value) {
+    semaphore *s = malloc(sizeof(*s));
     if (!s) {
         return NULL;
     }
@@ -98,6 +338,8 @@ semaphore* semaphore_Create(int value) {
         return NULL;
     }
 #elif defined(__APPLE__) || defined(__OSX__)
+    if (!_macos_semaphore_initdone)
+        __init_semId_synchronize();
     mutex_Lock(synchronize_sem_id);
     _last_sem_id++;
     uint64_t semid = _last_sem_id;
@@ -105,7 +347,7 @@ semaphore* semaphore_Create(int value) {
     char sem_name[128];
     snprintf(
         sem_name, sizeof(sem_name) - 1,
-        "/rfssemaphore%" PRIu64 "id%" PRIu64,
+        "/h64semaphore%" PRIu64 "id%" PRIu64,
         uniquesemidpart, semid
     );
     s->sname = strdup(sem_name);
@@ -129,7 +371,7 @@ semaphore* semaphore_Create(int value) {
 }
 
 
-void semaphore_Wait(semaphore* s) {
+void semaphore_Wait(semaphore *s) {
 #ifdef ISWIN
     WaitForSingleObject(s->s, INFINITE);
 #else
@@ -142,7 +384,7 @@ void semaphore_Wait(semaphore* s) {
 }
 
 
-void semaphore_Post(semaphore* s) {
+void semaphore_Post(semaphore *s) {
 #ifdef ISWIN
     ReleaseSemaphore(s->s, 1, NULL);
 #else
@@ -155,7 +397,7 @@ void semaphore_Post(semaphore* s) {
 }
 
 
-void semaphore_Destroy(semaphore* s) {
+void semaphore_Destroy(semaphore *s) {
     if (!s) {
         return;
     }
@@ -173,8 +415,8 @@ void semaphore_Destroy(semaphore* s) {
 }
 
 
-mutex* mutex_Create() {
-    mutex* m = malloc(sizeof(*m));
+mutex *mutex_Create() {
+    mutex *m = malloc(sizeof(*m));
     if (!m) {
         return NULL;
     }
@@ -205,7 +447,7 @@ mutex* mutex_Create() {
 }
 
 
-void mutex_Destroy(mutex* m) {
+void mutex_Destroy(mutex *m) {
     if (!m) {
         return;
     }
@@ -222,7 +464,7 @@ void mutex_Destroy(mutex* m) {
 }
 
 
-void mutex_Lock(mutex* m) {
+void mutex_Lock(mutex *m) {
 #ifdef ISWIN
     WaitForSingleObject(m->m, INFINITE);
 #else
@@ -233,7 +475,7 @@ void mutex_Lock(mutex* m) {
 #endif
 }
 
-int mutex_TryLock(mutex* m) {
+int mutex_TryLock(mutex *m) {
 #ifdef ISWIN
     if (WaitForSingleObject(m->m, 0) == WAIT_OBJECT_0) {
         return 1;
@@ -248,7 +490,7 @@ int mutex_TryLock(mutex* m) {
 }
 
 
-void mutex_Release(mutex* m) {
+void mutex_Release(mutex *m) {
 #ifdef ISWIN
     ReleaseMutex(m->m);
 #else
@@ -264,7 +506,7 @@ void mutex_Release(mutex* m) {
 }
 
 
-void thread_Detach(thread* t) {
+void thread_Detach(thread *t) {
 #ifdef ISWIN
     CloseHandle(t->t);
 #else
@@ -276,18 +518,25 @@ void thread_Detach(thread* t) {
 
 struct spawninfo {
     void (*func)(void* userdata);
+    thread *tptr;
     void* userdata;
 };
 
 
 #ifdef ISWIN
-static unsigned __stdcall spawnthread(void* data) {
+static unsigned __stdcall spawnthread(void *data) {
 #else
-static void* spawnthread(void* data) {
+static void* spawnthread(void *data) {
 #endif
-    struct spawninfo* sinfo = data;
-    sinfo->func(sinfo->userdata);
+    struct spawninfo *sinfo = data;
+    void *udata = sinfo->userdata;
+    uint64_t tid = thread_GetOurThreadId();
+    sinfo->tptr->id = tid;
+    semaphore_Post(sinfo->tptr->_setid_semaphore);
+    void (*cbfunc)(void *) = sinfo->func;
     free(sinfo);
+    cbfunc(udata);
+    threadlocalstorage_CleanForThread(tid);
 #ifdef ISWIN
     return 0;
 #else
@@ -305,11 +554,25 @@ thread *thread_Spawn(
     );
 }
 
+uint64_t thread_GetId(thread *t) {
+    return t->id;
+}
 
 thread *thread_SpawnWithPriority(
         int priority,
         void (*func)(void* userdata), void *userdata
         ) {
+    // Make sure if we never spawned a thread bfore that
+    // some things are set up:
+    if (!_markedmainthread)
+        thread_MarkAsMainThread();
+    if (!_tls_type_access) {
+        _tls_type_access = mutex_Create();
+        if (!_tls_type_access)
+            return NULL;
+    }
+
+    // Ok, allocate info for spawning:
     struct spawninfo* sinfo = malloc(sizeof(*sinfo));
     if (!sinfo)
         return NULL;
@@ -322,12 +585,30 @@ thread *thread_SpawnWithPriority(
         return NULL;
     }
     memset(t, 0, sizeof(*t));
+    sinfo->tptr = t;
+    t->_setid_semaphore = semaphore_Create(0);
+    if (!t->_setid_semaphore) {
+        free(t);
+        free(sinfo);
+        return NULL;
+    }
 #ifdef ISWIN
     HANDLE h = (HANDLE)_beginthreadex(NULL, 0, spawnthread, sinfo, 0, NULL);
+    if (h == INVALID_HANDLE) {
+        semaphore_Destroy(t->_setid_semaphore);
+        free(t);
+        free(sinfo);
+        return NULL;
+    }
     t->t = h;
 #else
     while (pthread_create(&t->t, NULL, spawnthread, sinfo) != 0) {
-        assert(errno == EAGAIN);
+        if (errno != EAGAIN) {
+            semaphore_Destroy(t->_setid_semaphore);
+            free(t);
+            free(sinfo);
+            return NULL;
+        }
     }
     #if defined(__linux__) || defined(__LINUX__)
     if (priority == 0) {
@@ -345,28 +626,16 @@ thread *thread_SpawnWithPriority(
     }
     #endif
 #endif
+    semaphore_Wait(t->_setid_semaphore);
+    semaphore_Destroy(t->_setid_semaphore);
+    t->_setid_semaphore = NULL;
     return t;
 }
 
 
-#ifndef ISWIN
-static pthread_t mainThread;
-#else
-static DWORD mainThread;
-#endif
-
-
-__attribute__((constructor)) void thread_MarkAsMainThread(void) {
-    // mark current thread as main thread
-#ifndef ISWIN
-    mainThread = pthread_self();
-#else
-    mainThread = GetCurrentThreadId();
-#endif
-}
-
-
 int thread_InMainThread() {
+    if (!_markedmainthread)
+        thread_MarkAsMainThread();
 #ifndef ISWIN
     return (pthread_self() == mainThread);
 #else
@@ -374,6 +643,21 @@ int thread_InMainThread() {
 #endif
 }
 
+uint64_t thread_GetOurThreadId() {
+    #if defined(__LINUX__) || defined(__linux__)
+    return syscall(__NR_gettid);
+    #elif defined(_WIN32) || defined(_WIN64)
+    return GetCurrentThreadId();
+    #elif defined(__APPLE__) || defined(__MACOS__)
+    uint64_t tid;
+    pthread_threadid_np(NULL, &tid);
+    return tid;
+    #elif defined(__FREEBSD__) || defined(__FreeBSD__)
+    return pthread_getthreadid_np();
+    #else
+    #error "unsupported platform"
+    #endif
+}
 
 void thread_Join(thread *t) {
 #ifdef ISWIN
@@ -442,6 +726,35 @@ int mutex_IsLocked(mutex *m) {
     if (result)
         mutex_Release(m);
     return (result == 0);
+}
+
+int32_t threadlocalstorage_RegisterType(
+        uint64_t bytes, void (*clearHandler)(
+            uint32_t storage_type_id, void *storageptr,
+            uint64_t storage_bytes
+        )) {
+    if (!_tls_type_access) {
+        _tls_type_access = mutex_Create();
+        if (!_tls_type_access)
+            return -1;
+    }
+    mutex_Lock(_tls_type_access);
+    threadlocalstoragetype *new_types = realloc(
+        _tls_type, sizeof(*_tls_type) * (_tls_type_count + 1)
+    );
+    if (!new_types) {
+        mutex_Release(_tls_type_access);
+        return -1;
+    }
+    _tls_type = new_types;
+    memset(&_tls_type[_tls_type_count], 0,
+           sizeof(_tls_type[_tls_type_count]));
+    _tls_type[_tls_type_count].bytes = bytes;
+    _tls_type[_tls_type_count].clearHandler = clearHandler;
+    int64_t id = _tls_type_count;
+    _tls_type_count++;
+    mutex_Release(_tls_type_access);
+    return id;
 }
 
 int threadevent_PollIsSet(threadevent *te, int unsetifset) {

@@ -1,0 +1,11 @@
+
+class bla {
+    func bla{print('Hello')}
+}
+
+func main{
+    var blaobj = new bla()
+    blaobj.bla()
+}
+
+# expected return value: 0

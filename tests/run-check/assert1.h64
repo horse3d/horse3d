@@ -1,0 +1,7 @@
+
+func main {
+    assert(yes)
+}
+
+
+# expected return value: 0

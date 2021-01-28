@@ -1,0 +1,12 @@
+
+
+func main {
+    var s1 = 'us flag: \u1F1FA\u1F1F8'
+    var s2 = 'english flag: \u1F3F4\uE0067'
+        '\uE0062\uE0065\uE006E\uE0067\uE007F'
+    var result = s1.len + s2.len
+    print("Result: " + result.as_str)
+    return result
+}
+
+# expected return value: 10 + 15
