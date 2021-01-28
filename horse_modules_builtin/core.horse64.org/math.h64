@@ -1,0 +1,20 @@
+# Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+# also see LICENSE.md file.
+# SPDX-License-Identifier: BSD-2-Clause
+
+
+import builtininternals from core.horse64.org
+
+func sort(container, descend=no, key_func=none) {
+    if cmp_func is none {
+        return builtininternals._sort(container, descend)
+    }
+    if type(container) != "list" and type(container) != "set" {
+        raise TypeError("cannot sort a type other than list or set")
+    }
+    var keys = []
+    for item in container {
+        keys.add(item)
+    }
+    return builtininternals.sort(keys, descend)
+}

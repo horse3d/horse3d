@@ -111,4 +111,9 @@ int valuecontent_CheckEquality(
     valuecontent *v1, valuecontent *v2
 );
 
+int valuecontent_CompareValues(
+    valuecontent *v1, valuecontent *v2,
+    int *result, int *typesnotcomparable
+);
+
 #endif  // HORSE64_VALUECONTENTSTRUCT_H_

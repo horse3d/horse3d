@@ -2,6 +2,9 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+// ABOUT THIS FILE:
+/// module $$builtin Built-in functions that can be used without an import.
+
 #include "compileconfig.h"
 #include "valuecontentstruct.h"
 
@@ -17,6 +20,7 @@
 #include <string.h>
 
 #include "bytecode.h"
+#include "corelib/builtininternals.h"
 #include "corelib/errors.h"
 #include "corelib/io.h"
 #include "corelib/moduleless.h"
@@ -627,6 +631,10 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
 
     // Error types:
     if (!corelib_RegisterErrorClasses(p))
+        return 0;
+
+    // 'builtininternals' module:
+    if (!builtininternalslib_RegisterFuncsAndModules(p))
         return 0;
 
     // 'io' module:

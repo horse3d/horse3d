@@ -413,3 +413,45 @@ int valuecontent_CheckEquality(
         }
     }
 }
+
+int valuecontent_CompareValues(
+        valuecontent *v1, valuecontent *v2,
+        int *result, int *typesnotcomparable
+        ) {
+    if (likely(v1->type == H64VALTYPE_INT64 &&
+            v2->type == H64VALTYPE_INT64)) {
+        if (v1->int_value > v2->int_value)
+            *result = 1;
+        else if (v1->int_value < v2->int_value)
+            *result = -1;
+        else
+            *result = 0;
+        return 1;
+    } else if ((v1->type == H64VALTYPE_INT64 ||
+            v1->type == H64VALTYPE_FLOAT64) && (
+            v2->type == H64VALTYPE_INT64 ||
+            v2->type == H64VALTYPE_FLOAT64)) {
+        double v1f = 0;
+        if (v1->type == H64VALTYPE_INT64) {
+            v1f = v1->int_value;
+        } else {
+            v1f = v1->float_value;
+        }
+        double v2f = 0;
+        if (v2->type == H64VALTYPE_INT64) {
+            v2f = v2->int_value;
+        } else {
+            v2f = v2->float_value;
+        }
+        if (v1 > v2)
+            *result = 1;
+        else if (v1 < v2)
+            *result = -1;
+        else
+            *result = 0;
+        return 1;
+    } else {
+        *typesnotcomparable = 1;
+        return 0;
+    }
+}

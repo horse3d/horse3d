@@ -2,6 +2,10 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+// ABOUT THIS FILE:
+/// @module net Networking streams to access the local network and internet.
+
+
 #include "compileconfig.h"
 
 #include <assert.h>
@@ -25,7 +29,6 @@
 #include "vmschedule.h"
 #include "widechar.h"
 
-/// @module net Networking streams to access the local network and internet.
 
 
 typedef struct _connectionobj_cdata {

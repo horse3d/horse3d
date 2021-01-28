@@ -549,134 +549,106 @@ inst_binop: {
             goto binop_done;
         }
         binop_cmp_largerorequal: {
-            if (likely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no >= v2no);
+            invalidtypes = 0;
+            int result = 0;
+            int incompatibletypes = 0;
+            int success = valuecontent_CompareValues(
+                v1, v2, &result, &incompatibletypes
+            );
+            if (unlikely(!success)) {
+                if (incompatibletypes) {
+                    invalidtypes = 1;
                 } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value >= v2->int_value
+                    RAISE_ERROR(
+                        H64STDERROR_OUTOFMEMORYERROR,
+                        "out of memory comparing the "
+                        "given types"
                     );
+                    goto *jumptable[
+                        ((h64instructionany *)p)->type
+                    ];
                 }
+            } else {
+                tmpresult->type = H64VALTYPE_BOOL;
+                tmpresult->int_value = (result >= 0);
             }
             goto binop_done;
         }
         binop_cmp_smallerorequal: {
-            if (likely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no <= v2no);
+            invalidtypes = 0;
+            int result = 0;
+            int incompatibletypes = 0;
+            int success = valuecontent_CompareValues(
+                v1, v2, &result, &incompatibletypes
+            );
+            if (unlikely(!success)) {
+                if (incompatibletypes) {
+                    invalidtypes = 1;
                 } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value <= v2->int_value
+                    RAISE_ERROR(
+                        H64STDERROR_OUTOFMEMORYERROR,
+                        "out of memory comparing the "
+                        "given types"
                     );
+                    goto *jumptable[
+                        ((h64instructionany *)p)->type
+                    ];
                 }
+            } else {
+                tmpresult->type = H64VALTYPE_BOOL;
+                tmpresult->int_value = (result <= 0);
             }
             goto binop_done;
         }
         binop_cmp_larger: {
-            if (likely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no > v2no);
+            invalidtypes = 0;
+            int result = 0;
+            int incompatibletypes = 0;
+            int success = valuecontent_CompareValues(
+                v1, v2, &result, &incompatibletypes
+            );
+            if (unlikely(!success)) {
+                if (incompatibletypes) {
+                    invalidtypes = 1;
                 } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value > v2->int_value
+                    RAISE_ERROR(
+                        H64STDERROR_OUTOFMEMORYERROR,
+                        "out of memory comparing the "
+                        "given types"
                     );
+                    goto *jumptable[
+                        ((h64instructionany *)p)->type
+                    ];
                 }
+            } else {
+                tmpresult->type = H64VALTYPE_BOOL;
+                tmpresult->int_value = (result > 0);
             }
             goto binop_done;
         }
         binop_cmp_smaller: {
-            if (unlikely((v1->type != H64VALTYPE_INT64 &&
-                    v1->type != H64VALTYPE_FLOAT64) ||
-                    (v2->type != H64VALTYPE_INT64 &&
-                    v2->type != H64VALTYPE_FLOAT64))) {
-                // invalid
-            } else {
-                invalidtypes = 0;
-                if (v1->type == H64VALTYPE_FLOAT64 ||
-                        v2->type == H64VALTYPE_FLOAT64) {
-                    double v1no = 1;
-                    if (v1->type == H64VALTYPE_FLOAT64) {
-                        v1no = v1->float_value;
-                    } else {
-                        v1no = v1->int_value;
-                    }
-                    double v2no = 1;
-                    if (v2->type == H64VALTYPE_FLOAT64) {
-                        v2no = v2->float_value;
-                    } else {
-                        v2no = v2->int_value;
-                    }
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (v1no < v2no);
+            invalidtypes = 0;
+            int result = 0;
+            int incompatibletypes = 0;
+            int success = valuecontent_CompareValues(
+                v1, v2, &result, &incompatibletypes
+            );
+            if (unlikely(!success)) {
+                if (incompatibletypes) {
+                    invalidtypes = 1;
                 } else {
-                    tmpresult->type = H64VALTYPE_BOOL;
-                    tmpresult->int_value = (
-                        v1->int_value < v2->int_value
+                    RAISE_ERROR(
+                        H64STDERROR_OUTOFMEMORYERROR,
+                        "out of memory comparing the "
+                        "given types"
                     );
+                    goto *jumptable[
+                        ((h64instructionany *)p)->type
+                    ];
                 }
+            } else {
+                tmpresult->type = H64VALTYPE_BOOL;
+                tmpresult->int_value = (result < 0);
             }
             goto binop_done;
         }
