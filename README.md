@@ -51,6 +51,17 @@ Help & Docs
   )
 
 
+Proposals & Language Design
+---------------------------
+
+Found a potential issue not regarding any implementaion bugs, but
+rather the general language design of Horse64? Do you thihnk something
+important in the design is missing? [Head over to the general bug
+tracker](https://github.com/horse64/horse64-general/issues). While
+suggesting ideas, please keep the [design guidelines](
+./docs/Design.md#overview) in mind.
+
+
 Advanced: Build it Yourself
 ---------------------------
 
