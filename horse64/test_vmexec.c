@@ -408,6 +408,7 @@ START_TEST (test_runchecks_files)
     }
     filesys32_FreeFolderList(contents, contentslen);
 }
+END_TEST
 
 TESTS_MAIN(
     test_runchecks_files
