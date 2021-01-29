@@ -22,6 +22,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -48,6 +49,7 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 
 #include "filesys.h"
 #include "filesys32.h"
+#include "secrandom.h"
 #include "widechar.h"
 
 
@@ -1058,7 +1060,7 @@ int filesys32_CreateDirectory(
     targetpath[targetpathlen] = '\0';
     int statresult = (
         mkdir(targetpath,
-              (user_readable_only ? 0700 : 0775) == 0));
+              (user_readable_only ? 0700 : 0775)) == 0);
     free(targetpath);
     if (!statresult) {
         if (errno == EACCES || errno == EPERM) {
@@ -1687,4 +1689,248 @@ int filesys32_IsAbsolutePath(
         return 1;
     #endif
     return 0;
+}
+
+
+FILE *_filesys32_TempFile_SingleTry(
+        int subfolder,
+        const h64wchar *prefix, int64_t prefixlen,
+        const h64wchar *suffix, int64_t suffixlen,
+        h64wchar **folder_path, int64_t* folder_path_len,
+        h64wchar **path, int64_t *path_len,
+        int *do_retry
+        ) {
+    *do_retry = 0;
+    *path = NULL;
+    *path_len = 0;
+    *folder_path = NULL;
+    *folder_path_len = 0;
+
+    // Get the folder path for system temp location:
+    #if defined(_WIN32) || defined(_WIN64)
+    int tempbufwsize = 512;
+    wchar_t *tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
+    assert(
+        sizeof(wchar_t) == sizeof(uint16_t)
+        // should be true for windows
+    );
+    if (!tempbufw)
+        return NULL;
+    unsigned int rval = 0;
+    while (1) {
+        rval = GetTempPathW(
+            tempbufwsize - 1, tempbufw
+        );
+        if (rval >= (unsigned int)tempbufwsize - 2) {
+            tempbufwsize *= 2;
+            free(tempbufw);
+            tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
+            if (!tempbufw)
+                return NULL;
+            continue;
+        }
+        if (rval == 0)
+            return NULL;
+        tempbufw[rval] = '\0';
+        break;
+    }
+    assert(wcslen(tempbufw) < (unsigned)tempbufwsize - 2);
+    if (tempbufw[wcslen(tempbufw) - 1] != '\\') {
+        tempbufw[wcslen(tempbufw) + 1] = '\0';
+        tempbufw[wcslen(tempbufw)] = '\\';
+    }
+    int _wasoom = 0;
+    int64_t tempbuffill = 0;
+    h64wchar *tempbuf = utf16_to_utf32(
+        tempbufw, wcslen(tempbuf),
+        &tempbuffill, 1, &_wasoom
+    );
+    free(tempbufw);
+    if (!tempbuf)
+        return NULL;
+    #else
+    char *tempbufu8 = NULL;
+    tempbufu8 = strdup("/tmp/");
+    if (!tempbufu8) {
+        return NULL;
+    }
+    int64_t tempbuffill = 0;
+    h64wchar *tempbuf = AS_U32(tempbufu8, &tempbuffill);
+    free(tempbufu8);
+    if (!tempbuf)
+        return NULL;
+    #endif
+
+    // Random bytes we use in the name:
+    uint64_t v[4];
+    if (!secrandom_GetBytes(
+            (char*)&v, sizeof(v)
+            )) {
+        free(tempbuf);
+        return NULL;
+    }
+
+    // The secure random part to be inserted as a string:
+    char randomu8[512];
+    snprintf(
+        randomu8, sizeof(randomu8) - 1,
+        "%" PRIu64 "%" PRIu64 "%" PRIu64 "%" PRIu64,
+        v[0], v[1], v[2], v[3]
+    );
+    randomu8[
+        sizeof(randomu8) - 1
+    ] = '\0';
+    int64_t randomu32len = 0;
+    h64wchar *randomu32 = AS_U32(randomu8, &randomu32len);
+    if (!randomu32) {
+        free(tempbuf);
+        return NULL;
+    }
+    int64_t combined_path_len = 0;
+    h64wchar *combined_path = NULL;
+    if (subfolder) {  // Create the subfolder:
+        combined_path_len = (
+            tempbuffill + randomu32len + 1
+        );
+        combined_path = malloc(
+            sizeof(*combined_path) * (tempbuffill +
+            randomu32len + 1)
+        );
+        if (!combined_path) {
+            free(tempbuf);
+            free(randomu32);
+            return NULL;
+        }
+        memcpy(combined_path, tempbuf,
+               sizeof(*combined_path) * tempbuffill);
+        memcpy(combined_path + tempbuffill, randomu32,
+               sizeof(*randomu32) * randomu32len);
+        #if defined(_WIN32) || defined(_WIN64)
+        combined_path[tempbuffill + randomu32len] = '\\';
+        #else
+        combined_path[tempbuffill + randomu32len] = '/';
+        #endif
+        free(tempbuf);
+        tempbuf = NULL;
+
+        if (!filesys32_CreateDirectory(
+                combined_path, combined_path_len, 1
+                )) {
+            int result = 0;
+            if (!filesys32_TargetExists(
+                    combined_path, combined_path_len, &result
+                    )) {
+                free(combined_path);
+                free(randomu32);
+                return NULL;
+            }
+            if (result) {
+                // Oops, somebody was faster/we hit an existing
+                // folder out of pure luck. Retry.
+                *do_retry = 1;
+            }
+            free(combined_path);
+            free(randomu32);
+            return NULL;
+        }
+        *folder_path = combined_path;
+        *folder_path_len = combined_path_len;
+    } else {
+        combined_path_len = tempbuffill;
+        combined_path = tempbuf;
+        tempbuf = NULL;
+    }
+
+    // Compose the path to the file to create:
+    h64wchar *file_path = malloc(sizeof(*file_path) * (
+        combined_path_len + (prefix ? prefixlen : 0) +
+        randomu32len + (suffix ? suffixlen : 0) + 1
+    ));
+    int64_t file_path_len = 0;
+    if (!file_path) {
+        int error = 0;
+        if (subfolder) {
+            filesys32_RemoveFileOrEmptyDir(
+                *folder_path, *folder_path_len, &error
+            );
+        }
+        free(combined_path);
+        free(randomu32);
+        *folder_path = NULL;  // already free'd through combined_path
+        *folder_path_len = 0;
+        return NULL;
+    }
+    memcpy(
+        file_path, combined_path,
+        sizeof(*file_path) * combined_path_len
+    );
+    if (prefix && prefixlen > 0)
+        memcpy(
+            file_path + combined_path_len, prefix,
+            sizeof(*prefix) * prefixlen
+        );
+    memcpy(
+        file_path + combined_path_len + (prefix ? prefixlen : 0),
+        randomu32, sizeof(*randomu32) * randomu32len
+    );
+    if (suffix && suffixlen > 0)
+        memcpy(
+            file_path + combined_path_len +
+            (prefix ? prefixlen : 0) + randomu32len,
+            suffix, sizeof(*suffix) * suffixlen
+        );
+    file_path_len = (
+        combined_path_len +
+        (prefix ? prefixlen : 0) + randomu32len +
+        (suffix ? suffixlen : 0)
+    );
+    if (!subfolder) {
+        // (this is otherwise set as *folder_path)
+        free(combined_path);
+    }
+    combined_path = NULL;
+    free(randomu32);
+
+    // Create file and return result:
+    FILE *f = filesys32_OpenFromPath(
+        file_path, file_path_len, "wb"
+    );
+    if (!f) {
+        if (subfolder) {
+            int error = 0;
+            filesys32_RemoveFolderRecursively(
+                *folder_path, *folder_path_len, &error
+            );
+            free(*folder_path);
+            *folder_path = NULL;
+            *folder_path_len = 0;
+        }
+        free(file_path);
+        return NULL;
+    }
+    *path = file_path;
+    *path_len = file_path_len;
+    return f;
+}
+
+FILE *filesys32_TempFile(
+        int subfolder,
+        const h64wchar *prefix, int64_t prefixlen,
+        const h64wchar *suffix, int64_t suffixlen,
+        h64wchar **folder_path, int64_t* folder_path_len,
+        h64wchar **path, int64_t *path_len
+        ) {
+    while (1) {
+        int retry = 0;
+        FILE *f = _filesys32_TempFile_SingleTry(
+            subfolder, prefix, prefixlen,
+            suffix, suffixlen, folder_path,
+            folder_path_len,
+            path, path_len, &retry
+        );
+        if (!f && !retry)
+            return NULL;
+        if (f)
+            return f;
+    }
 }

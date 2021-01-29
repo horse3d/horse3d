@@ -2,6 +2,7 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "widechar.h"
 #define _FILE_OFFSET_BITS 64
 #ifndef __USE_LARGEFILE64
 #define __USE_LARGEFILE64 1
@@ -29,6 +30,7 @@
 
 #include "archiver.h"
 #include "filesys.h"
+#include "filesys32.h"
 #include "nonlocale.h"
 #include "uri.h"
 #include "vfs.h"
@@ -48,8 +50,10 @@ typedef struct h64archive {
     VFSFILE *f;
     struct {
         int extract_cache_count;
-        char **extract_cache_temp_path;
-        char **extract_cache_temp_folder;
+        h64wchar **extract_cache_temp_path;
+        int64_t *extract_cache_temp_path_len;
+        h64wchar **extract_cache_temp_folder;
+        int64_t *extract_cache_temp_folder_len;
         char **extract_cache_orig_name;
         char *_read_buf;
     };
@@ -198,16 +202,18 @@ int _h64archive_ReadFileToFPtr(
     return 0;
 }
 
-const char *_h64archive_GetFileCachePath(
-        h64archive *a, int64_t entry
+const h64wchar *_h64archive_GetFileCachePath(
+        h64archive *a, int64_t entry, int64_t *pathlen
         ) {
     const char *e = h64archive_GetEntryName(a, entry);
     if (!e)
         return NULL;
     int64_t i = 0;
     while (i < a->extract_cache_count) {
-        if (strcmp(a->extract_cache_orig_name[i], e) == 0)
+        if (strcmp(a->extract_cache_orig_name[i], e) == 0) {
+            *pathlen = a->extract_cache_temp_path_len[i];
             return a->extract_cache_temp_path[i];
+        }
         i++;
     }
     char **orig_name_new = realloc(
@@ -218,7 +224,7 @@ const char *_h64archive_GetFileCachePath(
     if (!orig_name_new)
         return NULL;
     a->extract_cache_orig_name = orig_name_new;
-    char **temp_name_new = realloc(
+    h64wchar **temp_name_new = realloc(
         a->extract_cache_temp_path,
         sizeof(*a->extract_cache_temp_path) *
             (a->extract_cache_count + 1)
@@ -226,7 +232,15 @@ const char *_h64archive_GetFileCachePath(
     if (!temp_name_new)
         return NULL;
     a->extract_cache_temp_path = temp_name_new;
-    char **temp_path_new = realloc(
+    int64_t *temp_name_len_new = realloc(
+        a->extract_cache_temp_path,
+        sizeof(*a->extract_cache_temp_path_len) *
+            (a->extract_cache_count + 1)
+    );
+    if (!temp_name_new)
+        return NULL;
+    a->extract_cache_temp_path_len = temp_name_len_new;
+    h64wchar **temp_path_new = realloc(
         a->extract_cache_temp_folder,
         sizeof(*a->extract_cache_temp_folder) *
             (a->extract_cache_count + 1)
@@ -234,12 +248,31 @@ const char *_h64archive_GetFileCachePath(
     if (!temp_path_new)
         return NULL;
     a->extract_cache_temp_folder = temp_path_new;
-
-    char *folder_path = NULL;
-    char *full_path = NULL;
-    FILE *f = filesys_TempFile(
-        1, "h64archive-", "", &folder_path, &full_path
+    int64_t *temp_path_len_new = realloc(
+        a->extract_cache_temp_folder,
+        sizeof(*a->extract_cache_temp_folder_len) *
+            (a->extract_cache_count + 1)
     );
+    if (!temp_path_new)
+        return NULL;
+    a->extract_cache_temp_folder_len = temp_path_len_new;
+
+    int64_t h64archive_slen = 0;
+    h64wchar *h64archive_s = AS_U32("h64archive-", &h64archive_slen);
+    if (!h64archive_s) {
+        return NULL;
+    }
+    h64wchar *folder_path = NULL;
+    int64_t folder_path_len = 0;
+    h64wchar *full_path = NULL;
+    int64_t full_path_len = 0;
+    FILE *f = filesys32_TempFile(
+        1, h64archive_s, h64archive_slen,
+        NULL, 0,
+        &folder_path, &folder_path_len,
+        &full_path, &full_path_len
+    );
+    free(h64archive_s);
     if (!f) {
         return NULL;
     }
@@ -256,8 +289,13 @@ const char *_h64archive_GetFileCachePath(
     if (!a->extract_cache_orig_name[
             a->extract_cache_count
             ]) {
-        filesys_RemoveFileOrEmptyDir(full_path);
-        filesys_RemoveFolderRecursively(folder_path);
+        int error = 0;
+        filesys32_RemoveFileOrEmptyDir(
+            full_path, full_path_len, &error
+        );
+        filesys32_RemoveFolderRecursively(
+            folder_path, folder_path_len, &error
+        );
         free(full_path);
         free(folder_path);
         return NULL;
@@ -265,9 +303,15 @@ const char *_h64archive_GetFileCachePath(
     a->extract_cache_temp_path[
         a->extract_cache_count
     ] = full_path;
+    a->extract_cache_temp_path_len[
+        a->extract_cache_count
+    ] = full_path_len;
     a->extract_cache_temp_folder[
         a->extract_cache_count
     ] = folder_path;
+    a->extract_cache_temp_folder_len[
+        a->extract_cache_count
+    ] = folder_path_len;
     a->extract_cache_count++;
     return full_path;
 }
@@ -297,12 +341,15 @@ int h64archive_ReadFileByteSlice(
         );
         return 1;
     }
-    const char *file_path = _h64archive_GetFileCachePath(
-        a, entry
+    int64_t file_path_len = 0;
+    const h64wchar *file_path = _h64archive_GetFileCachePath(
+        a, entry, &file_path_len
     );
     if (!file_path)
         return 0;
-    FILE *f = filesys_OpenFromPath(file_path, "rb");
+    FILE *f = filesys32_OpenFromPath(
+        file_path, file_path_len, "rb"
+    );
     if (!f)
         return 0;
     if (fseek64(f, offset, SEEK_SET) != 0) {
@@ -482,11 +529,16 @@ void h64archive_Close(h64archive *a) {
     {
         int64_t i = 0;
         while (i < a->extract_cache_count) {
-            filesys_RemoveFileOrEmptyDir(
-                a->extract_cache_temp_path[i]
+            int error = 0;
+            filesys32_RemoveFileOrEmptyDir(
+                a->extract_cache_temp_path[i],
+                a->extract_cache_temp_path_len[i],
+                &error
             );
-            filesys_RemoveFolderRecursively(
-                a->extract_cache_temp_folder[i]
+            filesys32_RemoveFolderRecursively(
+                a->extract_cache_temp_folder[i],
+                a->extract_cache_temp_folder_len[i],
+                &error
             );
             free(a->extract_cache_temp_path[i]);
             free(a->extract_cache_temp_folder[i]);

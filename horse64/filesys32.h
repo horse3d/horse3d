@@ -161,4 +161,12 @@ FILE *filesys32_OpenFromPath(
     const char *mode
 );  // sets errno in case of errors (even on winows!!)
 
+FILE *filesys32_TempFile(
+    int subfolder,
+    const h64wchar *prefix, int64_t prefixlen,
+    const h64wchar *suffix, int64_t suffixlen,
+    h64wchar **folder_path, int64_t* folder_path_len,
+    h64wchar **path, int64_t *path_len
+);
+
 #endif  // HORSE64_FILESYS32_H_

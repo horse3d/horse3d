@@ -777,6 +777,10 @@ void utf32_toupper(h64wchar *s, int64_t slen) {
 
 // Short-hand function:
 h64wchar *AS_U32(const char *s, int64_t *out_len) {
+    if (!s) {
+        *out_len = 0;
+        return NULL;
+    }
     h64wchar *result = utf8_to_utf32(
         s, strlen(s),
         NULL, NULL, out_len
@@ -786,6 +790,9 @@ h64wchar *AS_U32(const char *s, int64_t *out_len) {
 
 // Short-hand function:
 char *AS_U8(const h64wchar *s, int64_t slen) {
+    if (!s) {
+        return NULL;
+    }
     char *result_spacy = malloc(
         slen * 5 + 2
     );
@@ -841,6 +848,9 @@ static __attribute__((constructor)) void _init_u8tmp_storage() {
 }
 
 const char *AS_U8_TMP(const h64wchar *s, int64_t slen) {
+    if (!s) {
+        return NULL;
+    }
     struct u8tmpstorage *store = (
         threadlocalstorage_GetByType(_u8tmpstorage_type)
     );

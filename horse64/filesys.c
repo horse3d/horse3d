@@ -1502,177 +1502,57 @@ FILE *filesys_OpenFromPath(
     #endif
 }
 
-FILE *_filesys_TempFile_SingleTry(
-        int subfolder, const char *prefix,
-        const char *suffix, char **folder_path,
-        char **path, int *do_retry
-        ) {
-    *do_retry = 0;
-    char *tempbuf = NULL;
-    int64_t tempbuffill = 0;
-    #if defined(_WIN32) || defined(_WIN64)
-    int tempbufwsize = 512;
-    wchar_t *tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
-    assert(
-        sizeof(wchar_t) == sizeof(uint16_t)
-        // should be true for windows
-    );
-    if (!tempbufw)
-        return NULL;
-    unsigned int rval = 0;
-    while (1) {
-        rval = GetTempPathW(
-            tempbufwsize - 1, tempbufw
-        );
-        if (rval >= (unsigned int)tempbufwsize - 1) {
-            tempbufwsize *= 2;
-            free(tempbuf);
-            tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
-            if (!tempbufw)
-                return NULL;
-            continue;
-        }
-        if (rval == 0)
-            return NULL;
-        break;
-    }
-    tempbuf = malloc(tempbufwsize * 5 + 2);
-    if (!tempbuf)
-        return NULL;
-    int result = utf16_to_utf8(
-        (const uint16_t*)tempbufw, rval,
-        (char*)tempbuf, tempbufwsize * 5 + 1,
-        &tempbuffill, 1
-    );
-    tempbuf[tempbufwsize * 5 + 1] = '\0';
-    free(tempbufw);
-    if (!result) {
-        free(tempbuf);
-        return NULL;
-    }
-    #else
-    tempbuf = strdup("/tmp/");
-    if (!tempbuf) {
-        return NULL;
-    }
-    tempbuffill = strlen("/tmp/");
-    #endif
-    uint64_t v[4];
-    if (!secrandom_GetBytes(
-            (char*)&v, sizeof(v)
-            )) {
-        free(tempbuf);
-        return NULL;
-    }
-    char extbuf[512];
-    snprintf(
-        extbuf, sizeof(extbuf) - 1,
-        "%s%s%" PRIu64 "%" PRIu64 "%" PRIu64 "%" PRIu64 "%s%s",
-        #if defined(_WIN32) || defined(_WIN64)
-        "\\",
-        #else
-        "/",
-        #endif
-        (subfolder ? "" : prefix),
-        v[0], v[1], v[2], v[3],
-        #if defined(_WIN32) || defined(_WIN64)
-        (subfolder ? "\\" : ""),
-        #else
-        (subfolder ? "/" : ""),
-        #endif
-        (subfolder ? "" : suffix)
-    );
-    extbuf[sizeof(extbuf) - 1] = '\0';
-    char *combined_path = malloc(tempbuffill + strlen(extbuf) + 1);
-    if (!combined_path) {
-        free(tempbuf);
-        return NULL;
-    }
-    memcpy(combined_path, tempbuf, tempbuffill);
-    memcpy(combined_path + tempbuffill, extbuf, strlen(extbuf) + 1);
-    free(tempbuf);
-    if (subfolder) {
-        if (!filesys_CreateDirectory(combined_path, 1)) {
-            if (filesys_FileExists(combined_path)) {
-                // Oops, somebody was faster/we hit an existing
-                // folder out of pure luck. Retry.
-                *do_retry = 1;
-            }
-            free(combined_path);
-            return NULL;
-        }
-        *folder_path = combined_path;
-        char *file_path = malloc(
-            strlen(combined_path) + (prefix ? strlen(prefix) : 0) +
-            strlen("tempfile") + (suffix ? strlen(suffix) : 0) + 1
-        );
-        if (!file_path) {
-            filesys_RemoveFileOrEmptyDir(*folder_path);
-            free(combined_path);
-            return NULL;
-        }
-        memcpy(
-            file_path, combined_path, strlen(combined_path)
-        );
-        if (prefix)
-            memcpy(
-                file_path + strlen(combined_path),
-                prefix, strlen(prefix)
-            );
-        memcpy(
-            file_path + strlen(combined_path) +
-            (prefix ? strlen(prefix) : 0),
-            "tempfile", strlen("tempfile")
-        );
-        if (suffix)
-            memcpy(
-                file_path + strlen(combined_path) +
-                (prefix ? strlen(prefix) : 0) +
-                strlen("tempfile"),
-                suffix, strlen(suffix)
-            );
-        file_path[
-            strlen(combined_path) +
-            (prefix ? strlen(prefix) : 0) +
-            strlen("tempfile") +
-            (suffix ? strlen(suffix) : 0)
-        ] = '\0';
-        *path = file_path;
-    } else {
-        *folder_path = NULL;
-        *path = combined_path;
-    }
-    FILE *f = filesys_OpenFromPath(*path, "wb");
-    if (!f) {
-        if (*folder_path) {
-            filesys_RemoveFolderRecursively(*folder_path);
-            free(*folder_path);
-            *folder_path = NULL;
-        }
-        free(*path);
-        *path = NULL;
-        return NULL;
-    }
-    return f;
-}
-
 FILE *filesys_TempFile(
         int subfolder, const char *prefix,
         const char *suffix, char **folder_path,
         char **path
         ) {
-    while (1) {
-        int retry = 0;
-        FILE *f = _filesys_TempFile_SingleTry(
-            subfolder, prefix,
-            suffix, folder_path,
-            path, &retry
-        );
-        if (!f && !retry)
-            return NULL;
-        if (f)
-            return f;
+    *folder_path = NULL;
+    *path = NULL;
+    int64_t prefixu32len = 0;
+    h64wchar *prefixu32 = AS_U32(prefix, &prefixu32len);
+    if (!prefixu32) {
+        return NULL;
     }
+    int64_t suffixu32len = 0;
+    h64wchar *suffixu32 = AS_U32(suffix, &suffixu32len);
+    if (!suffixu32) {
+        free(prefixu32);
+        return NULL;
+    }
+    h64wchar *result_folder = NULL;
+    int64_t result_folder_len = 0;
+    h64wchar *result_path = NULL;
+    int64_t result_path_len = 0;
+    FILE *result = filesys32_TempFile(
+        subfolder, prefixu32, prefixu32len,
+        suffixu32, suffixu32len, &result_folder,
+        &result_folder_len, &result_path, &result_path_len
+    );
+    free(prefixu32);
+    free(suffixu32);
+    if (!result)
+        return NULL;
+    if (result_path) {
+        *path = AS_U8(result_path, result_path_len);
+        free(result_path);
+        result_path = NULL;
+        if (!*path) {
+            free(result_folder);
+            fclose(result);
+            return NULL;
+        }
+    }
+    if (result_folder) {
+        *folder_path = AS_U8(result_folder, result_folder_len);
+        free(result_folder);
+        if (!*folder_path) {
+            free(*path);
+            fclose(result);
+            return NULL;
+        }
+    }
+    return result;
 }
 
 char *filesys_Normalize(const char *path) {
