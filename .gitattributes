@@ -1,3 +1,7 @@
 
 # Make sure all the .h64 files are recognized:
 *.h64 linguist-language=Horse64
+
+# Special non-code files:
+docs/* linguist-documentation
+vendor/* linguist-vendored
