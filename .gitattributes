@@ -1,0 +1,3 @@
+
+# Make sure all the .h64 files are recognized:
+*.h64 linguist-language=Horse64
