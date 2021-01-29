@@ -594,7 +594,7 @@ thread *thread_SpawnWithPriority(
     }
 #ifdef ISWIN
     HANDLE h = (HANDLE)_beginthreadex(NULL, 0, spawnthread, sinfo, 0, NULL);
-    if (h == INVALID_HANDLE) {
+    if (h == 0) {
         semaphore_Destroy(t->_setid_semaphore);
         free(t);
         free(sinfo);
