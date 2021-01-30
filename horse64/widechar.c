@@ -160,7 +160,7 @@ int64_t utf32_letters_count(
 }
 
 int64_t utf32_letter_len(
-        h64wchar *sdata, int64_t sdata_len
+        const h64wchar *sdata, int64_t sdata_len
         ) {
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wtype-limits"

@@ -16,6 +16,7 @@
 #include "stack.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
+#include "vmstrings.h"
 #include "widechar.h"
 
 
@@ -472,15 +473,20 @@ int corelib_stringsub(  // $$builtin.$$string_sub
             ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_STRING)) {
         h64wchar *s = NULL;
         int64_t slen = 0;
+        int64_t sletters = 0;
         if (vc->type == H64VALTYPE_GCVAL) {
             assert(((h64gcvalue *)vc->ptr_value)->type ==
                    H64GCVALUETYPE_STRING);
-            s = ((h64gcvalue *)vc->ptr_value)->str_val.s;
-            slen = ((h64gcvalue *)vc->ptr_value)->str_val.len;
+            h64gcvalue *gcv = ((h64gcvalue *)vc->ptr_value);
+            vmstrings_RequireLetterLen(&gcv->str_val);
+            s = gcv->str_val.s;
+            slen = gcv->str_val.len;
+            sletters = gcv->str_val.letterlen;
         } else {
             assert(vc->type == H64VALTYPE_SHORTSTR);
             s = vc->shortstr_value;
             slen = vc->shortstr_len;
+            sletters = utf32_letters_count(s, slen);
         }
 
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
@@ -490,8 +496,8 @@ int corelib_stringsub(  // $$builtin.$$string_sub
         if (startindex < 1) {
             startindex = 1;
         }
-        if (endindex > slen) {
-            endindex = slen;
+        if (endindex > sletters) {
+            endindex = sletters;
         }
         if (endindex < startindex) {
             vcresult->type = H64VALTYPE_SHORTSTR;
@@ -507,15 +513,45 @@ int corelib_stringsub(  // $$builtin.$$string_sub
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
                 "out of memory returning substring"
             );
-        if (startindex == 1 && endindex == slen) {
+        if (startindex == 1 && endindex == sletters) {
             memcpy(scopy, s, slen * sizeof(*scopy));
             scopylen = slen;
         } else {
+            int16_t startcodepoint = 0;
+            {
+                const h64wchar *p = s;
+                int64_t plen = slen;
+                int64_t k = startindex;
+                while (k > 1 && plen > 0) {
+                    int letterlen = utf32_letter_len(
+                        p, plen
+                    );
+                    k--;
+                    startcodepoint += letterlen;
+                    p += letterlen;
+                    plen -= letterlen;
+                }
+            }
+            int16_t endcodepoint = 0;
+            {
+                const h64wchar *p = s;
+                int64_t plen = slen;
+                int64_t k = endindex;
+                while (k > 0 && plen > 0) {  // k > 0 -> EXCLUSIVE end
+                    int letterlen = utf32_letter_len(
+                        p, plen
+                    );
+                    k--;
+                    endcodepoint += letterlen;
+                    p += letterlen;
+                    plen -= letterlen;
+                }
+            }
             memcpy(
-                scopy, s + startindex,
-                ((endindex - startindex) + 1) * sizeof(*scopy)
+                scopy, s + startcodepoint,
+                (endcodepoint - startcodepoint) * sizeof(*scopy)
             );
-            scopylen = ((endindex - startindex) + 1);
+            scopylen = (endcodepoint - startcodepoint);
         }
         if (!valuecontent_SetStringU32(
                 vmthread, vcresult, scopy, scopylen

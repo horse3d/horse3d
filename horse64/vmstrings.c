@@ -48,7 +48,7 @@ int vmstrings_Equality(
     }
     if (!s1v || !s2v || s1l != s2l)
         return 0;
-    return (memcmp(s1v, s2v, s1l * sizeof(h64wchar)) == 0);
+    return (memcmp(s1v, s2v, s1l * sizeof(*s1v)) == 0);
 }
 
 int vmstrings_AllocBuffer(
