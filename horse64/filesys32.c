@@ -65,7 +65,7 @@ FILE *filesys32_OpenFromPath(
     #if defined(_WIN32) || defined(_WIN64)
     assert(sizeof(uint16_t) == sizeof(wchar_t));
     uint16_t *wpath = malloc(
-        sizeof(uint16_t) * (strlen(path) * 2 + 3)
+        sizeof(uint16_t) * (pathlen * 2 + 3)
     );
     if (!wpath) {
         errno = ENOMEM;
@@ -74,11 +74,11 @@ FILE *filesys32_OpenFromPath(
     int64_t out_len = 0;
     int result = utf32_to_utf16(
         path, pathlen, (char *) wpath,
-        sizeof(uint16_t) * (strlen(path) * 2 + 3),
+        sizeof(uint16_t) * (pathlen * 2 + 3),
         &out_len, 1
     );
     if (!result || (uint64_t)out_len >=
-            (uint64_t)(strlen(path) * 2 + 3)) {
+            (uint64_t)(pathlen * 2 + 3)) {
         free(wpath);
         errno = ENOMEM;
         return NULL;
@@ -1907,7 +1907,7 @@ FILE *_filesys32_TempFile_SingleTry(
     int _wasoom = 0;
     int64_t tempbuffill = 0;
     h64wchar *tempbuf = utf16_to_utf32(
-        tempbufw, wcslen(tempbuf),
+        tempbufw, wcslen(tempbufw),
         &tempbuffill, 1, &_wasoom
     );
     free(tempbufw);
@@ -2142,9 +2142,26 @@ int filesys32_GetSize(
     *size = (uint64_t)statbuf.st_size;
     return 1;
     #else
+    assert(sizeof(wchar_t) == sizeof(uint16_t));
+    wchar_t *pathw = malloc(pathu32len * 2 + 1);
+    int64_t resultlen = 0;
+    int result = 0;
+    if (pathw)
+        result = utf32_to_utf16(
+            pathu32, pathu32len, pathw, pathu32len * 2 + 1,
+            &resultlen, 1
+        );
+    if (!result || resultlen >= pathu32len * 2 + 1) {
+        free(pathw);
+        return 0;
+    }
+    pathw[resultlen] = '\0';
     WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (!GetFileAttributesEx(path, GetFileExInfoStandard, &fad))
-        return -1;
+    if (!GetFileAttributesExW(pathw, GetFileExInfoStandard, &fad)) {
+        free(pathw);
+        return 0;
+    }
+    free(pathw);
     LARGE_INTEGER v;
     v.HighPart = fad.nFileSizeHigh;
     v.LowPart = fad.nFileSizeLow;
@@ -2187,20 +2204,20 @@ int filesys32_IsDirectory(
     return 1;
     #elif defined(_WIN32) || defined(_WIN64)
     assert(sizeof(wchar_t) == sizeof(uint16_t));
-    wchar_t *pathw = malloc(pathu32len * 2 + 2):
+    wchar_t *pathw = malloc(pathu32len * 2 + 2);
     if (!pathw)
         return 0;
     int64_t pathwlen = 0;
-    int result = utf32_to_utf16(
+    int result_conv = utf32_to_utf16(
         pathu32, pathu32len, pathw, pathu32len * 2 + 2,
         &pathwlen, 1
     );
-    if (!result || pathwlen >= pathu32len * 2 + 2) {
+    if (!result_conv || pathwlen >= pathu32len * 2 + 2) {
         free(pathw);
         return 0;
     }
     pathw[pathwlen] = '\0';
-    DWORD dwAttrib = GetFileAttributes(pathw);
+    DWORD dwAttrib = GetFileAttributesW(pathw);
     free(pathw);
     if (dwAttrib == INVALID_FILE_ATTRIBUTES) {
         uint32_t werror = GetLastError();
@@ -2212,8 +2229,10 @@ int filesys32_IsDirectory(
             *result = 0;
             return 1;
         }
+        return 0;
     }
-    return (dwAttrib & FILE_ATTRIBUTE_DIRECTORY);
+    *result = (dwAttrib & FILE_ATTRIBUTE_DIRECTORY);
+    return 1;
     #else
     #error "unsupported platform"
     #endif
@@ -2230,7 +2249,7 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
         size_t written = (
             GetModuleFileNameW(NULL, fp, MAX_PATH + 1);
         );
-        if (written >= fplen - 1 ||
+        if (written >= (unsigned)fplen - 1 ||
                 GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
             fplen *= 2;
             free(fp);
@@ -2243,7 +2262,10 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
         break;
     }
     int64_t result_u32len = 0;
-    h64wchar *result_u32 = AS_U32(fp, &result_u32len);
+    int _wasoom = 0;
+    h64wchar *result_u32 = utf16_to_utf32(
+        fp, wcslen(fp), &result_u32len, 1, &_wasoom
+    );
     free(fp);
     *out_len = result_u32len;
     return result_u32;
