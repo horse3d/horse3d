@@ -2148,7 +2148,7 @@ int filesys32_GetSize(
     int result = 0;
     if (pathw)
         result = utf32_to_utf16(
-            pathu32, pathu32len, pathw, pathu32len * 2 + 1,
+            pathu32, pathu32len, (char *)pathw, pathu32len * 2 + 1,
             &resultlen, 1
         );
     if (!result || resultlen >= pathu32len * 2 + 1) {
@@ -2209,7 +2209,7 @@ int filesys32_IsDirectory(
         return 0;
     int64_t pathwlen = 0;
     int result_conv = utf32_to_utf16(
-        pathu32, pathu32len, pathw, pathu32len * 2 + 2,
+        pathu32, pathu32len, (char *)pathw, pathu32len * 2 + 2,
         &pathwlen, 1
     );
     if (!result_conv || pathwlen >= pathu32len * 2 + 2) {
@@ -2247,7 +2247,7 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
     while (1) {
         SetLastError(0);
         size_t written = (
-            GetModuleFileNameW(NULL, fp, MAX_PATH + 1);
+            GetModuleFileNameW(NULL, fp, MAX_PATH + 1)
         );
         if (written >= (unsigned)fplen - 1 ||
                 GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
