@@ -5,7 +5,11 @@
 #ifndef HORSE64_DEBUGSYMBOLS_H_
 #define HORSE64_DEBUGSYMBOLS_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
+
+#include "widechar.h"
 
 typedef struct hashmap hashmap;
 typedef struct h64program h64program;
@@ -65,7 +69,8 @@ typedef struct h64debugsymbols {
     h64program *program;
 
     int fileuri_count;
-    char **fileuri;
+    h64wchar **fileuri;
+    int64_t *fileurilen;
 
     int mainfileuri_index;
     char *mainfile_module_path;
@@ -141,8 +146,8 @@ h64globalvarsymbol *h64debugsymbols_GetGlobalvarSymbolById(
 );
 
 int64_t h64debugsymbols_GetFileUriIndex(
-    h64debugsymbols *symbols, const char *fileuri,
-    int addifnotpresent
+    h64debugsymbols *symbols, const h64wchar *fileuri,
+    int64_t fileurilen, int addifnotpresent
 );
 
 #endif  // HORSE64_DEBUGSYMBOLS_H_

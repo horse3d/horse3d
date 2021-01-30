@@ -14,16 +14,17 @@
 int result_Error(
         h64result *result,
         const char *message,
-        const char *fileuri,
+        const h64wchar *fileuri, int64_t fileurilen,
         int64_t line, int64_t column
         ) {
-    if (!result_Success(result, fileuri)) {
+    if (!result_Success(result, fileuri, fileurilen)) {
         result->success = 0;
         return 0;
     }
     result->success = 0;
     if (!result_AddMessage(
-            result, H64MSG_ERROR, message, fileuri, line, column
+            result, H64MSG_ERROR, message, fileuri, fileurilen,
+            line, column
             ))
         return 0;
     return 1;
@@ -65,20 +66,22 @@ void result_RemoveMessageDuplicates(
 int result_ErrorNoLoc(
         h64result *result,
         const char *message,
-        const char *fileuri
+        const h64wchar *fileuri, int64_t fileurilen
         ) {
     return result_Error(
-        result, message, fileuri, -1, -1
+        result, message, fileuri, fileurilen, -1, -1
     );
 }
 
 int result_Success(
         h64result *result,
-        const char *fileuri
+        const h64wchar *fileuri, int64_t fileurilen
         ) {
     result->success = 1;
     if (fileuri && !result->fileuri) {
-        result->fileuri = strdup(fileuri);
+        result->fileuri = strdupu32(
+            fileuri, fileurilen, &result->fileurilen
+        );
         if (!result->fileuri)
             return 0;
     }
@@ -89,7 +92,7 @@ int result_AddMessageEx(
         h64result *result,
         h64messagetype type,
         const char *message,
-        const char *fileuri,
+        const h64wchar *fileuri, int64_t fileurilen,
         int64_t line, int64_t column,
         const char id[32]
         ) {
@@ -118,7 +121,10 @@ int result_AddMessageEx(
     result->message[newcount - 1].line = line;
     result->message[newcount - 1].column = column;
     if (fileuri) {
-        result->message[newcount - 1].fileuri = strdup(fileuri);
+        result->message[newcount - 1].fileuri = (
+            strdupu32(fileuri, fileurilen,
+                &result->message[newcount - 1].fileurilen)
+        );
         if (!result->message[newcount - 1].fileuri) {
             free(result->message[newcount - 1].message);
             return 0;
@@ -132,7 +138,7 @@ int result_AddMessage(
         h64result *result,
         h64messagetype type,
         const char *message,
-        const char *fileuri,
+        const h64wchar *fileuri, int64_t fileurilen,
         int64_t line, int64_t column
         ) {
     char id[32];
@@ -141,7 +147,7 @@ int result_AddMessage(
         datetime_Sleep(10);
     }
     return result_AddMessageEx(
-        result, type, message, fileuri,
+        result, type, message, fileuri, fileurilen,
         line, column, id
     );
 }
@@ -170,6 +176,7 @@ int result_TransferMessages(
                     resultto, resultfrom->message[i].type,
                     resultfrom->message[i].message,
                     resultfrom->message[i].fileuri,
+                    resultfrom->message[i].fileurilen,
                     resultfrom->message[i].line,
                     resultfrom->message[i].column,
                     resultfrom->message[i].id
@@ -187,10 +194,10 @@ int result_AddMessageNoLoc(
         h64result *result,
         h64messagetype type,
         const char *message,
-        const char *fileuri
+        const h64wchar *fileuri, int64_t fileurilen
         ) {
     return result_AddMessage(
-        result, type, message, fileuri, -1, -1
+        result, type, message, fileuri, fileurilen, -1, -1
     );
 }
 

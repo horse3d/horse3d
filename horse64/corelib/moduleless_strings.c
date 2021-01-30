@@ -12,6 +12,7 @@
 #include "corelib/moduleless_strings.h"
 #include "debugsymbols.h"
 #include "gcvalue.h"
+#include "nonlocale.h"
 #include "stack.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
@@ -72,7 +73,7 @@ static int _contains_or_find(
         h64vmthread *vmthread, int iscontains
         ) {
     const char *funcname = (
-        iscontains ? "contains" : "find"
+        iscontains ? "contains check" : "find"
     );
     valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);
     if (vc->type == H64VALTYPE_SHORTSTR ||
@@ -107,7 +108,7 @@ static int _contains_or_find(
         } else {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
-                ".%s() on strings needs a string parameter",
+                "%s on strings needs a string parameter",
                 funcname
             );
         }
@@ -184,7 +185,8 @@ static int _contains_or_find(
         } else {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
-                ".%s() on bytes needs a bytes parameter"
+                "%s on bytes needs a bytes parameter",
+                funcname
             );
         }
 
@@ -229,6 +231,361 @@ static int _contains_or_find(
             vcresult->type = H64VALTYPE_INT64;
             vcresult->int_value = -1;
         }
+        return 1;
+    }
+}
+
+int corelib_stringdecode(  // $$builtin.$$string_decode
+        h64vmthread *vmthread
+        ) {
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);
+    assert(
+        (vc->type == H64VALTYPE_GCVAL &&
+         ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_BYTES) ||
+        vc->type == H64VALTYPE_SHORTBYTES
+    );
+    h64wchar *enc_s = NULL;
+    int64_t enc_slen = 0;
+    valuecontent *vcencoding = STACK_ENTRY(vmthread->stack, 0);
+    if (vcencoding->type == H64VALTYPE_SHORTSTR) {
+        enc_s = vcencoding->shortstr_value;
+        enc_slen = vcencoding->shortstr_len;
+    } else if (vcencoding->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue *)vcencoding->ptr_value)->type ==
+                H64GCVALUETYPE_STRING) {
+        enc_s = ((h64gcvalue *)vcencoding->ptr_value)->str_val.s;
+        enc_slen = ((h64gcvalue *)vcencoding->ptr_value)->str_val.len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "encoding must be a string"
+        );
+    }
+
+    char *s = NULL;
+    int64_t slen = 0;
+    if (vc->type == H64VALTYPE_GCVAL) {
+        assert(((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_BYTES);
+        s = ((h64gcvalue *)vc->ptr_value)->bytes_val.s;
+        slen = ((h64gcvalue *)vc->ptr_value)->bytes_val.len;
+    } else {
+        assert(vc->type == H64VALTYPE_SHORTBYTES);
+        s = vc->shortbytes_value;
+        slen = vc->shortbytes_len;
+    }
+
+    if ((enc_slen == 5 &&
+            (enc_s[0] == 'u' || enc_s[0] == 'U') &&
+            (enc_s[1] == 't' || enc_s[1] == 'T') &&
+            (enc_s[2] == 'f' || enc_s[2] == 'F') &&
+            (enc_s[3] == '-' || enc_s[3] == '-') &&
+            (enc_s[4] == '8' || enc_s[4] == '8')) ||
+            (enc_slen == 4 &&
+            (enc_s[0] == 'u' || enc_s[0] == 'U') &&
+            (enc_s[1] == 't' || enc_s[1] == 'T') &&
+            (enc_s[2] == 'f' || enc_s[2] == 'F') &&
+            (enc_s[3] == '8' || enc_s[3] == '8'))) {
+        int64_t result_slen = 0;
+        h64wchar *result_s = utf8_to_utf32(
+            s, slen, NULL, NULL, &result_slen
+        );
+        if (!result_s) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory converting encoding"
+            );
+        }
+        valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+        DELREF_NONHEAP(vcresult);
+        valuecontent_Free(vcresult);
+        vcresult->type = H64VALTYPE_NONE;
+        if (!valuecontent_SetStringU32(
+                vmthread, vcresult, result_s, result_slen)) {
+            free(result_s);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory converting encoding"
+            );
+        }
+        free(result_s);
+        return 1;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_ARGUMENTERROR,
+            "unknown encoding"
+        );
+    }
+}
+
+int corelib_stringsplitlines(  // $$builtin.$$string_splitlines
+        h64vmthread *vmthread
+        ) {
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);
+    assert(
+        (vc->type == H64VALTYPE_GCVAL &&
+         ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_STRING) ||
+        vc->type == H64VALTYPE_SHORTSTR ||
+        (vc->type == H64VALTYPE_GCVAL &&
+         ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_BYTES) ||
+        vc->type == H64VALTYPE_SHORTBYTES
+    );
+
+    if (vc->type == H64VALTYPE_SHORTSTR || (
+            vc->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_STRING)) {
+        h64wchar *s = NULL;
+        int64_t slen = 0;
+        if (vc->type == H64VALTYPE_GCVAL) {
+            assert(((h64gcvalue *)vc->ptr_value)->type ==
+                   H64GCVALUETYPE_STRING);
+            s = ((h64gcvalue *)vc->ptr_value)->str_val.s;
+            slen = ((h64gcvalue *)vc->ptr_value)->str_val.len;
+        } else {
+            assert(vc->type == H64VALTYPE_SHORTSTR);
+            s = vc->shortstr_value;
+            slen = vc->shortstr_len;
+        }
+
+        int64_t lines_count = 0;
+        h64wchar **lines_s = NULL;
+        int64_t *lines_slen = NULL;
+
+        int64_t current_line_start = 0;
+        int64_t i = 0;
+        while (i <= slen) {
+            if (i == slen || s[i] == '\r' || s[i] == '\n') {
+                int64_t linelen = i - current_line_start;
+                h64wchar *line = malloc(
+                    sizeof(*line) * (linelen > 0 ? linelen : 1)
+                );
+                if (!line) {
+                    oomstrsplit:
+                    free(line);
+                    int64_t i2 = 0;
+                    while (i2 < lines_count) {
+                        free(lines_s[i2]);
+                        i2++;
+                    }
+                    free(lines_s);
+                    free(lines_slen);
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                        "out of memory computing split result"
+                    );
+                }
+                h64wchar **newlines_s = realloc(
+                    lines_s, sizeof(*newlines_s) * (lines_count + 1)
+                );
+                if (!newlines_s)
+                    goto oomstrsplit;
+                lines_s = newlines_s;
+                int64_t *newlines_slen = realloc(
+                    lines_slen, sizeof(*lines_slen) * (lines_count + 1)
+                );
+                if (!newlines_slen)
+                    goto oomstrsplit;
+                lines_slen = newlines_slen;
+                newlines_s[lines_count] = line;
+                newlines_slen[lines_count] = linelen;
+                lines_count++;
+                if (i >= slen) {
+                    break;
+                }
+                i++;
+                if (s[i - 1] == '\r' && i < slen &&
+                        s[i] == '\n') {
+                    i++;
+                }
+                current_line_start = i;
+                continue;
+            }
+            i++;
+        }
+        valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+        DELREF_NONHEAP(vcresult);
+        valuecontent_Free(vcresult);
+        vcresult->type = H64VALTYPE_NONE;
+        return 1;
+    } else {
+        char *s = NULL;
+        int64_t slen = 0;
+        if (vc->type == H64VALTYPE_GCVAL) {
+            assert(((h64gcvalue *)vc->ptr_value)->type ==
+                   H64GCVALUETYPE_BYTES);
+            s = ((h64gcvalue *)vc->ptr_value)->bytes_val.s;
+            slen = ((h64gcvalue *)vc->ptr_value)->bytes_val.len;
+        } else {
+            assert(vc->type == H64VALTYPE_SHORTBYTES);
+            s = vc->shortbytes_value;
+            slen = vc->shortbytes_len;
+        }
+        assert(0);  // FIXME
+    }
+}
+
+int corelib_stringsub(  // $$builtin.$$string_sub
+        h64vmthread *vmthread
+        ) {
+    assert(STACK_TOP(vmthread->stack) >= 3);
+
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 2);
+    assert(
+        (vc->type == H64VALTYPE_GCVAL &&
+         ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_STRING) ||
+        vc->type == H64VALTYPE_SHORTSTR ||
+        (vc->type == H64VALTYPE_GCVAL &&
+         ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_BYTES) ||
+        vc->type == H64VALTYPE_SHORTBYTES
+    );
+    int64_t startindex = -1;
+    valuecontent *vcstart = STACK_ENTRY(vmthread->stack, 0);
+    if (vcstart->type == H64VALTYPE_INT64) {
+        startindex = vcstart->int_value;
+    } else if (vcstart->type == H64VALTYPE_FLOAT64) {
+        startindex = clamped_round(vcstart->float_value);
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "start index must be a number"
+        );
+    }
+    int64_t endindex = -1;
+    valuecontent *vcend = STACK_ENTRY(vmthread->stack, 1);
+    if (vcend->type == H64VALTYPE_INT64) {
+        endindex = vcend->int_value;
+    } else if (vcstart->type == H64VALTYPE_FLOAT64) {
+        endindex = clamped_round(vcend->float_value);
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "end index must be a number"
+        );
+    }
+
+    if (vc->type == H64VALTYPE_SHORTSTR || (
+            vc->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_STRING)) {
+        h64wchar *s = NULL;
+        int64_t slen = 0;
+        if (vc->type == H64VALTYPE_GCVAL) {
+            assert(((h64gcvalue *)vc->ptr_value)->type ==
+                   H64GCVALUETYPE_STRING);
+            s = ((h64gcvalue *)vc->ptr_value)->str_val.s;
+            slen = ((h64gcvalue *)vc->ptr_value)->str_val.len;
+        } else {
+            assert(vc->type == H64VALTYPE_SHORTSTR);
+            s = vc->shortstr_value;
+            slen = vc->shortstr_len;
+        }
+
+        valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+        DELREF_NONHEAP(vcresult);
+        valuecontent_Free(vcresult);
+        vcresult->type = H64VALTYPE_NONE;
+        if (startindex < 1) {
+            startindex = 1;
+        }
+        if (endindex > slen) {
+            endindex = slen;
+        }
+        if (endindex < startindex) {
+            vcresult->type = H64VALTYPE_SHORTSTR;
+            vcresult->shortstr_len = 0;
+            return 1;
+        }
+        int64_t scopylen = 0;
+        h64wchar *scopy = malloc(
+            (slen > 1 ? slen : 1) * sizeof(*scopy)
+        );
+        if (!scopy)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory returning substring"
+            );
+        if (startindex == 1 && endindex == slen) {
+            memcpy(scopy, s, slen * sizeof(*scopy));
+            scopylen = slen;
+        } else {
+            memcpy(
+                scopy, s + startindex,
+                ((endindex - startindex) + 1) * sizeof(*scopy)
+            );
+            scopylen = ((endindex - startindex) + 1);
+        }
+        if (!valuecontent_SetStringU32(
+                vmthread, vcresult, scopy, scopylen
+                )) {
+            free(scopy);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory returning substring"
+            );
+        }
+        free(scopy);
+        return 1;
+    } else {
+        char *s = NULL;
+        int64_t slen = 0;
+        if (vc->type == H64VALTYPE_GCVAL) {
+            assert(((h64gcvalue *)vc->ptr_value)->type ==
+                   H64GCVALUETYPE_BYTES);
+            s = ((h64gcvalue *)vc->ptr_value)->bytes_val.s;
+            slen = ((h64gcvalue *)vc->ptr_value)->bytes_val.len;
+        } else {
+            assert(vc->type == H64VALTYPE_SHORTBYTES);
+            s = vc->shortbytes_value;
+            slen = vc->shortbytes_len;
+        }
+
+        valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+        DELREF_NONHEAP(vcresult);
+        valuecontent_Free(vcresult);
+        vcresult->type = H64VALTYPE_NONE;
+        if (startindex < 1) {
+            startindex = 1;
+        }
+        if (endindex > slen) {
+            endindex = slen;
+        }
+        if (endindex < startindex) {
+            vcresult->type = H64VALTYPE_SHORTBYTES;
+            vcresult->shortstr_len = 0;
+            return 1;
+        }
+        int64_t scopylen = 0;
+        char *scopy = malloc(
+            (slen > 1 ? slen : 1) * sizeof(*scopy)
+        );
+        if (!scopy)
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory returning substring"
+            );
+        if (startindex == 1 && endindex == slen) {
+            memcpy(scopy, s, slen * sizeof(*scopy));
+            scopylen = slen;
+        } else {
+            memcpy(
+                scopy, s + startindex,
+                ((endindex - startindex) + 1) * sizeof(*scopy)
+            );
+            scopylen = ((endindex - startindex) + 1);
+        }
+        if (!valuecontent_SetBytesU8(
+                vmthread, vcresult, (uint8_t *)scopy, scopylen
+                )) {
+            free(scopy);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory returning substring"
+            );
+        }
+        free(scopy);
         return 1;
     }
 }
@@ -537,7 +894,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
         } else {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
-                ".%s() on bytes needs a bytes parameter"
+                "starts check on bytes needs a bytes parameter"
             );
         }
 
@@ -589,7 +946,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
         } else {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
-                ".%s() on string needs a string parameter"
+                "starts check on string needs a string parameter"
             );
         }
 
@@ -597,7 +954,8 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
         h64wchar *s = NULL;
         int64_t slen = 0;
         if (vc->type == H64VALTYPE_GCVAL &&
-                ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_STRING) {
+                ((h64gcvalue *)vc->ptr_value)->type ==
+                H64GCVALUETYPE_STRING) {
             s = ((h64gcvalue *)vc->ptr_value)->str_val.s;
             slen = ((h64gcvalue *)vc->ptr_value)->str_val.len;
         } else {
@@ -660,7 +1018,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
         } else {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
-                ".%s() on bytes needs a bytes parameter"
+                "ends check on bytes needs a bytes parameter"
             );
         }
 
@@ -712,7 +1070,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
         } else {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
-                ".%s() on string needs a string parameter"
+                "ends check on string needs a string parameter"
             );
         }
 
@@ -757,7 +1115,7 @@ int corelib_RegisterStringFuncs(h64program *p) {
     // '$$string_contains' function:
     idx = h64program_RegisterCFunction(
         p, "$$string_contains", &corelib_stringcontains,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -768,7 +1126,7 @@ int corelib_RegisterStringFuncs(h64program *p) {
     // '$$string_find' function:
     idx = h64program_RegisterCFunction(
         p, "$$string_find", &corelib_stringfind,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -779,7 +1137,7 @@ int corelib_RegisterStringFuncs(h64program *p) {
     // '$$string_trim' function:
     idx = h64program_RegisterCFunction(
         p, "$$string_trim", &corelib_stringtrim,
-        NULL, 0, NULL, NULL, NULL, 1, -1
+        NULL, 0, 0, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -790,7 +1148,7 @@ int corelib_RegisterStringFuncs(h64program *p) {
     // '$$string_starts' function:
     idx = h64program_RegisterCFunction(
         p, "$$string_starts", &corelib_stringstarts,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -801,7 +1159,7 @@ int corelib_RegisterStringFuncs(h64program *p) {
     // '$$string_ends' function:
     idx = h64program_RegisterCFunction(
         p, "$$string_ends", &corelib_stringends,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -812,7 +1170,7 @@ int corelib_RegisterStringFuncs(h64program *p) {
     // '$$string_lower' function:
     idx = h64program_RegisterCFunction(
         p, "$$string_lower", &corelib_stringlower,
-        NULL, 0, NULL, NULL, NULL, 1, -1
+        NULL, 0, 0, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -820,10 +1178,43 @@ int corelib_RegisterStringFuncs(h64program *p) {
     if (!corelib_RegisterStringsFunc(p, "lower", idx))
         return 0;
 
+    // '$$string_sub' function:
+    idx = h64program_RegisterCFunction(
+        p, "$$string_sub", &corelib_stringsub,
+        NULL, 0, 2, NULL, NULL, NULL, 1, -1
+    );
+    if (idx < 0)
+        return 0;
+    p->func[idx].input_stack_size++;  // for 'self'
+    if (!corelib_RegisterStringsFunc(p, "sub", idx))
+        return 0;
+
+    // '$$string_decode' function:
+    idx = h64program_RegisterCFunction(
+        p, "$$string_decode", &corelib_stringdecode,
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
+    );
+    if (idx < 0)
+        return 0;
+    p->func[idx].input_stack_size++;  // for 'self'
+    if (!corelib_RegisterStringsFunc(p, "decode", idx))
+        return 0;
+
+    // '$$string_splitlines' function:
+    idx = h64program_RegisterCFunction(
+        p, "$$string_splitlines", &corelib_stringsplitlines,
+        NULL, 0, 0, NULL, NULL, NULL, 1, -1
+    );
+    if (idx < 0)
+        return 0;
+    p->func[idx].input_stack_size++;  // for 'self'
+    if (!corelib_RegisterStringsFunc(p, "splitlines", idx))
+        return 0;
+
     // '$$string_upper' function:
     idx = h64program_RegisterCFunction(
         p, "$$string_upper", &corelib_stringupper,
-        NULL, 0, NULL, NULL, NULL, 1, -1
+        NULL, 0, 0, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -842,7 +1233,10 @@ funcid_t corelib_GetStringFuncIdx(
         if (p->string_indexes.func_name_idx[i] == nameidx &&
                 (!isbytes || (
                  strcmp(p->string_indexes.func_name[i], "lower") != 0 &&
-                 strcmp(p->string_indexes.func_name[i], "upper") != 0))) {
+                 strcmp(p->string_indexes.func_name[i], "upper") != 0)) &&
+                (isbytes || (
+                 strcmp(p->string_indexes.func_name[i], "decode") != 0))
+                ) {
             return p->string_indexes.func_idx[i];
         }
         i++;

@@ -13,8 +13,9 @@
 #include "compiler/result.h"
 #include "compiler/warningconfig.h"
 #include "json.h"
+#include "widechar.h"
 
-typedef struct uriinfo uriinfo;
+typedef struct uri32info uri32info;
 
 typedef enum h64tokentype {
     H64TK_INVALID = 0,
@@ -69,7 +70,7 @@ ATTR_UNUSED static char *h64keywords[] = {
 };
 
 h64tokenizedfile lexer_ParseFromFile(
-    uriinfo *fileuri, h64compilewarnconfig *wconfig
+    const uri32info *fileuri, h64compilewarnconfig *wconfig
 );
 
 void lexer_ClearToken(h64token *t);
@@ -78,9 +79,13 @@ void lexer_FreeFileTokens(h64tokenizedfile *tfile);
 
 const char *lexer_TokenTypeToStr(h64tokentype type);
 
-char *lexer_TokenToJSONStr(h64token *t, const char *fileuri);
+char *lexer_TokenToJSONStr(
+    h64token *t, const h64wchar *fileuri, int64_t fileurilen
+);
 
-jsonvalue *lexer_TokenToJSON(h64token *t, const char *fileuri);
+jsonvalue *lexer_TokenToJSON(
+    h64token *t, const h64wchar *fileuri, int64_t fileurilen
+);
 
 int is_valid_utf8_char(
     const unsigned char *p, int size

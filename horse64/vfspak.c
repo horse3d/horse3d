@@ -5,68 +5,91 @@
 #include "compileconfig.h"
 
 #include "physfs.h"
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "archiver.h"
 #include "filesys.h"
+#include "filesys32.h"
 #include "vfs.h"
 #include "vfspak.h"
 #include "vfspartialfileio.h"
 
 
+static uint64_t _pakcounter = 0;
+
 int vfs_AddPakEx(
-        const char *path, uint64_t start_offset, uint64_t max_len,
+        const h64wchar *path, int64_t pathlen,
+        uint64_t start_offset, uint64_t max_len,
         int ignore_extension) {
-    if (!path || !filesys_FileExists(path) ||
-            filesys_IsDirectory(path) ||
-            strlen(path) < strlen(".h64pak") ||
+    // Test if path looks non-bogus:
+    h64wchar _h64pak[] = {'.', 'h', '6', '4', 'p', 'a', 'k'};
+    if (!path || pathlen < (signed)strlen(".h64pak") ||
             (!ignore_extension &&
-             memcmp(path + strlen(path) - strlen(".h64pak"),
-                    ".h64pak", strlen(".h64pak")) != 0))
+             memcmp(path + pathlen - strlen(".h64pak"),
+                _h64pak, sizeof(*_h64pak) * strlen(".h64pak")) != 0))
         return 0;
+
+    // See if target is a file:
+    int _fileexists = 0;
+    int _isdir = 0;
+    if (!filesys32_TargetExists(path, pathlen, &_fileexists) ||
+            !filesys32_IsDirectory(path, pathlen, &_isdir)) {
+        #if defined(DEBUG_VFS) && !defined(NDEBUG)
+        h64printf("horse64/vfs.c: debug: "
+            "I/O error looking at resource pack: %s\n", path);
+        #endif
+        return 0;
+    }
+    if (!_fileexists || _isdir)
+        return 0;
+
+    // Ok, attempt to add:
     #if defined(DEBUG_VFS) && !defined(NDEBUG)
     h64printf("horse64/vfs.c: debug: "
            "adding resource pack: %s\n", path);
     #endif
-    if (start_offset == 0 && max_len == 0) {
-        if (!PHYSFS_mount(path, "/", 1)) {
-            return 0;
-        }
-    } else {
-        FILE *f = filesys_OpenFromPath(path, "rb");
-        if (!f) {
-            return 0;
-        }
-        PHYSFS_Io *io = (PHYSFS_Io *)(
-            _PhysFS_Io_partialFileReadOnlyStruct(f, start_offset, max_len)
-        );
-        if (!io) {
-            fclose(f);
-            return 0;
-        }
+    FILE *f = filesys32_OpenFromPath(path, pathlen, "rb");
+    if (!f) {
+        return 0;
+    }
+    PHYSFS_Io *io = (PHYSFS_Io *)(
+        _PhysFS_Io_partialFileReadOnlyStruct(f, start_offset, max_len)
+    );
+    if (!io) {
         fclose(f);
-        f = NULL;
-        if (!PHYSFS_mountIo(io, path, "/", 1)) {
-            io->destroy(io);
-            return 0;
-        }
+        return 0;
+    }
+    fclose(f);
+    f = NULL;
+    char pakname[128];
+    snprintf(
+        pakname, sizeof(pakname) - 1, "m%" PRIu64 ".zip",
+        _pakcounter
+    );
+    _pakcounter++;
+    if (!PHYSFS_mountIo(io, pakname, "/", 1)) {
+        io->destroy(io);
+        return 0;
     }
 
     return 1;
 }
 
-int vfs_AddPak(const char *path) {
-    return vfs_AddPakEx(path, 0, 0, 0);
+int vfs_AddPak(const h64wchar *path, int64_t pathlen) {
+    return vfs_AddPakEx(path, pathlen, 0, 0, 0);
 }
 
 int vfs_GetEmbbeddedPakInfo(
-        const char *path, int64_t end_offset,
+        const h64wchar *path, int64_t pathlen,
+        int64_t end_offset,
         embeddedvfspakinfo **einfo
         ) {
-    VFSFILE *f = vfs_fopen(
-        path, "rb", VFSFLAG_NO_VIRTUALPAK_ACCESS
+    VFSFILE *f = vfs_fopen_u32(
+        path, pathlen, "rb",
+        VFSFLAG_NO_VIRTUALPAK_ACCESS
     );
     if (!f) {
         *einfo = NULL;
@@ -139,7 +162,7 @@ int vfs_GetEmbbeddedPakInfo(
     );
     embeddedvfspakinfo *next_einfo = NULL;
     if (!vfs_GetEmbbeddedPakInfo(
-            path, file_len - pak_start, &next_einfo
+            path, pathlen, file_len - pak_start, &next_einfo
             )) {
         free(*einfo);
         *einfo = NULL;
@@ -149,12 +172,15 @@ int vfs_GetEmbbeddedPakInfo(
     return 1;
 }
 
-int vfs_HasEmbbededPakGivenFilePath(
-        embeddedvfspakinfo *einfo, const char *binary_path,
+int vfs_HasEmbbededPakThatContainsFilePath(
+        embeddedvfspakinfo *einfo,
+        const h64wchar *binary_path,
+        int64_t binary_path_len,
         const char *file_path, int *out_result
         ) {
     h64archive *a = archive_FromFilePathSlice(
-        binary_path, einfo->data_start_offset,
+        binary_path, binary_path_len,
+        einfo->data_start_offset,
         einfo->data_end_offset - einfo->data_start_offset,
         0, 0, H64ARCHIVE_TYPE_AUTODETECT
     );
@@ -177,18 +203,19 @@ void vfs_FreeEmbeddedPakInfo(embeddedvfspakinfo *einfo) {
 }
 
 int _vfs_AddPaksFromBinaryWithEndOffset(
-        const char *path, int64_t end_offset
+        const h64wchar *path, int64_t pathlen,
+        int64_t end_offset
         ) {
     embeddedvfspakinfo *einfo = NULL;
     int result = (
-        vfs_GetEmbbeddedPakInfo(path, end_offset, &einfo)
+        vfs_GetEmbbeddedPakInfo(path, pathlen, end_offset, &einfo)
     );
     if (!result)
         return 0;
     embeddedvfspakinfo *einfo_orig = einfo;
     while (einfo) {
         if (!vfs_AddPakEx(
-                path, einfo->data_start_offset,
+                path, pathlen, einfo->data_start_offset,
                 einfo->data_end_offset - einfo->data_start_offset, 1
                 )) {
             vfs_FreeEmbeddedPakInfo(einfo_orig);
@@ -200,6 +227,8 @@ int _vfs_AddPaksFromBinaryWithEndOffset(
     return 1;
 }
 
-int vfs_AddPaksEmbeddedInBinary(const char *path) {
-    return _vfs_AddPaksFromBinaryWithEndOffset(path, 0);
+int vfs_AddPaksEmbeddedInBinary(
+        const h64wchar *path, int64_t pathlen
+        ) {
+    return _vfs_AddPaksFromBinaryWithEndOffset(path, pathlen, 0);
 }

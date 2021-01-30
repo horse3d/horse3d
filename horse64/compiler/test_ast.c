@@ -13,7 +13,7 @@
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
 #include "mainpreinit.h"
-#include "filesys.h"
+#include "filesys32.h"
 #include "vfs.h"
 
 #include "../testmain.h"
@@ -28,15 +28,22 @@ void _parsetest_do(const char *testcode, int expectOK) {
     memset(&wconfig, 0, sizeof(wconfig));
     warningconfig_Init(&wconfig);
 
-    char *cwd = filesys_GetCurrentDirectory();
+    int64_t cwdlen = 0;
+    h64wchar *cwd = filesys32_GetCurrentDirectory(&cwdlen);
     assert(cwd != NULL);
     h64compileproject *project = compileproject_New(
-        cwd
+        cwd, cwdlen
     );
     free(cwd);
     assert(project != NULL);
 
-    FILE *f = fopen(".testdata.txt", "wb");
+    int64_t _testdata_txt_name_len = 0;
+    h64wchar *_testdata_txt_name = AS_U32(
+        ".testdata.txt", &_testdata_txt_name_len
+    );
+    FILE *f = filesys32_OpenFromPath(
+        _testdata_txt_name, _testdata_txt_name_len, "wb"
+    );
     ck_assert(f != NULL);
     ck_assert(fwrite(testcode, 1, strlen(testcode), f) == strlen(testcode));
     fclose(f);
@@ -44,7 +51,8 @@ void _parsetest_do(const char *testcode, int expectOK) {
     char *error = NULL;
     h64ast *ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, ".testdata.txt", &ast, &error
+        project, _testdata_txt_name, _testdata_txt_name_len,
+        &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     if (expectOK) {
@@ -81,6 +89,7 @@ void _parsetest_do(const char *testcode, int expectOK) {
     }
 
     compileproject_Free(project);  // This indirectly frees 'ast'!
+    free(_testdata_txt_name);
 }
 
 

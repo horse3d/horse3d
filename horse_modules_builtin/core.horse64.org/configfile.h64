@@ -1,0 +1,38 @@
+# Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+# also see LICENSE.md file.
+# SPDX-License-Identifier: BSD-2-Clause
+
+
+import io from core.horse64.org
+
+
+func _parse_string(f) {
+    assert(type(f) == "string")
+    var lines = f.splitlines()
+    var i = 1
+    while i <= lines.len {
+        line = lines[i].trim()
+        if line.starts("#") or line == "" or not line.contains("=") {
+            continue
+        }
+        
+    }
+}
+
+func parse(file_or_string) {
+    if type(file_or_string) == "string" {
+        return _parse_string(file_or_string)
+    } else if type(file_or_string) == "bytes" {
+        file_or_string = file_or_string.decode("utf-8")
+        return _parse_string(file_or_string)
+    } else if hasattr(file_or_string, "read") {
+        contents = file_or_string.read()
+        if type(contents) == "string" or type(contents) != "bytes") {
+            return _parse_string(contents)
+        )
+    }
+    raise new TypeError(
+        "file_or_string must be a file supporting .read(), "
+        "or a string with the contens"
+    )
+}

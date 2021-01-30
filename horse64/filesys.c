@@ -52,31 +52,6 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 #include "stringhelpers.h"
 #include "widechar.h"
 
-int filesys_GetComponentCount(const char *path) {
-    int i = 0;
-    int component_count = 0;
-    #if defined(_WIN32) || defined(_WIN64)
-    if (path[0] != '/' && path[0] != '\\' &&
-            path[1] == ':' && (path[2] == '/' ||
-            path[2] == '\\'))
-        i = 2;
-    #endif
-    while (i < (int)strlen(path)) {
-        if (i > 0 && path[i] != '/' &&
-                #if defined(_WIN32) || defined(_WIN64)
-                path[i] != '\\' &&
-                #endif
-                (path[i - 1] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || path[i - 1] == '\\'
-                #endif
-                )) {
-            component_count++;
-        }
-        i++;
-    }
-    return component_count;
-}
 
 int filesys_IsSymlink(const char *path, int *result) {
     #if defined(_WIN32) || defined(_WIN64)
@@ -341,28 +316,6 @@ int filesys_IsDirectory(const char *path) {
 }
 
 
-int filesys_GetSize(const char *path, uint64_t *size) {
-    #if defined(ANDROID) || defined(__ANDROID__) || defined(__unix__) || defined(__linux__) || defined(__APPLE__) || defined(__OSX__)
-    struct stat64 statbuf;
-
-    if (stat64(path, &statbuf) == -1) {
-        return 0;
-    }
-    *size = (uint64_t)statbuf.st_size;
-    return 1;
-    #else
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (!GetFileAttributesEx(path, GetFileExInfoStandard, &fad))
-        return -1;
-    LARGE_INTEGER v;
-    v.HighPart = fad.nFileSizeHigh;
-    v.LowPart = fad.nFileSizeLow;
-    *size = (uint64_t)v.QuadPart;
-    return 1;
-    #endif
-}
-
-
 void filesys_RequestFilesystemAccess() {
     #if defined(ANDROID) || defined(__ANDROID__)
     JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
@@ -378,26 +331,12 @@ void filesys_RequestFilesystemAccess() {
 }
 
 
-int filesys_CreateDirectory(const char *path, int user_readable_only) {
-    #if defined(ANDROID) || defined(__ANDROID__) || defined(__unix__) || defined(__linux__) || defined(__APPLE__) || defined(__OSX__)
-    if (user_readable_only)
-        return (mkdir(path, 0700) == 0);
-    else
-        return (mkdir(path, 0775) == 0);
-    #elif defined(_WIN32) || defined(_WIN64)
-    return (CreateDirectory(path, NULL) != 0);
-    #else
-    #error "unsupported platform"
-    #endif
-}
-
-
 static char *_documentspath = NULL;
 
 const char *_filesys_DocumentsBasePath() {
     if (_documentspath)
         return _documentspath;
-    #if defined(ANDROID) || defined(__ANDROID__)
+/*    #if defined(ANDROID) || defined(__ANDROID__)
     JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
     jobject activity = (jobject)SDL_AndroidGetActivity();
     jclass javaclass = (*env)->GetObjectClass(env, activity);
@@ -450,13 +389,13 @@ const char *_filesys_DocumentsBasePath() {
     if (_documentspath && !filesys_IsDirectory(_documentspath)) {
         filesys_CreateDirectory(_documentspath, 1);
     }
-    return _documentspath;
+    return _documentspath;*/
 }
 
 
 static char *_appdatapath = NULL;
 const char *filesys_AppDataSubFolder(const char *appname) {
-    if (_appdatapath)
+    /*if (_appdatapath)
         return _appdatapath;
     char emptybuf[] = "";
     if (!appname)
@@ -548,7 +487,7 @@ const char *filesys_AppDataSubFolder(const char *appname) {
     if (_appdatapath && !filesys_IsDirectory(_appdatapath)) {
         filesys_CreateDirectory(_appdatapath, 1);
     }
-    return _appdatapath;
+    return _appdatapath;*/
 }
 
 
@@ -557,7 +496,7 @@ static char docsubfolderbuf[4096];
 const char *filesys_DocumentsSubFolder(
         const char *subfolder
         ) {
-    const char *docsfolder = _filesys_DocumentsBasePath();
+    /*const char *docsfolder = _filesys_DocumentsBasePath();
     if (!docsfolder)
         return NULL;
 
@@ -587,7 +526,7 @@ const char *filesys_DocumentsSubFolder(
         filesys_CreateDirectory(docsubfolderbuf, 0);
     }
 
-    return docsubfolderbuf;
+    return docsubfolderbuf;*/
 }
 
 
@@ -753,152 +692,6 @@ char *filesys_GetRealPath(const char *s) {
     return realpath(s, NULL);
     #endif
 }
-
-
-char *filesys_GetOwnExecutable() {
-    #if defined(_WIN32) || defined(_WIN64)
-    TCHAR fp[MAX_PATH + 1];
-    GetModuleFileName(NULL, fp, MAX_PATH + 1);
-    fp[MAX_PATH] = '\0';
-    return strdup(fp);
-    #else
-    int alloc = 16;
-    char *fpath = malloc(alloc);
-    if (!fpath)
-        return NULL;
-    while (1) {
-        fpath[0] = '\0';
-        #if defined(APPLE) || defined(__APPLE__)
-        int i = alloc;
-        if (_NSGetExecutablePath(fpath, &i) != 0) {
-            free(fpath);
-            fpath = malloc(i + 1);
-            if (_NSGetExecutablePath(fpath, &i) != 0) {
-                free(fpath);
-                return NULL;
-            }
-            return fpath;
-        }     
-        #else
-        int written = readlink("/proc/self/exe", fpath, alloc);
-        if (written >= alloc) {
-            alloc *= 2;
-            free(fpath);
-            fpath = malloc(alloc);
-            if (!fpath)
-                return NULL;
-            continue;
-        } else if (written <= 0) {
-            free(fpath);
-            return NULL;
-        }
-        fpath[written] = '\0';
-        return fpath;
-        #endif
-    }
-    #endif
-}
-
-char *filesys_Dirname(const char *path) {
-    if (!path)
-        return NULL;
-    char *s = strdup(path);
-    if (!s)
-        return NULL;
-    int cutoffdone = 0;
-    int evernotslash = 0;
-    int i = strlen(s) - 1;
-    while (i >= 0) {
-        if (evernotslash && (s[i] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || s[i] == '\\'
-                #endif
-                )) {
-            s[i] = '\0';
-            i--;
-            while (i >= 0 &&
-                    (s[i] == '/'
-                    #if defined(_WIN32) || defined(_WIN64)
-                    || s[i] == '\\'
-                    #endif
-                    )) {
-                s[i] = '\0';
-                i--;
-            }
-            cutoffdone = 1;
-            break;
-        } else if (s[i] != '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                && s[i] != '\\'
-                #endif
-                ) {
-            evernotslash = 1;
-        }
-        i--;
-    }
-    if (!cutoffdone) s[0] = '\0';
-    return s;
-}
-
-char *filesys_Basename(const char *path) {
-    int i = 0;
-    while ((int)strlen(path) > i &&
-            path[strlen(path) - i - 1] != '/'
-            #if defined(_WIN32) || defined(_WIN64)
-            &&
-            path[strlen(path) - i - 1] != '\\'
-            #endif
-            )
-        i++;
-    char *result = malloc(i + 1);
-    if (!result)
-        return result;
-    memcpy(result, path + strlen(path) - i, i + 1);
-    return result;
-}
-
-
-char *filesys_ParentdirOfItem(const char *path) {
-    if (!path)
-        return NULL;
-    char *p = strdup(path);
-    if (!p)
-        return NULL;
-
-    // If this is already shortened to absolute path root, abort:
-    #if defined(_WIN32) || defined(_WIN64)
-    if (strlen(path) >= 2 && strlen(path) <= 3 &&
-            path[1] == ':' && (strlen(path) == 2 ||
-            path[2] == '/' || path[2] == '\\') &&
-            ((path[0] >= 'a' && path[0] <= 'z') ||
-              (path[0] >= 'A' && path[0] <= 'Z')))
-        return p;
-    #else
-    if (strlen(path) == 1 && path[0] == '/')
-        return p;
-    #endif
-
-    // Strip trailing slash if any, then go back one component:
-    #if defined(_WIN32) || defined(_WIN64)
-    while (strlen(p) > 0 && (
-            p[strlen(p) - 1] == '/' ||
-            p[strlen(p) - 1] == '\\'))
-        p[strlen(p) - 1] = '\0';
-    while (strlen(p) > 0 &&
-            p[strlen(p) - 1] != '/' &&
-            p[strlen(p) - 1] != '\\')
-        p[strlen(p) - 1] = '\0';
-    #else
-    while (strlen(p) > 0 &&
-            p[strlen(p) - 1] == '/')
-        p[strlen(p) - 1] = '\0';
-    while (strlen(p) > 0 &&
-            p[strlen(p) - 1] != '/')
-        p[strlen(p) - 1] = '\0';
-    #endif
-    return p;
-}
-
 
 char *filesys_Join(const char *path1, const char *path2_orig) {
     // Quick result paths:
@@ -1106,227 +899,6 @@ int filesys_IsAbsolutePath(const char *path) {
     return 0;
 }
 
-char *filesys_ToAbsolutePath(const char *path) {
-    if (filesys_IsAbsolutePath(path))
-        return strdup(path);
-    char *cwd = filesys_GetCurrentDirectory();
-    if (!cwd)
-        return NULL;
-    char *result = filesys_Join(cwd, path);
-    free(cwd);
-    return result;
-}
-
-char *filesys_GetCurrentDirectory() {
-    #if defined(_WIN32) || defined(_WIN64)
-    DWORD size = GetCurrentDirectory(0, NULL);
-    char *s = malloc(size + 1);
-    if (!s)
-        return NULL;
-    if (GetCurrentDirectory(size, s) != 0) {
-        s[size - 1] = '\0';
-        return s;
-    }
-    free(s);
-    return NULL;
-    #else
-    int allocsize = 32;
-    while (1) {
-        allocsize *= 2;
-        char *s = malloc(allocsize);
-        if (!s)
-            return NULL;
-        char *result = getcwd(s, allocsize - 1);
-        if (result == NULL) {
-            free(s);
-            if (errno == ERANGE) {
-                continue;
-            }
-            return NULL;
-        }
-        s[allocsize - 1] = '\0';
-        return s;
-    }
-    #endif
-}
-
-char *filesys_TurnIntoPathRelativeTo(
-        const char *path, const char *makerelativetopath
-        ) {
-    if (!path)
-        return NULL;
-    char *cwd = filesys_GetCurrentDirectory();
-    if (!cwd)
-        return NULL;
-
-    // Prepare input to be absolute & normalized:
-    char *input_path = NULL;
-    if (filesys_IsAbsolutePath(path)) {
-        input_path = strdup(path);
-    } else {
-        input_path = filesys_Join(cwd, path);
-    }
-    if (!input_path) {
-        free(cwd);
-        return NULL;
-    }
-    {
-        char *_s = filesys_Normalize(input_path);
-        if (!_s) {
-            free(input_path);
-            free(cwd);
-            return NULL;
-        }
-        free(input_path);
-        input_path = _s;
-    }
-
-    // Prepare comparison path to be absolute & normalized:
-    char *reltopath = NULL;
-    if (makerelativetopath &&
-            filesys_IsAbsolutePath(makerelativetopath)) {
-        reltopath = strdup(makerelativetopath);
-    } else if (makerelativetopath) {
-        reltopath = filesys_Join(cwd, makerelativetopath);
-    } else {
-        reltopath = strdup(cwd);
-    }
-    if (!reltopath) {
-        free(input_path);
-        free(cwd);
-        return NULL;
-    }
-    {
-        char *_s = filesys_Normalize(reltopath);
-        if (!_s) {
-            free(reltopath);
-            free(input_path);
-            free(cwd);
-            return NULL;
-        }
-        free(reltopath);
-        reltopath = _s;
-    }
-
-    // Free unneeded resources:
-    free(cwd);
-    cwd = NULL;
-
-    // Get the similar path base:
-    int similar_up_to = -1;
-    int last_component = -1;
-    int i = 0;
-    while (i < (int)strlen(reltopath) && i < (int)strlen(input_path)) {
-        if (reltopath[i] == input_path[i]) {
-            similar_up_to = i;
-        } else {
-            break;
-        }
-        if (reltopath[i] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || reltopath[i] == '\\'
-                #endif
-                ) {
-            last_component = i;
-        }
-        i++;
-    }
-    if (similar_up_to + 1 >= (int)strlen(reltopath) &&
-            (similar_up_to + 1 < (int)strlen(input_path) && (
-            input_path[similar_up_to + 1] == '/'
-            #if defined(_WIN32) || defined(_WIN64)
-            || input_path[similar_up_to + 1] == '\\'
-            #endif
-            ))) {
-        last_component = similar_up_to + 1;
-    } else if (similar_up_to + 1 >= (int)strlen(input_path) &&
-            (similar_up_to + 1 < (int)strlen(reltopath) && (
-            reltopath[similar_up_to + 1] == '/'
-            #if defined(_WIN32) || defined(_WIN64)
-            || reltopath[similar_up_to + 1] == '\\'
-            #endif
-            ))) {
-        last_component = similar_up_to + 1;
-    }
-    if (similar_up_to > last_component)
-        similar_up_to = last_component;
-
-    char *samestart = strdup(input_path);
-    if (!samestart) {
-        free(input_path);
-        free(reltopath);
-        return NULL;
-    }
-    samestart[similar_up_to + 1] = '\0';
-    {
-        char *_s = filesys_Normalize(samestart);
-        free(samestart);
-        samestart = NULL;
-        if (!_s) {
-            free(reltopath);
-            return NULL;
-        }
-        samestart = _s;
-    }
-
-    char *differingend = strdup(input_path);
-    free(input_path);
-    input_path = NULL;
-    if (!differingend) {
-        free(reltopath);
-        free(samestart);
-        return NULL;
-    }
-
-    if (similar_up_to > 0) {
-        memmove(
-            differingend, differingend + (similar_up_to + 1),
-            strlen(differingend) - (similar_up_to + 1) + 1
-        );
-    }
-    while (strlen(differingend) > 0 && (
-            differingend[0] == '/'
-            #if defined(_WIN32) || defined(_WIN64)
-            || differingend[0] == '\\'
-            #endif
-            )) {
-        memmove(differingend, differingend + 1, strlen(differingend));
-    }
-
-    int samestart_components = filesys_GetComponentCount(samestart);
-    int reltopath_components = filesys_GetComponentCount(reltopath);
-
-    free(reltopath);
-    reltopath = NULL;
-    free(samestart);
-    samestart = NULL;
-
-    i = samestart_components;
-    while (i < reltopath_components) {
-        char *_s = malloc(strlen(differingend) + strlen("../") + 1);
-        if (!_s) {
-            free(differingend);
-            return NULL;
-        }
-        memcpy(
-            _s,
-            #if defined(_WIN32) || defined(_WIN64)
-            "..\\",
-            #else
-            "../",
-            #endif
-            strlen("../")
-        );
-        memcpy(_s + strlen("../"), differingend, strlen(differingend) + 1);
-        free(differingend);
-        differingend = _s;
-        i++;
-    }
-
-    return differingend;
-}
-
-
 // A few brief unit tests:
 __attribute__((constructor)) static void _tests() {
     char *n = filesys_Normalize("u//abc/def/..u/../..");
@@ -1346,7 +918,7 @@ __attribute__((constructor)) static void _tests() {
                strcmp(n, "..\\abc") == 0);
         free(n);
     }
-    n = filesys_TurnIntoPathRelativeTo(
+    /*n = filesys_TurnIntoPathRelativeTo(
         "/abc/def/lul", "/abc//def/flobb/"
     );
     if (n) {
@@ -1391,37 +963,7 @@ __attribute__((constructor)) static void _tests() {
                       "notexture_NOCOLLISION_INVISIBLE.png") == 0
         );
         free(n);
-    }
-}
-
-int filesys_FolderContainsPath(
-        const char *folder_path, const char *check_path,
-        int *result
-        ) {
-    if (!folder_path || !check_path)
-        return 0;
-    char *fnormalized = filesys_Normalize(folder_path);
-    char *checknormalized = filesys_Normalize(check_path);
-    if (!fnormalized || !checknormalized) {
-        free(fnormalized);
-        free(checknormalized);
-        return 0;
-    }
-    if (strlen(fnormalized) < strlen(checknormalized) && (
-            checknormalized[strlen(fnormalized)] == '/'
-            #if defined(_WIN32) || defined(_WIN64)
-            || checknormalized[strlen(fnormalized)] == '\\'
-            #endif
-            )) {
-        free(fnormalized);
-        free(checknormalized);
-        *result = 1;
-        return 1;
-    }
-    free(fnormalized);
-    free(checknormalized);
-    *result = 0;
-    return 1;
+    }*/
 }
 
 FILE *filesys_OpenFromPath(
@@ -1500,59 +1042,6 @@ FILE *filesys_OpenFromPath(
     #else
     return fopen64(path, mode);
     #endif
-}
-
-FILE *filesys_TempFile(
-        int subfolder, const char *prefix,
-        const char *suffix, char **folder_path,
-        char **path
-        ) {
-    *folder_path = NULL;
-    *path = NULL;
-    int64_t prefixu32len = 0;
-    h64wchar *prefixu32 = AS_U32(prefix, &prefixu32len);
-    if (!prefixu32) {
-        return NULL;
-    }
-    int64_t suffixu32len = 0;
-    h64wchar *suffixu32 = AS_U32(suffix, &suffixu32len);
-    if (!suffixu32) {
-        free(prefixu32);
-        return NULL;
-    }
-    h64wchar *result_folder = NULL;
-    int64_t result_folder_len = 0;
-    h64wchar *result_path = NULL;
-    int64_t result_path_len = 0;
-    FILE *result = filesys32_TempFile(
-        subfolder, prefixu32, prefixu32len,
-        suffixu32, suffixu32len, &result_folder,
-        &result_folder_len, &result_path, &result_path_len
-    );
-    free(prefixu32);
-    free(suffixu32);
-    if (!result)
-        return NULL;
-    if (result_path) {
-        *path = AS_U8(result_path, result_path_len);
-        free(result_path);
-        result_path = NULL;
-        if (!*path) {
-            free(result_folder);
-            fclose(result);
-            return NULL;
-        }
-    }
-    if (result_folder) {
-        *folder_path = AS_U8(result_folder, result_folder_len);
-        free(result_folder);
-        if (!*folder_path) {
-            free(*path);
-            fclose(result);
-            return NULL;
-        }
-    }
-    return result;
 }
 
 char *filesys_Normalize(const char *path) {

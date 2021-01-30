@@ -100,4 +100,14 @@ char *AS_U8(const h64wchar *s, int64_t slen);
 
 const char *AS_U8_TMP(const h64wchar *s, int64_t slen);
 
+h64wchar *strdupu32(
+    const h64wchar *s, int64_t slen, int64_t *out_len
+);
+
+const h64wchar *strstr_u32u8(
+    const h64wchar *s, int64_t slen, const char *find
+);
+
+h64wchar *strdup_u32u8(const char *u8, int64_t *out_len);
+
 #endif  // HORSE64_WIDECHAR_H_

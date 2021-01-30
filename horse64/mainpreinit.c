@@ -34,16 +34,8 @@ void main_PreInit() {
     signal(SIGPIPE, SIG_IGN);
     signal(SIGHUP, SIG_IGN);
     #endif
-    char *exepath = filesys_GetOwnExecutable();
-    if (!exepath) {
-        fprintf(stderr,
-            "horse64/main.c: error: failed "
-            "to get own binary path\n");
-        exit(1);
-        return;
-    }
-    vfs_Init(exepath);
-    free(exepath);
+
+    vfs_Init();
 
     // Load up unicode tables for widechar.c:
     _load_unicode_data();

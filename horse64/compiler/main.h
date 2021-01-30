@@ -5,19 +5,24 @@
 #ifndef HORSE64_COMPILER_MAIN_H_
 #define HORSE64_COMPILER_MAIN_H_
 
+#include "compileconfig.h"
+
 #include "json.h"
+#include "widechar.h"
 
 typedef struct h64compilewarnconfig h64compilewarnconfig;
 typedef struct h64misccompileroptions h64misccompileroptions;
 
 jsonvalue *compiler_TokenizeToJSON(
     h64misccompileroptions *moptions,
-    const char *fileuri, h64compilewarnconfig *wconfig
+    const h64wchar *fileuri, int64_t fileurilen,
+    h64compilewarnconfig *wconfig
 );
 
 jsonvalue *compiler_ParseASTToJSON(
     h64misccompileroptions *moptions,
-    const char *fileuri, h64compilewarnconfig *wconfig,
+    const h64wchar *fileuri, int64_t fileurilen,
+    h64compilewarnconfig *wconfig,
     int resolve_references
 );
 

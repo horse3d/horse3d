@@ -221,7 +221,7 @@ int urilib_RegisterFuncsAndModules(h64program *p) {
     };
     int64_t idx = h64program_RegisterCFunction(
         p, "parse", &urilib_parse,
-        NULL, 3, uri_parse_kw_arg_name,  // fileuri, args, kw arg names
+        NULL, 0, 3, uri_parse_kw_arg_name,  // fileuri, args, kw arg names
         "uri", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -229,7 +229,7 @@ int urilib_RegisterFuncsAndModules(h64program *p) {
 
     // uri class:
     p->_urilib_uri_class_idx = h64program_AddClass(
-        p, "uri", NULL, "uri", "core.horse64.org"
+        p, "uri", NULL, 0, "uri", "core.horse64.org"
     );
     if (p->_urilib_uri_class_idx < 0)
         return 0;

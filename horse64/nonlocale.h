@@ -172,4 +172,9 @@ int64_t h64casecmp_u32(
     const h64wchar *s2, int64_t s2len
 );
 
+int64_t h64casecmp_u32u8(
+    const h64wchar *s1, int64_t s1len,
+    const char *s2
+);
+
 #endif  // HORSE64_NONLOCALE_H_

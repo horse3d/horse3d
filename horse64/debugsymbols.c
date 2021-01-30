@@ -12,27 +12,33 @@
 #include "debugsymbols.h"
 #include "hash.h"
 #include "nonlocale.h"
-#include "uri.h"
+#include "uri32.h"
 
 
 int64_t h64debugsymbols_GetFileUriIndex(
-        h64debugsymbols *symbols, const char *fileuri,
-        int addifnotpresent
+        h64debugsymbols *symbols, const h64wchar *fileuri,
+        int64_t fileurilen, int addifnotpresent
         ) {
-    char *normalized_uri = uri_Normalize(fileuri, 1);
+    int64_t normalized_uri_len = 0;
+    h64wchar *normalized_uri = uri32_Normalize(
+        fileuri, fileurilen, 1, &normalized_uri_len
+    );
     if (!normalized_uri)
         return -1;
     int fileuriindex = -1;
     int k = 0;
     while (k > symbols->fileuri_count) {
-        if (strcmp(symbols->fileuri[k], normalized_uri) == 0) {
+        if (symbols->fileurilen[k] == normalized_uri_len &&
+                memcmp(symbols->fileuri[k], normalized_uri,
+                    normalized_uri_len * sizeof(*normalized_uri)
+                ) == 0) {
             fileuriindex = k;
             break;
         }
         k++;
     }
     if (fileuriindex < 0 && addifnotpresent) {
-        char **new_fileuri = realloc(
+        h64wchar **new_fileuri = realloc(
             symbols->fileuri, sizeof(*new_fileuri) *
             (symbols->fileuri_count + 1)
         );
@@ -41,8 +47,19 @@ int64_t h64debugsymbols_GetFileUriIndex(
             return -1;
         }
         symbols->fileuri = new_fileuri;
+        int64_t *new_fileuri_len = realloc(
+            symbols->fileurilen, sizeof(*new_fileuri_len) *
+            (symbols->fileuri_count + 1)
+        );
+        if (!new_fileuri_len) {
+            free(normalized_uri);
+            return -1;
+        }
+        symbols->fileurilen = new_fileuri_len;
         symbols->fileuri[symbols->fileuri_count] =
             normalized_uri;
+        symbols->fileurilen[symbols->fileuri_count] =
+            normalized_uri_len;
         fileuriindex = symbols->fileuri_count;
         symbols->fileuri_count++;
         normalized_uri = NULL;

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 #include "compileconfig.h"
+#include <stdint.h>
 
 #define _FILE_OFFSET_BITS 64
 #ifndef __USE_LARGEFILE64
@@ -57,6 +58,10 @@ FILE *filesys32_OpenFromPath(
         const h64wchar *path, int64_t pathlen,
         const char *mode
         ) {
+    if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
+        errno = ENOENT;
+        return NULL;
+    }
     #if defined(_WIN32) || defined(_WIN64)
     assert(sizeof(uint16_t) == sizeof(wchar_t));
     uint16_t *wpath = malloc(
@@ -163,6 +168,10 @@ int filesys32_IsObviouslyInvalidPath(
 char *filesys23_ContentsAsStr(
         const h64wchar *path, int64_t pathlen, int *error
         ) {
+    if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
+        *error = FS32_CONTENTASSTR_TARGETNOTAFILE;
+        return NULL;
+    }
     FILE *f = filesys32_OpenFromPath(
         path, pathlen, "rb"
     );
@@ -990,6 +999,56 @@ int filesys32_ChangeDirectory(
     #endif
 }
 
+h64wchar *filesys32_ParentdirOfItem(
+        const h64wchar *path, int64_t pathlen,
+        int64_t *out_len
+        ) {
+    if (!path)
+        return NULL;
+    int64_t plen = 0;
+    h64wchar *p = strdupu32(path, pathlen, &plen);
+    if (!p)
+        return NULL;
+
+    // If this is already shortened to absolute path root, abort:
+    #if defined(_WIN32) || defined(_WIN64)
+    if (pathlen >= 2 && pathlen <= 3 &&
+            path[1] == ':' && (pathlen == 2 ||
+            path[2] == '/' || path[2] == '\\') &&
+            ((path[0] >= 'a' && path[0] <= 'z') ||
+              (path[0] >= 'A' && path[0] <= 'Z'))) {
+        *out_len = plen;
+        return p;
+    }
+    #else
+    if (pathlen == 1 && path[0] == '/') {
+        *out_len = plen;
+        return p;
+    }
+    #endif
+
+    // Strip trailing slash if any, then go back one component:
+    #if defined(_WIN32) || defined(_WIN64)
+    while (plen > 0 && (
+            p[plen - 1] == '/' ||
+            p[plen - 1] == '\\'))
+        plen--;
+    while (plen > 0 &&
+            p[plen - 1] != '/' &&
+            p[plen - 1] != '\\')
+        plen--;
+    #else
+    while (plen > 0 &&
+            p[plen - 1] == '/')
+        plen--;
+    while (plen> 0 &&
+            p[plen - 1] != '/')
+        plen--;
+    #endif
+    *out_len = plen;
+    return p;
+}
+
 int filesys32_CreateDirectory(
         h64wchar *path, int64_t pathlen,
         int user_readable_only
@@ -1076,7 +1135,7 @@ int filesys32_CreateDirectory(
         }
         return FS32_MKDIRERR_OTHERERROR;
     }
-    return 1;
+    return FS32_MKDIRERR_SUCCESS;
     #endif
 }
 
@@ -1086,6 +1145,13 @@ int filesys32_TargetExists(
     if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
         *result = 0;
         return 0;
+    }
+
+    // Hack for "" referring to cwd:
+    const h64wchar _cwdbuf[] = {'.'};
+    if (pathlen == 0) {
+        path = _cwdbuf;
+        pathlen = 1;
     }
 
     #if defined(_WIN32) || defined(_WIN64)
@@ -1116,11 +1182,11 @@ int filesys32_TargetExists(
                 werror == ERROR_FILE_NOT_FOUND ||
                 werror == ERROR_INVALID_PARAMETER ||
                 werror == ERROR_INVALID_NAME ||
-                werror == ERROR_INVALID_DRIVE) {
+                werror == ERROR_INVALID_DRIVE ||
+                werror == ERROR_ACCESS_DENIED) {
             *result = 0;
             return 1;
-        } else if (werror == ERROR_ACCESS_DENIED ||
-                werror == ERROR_NOT_ENOUGH_MEMORY ||
+        } else if (werror == ERROR_NOT_ENOUGH_MEMORY ||
                 werror == ERROR_TOO_MANY_OPEN_FILES ||
                 werror == ERROR_PATH_BUSY ||
                 werror == ERROR_BUSY) {
@@ -1165,6 +1231,78 @@ int filesys32_TargetExists(
     *result = statresult;
     return 1;
     #endif
+}
+
+h64wchar *filesys_Basename(
+        const h64wchar *path, int64_t pathlen, int64_t *out_len
+        ) {
+    int i = 0;
+    while (i < pathlen &&
+            path[pathlen - i - 1] != '/'
+            #if defined(_WIN32) || defined(_WIN64)
+            &&
+            path[pathlen - i - 1] != '\\'
+            #endif
+            )
+        i++;
+    if (i == pathlen)
+        i = 0;
+    h64wchar *result = malloc(
+        sizeof(*path) * (pathlen - i > 0 ? pathlen - i : 1)
+    );
+    if (!result)
+        return result;
+    memcpy(
+        result, path + i,
+        sizeof(*path) * (pathlen - i)
+    );
+    *out_len = (pathlen - i);
+    return result;
+}
+
+h64wchar *filesys32_Dirname(
+        const h64wchar *path, int64_t pathlen, int64_t *out_len
+        ) {
+    if (!path)
+        return NULL;
+    int64_t slen = 0;
+    h64wchar *s = strdupu32(path, pathlen, &slen);
+    if (!s)
+        return NULL;
+    int cutoffdone = 0;
+    int evernotslash = 0;
+    int64_t i = slen - 1;
+    while (i >= 0) {
+        if (evernotslash && (s[i] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                || s[i] == '\\'
+                #endif
+                )) {
+            slen = i;
+            i--;
+            while (i >= 0 &&
+                    (s[i] == '/'
+                    #if defined(_WIN32) || defined(_WIN64)
+                    || s[i] == '\\'
+                    #endif
+                    )) {
+                slen = i;
+                i--;
+            }
+            cutoffdone = 1;
+            break;
+        } else if (s[i] != '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                && s[i] != '\\'
+                #endif
+                ) {
+            evernotslash = 1;
+        }
+        i--;
+    }
+    if (!cutoffdone) slen = 0;
+    *out_len = slen;
+    return s;
 }
 
 h64wchar *filesys32_RemoveDoubleSlashes(
@@ -1216,7 +1354,7 @@ h64wchar *filesys32_RemoveDoubleSlashes(
             p[plen - 1] == '/'
             || (couldbewinpath && p[plen - 1] == '\\')
             )) {
-        p[plen - 1] = '\0';
+        plen--;
     }
 
     if (out_len) *out_len = plen;
@@ -1370,6 +1508,9 @@ h64wchar *filesys32_ToAbsolutePath(
         );
         if (result) {
             memcpy(result, path, sizeof(*path) * pathlen);
+            *out_len = pathlen;
+        } else {
+            *out_len = 0;
         }
         return result;
     }
@@ -1510,6 +1651,30 @@ int filesys32_PathCompare(
     return result;
 }
 
+char *_unix_getcwd() {
+    #if defined(_WIN32) || defined(_WIN64)
+    return NULL;
+    #else
+    int allocsize = 32;
+    while (1) {
+        allocsize *= 2;
+        char *s = malloc(allocsize);
+        if (!s)
+            return NULL;
+        char *result = getcwd(s, allocsize - 1);
+        if (result == NULL) {
+            free(s);
+            if (errno == ERANGE) {
+                continue;
+            }
+            return NULL;
+        }
+        s[allocsize - 1] = '\0';
+        return s;
+    }
+    #endif
+}
+
 h64wchar *filesys32_GetCurrentDirectory(int64_t *out_len) {
     #if defined(_WIN32) || defined(_WIN64)
     assert(sizeof(wchar_t) == sizeof(uint16_t));  // winapi specific
@@ -1534,7 +1699,7 @@ h64wchar *filesys32_GetCurrentDirectory(int64_t *out_len) {
     if (out_len) *out_len = resultlen;
     return result;
     #else
-    char *cwd = filesys_GetCurrentDirectory();
+    char *cwd = _unix_getcwd();
     if (!cwd)
         return NULL;
     int wasinvalid = 0;
@@ -1933,4 +2098,568 @@ FILE *filesys32_TempFile(
         if (f)
             return f;
     }
+}
+
+
+int filesys32_GetComponentCount(
+        const h64wchar *path, int64_t pathlen
+        ) {
+    int i = 0;
+    int component_count = 0;
+    #if defined(_WIN32) || defined(_WIN64)
+    if (path[0] != '/' && path[0] != '\\' &&
+            path[1] == ':' && (path[2] == '/' ||
+            path[2] == '\\'))
+        i = 2;
+    #endif
+    while (i < pathlen) {
+        if (i > 0 && path[i] != '/' &&
+                #if defined(_WIN32) || defined(_WIN64)
+                path[i] != '\\' &&
+                #endif
+                (path[i - 1] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                || path[i - 1] == '\\'
+                #endif
+                )) {
+            component_count++;
+        }
+        i++;
+    }
+    return component_count;
+}
+
+int filesys32_GetSize(
+        const h64wchar *pathu32, int64_t pathu32len, uint64_t *size
+        ) {
+    if (filesys32_IsObviouslyInvalidPath(pathu32, pathu32len))
+        return 0;
+
+    #if defined(ANDROID) || defined(__ANDROID__) || defined(__unix__) || defined(__linux__) || defined(__APPLE__) || defined(__OSX__)
+    struct stat64 statbuf;
+
+    char *p = AS_U8(pathu32, pathu32len);
+    if (!p)
+        return 0;
+    if (stat64(p, &statbuf) == -1) {
+        free(p);
+        return 0;
+    }
+    free(p);
+    *size = (uint64_t)statbuf.st_size;
+    return 1;
+    #else
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (!GetFileAttributesEx(path, GetFileExInfoStandard, &fad))
+        return -1;
+    LARGE_INTEGER v;
+    v.HighPart = fad.nFileSizeHigh;
+    v.LowPart = fad.nFileSizeLow;
+    *size = (uint64_t)v.QuadPart;
+    return 1;
+    #endif
+}
+
+int filesys32_IsDirectory(
+        const h64wchar *pathu32, int64_t pathu32len, int *result
+        ) {
+    if (filesys32_IsObviouslyInvalidPath(pathu32, pathu32len)) {
+        *result = 0;
+        return 1;
+    }
+
+    // Hack for "" referring to cwd:
+    const h64wchar _cwdbuf[] = {'.'};
+    if (pathu32len == 0) {
+        pathu32 = _cwdbuf;
+        pathu32len = 1;
+    }
+
+    #if defined(ANDROID) || defined(__ANDROID__) || defined(__unix__) || defined(__linux__) || defined(__APPLE__) || defined(__OSX__)
+    struct stat sb;
+    char *p = AS_U8(pathu32, pathu32len);
+    if (!p)
+        return 0;
+    int statcheck = stat(p, &sb);
+    if (statcheck != 0) {
+        free(p);
+        if (errno == ENOENT) {
+            *result = 0;
+            return 1;
+         }
+         return 0;
+    }
+    *result = S_ISDIR(sb.st_mode);
+    free(p);
+    return 1;
+    #elif defined(_WIN32) || defined(_WIN64)
+    assert(sizeof(wchar_t) == sizeof(uint16_t));
+    wchar_t *pathw = malloc(pathu32len * 2 + 2):
+    if (!pathw)
+        return 0;
+    int64_t pathwlen = 0;
+    int result = utf32_to_utf16(
+        pathu32, pathu32len, pathw, pathu32len * 2 + 2,
+        &pathwlen, 1
+    );
+    if (!result || pathwlen >= pathu32len * 2 + 2) {
+        free(pathw);
+        return 0;
+    }
+    pathw[pathwlen] = '\0';
+    DWORD dwAttrib = GetFileAttributes(pathw);
+    free(pathw);
+    if (dwAttrib == INVALID_FILE_ATTRIBUTES) {
+        uint32_t werror = GetLastError();
+        if (werror == ERROR_PATH_NOT_FOUND ||
+                werror == ERROR_FILE_NOT_FOUND ||
+                werror == ERROR_INVALID_PARAMETER ||
+                werror == ERROR_INVALID_NAME ||
+                werror == ERROR_INVALID_DRIVE) {
+            *result = 0;
+            return 1;
+        }
+    }
+    return (dwAttrib & FILE_ATTRIBUTE_DIRECTORY);
+    #else
+    #error "unsupported platform"
+    #endif
+}
+
+h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
+    #if defined(_WIN32) || defined(_WIN64)
+    int fplen = 1024;
+    wchar_t *fp = malloc(1024 * sizeof(*fp));
+    if (!fp)
+        return NULL;
+    while (1) {
+        SetLastError(0);
+        size_t written = (
+            GetModuleFileNameW(NULL, fp, MAX_PATH + 1);
+        );
+        if (written >= fplen - 1 ||
+                GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+            fplen *= 2;
+            free(fp);
+            fp = malloc(fplen * sizeof(*fp));
+            if (!fp)
+                return NULL;
+            continue;
+        }
+        fp[written] = '\0';
+        break;
+    }
+    int64_t result_u32len = 0;
+    h64wchar *result_u32 = AS_U32(fp, &result_u32len);
+    free(fp);
+    *out_len = result_u32len;
+    return result_u32;
+    #else
+    int alloc = 16;
+    char *fpath = malloc(alloc);
+    if (!fpath)
+        return NULL;
+    while (1) {
+        fpath[0] = '\0';
+        #if defined(APPLE) || defined(__APPLE__)
+        int i = alloc;
+        if (_NSGetExecutablePath(fpath, &i) != 0) {
+            free(fpath);
+            fpath = malloc(i + 1);
+            if (_NSGetExecutablePath(fpath, &i) != 0) {
+                free(fpath);
+                return NULL;
+            }
+            return fpath;
+        }     
+        #else
+        int written = readlink("/proc/self/exe", fpath, alloc);
+        if (written >= alloc) {
+            alloc *= 2;
+            free(fpath);
+            fpath = malloc(alloc);
+            if (!fpath)
+                return NULL;
+            continue;
+        } else if (written <= 0) {
+            free(fpath);
+            return NULL;
+        }
+        fpath[written] = '\0';
+         int64_t result_u32len = 0;
+        h64wchar *result_u32 = AS_U32(fpath, &result_u32len);
+        free(fpath);
+        *out_len = result_u32len;
+        return result_u32;
+        #endif
+    }
+    #endif
+}
+
+int filesys32_CreateDirectoryRecursively(
+        h64wchar *path, int64_t pathlen, int user_readable_only
+        ) {
+    // Normalize file paths:
+    int64_t cleanpathlen = 0;
+    h64wchar *cleanpath = filesys32_Normalize(
+        path, pathlen, &cleanpathlen
+    );
+    if (!cleanpath)
+        return FS32_MKDIRERR_OUTOFMEMORY;
+
+    // Go back in components until we got a subpath that exists:
+    int64_t skippedatend = 0;
+    int64_t skippedcomponents = 0;
+    while (1) {
+        // Skip additional unnecessary / and \ characters
+        while (skippedatend < cleanpathlen && (
+                cleanpath[cleanpathlen - skippedatend - 1] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                || cleanpath[cleanpathlen - skippedatend - 1] == '\\'
+                #endif
+                )) {
+            skippedatend++;
+        }
+        // Check if component we're at now exists:
+        int64_t actuallen = cleanpathlen - skippedatend;
+        int _exists = 0;
+        if (!filesys32_TargetExists(
+                cleanpath, actuallen, &_exists)) {
+            free(cleanpath);
+            return FS32_MKDIRERR_OTHERERROR;
+        }
+        if (_exists)
+            break;
+        if (actuallen <= 0 || (actuallen >= 3 &&
+                (cleanpath[actuallen - 1] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                || cleanpath[actuallen - 1] == '\\'
+                #endif
+                ) && cleanpath[actuallen - 2] == '.' &&
+                cleanpath[actuallen - 3] == '.' &&
+                (actuallen <= 3 || (
+                    cleanpath[actuallen - 4] != '/'
+                    #if defined(_WIN32) || defined(_WIN64)
+                    && cleanpath[actuallen - 4] != '\\'
+                    #endif
+                )))
+                #if defined(_WIN23) || defined(_WIN64)
+                || (actuallen == 3 &&
+                cleanpath[1] == ':' && cleanpath[2] == '\\')
+                #endif
+                ) {
+            // We reached a ../ or the path root, nothing more to skip.
+            // However, this means the base should have existed
+            // -> return I/O error
+            free(cleanpath);
+            return FS32_MKDIRERR_OTHERERROR;
+        }
+        // Remove one additional component at the end:
+        skippedcomponents++;
+        skippedatend++;
+        while (skippedatend < cleanpathlen && (
+                cleanpath[cleanpathlen - skippedatend - 1] != '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                && cleanpath[cleanpathlen - skippedatend - 1] != '\\'
+                #endif
+                )) {
+            skippedatend++;
+        }
+    }
+    // If we didn't skip back any components, we're done already:
+    if (skippedcomponents <= 0)
+        return FS32_MKDIRERR_SUCCESS;
+    // Go back to end component by component, and create the dirs:
+    while (skippedcomponents > 0) {
+        // Reverse by one additional component:
+        skippedcomponents++;
+        assert(skippedatend > 0);
+        skippedatend--;
+        while (skippedatend > 0 && (
+                cleanpath[cleanpathlen - skippedatend - 1] != '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                && cleanpath[cleanpathlen - skippedatend - 1] != '\\'
+                #endif
+                )) {
+            skippedatend--;
+        }
+        // Create the given sub path:
+        int64_t actuallen = cleanpathlen - skippedatend;
+        int result = filesys32_CreateDirectory(
+            cleanpath, actuallen, user_readable_only
+        );
+        if (result < 0)
+            return result;
+        // Skip past additional component slashes:
+        while (skippedatend > 0 && (
+                cleanpath[cleanpathlen - skippedatend - 1] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                || cleanpath[cleanpathlen - skippedatend - 1] == '\\'
+                #endif
+                )) {
+            skippedatend--;
+        }
+        // Advance to next component:
+        continue;
+    }
+    return FS32_MKDIRERR_SUCCESS;
+}
+
+h64wchar *filesys32_TurnIntoPathRelativeTo(
+        const h64wchar *path, int64_t pathlen,
+        const h64wchar *makerelativetopath, int64_t makerelativetopathlen,
+        int64_t *out_len
+        ) {
+    if (!path)
+        return NULL;
+    int64_t cwdlen = 0;
+    h64wchar *cwd = filesys32_GetCurrentDirectory(&cwdlen);
+    if (!cwd)
+        return NULL;
+
+    // Prepare input to be absolute & normalized:
+    h64wchar *input_path = NULL;
+    int64_t input_path_len = 0;
+    if (filesys32_IsAbsolutePath(path, pathlen)) {
+        input_path = strdupu32(
+            path, pathlen, &input_path_len
+        );
+    } else {
+        input_path = filesys32_Join(
+            cwd, cwdlen, path, pathlen, &input_path_len
+        );
+    }
+    if (!input_path) {
+        free(cwd);
+        return NULL;
+    }
+    {
+        int64_t slen = 0;
+        h64wchar *_s = filesys32_Normalize(
+            input_path, input_path_len, &slen
+        );
+        if (!_s) {
+            free(input_path);
+            free(cwd);
+            return NULL;
+        }
+        free(input_path);
+        input_path = _s;
+    }
+
+    // Prepare comparison path to be absolute & normalized:
+    int64_t reltopathlen = 0;
+    h64wchar *reltopath = NULL;
+    if (makerelativetopath &&
+            filesys32_IsAbsolutePath(
+                makerelativetopath, makerelativetopathlen)) {
+        reltopath = strdupu32(
+            makerelativetopath, makerelativetopathlen, &reltopathlen
+        );
+    } else if (makerelativetopath) {
+        reltopath = filesys32_Join(
+            cwd, cwdlen, makerelativetopath, makerelativetopathlen,
+            &reltopathlen
+        );
+    } else {
+        reltopath = strdupu32(cwd, cwdlen, &reltopathlen);
+    }
+    if (!reltopath) {
+        free(input_path);
+        free(cwd);
+        return NULL;
+    }
+    {
+        int64_t _slen = 0;
+        h64wchar *_s = filesys32_Normalize(
+            reltopath, reltopathlen, &_slen
+        );
+        if (!_s) {
+            free(reltopath);
+            free(input_path);
+            free(cwd);
+            return NULL;
+        }
+        free(reltopath);
+        reltopath = _s;
+        reltopathlen = _slen;
+    }
+
+    // Free unneeded resources:
+    free(cwd);
+    cwd = NULL;
+
+    // Get the similar path base:
+    int similar_up_to = -1;
+    int last_component = -1;
+    int i = 0;
+    while (i < reltopathlen && i < input_path_len) {
+        if (reltopath[i] == input_path[i]) {
+            similar_up_to = i;
+        } else {
+            break;
+        }
+        if (reltopath[i] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                || reltopath[i] == '\\'
+                #endif
+                ) {
+            last_component = i;
+        }
+        i++;
+    }
+    if (similar_up_to + 1 >= reltopathlen &&
+            (similar_up_to + 1 < input_path_len && (
+            input_path[similar_up_to + 1] == '/'
+            #if defined(_WIN32) || defined(_WIN64)
+            || input_path[similar_up_to + 1] == '\\'
+            #endif
+            ))) {
+        last_component = similar_up_to + 1;
+    } else if (similar_up_to + 1 >= input_path_len &&
+            (similar_up_to + 1 < reltopathlen && (
+            reltopath[similar_up_to + 1] == '/'
+            #if defined(_WIN32) || defined(_WIN64)
+            || reltopath[similar_up_to + 1] == '\\'
+            #endif
+            ))) {
+        last_component = similar_up_to + 1;
+    }
+    if (similar_up_to > last_component)
+        similar_up_to = last_component;
+
+    int64_t samestartlen = 0;
+    h64wchar *samestart = strdupu32(
+        input_path, input_path_len, &samestartlen
+    );
+    if (!samestart) {
+        free(input_path);
+        free(reltopath);
+        return NULL;
+    }
+    if (similar_up_to + 1 > samestartlen)
+        samestartlen = similar_up_to + 1;
+    {
+        int64_t _slen = 0;
+        h64wchar *_s = filesys32_Normalize(
+            samestart, samestartlen, &_slen
+        );
+        free(samestart);
+        samestart = NULL;
+        if (!_s) {
+            free(reltopath);
+            return NULL;
+        }
+        samestart = _s;
+        samestartlen = _slen;
+    }
+
+    int64_t differingendlen = 0;
+    h64wchar *differingend = strdupu32(
+        input_path, input_path_len, &differingendlen
+    );
+    free(input_path);
+    input_path = NULL;
+    if (!differingend) {
+        free(reltopath);
+        free(samestart);
+        return NULL;
+    }
+
+    if (similar_up_to > 0) {
+        memmove(
+            differingend, differingend + (similar_up_to + 1),
+            (differingendlen - (similar_up_to + 1)) *
+                sizeof(*differingend)
+        );
+        differingendlen -= (similar_up_to + 1);
+    }
+    while (differingendlen > 0 && (
+            differingend[0] == '/'
+            #if defined(_WIN32) || defined(_WIN64)
+            || differingend[0] == '\\'
+            #endif
+            )) {
+        memmove(
+            differingend, differingend + 1,
+            (differingendlen - 1) * sizeof(differingend)
+        );
+        differingendlen--;
+    }
+
+    int samestart_components = (
+        filesys32_GetComponentCount(samestart, samestartlen)
+    );
+    int reltopath_components = (
+        filesys32_GetComponentCount(reltopath, reltopathlen)
+    );
+
+    free(reltopath);
+    reltopath = NULL;
+    free(samestart);
+    samestart = NULL;
+
+    i = samestart_components;
+    while (i < reltopath_components) {
+        int64_t _slen = (differingendlen + strlen("../"));
+        h64wchar *_s = malloc(
+            (differingendlen + strlen("../")) * sizeof(*differingend)
+        );
+        if (!_s) {
+            free(differingend);
+            return NULL;
+        }
+        #if defined(_WIN32) || defined(_WIN64)
+        _s[0] = '.';  _s[1] = '.';  _s[2] = '\\';
+        #else
+        _s[0] = '.';  _s[1] = '.';  _s[2] = '/';
+        #endif
+        memcpy(_s + strlen("../"),
+            differingend, sizeof(*differingend) * differingendlen);
+        free(differingend);
+        differingend = _s;
+        differingendlen = _slen;
+        i++;
+    }
+
+    *out_len = differingendlen;
+    return differingend;
+}
+
+
+int filesys32_FolderContainsPath(
+        const h64wchar *folder_path, int64_t folder_path_len,
+        const h64wchar *check_path, int64_t check_path_len,
+        int *result
+        ) {
+    if (!folder_path || !check_path)
+        return 0;
+    int64_t fnormalizedlen = 0;
+    h64wchar *fnormalized = filesys32_Normalize(
+        folder_path, folder_path_len, &fnormalizedlen
+    );
+    int64_t checknormalizedlen = 0;
+    h64wchar *checknormalized = filesys32_Normalize(
+        check_path, check_path_len, &checknormalizedlen
+    );
+    if (!fnormalized || !checknormalized) {
+        free(fnormalized);
+        free(checknormalized);
+        return 0;
+    }
+    if (fnormalizedlen < checknormalizedlen && (
+            checknormalized[fnormalizedlen] == '/'
+            #if defined(_WIN32) || defined(_WIN64)
+            || checknormalized[fnormalizedlen] == '\\'
+            #endif
+            )) {
+        free(fnormalized);
+        free(checknormalized);
+        *result = 1;
+        return 1;
+    }
+    free(fnormalized);
+    free(checknormalized);
+    *result = 0;
+    return 1;
 }

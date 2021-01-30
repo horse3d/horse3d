@@ -13,13 +13,14 @@
 #include "compiler/compileproject.h"
 #include "compiler/lexer.h"
 #include "compiler/warningconfig.h"
-#include "uri.h"
+#include "uri32.h"
 
 h64ast *codemodule_GetASTUncached(
-        h64compileproject *pr, uriinfo *fileuri,
+        h64compileproject *pr, uri32info *fileuri,
         h64compilewarnconfig *wconfig
         ) {
-    char *fileuri_s = uri_Dump(fileuri);
+    int64_t fileuri_slen = 0;
+    h64wchar *fileuri_s = uri32_Dump(fileuri, &fileuri_slen);
     if (!fileuri_s) {
         return NULL;
     }
@@ -48,13 +49,21 @@ h64ast *codemodule_GetASTUncached(
         memcpy(&tcode->resultmsg, &tfile.resultmsg,
                sizeof(tcode->resultmsg));
         if (fileuri) {
-            tcode->fileuri = strdup(fileuri_s);
+            tcode->fileuri = malloc(
+                sizeof(*fileuri_s) * fileuri_slen
+            );
             if (!tcode->fileuri) {
                 free(tcode);
                 lexer_FreeFileTokens(&tfile);
                 result_FreeContents(&tfile.resultmsg);
                 free(fileuri_s);
                 return NULL;
+            } else {
+                memcpy(
+                    tcode->fileuri, fileuri_s,
+                    sizeof(*fileuri_s) * fileuri_slen
+                );
+                tcode->fileurilen = fileuri_slen;
             }
         }
         return tcode;
@@ -62,7 +71,7 @@ h64ast *codemodule_GetASTUncached(
 
     // 2. Parse AST from tokens:
     h64ast *tcode = ast_ParseFromTokens(
-        pr, fileuri_s, tfile.token, tfile.token_count
+        pr, fileuri_s, fileuri_slen, tfile.token, tfile.token_count
     );
     if (!tcode) {
         lexer_FreeFileTokens(&tfile);

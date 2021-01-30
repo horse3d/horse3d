@@ -15,6 +15,7 @@
 #include "compiler/main.h"
 #include "compiler/scoperesolver.h"
 #include "filesys.h"
+#include "filesys32.h"
 #include "mainpreinit.h"
 #include "vfs.h"
 
@@ -26,36 +27,68 @@ START_TEST (test_scope_import_complex)
 
     h64misccompileroptions moptions = {0};
 
-    char *cwd = filesys_GetCurrentDirectory();
+    int64_t cwdlen = 0;
+    h64wchar *cwd = filesys32_GetCurrentDirectory(&cwdlen);
     assert(cwd != NULL);
-    char *testfolder_path = filesys_Join(cwd, ".testdata-prj");
+
+    // Prepare paths:
+    int64_t testproj_namelen = 0;
+    h64wchar *testproj_name = AS_U32(
+        ".testdata-prj", &testproj_namelen
+    );
+    assert(testproj_name != NULL);
+    int64_t testproj_withsubdirs_len = 0;
+    h64wchar *testproj_withsubdirs = AS_U32(
+        ".testdata-prj/horse_modules/my.lib/mymodule",
+        &testproj_withsubdirs_len
+    );
+    assert(testproj_withsubdirs != NULL);
+    int64_t testfolder_pathlen = 0;
+    h64wchar *testfolder_path = filesys32_Join(
+        cwd, cwdlen, testproj_name, testproj_namelen,
+        &testfolder_pathlen
+    );
     assert(testfolder_path != NULL);
+    int64_t testfolder2_pathlen = 0;
+    h64wchar *testfolder2_path = filesys32_Join(
+        cwd, cwdlen, testproj_withsubdirs, testproj_withsubdirs_len,
+        &testfolder_pathlen
+    );
+    assert(testfolder2_path != NULL);
     free(cwd);
     cwd = NULL;
 
-    if (filesys_FileExists(testfolder_path)) {
-        ck_assert(filesys_IsDirectory(testfolder_path));
-        int result = filesys_RemoveFolderRecursively(testfolder_path);
+    int _exists = 0;
+    int result = filesys32_TargetExists(
+        testfolder_path, testfolder_pathlen, &_exists
+    );
+    assert(result != 0);
+    if (_exists) {
+        int _isdir = 0;
+        ck_assert(
+            filesys32_IsDirectory(
+                testfolder_path, testfolder_pathlen, &_isdir
+            ) &&
+            _isdir
+        );
+        int _err = 0;
+        int result = filesys32_RemoveFolderRecursively(
+            testfolder_path, testfolder_pathlen, &_err
+        );
         assert(result != 0);
     }
-    assert(filesys_FileExists(testfolder_path) == 0);
-    int createresult = filesys_CreateDirectory(testfolder_path, 1);
-    ck_assert(createresult);
-    createresult = filesys_CreateDirectory(
-        ".testdata-prj/horse_modules", 1
+    assert(filesys32_TargetExists(
+        testfolder_path, testfolder_pathlen, &_exists
+    ) && !_exists);
+    int createresult = filesys32_CreateDirectoryRecursively(
+        testfolder2_path, testfolder2_pathlen, 1
     );
-    ck_assert(createresult);
-    createresult = filesys_CreateDirectory(
-        ".testdata-prj/horse_modules/my.lib", 1
-    );
-    ck_assert(createresult);
-    createresult = filesys_CreateDirectory(
-        ".testdata-prj/horse_modules/my.lib/mymodule", 1
-    );
-    ck_assert(createresult);
+    ck_assert(createresult == FS32_MKDIRERR_SUCCESS);
+    free(testfolder2_path);
+    testfolder2_path = NULL;
 
     h64compileproject *project = compileproject_New(
-        testfolder_path
+        testfolder_path, testfolder_pathlen
     );
     assert(project != NULL);
 
@@ -105,10 +138,15 @@ START_TEST (test_scope_import_complex)
         fclose(f);
     }
 
+    int64_t codefile_u32len = 0;
+    h64wchar *codefile_u32 = AS_U32(
+        ".testdata-prj/mainfile.h64", &codefile_u32len
+    );
+    assert(codefile_u32 != NULL);
     char *error = NULL;
     h64ast *ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, ".testdata-prj/mainfile.h64", &ast, &error
+        project, codefile_u32, codefile_u32len, &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(scoperesolver_ResolveAST(
@@ -122,7 +160,9 @@ START_TEST (test_scope_import_complex)
                     stderr, "TEST UNEXPECTED FAIL: %s "
                     "(file:%s,line:%" PRId64 ",column:%" PRId64 ")\n",
                     project->resultmsg->message[i].message,
-                    project->resultmsg->message[i].fileuri,
+                    AS_U8_TMP(
+                        project->resultmsg->message[i].fileuri,
+                        project->resultmsg->message[i].fileurilen),
                     project->resultmsg->message[i].line,
                     project->resultmsg->message[i].column
                 );
@@ -152,12 +192,12 @@ START_TEST (test_scope_import_complex)
         fclose(f);
     }
     project = compileproject_New(
-        testfolder_path
+        testfolder_path, testfolder_pathlen
     );
     error = NULL;
     ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, ".testdata-prj/mainfile.h64", &ast, &error
+        project, codefile_u32, codefile_u32len, &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(scoperesolver_ResolveAST(
@@ -199,12 +239,12 @@ START_TEST (test_scope_import_complex)
         fclose(f);
     }
     project = compileproject_New(
-        testfolder_path
+        testfolder_path, testfolder_pathlen
     );
     error = NULL;
     ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, ".testdata-prj/mainfile.h64", &ast, &error
+        project, codefile_u32, codefile_u32len, &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(scoperesolver_ResolveAST(
@@ -238,12 +278,12 @@ START_TEST (test_scope_import_complex)
         fclose(f);
     }
     project = compileproject_New(
-        testfolder_path
+        testfolder_path, testfolder_pathlen
     );
     error = NULL;
     ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, ".testdata-prj/mainfile.h64", &ast, &error
+        project, codefile_u32, codefile_u32len, &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(scoperesolver_ResolveAST(
@@ -284,12 +324,12 @@ START_TEST (test_scope_import_complex)
         fclose(f);
     }
     project = compileproject_New(
-        testfolder_path
+        testfolder_path, testfolder_pathlen
     );
     error = NULL;
     ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, ".testdata-prj/mainfile.h64", &ast, &error
+        project, codefile_u32, codefile_u32len, &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(ast->fileuri != NULL);
@@ -310,6 +350,8 @@ START_TEST (test_scope_import_complex)
     ck_assert(ast->resultmsg.success && project->resultmsg->success);
     compileproject_Free(project);  // This indirectly frees 'ast'
 
+    free(codefile_u32);
+    codefile_u32 = NULL;
     free(testfolder_path);
     testfolder_path = NULL;
 }

@@ -10,6 +10,7 @@ import system from core.horse64.org
 func request(target, method="GET", insecure=no,
              user_agent="horse64-http/" + system.core_version,
              bytes_result=yes) {
+    # Parse options;
     const max_header_size = (4096 * 10)
     if type(target) == "string" or type(target) == "bytes" {
         target = uri.parse(
@@ -22,9 +23,6 @@ func request(target, method="GET", insecure=no,
             "target must be string, or have uri.uri attributes"
         )
     }
-    print("http.get on host " + target.host +
-          ", port " + target.port.as_str +
-          ", path " + target.path)
     if target.protocol.lower() != "http" and
             target.protocol.lower() != "https" {
         raise new ValueError(
@@ -36,14 +34,18 @@ func request(target, method="GET", insecure=no,
             "cannot contact untrusted http target with insecure=false"
         )
     }
-    var conn = net.connect(
-        target.host, target.port,
-        encrypt=(target.protocol.lower() == "https")
-    )
+
+    # Assemble headers and connect:
     var headers = {
         "User-Agent" -> user_agent,
         "Host" -> target.host + ":" + target.port.as_str
     }
+    var conn = net.connect(
+        target.host, target.port,
+        encrypt=(target.protocol.lower() == "https")
+    )
+
+    # Send off HTTP(S) request and get headers:
     conn.write(
         b"HTTP1/1 GET " +
             given not target.path.starts("/") then (b"/" else b"") +

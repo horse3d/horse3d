@@ -32,6 +32,7 @@
 #endif
 
 #include "filesys.h"
+#include "filesys32.h"
 #include "nonlocale.h"
 #include "vfs.h"
 #include "vfspak.h"
@@ -355,11 +356,23 @@ int vfs_flimitslice(VFSFILE *f, uint64_t fileoffset, uint64_t maxlen) {
 }
 
 VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
+    int64_t pathu32len = 0;
+    h64wchar *pathu32 = AS_U32(path, &pathu32len);
+    if (!pathu32) {
+        errno = ENOMEM;
+        return 0;
+    }
+    VFSFILE *f = vfs_fopen_u32(pathu32, pathu32len, mode, flags);
+    free(pathu32);
+    return f;
+}
+
+VFSFILE *vfs_fopen_u32(
+        const h64wchar *path, int64_t pathlen,
+        const char *mode, int flags) {
     VFSFILE *vfile = malloc(sizeof(*vfile));
     if (!vfile) {
-        #if !defined(_WIN32) && !defined(_WIN64)
         errno = ENOMEM;
-        #endif
         return 0;
     }
     memset(vfile, 0, sizeof(*vfile));
@@ -371,24 +384,29 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
     vfile->size = -1;
 
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(path);
+        char *pathu8 = AS_U8(path, pathlen);
+        if (!pathu8)
+            return 0;
+        char *p = vfs_NormalizePath(pathu8);
+        free(pathu8);
+        pathu8 = NULL;
         if (!p) {
-            #if !defined(_WIN32) && !defined(_WIN64)
             errno = ENOMEM;
-            #endif
             free(vfile->mode);
             free(vfile);
             return 0;
         }
+
         if (PHYSFS_exists(p)) {
             vfile->via_physfs = 1;
             vfile->physfshandle = PHYSFS_openRead(p);
             if (vfile->physfshandle) {
                 {
                     // HACK: we need this, since physfs has no dup call...
-                    vfile->path = strdup(path);
+                    vfile->path = strdup(p);
                     if (!vfile->path) {
                         PHYSFS_close(vfile->physfshandle);
+                        free(p);
                         free(vfile->mode);
                         free(vfile);
                         return 0;
@@ -406,7 +424,9 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
         vfile->via_physfs = 0;
         errno = 0;
-        vfile->diskhandle = filesys_OpenFromPath(path, mode);
+        vfile->diskhandle = filesys32_OpenFromPath(
+            path, pathlen, mode
+        );
         if (!vfile->diskhandle) {
             free(vfile->mode);
             free(vfile);
@@ -417,9 +437,7 @@ VFSFILE *vfs_fopen(const char *path, const char *mode, int flags) {
 
     free(vfile->mode);
     free(vfile);
-    #if !defined(_WIN32) && !defined(_WIN64)
     errno = ENOENT;
-    #endif
     return 0;
 }
 
@@ -428,10 +446,21 @@ char *vfs_NormalizePath(const char *path) {
     if (!p)
         return NULL;
     if (filesys_IsAbsolutePath(p)) {
-        char *pnew = filesys_TurnIntoPathRelativeTo(
-            p, NULL
+        int64_t pu32len = 0;
+        h64wchar *pu32 = AS_U32(p, &pu32len);
+        if (!pu32) {
+            free(p);
+            return NULL;
+        }
+        int64_t pnewu32len = 0;
+        h64wchar *pnewu32 = filesys32_TurnIntoPathRelativeTo(
+            pu32, pu32len, NULL, 0, &pnewu32len
         );
         free(p);
+        char *pnew = NULL;
+        if (pnewu32)
+            pnew = AS_U8(pnewu32, pnewu32len);
+        free(pnewu32);
         if (!pnew)
             return NULL;
         p = pnew;
@@ -452,26 +481,60 @@ char *vfs_NormalizePath(const char *path) {
     return p;
 }
 
-char *vfs_AbsolutePath(const char *path) {
-    char *p = vfs_NormalizePath(path);
-    if (!p || filesys_IsAbsolutePath(p))
-        return p;
-    char *result = filesys_Join(
-        filesys_GetCurrentDirectory(), p
-    );
-    free(p);
-    return result;
-}
-
 int vfs_Exists(const char *path, int *result, int flags) {
     return vfs_ExistsEx(path, path, result, flags);
 }
 
+int vfs_ExistsU32(
+        const h64wchar *path, int64_t pathlen,
+        int *result, int flags
+        ) {
+    return vfs_ExistsExU32(
+        path, pathlen, path, pathlen, result, flags
+    );
+}
+
+
 int vfs_ExistsEx(
         const char *abspath, const char *relpath, int *result, int flags
         ) {
+    int64_t absu32len = 0;
+    h64wchar *absu32 = NULL;
+    if (abspath)
+        absu32 = AS_U32(abspath, &absu32len);
+    int64_t relu32len = 0;
+    h64wchar *relu32 = NULL;
+    if (relpath)
+        relu32 = AS_U32(relpath, &relu32len);
+    if ((abspath && !absu32) || (relpath && !relu32)) {
+        free(absu32);
+        free(relu32);
+        return 0;
+    }
+    int retval = vfs_ExistsExU32(
+        absu32, absu32len, relu32, relu32len, result, flags
+    );
+    free(absu32);
+    free(relu32);
+    return retval;
+}
+
+int vfs_ExistsExU32(
+        const h64wchar *abspath, int64_t abspathlen,
+        const h64wchar *relpath, int64_t relpathlen,
+        int *result, int flags
+        ) {
+    if (!abspath && !relpath)
+        return 0;
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(relpath);
+        char *relpathu8 = AS_U8(
+            relpath, relpathlen
+        );
+        if (!relpathu8)
+            return 0;
+        char *p = vfs_NormalizePath(relpathu8);
+        free(relpathu8);
+        relpathu8 = NULL;
         if (!p)
             return 0;
 
@@ -484,11 +547,14 @@ int vfs_ExistsEx(
         free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
-        int _result = filesys_FileExists(abspath);
-        if (_result) {
-            *result = 1;
-            return 1;
-        }
+        int _exists = 0;
+        int _result = filesys32_TargetExists(
+            abspath, abspathlen, &_exists
+        );
+        if (!_result)
+            return 0;  // since I/O error or OOM
+        *result = _exists;
+        return 1;
     }
     *result = 0;
     return 1;
@@ -501,8 +567,50 @@ int vfs_IsDirectory(const char *path, int *result, int flags) {
 int vfs_IsDirectoryEx(
         const char *abspath, const char *relpath, int *result, int flags
         ) {
+    int64_t absu32len = 0;
+    h64wchar *absu32 = NULL;
+    if (abspath)
+        absu32 = AS_U32(abspath, &absu32len);
+    int64_t relu32len = 0;
+    h64wchar *relu32 = NULL;
+    if (relpath)
+        relu32 = AS_U32(relpath, &relu32len);
+    if ((abspath && !absu32) || (relpath && !relu32)) {
+        free(absu32);
+        free(relu32);
+        return 0;
+    }
+    int retval = vfs_IsDirectoryExU32(
+        absu32, absu32len, relu32, relu32len, result, flags
+    );
+    free(absu32);
+    free(relu32);
+    return retval;
+}
+
+int vfs_IsDirectoryU32(
+        const h64wchar *path, int64_t pathlen,
+        int *result, int flags
+        ) {
+    return vfs_IsDirectoryExU32(
+        path, pathlen, path, pathlen, result, flags
+    );
+}
+
+int vfs_IsDirectoryExU32(
+        const h64wchar *abspath, int64_t abspathlen,
+        const h64wchar *relpath, int64_t relpathlen,
+        int *result, int flags
+        ) {
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(relpath);
+        char *relpathu8 = AS_U8(
+            relpath, relpathlen
+        );
+        if (!relpathu8)
+            return 0;
+        char *p = vfs_NormalizePath(relpathu8);
+        free(relpathu8);
+        relpathu8 = NULL;
         if (!p)
             return 0;
 
@@ -515,9 +623,14 @@ int vfs_IsDirectoryEx(
         free(p);
     }
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
-        *result = filesys_IsDirectory(abspath);
-        if (*result)
-            return 1;
+        int _isdir = 0;
+        int _result = filesys32_IsDirectory(
+            abspath, abspathlen, &_isdir
+        );
+        if (!_result)
+            return 0;
+        *result = _isdir;
+        return 1;
     }
     *result = 0;
     return 1;
@@ -531,10 +644,53 @@ int vfs_SizeEx(
         const char *abspath, const char *relpath,
         uint64_t *result, int flags
         ) {
+    int64_t absu32len = 0;
+    h64wchar *absu32 = NULL;
+    if (abspath)
+        AS_U32(abspath, &absu32len);
+    int64_t relu32len = 0;
+    h64wchar *relu32 = NULL;
+    if (relpath)
+        AS_U32(relpath, &relu32len);
+    if ((abspath && !absu32) || (relpath && !relu32)) {
+        free(absu32);
+        free(relu32);
+        return 0;
+    }
+    int retval = vfs_SizeExU32(
+        absu32, absu32len, relu32, relu32len, result, flags
+    );
+    free(absu32);
+    free(relu32);
+    return retval;
+}
+
+int vfs_SizeU32(
+        const h64wchar *path, int64_t pathlen,
+        uint64_t *result, int flags
+        ) {
+    return vfs_SizeExU32(
+        path, pathlen, path, pathlen, result, flags
+    );
+}
+
+int vfs_SizeExU32(
+        const h64wchar *abspath, int64_t abspathlen,
+        const h64wchar *relpath, int64_t relpathlen,
+        uint64_t *result, int flags
+        ) {
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(relpath);
+        char *relpathu8 = AS_U8(
+            relpath, relpathlen
+        );
+        if (!relpathu8)
+            return 0;
+        char *p = vfs_NormalizePath(relpathu8);
+        free(relpathu8);
+        relpathu8 = NULL;
         if (!p)
             return 0;
+
         if (PHYSFS_exists(p)) {
             PHYSFS_File *ffile = PHYSFS_openRead(p);
             if (ffile) {
@@ -546,9 +702,14 @@ int vfs_SizeEx(
         }
         free(p);
     }
-    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
-            filesys_FileExists(abspath)) {
-        if (filesys_GetSize(abspath, result))
+    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
+        int _exists = 0;
+        int _result = filesys32_TargetExists(
+            abspath, abspathlen, &_exists
+        );
+        if (!_result)
+            return 0;
+        if (filesys32_GetSize(abspath, abspathlen, result))
             return 1;
     }
 
@@ -572,8 +733,55 @@ int vfs_GetBytesEx(
         uint64_t bytesamount, char *buffer,
         int flags
         ) {
+    int64_t absu32len = 0;
+    h64wchar *absu32 = NULL;
+    if (abspath)
+        absu32 = AS_U32(abspath, &absu32len);
+    int64_t relu32len = 0;
+    h64wchar *relu32 = NULL;
+    if (relpath)
+        relu32 = AS_U32(relpath, &relu32len);
+    if ((abspath && !absu32) || (relpath && !relu32)) {
+        free(absu32);
+        free(relu32);
+        return 0;
+    }
+    int retval = vfs_GetBytesExU32(
+        absu32, absu32len, relu32, relu32len,
+        offset, bytesamount, buffer, flags
+    );
+    free(absu32);
+    free(relu32);
+    return retval;
+}
+
+int vfs_GetBytesU32(
+        const h64wchar *path, int64_t pathlen, uint64_t offset,
+        uint64_t bytesamount, char *buffer,
+        int flags
+        ) {
+    return vfs_GetBytesExU32(
+        path, pathlen, path, pathlen, offset, bytesamount,
+        buffer, flags
+    );
+}
+
+int vfs_GetBytesExU32(
+        const h64wchar *abspath, int64_t abspathlen,
+        const h64wchar *relpath, int64_t relpathlen,
+        uint64_t offset,
+        uint64_t bytesamount, char *buffer,
+        int flags
+        ) {
     if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
-        char *p = vfs_NormalizePath(relpath);
+        char *relpathu8 = AS_U8(
+            relpath, relpathlen
+        );
+        if (!relpathu8)
+            return 0;
+        char *p = vfs_NormalizePath(relpathu8);
+        free(relpathu8);
+        relpathu8 = NULL;
         if (!p)
             return 0;
 
@@ -599,9 +807,14 @@ int vfs_GetBytesEx(
         }
         free(p);
     }
-    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0 &&
-            filesys_FileExists(abspath)) {
-        FILE *f = fopen64(abspath, "rb");
+    if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
+        int _exists = 0;
+        int _result = filesys32_TargetExists(
+            abspath, abspathlen, &_exists
+        );
+        if (!_result)
+            return 0;
+        FILE *f = filesys32_OpenFromPath(abspath, abspathlen, "rb");
         if (f) {
             if (fseek64(f, (int64_t)offset, SEEK_SET) != 0) {
                 fclose(f);
@@ -622,14 +835,15 @@ int vfs_GetBytesEx(
 
 static int _initdone = 0;
 
-void vfs_Init(const char *argv0) {
+void vfs_Init() {
     if (_initdone)
         return;
     _initdone = 1;
 
-    PHYSFS_init(argv0);
+    PHYSFS_init(NULL);
 
-    char *execpath = filesys_GetOwnExecutable();
+    int64_t execpathlen = 0;
+    h64wchar *execpath = filesys32_GetOwnExecutable(&execpathlen);
     if (!execpath) {
         h64fprintf(
             stderr, "horse64/vfs.c: error: fatal, "
@@ -639,7 +853,7 @@ void vfs_Init(const char *argv0) {
         exit(1);
         return;
     }
-    if (!vfs_AddPaksEmbeddedInBinary(execpath)) {
+    if (!vfs_AddPaksEmbeddedInBinary(execpath, execpathlen)) {
         h64fprintf(
             stderr, "horse64/vfs.c: error: fatal, "
             "failed to load appended VFS data. "

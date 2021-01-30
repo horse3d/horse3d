@@ -1,0 +1,10 @@
+
+func main {
+    var binary = b"t\xC3\xB6st"
+    var str = binary.decode("utf-8")
+    var str2 = binary.as_str
+    assert(str == "töst")
+    assert(str2.sub(1, 1) == "b")
+}
+
+# expected return value: 0

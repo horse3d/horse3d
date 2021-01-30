@@ -5,8 +5,12 @@
 #ifndef HORSE64_ARCHIVER_H_
 #define HORSE64_ARCHIVER_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 #include <stdio.h>
+
+#include "widechar.h"
 
 typedef struct VFSFILE VFSFILE;
 typedef struct h64archive h64archive;
@@ -50,12 +54,14 @@ int h64archive_ReadFileByteSlice(
 void h64archive_Close(h64archive *a);
 
 h64archive *archive_FromFilePath(
-    const char *pathoruri, int createifmissing, int vfsflags,
+    const h64wchar *pathoruri, int64_t pathorurilen,
+    int createifmissing, int vfsflags,
     h64archivetype type
 );
 
 h64archive *archive_FromFilePathSlice(
-    const char *pathoruri, uint64_t fileoffset, uint64_t maxlen,
+    const h64wchar *pathoruri, int64_t pathorurilen,
+    uint64_t fileoffset, uint64_t maxlen,
     int createifmissing, int vfsflags, h64archivetype type
 );
 

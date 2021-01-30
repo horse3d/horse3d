@@ -679,7 +679,7 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     };    
     idx = h64program_RegisterCFunction(
         p, "join", &pathlib_join,
-        NULL, 1, path_join_kw_arg_name,  // fileuri, args
+        NULL, 0, 1, path_join_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -691,7 +691,7 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "set_cwd", &pathlib_set_cwd,
-        NULL, 1, path_set_cwd_kw_arg_name,  // fileuri, args
+        NULL, 0, 1, path_set_cwd_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -703,7 +703,7 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "get_cwd", &pathlib_get_cwd,
-        NULL, 0, path_get_cwd_kw_arg_name,  // fileuri, args
+        NULL, 0, 0, path_get_cwd_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -715,7 +715,7 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "remove", &pathlib_remove,
-        NULL, 2, path_remove_kw_arg_name,  // fileuri, args
+        NULL, 0, 2, path_remove_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -727,7 +727,7 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "add_dir", &pathlib_add_dir,
-        NULL, 1, path_add_dir_kw_arg_name,  // fileuri, args
+        NULL, 0, 1, path_add_dir_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -739,7 +739,7 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "exists", &pathlib_exists,
-        NULL, 1, path_exists_kw_arg_name,  // fileuri, args
+        NULL, 0, 1, path_exists_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -751,7 +751,7 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "list", &pathlib_list,
-        NULL, 2, path_list_kw_arg_name,  // fileuri, args
+        NULL, 0, 2, path_list_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)

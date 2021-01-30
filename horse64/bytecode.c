@@ -19,7 +19,7 @@
 #include "gcvalue.h"
 #include "hash.h"
 #include "nonlocale.h"
-#include "uri.h"
+#include "uri32.h"
 
 
 static char _name_itype_invalid[] = "invalid_instruction";
@@ -190,7 +190,7 @@ h64program *h64program_New() {
 
     {  // Add has_attr() fake func slot:
         funcid_t idx = h64program_RegisterCFunction(
-            p, "has_attr", NULL, NULL, 2,
+            p, "has_attr", NULL, NULL, 0, 2,
             NULL, NULL, NULL, 1, -1
         );
         if (idx < 0) {
@@ -749,7 +749,7 @@ globalvarid_t h64program_AddGlobalvar(
         h64program *p,
         const char *name,
         int is_const,
-        const char *fileuri,
+        const h64wchar *fileuri, int64_t fileurilen,
         const char *module_path,
         const char *library_name
         ) {
@@ -765,7 +765,7 @@ globalvarid_t h64program_AddGlobalvar(
     int fileuriindex = -1;
     if (fileuri) {
         fileuriindex = h64debugsymbols_GetFileUriIndex(
-            p->symbols, fileuri, 1
+            p->symbols, fileuri, fileurilen, 1
         );
         if (fileuriindex < 0)
             return -1;
@@ -858,7 +858,7 @@ funcid_t h64program_RegisterCFunction(
         h64program *p,
         const char *name,
         int (*func)(h64vmthread *vmthread),
-        const char *fileuri,
+        const h64wchar *fileuri, int64_t fileurilen,
         int arg_count,
         const char **arg_kwarg_name,
         const char *module_path,
@@ -881,7 +881,7 @@ funcid_t h64program_RegisterCFunction(
     int fileuriindex = -1;
     if (fileuri) {
         fileuriindex = h64debugsymbols_GetFileUriIndex(
-            p->symbols, fileuri, 1
+            p->symbols, fileuri, fileurilen, 1
         );
         if (fileuriindex < 0)
             return -1;
@@ -1122,7 +1122,7 @@ funcid_t h64program_RegisterCFunction(
 funcid_t h64program_RegisterHorse64Function(
         h64program *p,
         const char *name,
-        const char *fileuri,
+        const h64wchar *fileuri, int64_t fileurilen,
         int arg_count,
         const char **arg_kwarg_name,
         const char *module_path,
@@ -1130,7 +1130,8 @@ funcid_t h64program_RegisterHorse64Function(
         classid_t associated_class_idx
         ) {
     funcid_t idx = h64program_RegisterCFunction(
-        p, name, NULL, fileuri, arg_count, arg_kwarg_name,
+        p, name, NULL, fileuri, fileurilen,
+        arg_count, arg_kwarg_name,
         module_path,
         library_name, -1, associated_class_idx
     );
@@ -1154,7 +1155,7 @@ funcid_t h64program_RegisterHorse64Function(
 classid_t h64program_AddClass(
         h64program *p,
         const char *name,
-        const char *fileuri,
+        const h64wchar *fileuri, int64_t fileurilen,
         const char *module_path,
         const char *library_name
         ) {
@@ -1173,7 +1174,7 @@ classid_t h64program_AddClass(
     int fileuriindex = -1;
     if (fileuri) {
         int fileuriindex = h64debugsymbols_GetFileUriIndex(
-            p->symbols, fileuri, 1
+            p->symbols, fileuri, fileurilen, 1
         );
         if (fileuriindex < 0)
             return -1;

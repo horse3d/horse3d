@@ -6,15 +6,15 @@
 import builtininternals from core.horse64.org
 
 func sort(container, descend=no, key_func=none) {
-    if cmp_func is none {
-        return builtininternals._sort(container, descend)
+    if key_func is none {
+        return builtininternals.sort(container, descend)
     }
     if type(container) != "list" and type(container) != "set" {
-        raise TypeError("cannot sort a type other than list or set")
+        raise new TypeError("cannot sort a type other than list or set")
     }
     var keys = []
     for item in container {
-        keys.add(item)
+        keys.add(key_func(item))
     }
     return builtininternals.sort(keys, descend)
 }

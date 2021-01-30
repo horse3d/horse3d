@@ -25,10 +25,11 @@
 #include "corelib/errors.h"
 #include "debugsymbols.h"
 #include "filesys.h"
+#include "filesys32.h"
 #include "hash.h"
 #include "nonlocale.h"
 #include "threadablechecker.h"
-#include "uri.h"
+#include "uri32.h"
 
 
 typedef struct resolveinfo {
@@ -119,7 +120,7 @@ static int scoperesolver_ComputeItemStorage(
             if ((global_id = h64program_AddGlobalvar(
                     program, name,
                     expr->vardef.is_const,
-                    ast->fileuri,
+                    ast->fileuri, ast->fileurilen,
                     ast->module_path, ast->library_name
                     )) < 0) {
                 if (outofmemory) *outofmemory = 1;
@@ -145,7 +146,7 @@ static int scoperesolver_ComputeItemStorage(
             name = expr->classdef.name;
             int64_t global_id = -1;
             if ((global_id = h64program_AddClass(
-                    program, name, ast->fileuri,
+                    program, name, ast->fileuri, ast->fileurilen,
                     ast->module_path, ast->library_name
                     )) < 0) {
                 if (outofmemory) *outofmemory = 1;
@@ -210,14 +211,14 @@ static int scoperesolver_ComputeItemStorage(
                 if (!result_AddMessage(
                         &ast->resultmsg,
                         H64MSG_ERROR,
-                        buf, ast->fileuri,
+                        buf, ast->fileuri, ast->fileurilen,
                         (expr ? expr->line : - 1),
                         (expr ? expr->column : -1)
                         )) {
                     result_AddMessage(
                         &ast->resultmsg,
                         H64MSG_ERROR, "out of memory",
-                        ast->fileuri,
+                        ast->fileuri, ast->fileurilen,
                         -1, -1
                     );
                     return 0;
@@ -256,7 +257,7 @@ static int scoperesolver_ComputeItemStorage(
                     owningclassindex].hasvarinitfunc) {
                 int idx = h64program_RegisterHorse64Function(
                     program, "$$varinit",
-                    ast->fileuri, 0, NULL,
+                    ast->fileuri, ast->fileurilen, 0, NULL,
                     ast->module_path, ast->library_name,
                     owningclassindex
                 );
@@ -345,14 +346,14 @@ static int scoperesolver_ComputeItemStorage(
                 if (!result_AddMessage(
                         &ast->resultmsg,
                         H64MSG_ERROR,
-                        buf, ast->fileuri,
+                        buf, ast->fileuri, ast->fileurilen,
                         (expr ? expr->line : - 1),
                         (expr ? expr->column : -1)
                         )) {
                     result_AddMessage(
                         &ast->resultmsg,
                         H64MSG_ERROR, "out of memory",
-                        ast->fileuri,
+                        ast->fileuri, ast->fileurilen,
                         -1, -1
                     );
                     return 0;
@@ -400,7 +401,8 @@ static int scoperesolver_ComputeItemStorage(
         // Register actual bytecode program entry for function:
         int64_t bytecode_func_id = -1;
         if ((bytecode_func_id = h64program_RegisterHorse64Function(
-                program, name, ast->fileuri,
+                program, name,
+                ast->fileuri, ast->fileurilen,
                 expr->funcdef.arguments.arg_count,
                 (const char**)kwarg_names,
                 ast->module_path,
@@ -457,7 +459,7 @@ static int scoperesolver_ComputeItemStorage(
                     if (!result_AddMessage(
                             &ast->resultmsg,
                             H64MSG_ERROR, buf,
-                            ast->fileuri,
+                            ast->fileuri, ast->fileurilen,
                             expr->line, expr->column
                             )) {
                         if (outofmemory) *outofmemory = 1;
@@ -475,7 +477,8 @@ static int scoperesolver_ComputeItemStorage(
                     }
                     program->symbols->mainfileuri_index = (
                         h64debugsymbols_GetFileUriIndex(
-                            program->symbols, ast->fileuri, 1
+                            program->symbols, ast->fileuri,
+                            ast->fileurilen, 1
                         )
                     );
                     if (program->symbols->mainfileuri_index < 0) {
@@ -541,6 +544,7 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                         H64MSG_ERROR,
                         buf,
                         atinfo->ast->fileuri,
+                        atinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -560,7 +564,8 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
             if (atinfo->ast->resultmsg.success) {
                 // No error yet, so this can't be a follow-up issue
                 char *s = ast_ExpressionToJSONStr(
-                    expr, atinfo->ast->fileuri
+                    expr, atinfo->ast->fileuri,
+                    atinfo->ast->fileurilen
                 );
                 char _bufstack[1024];
                 int buflen = 1024;
@@ -585,6 +590,7 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                         H64MSG_ERROR,
                         buf,
                         atinfo->ast->fileuri,
+                        atinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -618,6 +624,7 @@ int _resolvercallback_BuildGlobalStorage_visit_out(
                         H64MSG_ERROR,
                         buf,
                         atinfo->ast->fileuri,
+                        atinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -657,6 +664,7 @@ int scoperesolver_EvaluateDerivedClassParent(
                     H64MSG_ERROR,
                     buf,
                     atinfo->ast->fileuri,
+                    atinfo->ast->fileurilen,
                     expr->line, expr->column
                     )) {
                 atinfo->hadoutofmemory = 1;
@@ -739,7 +747,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             if (atinfo->ast->resultmsg.success) {
                 // No error yet, so this can't be a follow-up issue
                 char *s = ast_ExpressionToJSONStr(
-                    expr, atinfo->ast->fileuri
+                    expr, atinfo->ast->fileuri,
+                    atinfo->ast->fileurilen
                 );
                 char _bufstack[1024];
                 int buflen = 1024;
@@ -764,6 +773,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         H64MSG_ERROR,
                         buf,
                         atinfo->ast->fileuri,
+                        atinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -789,6 +799,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         H64MSG_ERROR,
                         buf,
                         atinfo->ast->fileuri,
+                        atinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -806,7 +817,9 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 assert(func != NULL);
                 #ifndef NDEBUG
                 if (func->funcdef._storageinfo == NULL) {
-                    char *s = ast_ExpressionToJSONStr(func, NULL);
+                    char *s = ast_ExpressionToJSONStr(
+                        func, NULL, 0
+                    );
                     h64fprintf(
                         stderr, "horsec: error: internal error: "
                         "invalid missing storage info on "
@@ -843,6 +856,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         H64MSG_ERROR,
                         buf,
                         atinfo->ast->fileuri,
+                        atinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -1000,6 +1014,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         H64MSG_ERROR,
                         buf,
                         atinfo->ast->fileuri,
+                        atinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -1056,6 +1071,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                             H64MSG_ERROR,
                             buf,
                             atinfo->ast->fileuri,
+                            atinfo->ast->fileurilen,
                             expr->line, expr->column
                             )) {
                         atinfo->hadoutofmemory = 1;
@@ -1140,6 +1156,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         H64MSG_ERROR,
                         buf,
                         atinfo->ast->fileuri,
+                        atinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -1178,6 +1195,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         &atinfo->ast->resultmsg,
                         H64MSG_ERROR,
                         buf, atinfo->ast->fileuri,
+                        atinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     atinfo->hadoutofmemory = 1;
@@ -1261,6 +1279,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                             H64MSG_ERROR,
                             buf,
                             atinfo->ast->fileuri,
+                            atinfo->ast->fileurilen,
                             expr->line, expr->column
                             )) {
                         atinfo->hadoutofmemory = 1;
@@ -1291,6 +1310,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                             H64MSG_ERROR,
                             buf,
                             atinfo->ast->fileuri,
+                            atinfo->ast->fileurilen,
                             expr->line, expr->column
                             )) {
                         atinfo->hadoutofmemory = 1;
@@ -1390,6 +1410,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                     H64MSG_ERROR,
                     buf,
                     atinfo->ast->fileuri,
+                    atinfo->ast->fileurilen,
                     expr->line, expr->column
                     )) {
                 atinfo->hadoutofmemory = 1;
@@ -1447,13 +1468,20 @@ int scoperesolver_BuildASTGlobalStorage(
     if (!unresolved_ast->module_path) {
         char *library_source = NULL;
         int pathoom = 0;
-        char *project_path = NULL;
-        uriinfo *project_path_uri = compileproject_GetFileSubProjectURI(
-            pr, unresolved_ast->fileuri, &library_source, &pathoom
+        int64_t project_path_len = 0;
+        h64wchar *project_path = NULL;
+        uri32info *project_path_uri = compileproject_GetFileSubProjectURI(
+            pr, unresolved_ast->fileuri,
+            unresolved_ast->fileurilen,
+             &library_source, &pathoom
         );
         if (project_path_uri) {
-            project_path = strdup(project_path_uri->path);
-            uri_Free(project_path_uri);
+            project_path = strdupu32(
+                project_path_uri->path,
+                project_path_uri->pathlen,
+                &project_path_len
+            );
+            uri32_Free(project_path_uri);
             project_path_uri = NULL;
         }
         if (!project_path) {
@@ -1462,13 +1490,21 @@ int scoperesolver_BuildASTGlobalStorage(
                 char buf[2048];
                 snprintf(buf, sizeof(buf) - 1,
                     "unexpected failure to locate file's project base: "
-                    "%s - with overall project folder: %s",
-                    unresolved_ast->fileuri,
-                    pr->basefolder);
+                    "%s - with overall project folder: ",
+                    AS_U8_TMP(unresolved_ast->fileuri,
+                    unresolved_ast->fileurilen));
+                const char *append = (
+                    AS_U8_TMP(pr->basefolder, pr->basefolderlen)
+                );
+                strncat(
+                    buf, (append ? append : ""),
+                    sizeof(buf) - (strlen(buf) + 1)
+                );
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, buf,
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         -1, -1
                     ))
                     return 0;  // Out of memory
@@ -1477,13 +1513,19 @@ int scoperesolver_BuildASTGlobalStorage(
             return 0;
         }
         int modpathoom = 0;
-        char *module_path = NULL;
-        uriinfo *module_path_uri = compileproject_URIRelPathToBase(
-            project_path, unresolved_ast->fileuri, &modpathoom
+        int64_t module_path_len = 0;
+        h64wchar *module_path = NULL;
+        uri32info *module_path_uri = compileproject_URIRelPathToBase(
+            project_path, project_path_len,
+            unresolved_ast->fileuri,
+            unresolved_ast->fileurilen, &modpathoom
         );
         if (module_path_uri) {
-            module_path = strdup(module_path_uri->path);
-            uri_Free(module_path_uri);
+            module_path = strdupu32(
+                module_path_uri->path, module_path_uri->pathlen,
+                &module_path_len
+            );
+            uri32_Free(module_path_uri);
             module_path_uri = NULL;
         }
         if (!module_path) {
@@ -1492,15 +1534,25 @@ int scoperesolver_BuildASTGlobalStorage(
                 char buf[2048];
                 snprintf(buf, sizeof(buf) - 1,
                     "failed to locate this file path inside project: "
-                    "%s (file project base: %s, overall project base: %s)",
-                    unresolved_ast->fileuri, project_path,
-                    pr->basefolder);
+                    "%s - file project base: ",
+                    AS_U8_TMP(
+                        unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen
+                    ));
+                const char *append = (
+                    AS_U8_TMP(project_path, project_path_len)
+                );
+                strncat(
+                    buf, (append ? append : ""),
+                    sizeof(buf) - (strlen(buf) + 1)
+                );
                 free(project_path);
                 project_path = NULL;
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, buf,
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         -1, -1
                         ))
                     return 0;
@@ -1514,12 +1566,11 @@ int scoperesolver_BuildASTGlobalStorage(
         project_path = NULL;
 
         // Strip away file extension and normalize:
-        if (strlen(module_path) > strlen(".h64") && (
-                memcmp(module_path + strlen(module_path) -
-                       strlen(".h64"), ".h64", strlen(".h64")) == 0 ||
-                memcmp(module_path + strlen(module_path) -
-                       strlen(".H64"), ".H64", strlen(".H64")) == 0)) {
-            module_path[strlen(module_path) - strlen(".h64")] = '\0';
+        if (module_path_len > (signed)strlen(".h64") && (
+                h64casecmp_u32u8(
+                    module_path + module_path_len - strlen(".h64"),
+                    strlen(".h64"), ".h64") == 0)) {
+            module_path_len -= strlen(".h64");
         } else {
             free(library_source);
             char buf[256];
@@ -1532,12 +1583,16 @@ int scoperesolver_BuildASTGlobalStorage(
                     &unresolved_ast->resultmsg,
                     H64MSG_ERROR, buf,
                     unresolved_ast->fileuri,
+                    unresolved_ast->fileurilen,
                     -1, -1
                 ))
                 return 0;  // Out of memory
             return 1;  // regular abort with failure
         }
-        char *new_module_path = filesys_Normalize(module_path);
+        int64_t new_module_path_len = 0;
+        h64wchar *new_module_path = filesys32_Normalize(
+            module_path, module_path_len, &new_module_path_len
+        );
         free(module_path);
         if (!new_module_path) {
             free(library_source);
@@ -1545,20 +1600,44 @@ int scoperesolver_BuildASTGlobalStorage(
         }
         module_path = new_module_path;
 
-        // If path has dots in later elements, then abort with error:
+        // If path has dots or escaped non-unicode garbage in later elements,
+        // then abort with error:
         unsigned int i = 0;
-        while (i < strlen(module_path)) {
+        while (i < module_path_len) {
             if (module_path[i] == '.') {
                 free(library_source);
                 char buf[256];
                 h64snprintf(buf, sizeof(buf) - 1,
                     "cannot import code from file with dots in name: "
-                    "\"%s\"", module_path);
+                    "\"%s\"", AS_U8_TMP(module_path,
+                    module_path_len));
                 free(module_path);
                 if (!result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, buf,
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
+                        -1, -1
+                    ))
+                    return 0;  // Out of memory
+                return 1;  // regular abort with failure
+            } else if ((module_path[i] >= 0xDC80ULL &&
+                    module_path[i] <= 0xDFFFULL) ||
+                    (module_path[i] >= 0xD800ULL &&
+                    module_path[i] <= 0xDBFFULL)) {
+                free(library_source);
+                char buf[256];
+                h64snprintf(buf, sizeof(buf) - 1,
+                    "cannot import code from file with "
+                    "non-unicode in name: "
+                    "\"%s\"", AS_U8_TMP(module_path,
+                    module_path_len));
+                free(module_path);
+                if (!result_AddMessage(
+                        &unresolved_ast->resultmsg,
+                        H64MSG_ERROR, buf,
+                        unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         -1, -1
                     ))
                     return 0;  // Out of memory
@@ -1569,7 +1648,7 @@ int scoperesolver_BuildASTGlobalStorage(
 
         // Replace file separators with dots:
         i = 0;
-        while (i < strlen(module_path)) {
+        while (i < module_path_len) {
             if (module_path[i] == '/'
                     #if defined(_WIN32) || defined(_WIN64)
                     || module_path[i] == '\\'
@@ -1580,7 +1659,9 @@ int scoperesolver_BuildASTGlobalStorage(
             i++;
         }
 
-        unresolved_ast->module_path = strdup(module_path);
+        unresolved_ast->module_path = AS_U8(
+            module_path, module_path_len
+        );
         unresolved_ast->library_name = library_source;
         free(module_path);
         if (!unresolved_ast->module_path) {
@@ -1599,7 +1680,7 @@ int scoperesolver_BuildASTGlobalStorage(
         );
         if (expr->type != H64EXPRTYPE_IMPORT_STMT ||
                 (expr->importstmt.referenced_ast != NULL &&
-                 strlen(expr->importstmt.referenced_ast->fileuri) > 0) ||
+                 expr->importstmt.referenced_ast->fileurilen > 0) ||
                 expr->importstmt.references_c_module ||
                 expr->poisoned) {
             i++;
@@ -1623,17 +1704,21 @@ int scoperesolver_BuildASTGlobalStorage(
                 "import failed, out of memory or other fatal "
                 "internal error",
                 unresolved_ast->fileuri,
+                unresolved_ast->fileurilen,
                 expr->line, expr->column
             );
             return 0;
         }
         oom = 0;
-        char *file_path = compileproject_ResolveImportToFile(
+        int64_t file_path_len = 0;
+        h64wchar *file_path = compileproject_ResolveImportToFile(
             pr, unresolved_ast->fileuri,
+            unresolved_ast->fileurilen,
             (const char **)expr->importstmt.import_elements,
             expr->importstmt.import_elements_count,
             expr->importstmt.source_library,
-            miscoptions->import_debug, &oom
+            miscoptions->import_debug, &file_path_len,
+            &oom
         );
         if (!file_path) {
             char buf[256];
@@ -1644,6 +1729,7 @@ int scoperesolver_BuildASTGlobalStorage(
                     "import failed, out of memory or other fatal "
                     "internal error",
                     unresolved_ast->fileuri,
+                    unresolved_ast->fileurilen,
                     expr->line, expr->column
                 );
                 return 0;
@@ -1674,12 +1760,14 @@ int scoperesolver_BuildASTGlobalStorage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, buf,
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     result_AddMessage(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, "out of memory",
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         expr->line, expr->column
                     );
                     return 0;
@@ -1691,7 +1779,7 @@ int scoperesolver_BuildASTGlobalStorage(
         assert(expr->importstmt.referenced_ast == NULL);
         char *error = NULL;
         if (!compileproject_GetAST(
-                pr, file_path,
+                pr, file_path, file_path_len,
                 &expr->importstmt.referenced_ast, &error
                 )) {
             expr->poisoned = 1;
@@ -1705,6 +1793,7 @@ int scoperesolver_BuildASTGlobalStorage(
                     &unresolved_ast->resultmsg,
                     H64MSG_ERROR, buf,
                     unresolved_ast->fileuri,
+                    unresolved_ast->fileurilen,
                     expr->line, expr->column
                     )) {
                 free(file_path);
@@ -1712,6 +1801,7 @@ int scoperesolver_BuildASTGlobalStorage(
                     &unresolved_ast->resultmsg,
                     H64MSG_ERROR, "out of memory",
                     unresolved_ast->fileuri,
+                    unresolved_ast->fileurilen,
                     expr->line, expr->column
                 );
                 return 0;
@@ -1821,6 +1911,7 @@ int scoperesolver_ResolveAST(
                 &unresolved_ast->resultmsg,
                 H64MSG_ERROR, "out of memory",
                 unresolved_ast->fileuri,
+                unresolved_ast->fileurilen,
                 -1, -1
             );
             return 0;
@@ -1846,12 +1937,14 @@ int scoperesolver_ResolveAST(
                 &unresolved_ast->resultmsg,
                 H64MSG_ERROR, buf,
                 unresolved_ast->fileuri,
+                unresolved_ast->fileurilen,
                 -1, -1
                 )) {
             result_AddMessage(
                 &unresolved_ast->resultmsg,
                 H64MSG_ERROR, "out of memory",
                 unresolved_ast->fileuri,
+                unresolved_ast->fileurilen,
                 -1, -1
             );
             return 0;
@@ -1868,6 +1961,7 @@ int scoperesolver_ResolveAST(
             &unresolved_ast->resultmsg,
             H64MSG_ERROR, "out of memory",
             unresolved_ast->fileuri,
+            unresolved_ast->fileurilen,
             -1, -1
         );
         return 0;
@@ -1903,6 +1997,7 @@ int scoperesolver_ResolveAST(
                         H64MSG_ERROR,
                         buf,
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         (expr ? expr->line : -1),
                         (expr ? expr->column : -1)
                         )) {
@@ -1910,6 +2005,7 @@ int scoperesolver_ResolveAST(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, "out of memory",
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         -1, -1
                     );
                     return 0;
@@ -1969,6 +2065,7 @@ int scoperesolver_ResolveAST(
                         H64MSG_ERROR,
                         buf,
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         (expr ? expr->line : - 1),
                         (expr ? expr->column : -1)
                         )) {
@@ -1976,6 +2073,7 @@ int scoperesolver_ResolveAST(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, "out of memory",
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         -1, -1
                     );
                     return 0;
@@ -2006,6 +2104,7 @@ int scoperesolver_ResolveAST(
                         H64MSG_ERROR,
                         buf,
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         (expr ? expr->line : - 1),
                         (expr ? expr->column : -1)
                         )) {
@@ -2013,6 +2112,7 @@ int scoperesolver_ResolveAST(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, "out of memory",
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         -1, -1
                     );
                     return 0;
@@ -2029,6 +2129,7 @@ int scoperesolver_ResolveAST(
                     &unresolved_ast->resultmsg,
                     H64MSG_ERROR, "out of memory",
                     unresolved_ast->fileuri,
+                    unresolved_ast->fileurilen,
                     -1, -1
                 );
                 return 0;
@@ -2042,6 +2143,7 @@ int scoperesolver_ResolveAST(
                     &unresolved_ast->resultmsg,
                     H64MSG_ERROR, "out of memory",
                     unresolved_ast->fileuri,
+                    unresolved_ast->fileurilen,
                     -1, -1
                 );
                 return 0;
@@ -2093,6 +2195,7 @@ int scoperesolver_ResolveAST(
                         H64MSG_ERROR,
                         buf,
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         (expr ? expr->line : - 1),
                         (expr ? expr->column : -1)
                         )) {
@@ -2100,6 +2203,7 @@ int scoperesolver_ResolveAST(
                         &unresolved_ast->resultmsg,
                         H64MSG_ERROR, "out of memory",
                         unresolved_ast->fileuri,
+                        unresolved_ast->fileurilen,
                         -1, -1
                     );
                     return 0;
@@ -2116,6 +2220,7 @@ int scoperesolver_ResolveAST(
                     &unresolved_ast->resultmsg,
                     H64MSG_ERROR, "out of memory",
                     unresolved_ast->fileuri,
+                    unresolved_ast->fileurilen,
                     -1, -1
                 );
                 return 0;
@@ -2132,6 +2237,7 @@ int scoperesolver_ResolveAST(
                     &unresolved_ast->resultmsg,
                     H64MSG_ERROR, "out of memory",
                     unresolved_ast->fileuri,
+                    unresolved_ast->fileurilen,
                     -1, -1
                 );
                 return 0;
@@ -2155,6 +2261,7 @@ int scoperesolver_ResolveAST(
                 &unresolved_ast->resultmsg,
                 H64MSG_ERROR, "out of memory",
                 unresolved_ast->fileuri,
+                unresolved_ast->fileurilen,
                 -1, -1
             );
             return 0;
@@ -2202,6 +2309,7 @@ int scoperesolver_ResolveAST(
             &unresolved_ast->resultmsg,
             H64MSG_ERROR, "out of memory",
             unresolved_ast->fileuri,
+            unresolved_ast->fileurilen,
             -1, -1
         );
         return 0;

@@ -420,6 +420,9 @@ h64expression *_fakeglobalinitfunc(asttransforminfo *rinfo) {
         rinfo->pr->program->symbols->fileuri[
             rinfo->pr->program->symbols->mainfileuri_index
         ],
+        rinfo->pr->program->symbols->fileurilen[
+            rinfo->pr->program->symbols->mainfileuri_index
+        ],
         0, NULL,
         rinfo->pr->program->symbols->mainfile_module_path,
         "", -1
@@ -481,7 +484,7 @@ static int _resolve_jumpid_to_jumpoffset(
         if (!result_AddMessage(
                 prj->resultmsg,
                 H64MSG_ERROR, buf,
-                NULL, -1, -1
+                NULL, 0, -1, -1
                 )) {
             if (out_oom) *out_oom = 1;
             return 0;
@@ -501,7 +504,7 @@ static int _resolve_jumpid_to_jumpoffset(
         if (!result_AddMessage(
                 prj->resultmsg,
                 H64MSG_ERROR, buf,
-                NULL, -1, -1
+                NULL, 0, -1, -1
                 )) {
             if (out_oom) *out_oom = 1;
             return 0;
@@ -563,7 +566,7 @@ static int _codegen_call_to(
                 "invalid call expression with arg count > 0, "
                 "but arg_value array is NULL\n"
             );
-            char *s = ast_ExpressionToJSONStr(callexpr, NULL);
+            char *s = ast_ExpressionToJSONStr(callexpr, NULL, 0);
             h64printf(
                 "horsec: error: internal error: "
                 "expr is: %s\n", s
@@ -593,7 +596,7 @@ static int _codegen_call_to(
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,
                         H64MSG_WARNING, buf,
-                        rinfo->ast->fileuri,
+                        rinfo->ast->fileuri, rinfo->ast->fileurilen,
                         callexpr->line, callexpr->column
                         )) {
                     rinfo->hadoutofmemory = 1;
@@ -1361,7 +1364,7 @@ int _codegencallback_DoCodegen_visit_out(
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,
                         H64MSG_ERROR, buf,
-                        rinfo->ast->fileuri,
+                        rinfo->ast->fileuri, rinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     rinfo->hadoutofmemory = 1;
@@ -1403,7 +1406,7 @@ int _codegencallback_DoCodegen_visit_out(
             if (!result_AddMessage(
                     &rinfo->ast->resultmsg,
                     H64MSG_ERROR, buf,
-                    rinfo->ast->fileuri,
+                    rinfo->ast->fileuri, rinfo->ast->fileurilen,
                     expr->line, expr->column
                     )) {
                 rinfo->hadoutofmemory = 1;
@@ -1667,7 +1670,8 @@ int _codegencallback_DoCodegen_visit_out(
                 #ifndef NDEBUG
                 if (expr->storage.ref.id < 0) {
                     char *s = ast_ExpressionToJSONStr(
-                        expr, rinfo->ast->fileuri
+                        expr, rinfo->ast->fileuri,
+                        rinfo->ast->fileurilen
                     );
                     h64fprintf(
                         stderr, "horsec: error: invalid expr "
@@ -1710,7 +1714,7 @@ int _codegencallback_DoCodegen_visit_out(
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,
                         H64MSG_ERROR, buf,
-                        rinfo->ast->fileuri,
+                        rinfo->ast->fileuri, rinfo->ast->fileurilen,
                         expr->line, expr->column
                         )) {
                     rinfo->hadoutofmemory = 1;
@@ -1910,6 +1914,7 @@ int _codegencallback_DoCodegen_visit_out(
                                     &rinfo->ast->resultmsg,
                                     H64MSG_ERROR, buf,
                                     rinfo->ast->fileuri,
+                                    rinfo->ast->fileurilen,
                                     expr->line, expr->column
                                     )) {
                                 rinfo->hadoutofmemory = 1;
@@ -1945,6 +1950,7 @@ int _codegencallback_DoCodegen_visit_out(
                                     &rinfo->ast->resultmsg,
                                     H64MSG_ERROR, buf,
                                     rinfo->ast->fileuri,
+                                    rinfo->ast->fileurilen,
                                     expr->line, expr->column
                                     )) {
                                 rinfo->hadoutofmemory = 1;
@@ -1964,6 +1970,7 @@ int _codegencallback_DoCodegen_visit_out(
                                     &rinfo->ast->resultmsg,
                                     H64MSG_ERROR, buf,
                                     rinfo->ast->fileuri,
+                                    rinfo->ast->fileurilen,
                                     expr->line, expr->column
                                     )) {
                                 rinfo->hadoutofmemory = 1;
@@ -2175,6 +2182,7 @@ int _codegencallback_DoCodegen_visit_out(
                 &rinfo->ast->resultmsg,
                 H64MSG_ERROR, buf,
                 rinfo->ast->fileuri,
+                rinfo->ast->fileurilen,
                 expr->line, expr->column
                 )) {
             rinfo->hadoutofmemory = 1;
@@ -2199,7 +2207,7 @@ static int _enforce_dostmt_limit_in_func(
                 rinfo->pr->resultmsg,
                 H64MSG_ERROR, "exceeded maximum of "
                 "do or with statements in one function",
-                NULL, -1, -1
+                NULL, 0, -1, -1
                 )) {
             rinfo->hadoutofmemory = 1;
             return 0;
@@ -2492,7 +2500,8 @@ int _codegencallback_DoCodegen_visit_in(
                 rinfo->pr->resultmsg, H64MSG_ERROR,
                 "unexpected raised expression, expected "
                 "a 'new' instantiation of an error class",
-                rinfo->ast->fileuri, expr->line, expr->column
+                rinfo->ast->fileuri, rinfo->ast->fileurilen,
+                expr->line, expr->column
             );
             rinfo->hadunexpectederror = 1;
             return 0;
@@ -2507,7 +2516,8 @@ int _codegencallback_DoCodegen_visit_in(
                 rinfo->pr->resultmsg, H64MSG_ERROR,
                 "unexpected number of arguments to error object, "
                 "expected single positional argument",
-                rinfo->ast->fileuri, expr->line, expr->column
+                rinfo->ast->fileuri, rinfo->ast->fileurilen,
+                expr->line, expr->column
             );
             rinfo->hadunexpectederror = 1;
             return 0;
@@ -3575,7 +3585,8 @@ int _codegencallback_DoCodegen_visit_in(
                 rinfo->pr->resultmsg, H64MSG_ERROR,
                 "unexpected call to has_attr() with not "
                 "exactly two positional arguments",
-                rinfo->ast->fileuri, expr->line, expr->column
+                rinfo->ast->fileuri, rinfo->ast->fileurilen,
+                expr->line, expr->column
             );
             rinfo->hadunexpectederror = 1;
             return 0;
@@ -3590,7 +3601,8 @@ int _codegencallback_DoCodegen_visit_in(
                 "unexpected call to has_attr() with non-trivial "
                 "attribute argument. must be plain string literal "
                 "since has_attr() is not a normal function",
-                rinfo->ast->fileuri, expr->line, expr->column
+                rinfo->ast->fileuri, rinfo->ast->fileurilen,
+                expr->line, expr->column
             );
             rinfo->hadunexpectederror = 1;
             return 0;
@@ -4123,7 +4135,7 @@ int codegen_GenerateBytecodeForFile(
                         H64MSG_ERROR, "unexpected _codegen_calc_"
                         "tempclassfakeinitfuncstack_cb iteration "
                         "failure",
-                        NULL, -1, -1
+                        NULL, 0, -1, -1
                         )) {
                     // Nothing we can do
                 }

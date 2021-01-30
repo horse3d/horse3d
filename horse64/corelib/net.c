@@ -132,6 +132,8 @@ int netlib_stream_write(h64vmthread *vmthread) {  // net.stream.write()
      */
     assert(STACK_TOP(vmthread->stack) >= 2);
 
+    assert(0);  // FIXME
+    return 0;
 }
 
 int netlib_stream_read(h64vmthread *vmthread) {  // net.stream.read()
@@ -629,7 +631,7 @@ int netlib_connect(h64vmthread *vmthread) {
 int netlib_RegisterFuncsAndModules(h64program *p) {
     // stream class:
     p->_net_stream_class_idx = h64program_AddClass(
-        p, "stream", NULL, "net", "core.horse64.org"
+        p, "stream", NULL, 0, "net", "core.horse64.org"
     );
     if (p->_net_stream_class_idx < 0)
         return 0;
@@ -641,7 +643,7 @@ int netlib_RegisterFuncsAndModules(h64program *p) {
     int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "connect", &netlib_connect,
-        NULL, 3, net_connect_kw_arg_name,  // fileuri, args
+        NULL, 0, 3, net_connect_kw_arg_name,  // fileuri, args
         "net", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -653,7 +655,7 @@ int netlib_RegisterFuncsAndModules(h64program *p) {
     );
     idx = h64program_RegisterCFunction(
         p, "isip", &netlib_isip,
-        NULL, 1, NULL,  // fileuri, args
+        NULL, 0, 1, NULL,  // fileuri, args
         "net", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -665,7 +667,7 @@ int netlib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "read", &netlib_stream_read,
-        NULL, 2, netlib_stream_read_kw_arg_name,  // fileuri, args
+        NULL, 0, 2, netlib_stream_read_kw_arg_name,  // fileuri, args
         "net", "core.horse64.org", 1, p->_net_stream_class_idx
     );
     if (idx < 0)
@@ -677,7 +679,7 @@ int netlib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "write", &netlib_stream_write,
-        NULL, 1, netlib_stream_write_kw_arg_name,  // fileuri, args
+        NULL, 0, 1, netlib_stream_write_kw_arg_name,  // fileuri, args
         "net", "core.horse64.org", 1, p->_net_stream_class_idx
     );
     if (idx < 0)

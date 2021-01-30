@@ -436,6 +436,27 @@ int uri32_CompareEx(
     return 1;
 }
 
+uri32info *uri32_ParseExU8Protocol(
+        const h64wchar *uri, int64_t urilen,
+        const char *default_remote_protocol,
+        int flags
+        ) {
+    int64_t protou32len = 0;
+    h64wchar *protou32 = NULL;
+    if (default_remote_protocol)
+        protou32 = AS_U32(
+            default_remote_protocol, &protou32len
+        );
+    if (default_remote_protocol && !protou32)
+        return NULL;
+    uri32info *result = uri32_ParseEx(
+        uri, urilen, protou32, protou32len,
+        flags
+    );
+    free(protou32);
+    return result;
+}
+
 uri32info *uri32_ParseEx(
         const h64wchar *uri, int64_t urilen,
         const h64wchar *default_remote_protocol,
@@ -591,7 +612,8 @@ uri32info *uri32_ParseEx(
              *(next_part + 1) == '\\')))
         );
         int is_linux_abspath = (
-            (*next_part == '/' && (next_part - uri) == 0)
+            (next_part_len > 0 && (
+                *next_part == '/' && (next_part - uri) == 0))
         );
         if (is_win_abspath || is_linux_abspath) {
             // Looks like an absolute path:
@@ -964,19 +986,12 @@ h64wchar *uri32_DumpEx(
             return NULL;
     }
     int64_t pathlen = 0;
-    h64wchar *path = malloc(
-        (uinfo->path ? uinfo->pathlen : 1) * sizeof(*path)
+    h64wchar *path = strdupu32(
+        uinfo->path, uinfo->pathlen, &pathlen
     );
     if (!path) {
         free(port);
         return NULL;
-    }
-    if (uinfo->path && uinfo->pathlen > 0) {
-        memcpy(
-            path, uinfo->path,
-            sizeof(*path) * uinfo->pathlen
-        );
-        pathlen = uinfo->pathlen;
     }
     int isfileuri = 0;
     {

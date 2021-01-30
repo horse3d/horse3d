@@ -160,7 +160,7 @@ int builtininternalslib_RegisterFuncsAndModules(h64program *p) {
     int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "sort", &builtininternals_sort,
-        NULL, 1, builtininternals_sort_kw_arg_name,  // fileuri, args
+        NULL, 0, 1, builtininternals_sort_kw_arg_name,  // fileuri, args
         "builtininternals", "core.horse64.org", 1, -1
     );
     if (idx < 0)

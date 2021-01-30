@@ -20,7 +20,7 @@
 #include "filesys32.h"
 #include "mainpreinit.h"
 #include "nonlocale.h"
-#include "uri.h"
+#include "uri32.h"
 #include "vfs.h"
 
 #include "testmain.h"
@@ -32,6 +32,7 @@ void runprog(
     main_PreInit();
 
     printf("test_vmexec.c: compiling \"%s\"\n", progname);
+    // Write code into test file:
     char *error = NULL;
     FILE *tempfile = fopen("testdata.h64", "wb");
     assert(tempfile != NULL);
@@ -40,19 +41,36 @@ void runprog(
     );
     assert(written == (ssize_t)strlen(prog));
     fclose(tempfile);
-    char *fileuri = uri_Normalize("testdata.h64", 1);
+
+    // Parse file uri:
+    h64wchar *fileuri = NULL;
+    int64_t fileurilen = 0;
+    {
+        h64wchar _testdata_h64_const[] = {
+            't', 'e', 's', 't', 'd', 'a', 't', 'a', '.', 'h', '6', '4'
+        };
+        int64_t _testdata_h64_const_len = strlen("testdata.h64");
+        fileuri = uri32_Normalize(
+            _testdata_h64_const, _testdata_h64_const_len, 1, &fileurilen
+        );
+    }
     assert(fileuri != NULL);
-    char *project_folder_uri = NULL;
+    int64_t project_folder_uri_len = 0;
+    h64wchar *project_folder_uri = NULL;
     project_folder_uri = compileproject_FolderGuess(
-        fileuri, 1, &error
+        fileuri, fileurilen, 1, &project_folder_uri_len, &error
     );
     assert(project_folder_uri);
-    h64compileproject *project = compileproject_New(project_folder_uri);
+    h64compileproject *project = compileproject_New(
+        project_folder_uri, project_folder_uri_len
+    );
     free(project_folder_uri);
     project_folder_uri = NULL;
     assert(project != NULL);
     h64ast *ast = NULL;
-    if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
+    if (!compileproject_GetAST(
+            project, fileuri, fileurilen, &ast, &error
+            )) {
         fprintf(stderr, "UNEXPECTED TEST FAIL: %s\n", error);
         free(error);
         free(fileuri);
@@ -61,7 +79,7 @@ void runprog(
     }
     h64misccompileroptions moptions = {0};
     if (!compileproject_CompileAllToBytecode(
-            project, &moptions, fileuri, &error
+            project, &moptions, fileuri, fileurilen, &error
             )) {
         fprintf(stderr, "UNEXPECTED TEST FAIL: %s\n", error);
         free(error);

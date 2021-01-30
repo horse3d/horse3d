@@ -28,7 +28,7 @@
 #include "compiler/operator.h"
 #include "nonlocale.h"
 #include "poolalloc.h"
-#include "uri.h"
+#include "uri32.h"
 
 
 static int64_t _refline(
@@ -372,7 +372,8 @@ int _ast_ParseFunctionArgList_Ex(
     assert(is_call == (funcdefexpr == NULL));
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
-    const char *fileuri = context->fileuri;
+    const h64wchar *fileuri = context->fileuri;
+    int64_t fileurilen = context->fileurilen;
     if (out_unpackargcall) *out_unpackargcall = 0;
 
     if (outofmemory) *outofmemory = 0;
@@ -392,7 +393,7 @@ int _ast_ParseFunctionArgList_Ex(
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
         result_Error(
-            context->resultmsg, buf, fileuri,
+            context->resultmsg, buf, fileuri, fileurilen,
             _refline(context->tokenstreaminfo, tokens, i),
             _refcol(context->tokenstreaminfo, tokens, i)
         );
@@ -424,7 +425,7 @@ int _ast_ParseFunctionArgList_Ex(
                         context->resultmsg,
                         H64MSG_ERROR, "unexpected unpack, "
                         "can only be applied to last "
-                        "positional argument", fileuri,
+                        "positional argument", fileuri, fileurilen,
                         -1, -1
                         )) {
                     goto oom;
@@ -473,7 +474,8 @@ int _ast_ParseFunctionArgList_Ex(
                         context->resultmsg,
                         H64MSG_ERROR, "unexpected unpack, "
                         "can only be applied to last "
-                        "positional argument", fileuri,
+                        "positional argument",
+                        fileuri, fileurilen,
                         -1, -1
                         )) {
                     free(kwarg_name);
@@ -497,7 +499,8 @@ int _ast_ParseFunctionArgList_Ex(
                         context->resultmsg,
                         H64MSG_ERROR, "unexpected unpack, "
                         "can only be applied to last "
-                        "positional argument", fileuri,
+                        "positional argument",
+                        fileuri, fileurilen,
                         -1, -1
                         )) {
                     goto oom;
@@ -520,7 +523,8 @@ int _ast_ParseFunctionArgList_Ex(
                     if (!result_AddMessage(
                             context->resultmsg,
                             H64MSG_ERROR, "INTERNAL ERROR, failed to "
-                            "scope-add function param", fileuri,
+                            "scope-add function param",
+                            fileuri, fileurilen,
                             -1, -1
                             ))
                         goto oom;
@@ -559,7 +563,7 @@ int _ast_ParseFunctionArgList_Ex(
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo,
                              tokens, bugindex),
                     _refcol(context->tokenstreaminfo,
@@ -618,7 +622,7 @@ int _ast_ParseFunctionArgList_Ex(
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -692,7 +696,8 @@ int ast_ParseExprInlineOperator_Recurse(
         ) {
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
-    const char *fileuri = context->fileuri;
+    const h64wchar *fileuri = context->fileuri;
+    int64_t fileurilen = context->fileurilen;
 
     int i = 0;
     nestingdepth++;
@@ -707,7 +712,7 @@ int ast_ParseExprInlineOperator_Recurse(
         if (parsefail) *parsefail = 1;
         if (!result_AddMessage(
                 context->resultmsg,
-                H64MSG_ERROR, buf, fileuri,
+                H64MSG_ERROR, buf, fileuri, fileurilen,
                 _refline(context->tokenstreaminfo,
                             tokens, i),
                 _refcol(context->tokenstreaminfo,
@@ -836,7 +841,7 @@ int ast_ParseExprInlineOperator_Recurse(
                     if (parsefail) *parsefail = 1;
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(context->tokenstreaminfo,
                                      tokens, i),
                             _refcol(context->tokenstreaminfo,
@@ -890,7 +895,7 @@ int ast_ParseExprInlineOperator_Recurse(
                 if (outofmemory) *outofmemory = 0;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -911,7 +916,7 @@ int ast_ParseExprInlineOperator_Recurse(
                 if (outofmemory) *outofmemory = 0;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -980,7 +985,7 @@ int ast_ParseExprInlineOperator_Recurse(
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens,
                         max_tokens_touse),
                     _refcol(context->tokenstreaminfo, tokens,
@@ -1060,7 +1065,7 @@ int ast_ParseExprInlineOperator_Recurse(
                 if (outofmemory) *outofmemory = 0;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens,
                             op1_start),
                         _refcol(context->tokenstreaminfo, tokens,
@@ -1092,7 +1097,7 @@ int ast_ParseExprInlineOperator_Recurse(
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens,
                         bogusremainderindex),
                     _refcol(context->tokenstreaminfo, tokens,
@@ -1151,7 +1156,7 @@ int ast_ParseExprInlineOperator_Recurse(
                 if (outofmemory) *outofmemory = 0;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens,
                             op1_start),
                         _refcol(context->tokenstreaminfo, tokens,
@@ -1192,7 +1197,7 @@ int ast_ParseExprInlineOperator_Recurse(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens,
                         op2_start + op2_len),
                     _refcol(context->tokenstreaminfo, tokens,
@@ -1252,7 +1257,7 @@ int ast_ParseExprInlineOperator_Recurse(
                         context->resultmsg,
                         H64MSG_ERROR, "internal error? "
                         "got no function args "
-                        "but no error", fileuri,
+                        "but no error", fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         )) {
@@ -1289,7 +1294,7 @@ int ast_ParseExprInlineOperator_Recurse(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens,
                         op2_start + op2_len),
                     _refcol(context->tokenstreaminfo, tokens,
@@ -1366,7 +1371,8 @@ int ast_ParseInlineFunc(
         ) {
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
-    const char *fileuri = context->fileuri;
+    const h64wchar *fileuri = context->fileuri;
+    int64_t fileurilen = context->fileurilen;
 
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
@@ -1384,7 +1390,7 @@ int ast_ParseInlineFunc(
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
         result_Error(
-            context->resultmsg, buf, fileuri,
+            context->resultmsg, buf, fileuri, fileurilen,
             _refline(context->tokenstreaminfo, tokens, i),
             _refcol(context->tokenstreaminfo, tokens, i)
         );
@@ -1453,7 +1459,7 @@ int ast_ParseInlineFunc(
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, 0),
                     _refcol(context->tokenstreaminfo, tokens, 0)
                     ))
@@ -1507,7 +1513,8 @@ int ast_ParseInlineFunc(
                 if (!result_AddMessage(
                         context->resultmsg,
                         H64MSG_ERROR, "INTERNAL ERROR, failed to "
-                        "scope-add function param", fileuri,
+                        "scope-add function param",
+                        fileuri, fileurilen,
                         -1, -1
                         ))
                     goto scopeaddoom;
@@ -1528,7 +1535,7 @@ int ast_ParseInlineFunc(
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
                 context->resultmsg,
-                H64MSG_ERROR, buf, fileuri,
+                H64MSG_ERROR, buf, fileuri, fileurilen,
                 _refline(context->tokenstreaminfo, tokens, 0),
                 _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
@@ -1548,7 +1555,7 @@ int ast_ParseInlineFunc(
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
                 context->resultmsg,
-                H64MSG_ERROR, buf, fileuri,
+                H64MSG_ERROR, buf, fileuri, fileurilen,
                 _refline(context->tokenstreaminfo, tokens, 0),
                 _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
@@ -1570,7 +1577,7 @@ int ast_ParseInlineFunc(
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
                 context->resultmsg,
-                H64MSG_ERROR, buf, fileuri,
+                H64MSG_ERROR, buf, fileuri, fileurilen,
                 _refline(context->tokenstreaminfo, tokens, 0),
                 _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
@@ -1613,7 +1620,7 @@ int ast_ParseInlineFunc(
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -1636,7 +1643,7 @@ int ast_ParseInlineFunc(
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
                 context->resultmsg,
-                H64MSG_ERROR, buf, fileuri,
+                H64MSG_ERROR, buf, fileuri, fileurilen,
                 _refline(context->tokenstreaminfo, tokens, 0),
                 _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
@@ -1694,7 +1701,8 @@ int ast_ParseExprInline(
         ) {
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
-    const char *fileuri = context->fileuri;
+    const h64wchar *fileuri = context->fileuri;
+    int64_t fileurilen = context->fileurilen;
 
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
@@ -1711,7 +1719,7 @@ int ast_ParseExprInline(
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
         result_Error(
-            context->resultmsg, buf, fileuri,
+            context->resultmsg, buf, fileuri, fileurilen,
             _refline(context->tokenstreaminfo, tokens, 0),
             _refcol(context->tokenstreaminfo, tokens, 0)
         );
@@ -1726,7 +1734,7 @@ int ast_ParseExprInline(
             context->resultmsg,
             "failed to allocate expression, "
             "out of memory?",
-            fileuri
+            fileuri, fileurilen
         );
         if (outofmemory) *outofmemory = 1;
         return 0;
@@ -1766,7 +1774,7 @@ int ast_ParseExprInline(
                             "internal error, unexpectedly failed "
                             "to parse inline func. this should never "
                             "happen, not even when out of memory...",
-                            fileuri
+                            fileuri, fileurilen
                         );
                     }
                 }
@@ -1803,7 +1811,7 @@ int ast_ParseExprInline(
                             "internal error, unexpectedly failed "
                             "to parse inline unaryop. this should never "
                             "happen, not even when out of memory...",
-                            fileuri
+                            fileuri, fileurilen
                         );
                     }
                 }
@@ -1925,7 +1933,7 @@ int ast_ParseExprInline(
                                     "internal error, unexpectedly failed "
                                     "to parse inline func. this should never "
                                     "happen, not even when out of memory...",
-                                    fileuri
+                                    fileuri, fileurilen
                                 );
                             }
                         }
@@ -1978,7 +1986,7 @@ int ast_ParseExprInline(
                 );
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i - 1),
                         _refcol(context->tokenstreaminfo, tokens, i - 1)
                         ))
@@ -2007,7 +2015,7 @@ int ast_ParseExprInline(
                 );
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -2069,7 +2077,7 @@ int ast_ParseExprInline(
                     if (parsefail) *parsefail = 1;
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(context->tokenstreaminfo,
                             tokens, i),
                             _refcol(context->tokenstreaminfo,
@@ -2106,7 +2114,7 @@ int ast_ParseExprInline(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo,
                         tokens, i),
                         _refcol(context->tokenstreaminfo,
@@ -2141,7 +2149,7 @@ int ast_ParseExprInline(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo,
                         tokens, i),
                         _refcol(context->tokenstreaminfo,
@@ -2194,7 +2202,7 @@ int ast_ParseExprInline(
                     );
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(context->tokenstreaminfo,
                             tokens, i - 1),
                             _refcol(context->tokenstreaminfo,
@@ -2229,7 +2237,7 @@ int ast_ParseExprInline(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo,
                         tokens, i),
                         _refcol(context->tokenstreaminfo,
@@ -2281,7 +2289,7 @@ int ast_ParseExprInline(
                     );
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(context->tokenstreaminfo,
                             tokens, i - 1),
                             _refcol(context->tokenstreaminfo,
@@ -2317,7 +2325,7 @@ int ast_ParseExprInline(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo,
                         tokens, i),
                         _refcol(context->tokenstreaminfo,
@@ -2439,7 +2447,7 @@ int ast_ParseExprInline(
                     if (outofmemory) *outofmemory = 0;
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(context->tokenstreaminfo, tokens, i),
                             _refcol(context->tokenstreaminfo, tokens, i)
                             ))
@@ -2545,7 +2553,7 @@ int ast_ParseExprInline(
                         if (outofmemory) *outofmemory = 0;
                         if (!result_AddMessage(
                                 context->resultmsg,
-                                H64MSG_ERROR, buf, fileuri,
+                                H64MSG_ERROR, buf, fileuri, fileurilen,
                                 _refline(
                                     context->tokenstreaminfo, tokens, i),
                                 _refcol(
@@ -2605,7 +2613,7 @@ int ast_ParseExprInline(
                         if (outofmemory) *outofmemory = 0;
                         if (!result_AddMessage(
                                 context->resultmsg,
-                                H64MSG_ERROR, buf, fileuri,
+                                H64MSG_ERROR, buf, fileuri, fileurilen,
                                 _refline(
                                     context->tokenstreaminfo, tokens, i),
                                 _refcol(
@@ -2635,7 +2643,7 @@ int ast_ParseExprInline(
                         if (outofmemory) *outofmemory = 0;
                         if (!result_AddMessage(
                                 context->resultmsg,
-                                H64MSG_ERROR, buf, fileuri,
+                                H64MSG_ERROR, buf, fileuri, fileurilen,
                                 _refline(context->tokenstreaminfo,
                                          tokens, i),
                                 _refcol(context->tokenstreaminfo, tokens, i)
@@ -2686,7 +2694,7 @@ int ast_ParseExprInline(
                         if (parsefail) *parsefail = 1;
                         if (!result_AddMessage(
                                 context->resultmsg,
-                                H64MSG_ERROR, buf, fileuri,
+                                H64MSG_ERROR, buf, fileuri, fileurilen,
                                 _refline(context->tokenstreaminfo,
                                          tokens, i),
                                 _refcol(context->tokenstreaminfo,
@@ -2737,7 +2745,7 @@ int ast_ParseExprInline(
                     if (outofmemory) *outofmemory = 0;
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(context->tokenstreaminfo, tokens, i),
                             _refcol(context->tokenstreaminfo, tokens, i)
                             ))
@@ -2783,7 +2791,7 @@ int ast_ParseExprInline(
                         if (parsefail) *parsefail = 1;
                         if (!result_AddMessage(
                                 context->resultmsg,
-                                H64MSG_ERROR, buf, fileuri,
+                                H64MSG_ERROR, buf, fileuri, fileurilen,
                                 _refline(context->tokenstreaminfo,
                                          tokens, i),
                                 _refcol(context->tokenstreaminfo,
@@ -2938,7 +2946,8 @@ int ast_ParseCodeBlock(
         ) {
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
-    const char *fileuri = context->fileuri;
+    const h64wchar *fileuri = context->fileuri;
+    int64_t fileurilen = context->fileurilen;
 
     if (max_tokens_touse <= 0) {
         if (parsefail) *parsefail = 1;
@@ -2946,7 +2955,7 @@ int ast_ParseCodeBlock(
         if (!result_AddMessage(
                 context->resultmsg,
                 H64MSG_ERROR, "unexpected missing code block, "
-                "expected '{' for code block", fileuri,
+                "expected '{' for code block", fileuri, fileurilen,
                 _refline(context->tokenstreaminfo, tokens, 0),
                 _refcol(context->tokenstreaminfo, tokens, 0)
                 ))
@@ -2969,7 +2978,7 @@ int ast_ParseCodeBlock(
         if (outofmemory) *outofmemory = 0;
         if (!result_AddMessage(
                 context->resultmsg,
-                H64MSG_ERROR, buf, fileuri,
+                H64MSG_ERROR, buf, fileuri, fileurilen,
                 _refline(context->tokenstreaminfo, tokens, i),
                 _refcol(context->tokenstreaminfo, tokens, i)
                 )) {
@@ -3092,7 +3101,7 @@ int ast_ParseCodeBlock(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     )) {
@@ -3265,7 +3274,8 @@ int ast_CanAddNameToScopeCheck(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, context->fileuri,
+                    H64MSG_ERROR, buf,
+                    context->fileuri, context->fileurilen,
                     _refline(
                         context->tokenstreaminfo, parsethis->tokens, i),
                     _refcol(
@@ -3314,7 +3324,8 @@ int ast_CanAddNameToScopeCheck(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, context->fileuri,
+                    H64MSG_ERROR, buf,
+                    context->fileuri, context->fileurilen,
                     _refline(
                         context->tokenstreaminfo,
                         parsethis->tokens, i),
@@ -3379,7 +3390,8 @@ int ast_CanAddNameToScopeCheck(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_WARNING, buf, context->fileuri,
+                    H64MSG_WARNING, buf,
+                    context->fileuri, context->fileurilen,
                     _refline(
                         context->tokenstreaminfo,
                         parsethis->tokens, i),
@@ -3420,7 +3432,8 @@ int ast_ProcessNewScopeIdentifier(
         );
         if (!result_AddMessage(
                 context->resultmsg,
-                H64MSG_ERROR, buf, context->fileuri,
+                H64MSG_ERROR, buf,
+                context->fileuri, context->fileurilen,
                 _refline(context->tokenstreaminfo, parsethis->tokens, i),
                 _refcol(context->tokenstreaminfo, parsethis->tokens, i)
                 )) {
@@ -3487,7 +3500,8 @@ int ast_ParseExprStmt(
         ) {
     int max_tokens_touse = parsethis->max_tokens_touse;
     h64token *tokens = parsethis->tokens;
-    const char *fileuri = context->fileuri;
+    const h64wchar *fileuri = context->fileuri;
+    int64_t fileurilen = context->fileurilen;
 
     if (outofmemory) *outofmemory = 0;
     if (parsefail) *parsefail = 1;
@@ -3504,7 +3518,7 @@ int ast_ParseExprStmt(
             "less nesting expected", H64LIMIT_MAXPARSERECURSION
         );
         result_Error(
-            context->resultmsg, buf, fileuri,
+            context->resultmsg, buf, fileuri, fileurilen,
             _refline(context->tokenstreaminfo, tokens, 0),
             _refcol(context->tokenstreaminfo, tokens, 0));
         if (outofmemory) *outofmemory = 0;
@@ -3518,7 +3532,7 @@ int ast_ParseExprStmt(
             context->resultmsg,
             "failed to allocate expression, "
             "out of memory?",
-            fileuri
+            fileuri, fileurilen
         );
         if (outofmemory) *outofmemory = 1;
         return 0;
@@ -3556,7 +3570,7 @@ int ast_ParseExprStmt(
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(
                         context->tokenstreaminfo, tokens, i),
                     _refcol(
@@ -3619,7 +3633,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(
                         context->tokenstreaminfo, tokens, protectindex),
                     _refcol(
@@ -3642,7 +3656,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(
                         context->tokenstreaminfo, tokens, protectindex),
                     _refcol(
@@ -3672,7 +3686,7 @@ int ast_ParseExprStmt(
                 );
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(
                             context->tokenstreaminfo, tokens, i),
                         _refcol(
@@ -3736,7 +3750,7 @@ int ast_ParseExprStmt(
                     );
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(
                                 context->tokenstreaminfo, tokens, i),
                             _refcol(
@@ -3801,7 +3815,7 @@ int ast_ParseExprStmt(
             if (outofmemory) *outofmemory = 0;
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -3873,7 +3887,7 @@ int ast_ParseExprStmt(
                 if (outofmemory) *outofmemory = 0;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -3917,7 +3931,8 @@ int ast_ParseExprStmt(
             if (!result_AddMessage(
                     context->resultmsg,
                     H64MSG_ERROR, "unexpected invalid combination "
-                    "of \"parallel\" and \"noparallel\"", fileuri,
+                    "of \"parallel\" and \"noparallel\"",
+                    fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens,
                         lastparallelnoparallelindex),
                     _refcol(context->tokenstreaminfo, tokens,
@@ -3955,7 +3970,8 @@ int ast_ParseExprStmt(
             if (!innerparsefail && !result_AddMessage(
                     context->resultmsg,
                     H64MSG_ERROR, "internal error: failed to "
-                    "get code block somehow", fileuri,
+                    "get code block somehow",
+                    fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -3984,7 +4000,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -4018,7 +4034,7 @@ int ast_ParseExprStmt(
             if (parsefail) *parsefail = 1;
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -4098,7 +4114,7 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4161,7 +4177,8 @@ int ast_ParseExprStmt(
                 if (!innerparsefail && !result_AddMessage(
                         context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
-                        "get code block somehow", fileuri,
+                        "get code block somehow",
+                        fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4294,7 +4311,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -4339,7 +4356,8 @@ int ast_ParseExprStmt(
                 if (!innerparsefail && !result_AddMessage(
                         context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
-                        "get code block somehow", fileuri,
+                        "get code block somehow",
+                        fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4408,7 +4426,8 @@ int ast_ParseExprStmt(
                         if (parsefail) *parsefail = 1;
                         if (!result_AddMessage(
                                 context->resultmsg,
-                                H64MSG_ERROR, buf, fileuri,
+                                H64MSG_ERROR, buf,
+                                fileuri, fileurilen,
                                 _refline(context->tokenstreaminfo,
                                          tokens, i),
                                 _refcol(context->tokenstreaminfo,
@@ -4466,7 +4485,7 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4494,7 +4513,7 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4555,7 +4574,8 @@ int ast_ParseExprStmt(
                 if (!innerparsefail && !result_AddMessage(
                         context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
-                        "get code block somehow", fileuri,
+                        "get code block somehow",
+                        fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4606,7 +4626,8 @@ int ast_ParseExprStmt(
                 if (!innerparsefail && !result_AddMessage(
                         context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
-                        "get code block somehow", fileuri,
+                        "get code block somehow",
+                        fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4639,7 +4660,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     )) {
@@ -4667,7 +4688,7 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4724,7 +4745,7 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4760,7 +4781,7 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4847,7 +4868,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -4881,7 +4902,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -4932,7 +4953,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -4958,7 +4979,7 @@ int ast_ParseExprStmt(
                 );
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -4985,7 +5006,7 @@ int ast_ParseExprStmt(
                 );
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -5020,7 +5041,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -5152,7 +5173,7 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo,
                                  tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
@@ -5182,7 +5203,7 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo,
                                  tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
@@ -5209,7 +5230,7 @@ int ast_ParseExprStmt(
                 if (parsefail) *parsefail = 1;
                 if (!result_AddMessage(
                         context->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(context->tokenstreaminfo,
                                  tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
@@ -5246,7 +5267,8 @@ int ast_ParseExprStmt(
                     if (!result_AddMessage(
                             context->resultmsg,
                             H64MSG_ERROR, "INTERNAL ERROR, failed to "
-                            "scope-add with param", fileuri, -1, -1
+                            "scope-add with param",
+                            fileuri, fileurilen, -1, -1
                             ))
                         if (outofmemory) *outofmemory = 1;
                     if (parsefail) *parsefail = 1;
@@ -5288,7 +5310,7 @@ int ast_ParseExprStmt(
             if (!innerparsefail && !result_AddMessage(
                     context->resultmsg,
                     H64MSG_ERROR, "internal error: failed to "
-                    "get code block somehow", fileuri,
+                    "get code block somehow", fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -5320,7 +5342,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -5386,7 +5408,7 @@ int ast_ParseExprStmt(
                     if (parsefail) *parsefail = 1;
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(context->tokenstreaminfo, tokens, i),
                             _refcol(context->tokenstreaminfo, tokens, i)
                             ))
@@ -5414,7 +5436,7 @@ int ast_ParseExprStmt(
                     if (parsefail) *parsefail = 1;
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(context->tokenstreaminfo,
                                      tokens, i),
                             _refcol(context->tokenstreaminfo, tokens, i)
@@ -5468,7 +5490,7 @@ int ast_ParseExprStmt(
                     if (parsefail) *parsefail = 1;
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf, fileuri, fileurilen,
                             _refline(context->tokenstreaminfo,
                                      tokens, i),
                             _refcol(context->tokenstreaminfo, tokens, i)
@@ -5588,7 +5610,8 @@ int ast_ParseExprStmt(
                 if (!innerparsefail && !result_AddMessage(
                         context->resultmsg,
                         H64MSG_ERROR, "internal error: failed to "
-                        "get code block somehow", fileuri,
+                        "get code block somehow",
+                        fileuri, fileurilen,
                         _refline(context->tokenstreaminfo, tokens, i),
                         _refcol(context->tokenstreaminfo, tokens, i)
                         ))
@@ -5634,7 +5657,7 @@ int ast_ParseExprStmt(
             );
             if (!result_AddMessage(
                     context->resultmsg,
-                    H64MSG_ERROR, buf, fileuri,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
                     _refline(context->tokenstreaminfo, tokens, i),
                     _refcol(context->tokenstreaminfo, tokens, i)
                     ))
@@ -5696,7 +5719,8 @@ int ast_ParseExprStmt(
                     );
                     if (!result_AddMessage(
                             context->resultmsg,
-                            H64MSG_ERROR, buf, fileuri,
+                            H64MSG_ERROR, buf,
+                            fileuri, fileurilen,
                             _refline(context->tokenstreaminfo,
                                      tokens, 0),
                             _refcol(context->tokenstreaminfo,
@@ -5746,7 +5770,8 @@ int ast_ParseExprStmt(
                         );
                         if (!result_AddMessage(
                                 context->resultmsg,
-                                H64MSG_ERROR, buf, fileuri,
+                                H64MSG_ERROR, buf,
+                                fileuri, fileurilen,
                                 _refline(context->tokenstreaminfo,
                                     tokens, i),
                                 _refcol(context->tokenstreaminfo,
@@ -5793,7 +5818,8 @@ int _ast_visit_in_setparent(
 }
 
 h64ast *ast_ParseFromTokens(
-        h64compileproject *project, const char *fileuri,
+        h64compileproject *project,
+        const h64wchar *fileuri, int64_t fileurilen,
         h64token *tokens, int token_count
         ) {
     h64ast *result = malloc(sizeof(*result));
@@ -5813,7 +5839,7 @@ h64ast *ast_ParseFromTokens(
         result_ErrorNoLoc(
             &result->resultmsg,
             "out of memory / alloc fail",
-            fileuri
+            fileuri, fileurilen
         );
         ast_FreeContents(result);
         result->resultmsg.success = 0;
@@ -5850,7 +5876,7 @@ h64ast *ast_ParseFromTokens(
                 result_ErrorNoLoc(
                     &result->resultmsg,
                     "out of memory / alloc fail",
-                    fileuri
+                    fileuri, fileurilen
                 );
                 result->resultmsg.success = 0;
                 return result;
@@ -5866,7 +5892,7 @@ h64ast *ast_ParseFromTokens(
                 );
                 if (!result_AddMessage(
                         &result->resultmsg,
-                        H64MSG_ERROR, buf, fileuri,
+                        H64MSG_ERROR, buf, fileuri, fileurilen,
                         _refline(&tokenstreaminfo, tokens, i),
                         _refcol(&tokenstreaminfo, tokens, i)
                         ))
@@ -5891,7 +5917,7 @@ h64ast *ast_ParseFromTokens(
             result_ErrorNoLoc(
                 &result->resultmsg,
                 "out of memory / alloc fail",
-                fileuri
+                fileuri, fileurilen
             );
             result->resultmsg.success = 0;
             return result;
@@ -5914,7 +5940,7 @@ h64ast *ast_ParseFromTokens(
             result_ErrorNoLoc(
                 &result->resultmsg,
                 "out of memory / alloc fail",
-                fileuri
+                fileuri, fileurilen
             );
             result->resultmsg.success = 0;
             return result;
@@ -5923,13 +5949,15 @@ h64ast *ast_ParseFromTokens(
     }
     assert(result->scope.magicinitnum == SCOPEMAGICINITNUM);
 
-    result->fileuri = uri_Normalize(fileuri, 1);
+    result->fileuri = uri32_Normalize(
+        fileuri, fileurilen, 1, &result->fileurilen
+    );
     if (!result->fileuri) {
         ast_FreeContents(result);
         result_ErrorNoLoc(
             &result->resultmsg,
             "out of memory / alloc fail",
-            fileuri
+            fileuri, fileurilen
         );
         result->resultmsg.success = 0;
         return result;

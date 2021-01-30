@@ -5,7 +5,11 @@
 #ifndef HORSE64_VFSPAK_H_
 #define HORSE64_VFSPAK_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
+
+#include "widechar.h"
 
 typedef struct embeddedvfspakinfo embeddedvfspakinfo;
 
@@ -20,9 +24,9 @@ int vfs_HasEmbbededPakGivenFilePath(
     const char *file_path, int *out_result
 );
 
-int vfs_AddPak(const char *path);
+int vfs_AddPak(const h64wchar *path, int64_t pathlen);
 
-int vfs_AddPaksEmbeddedInBinary(const char *path);
+int vfs_AddPaksEmbeddedInBinary(const h64wchar *path, int64_t pathlen);
 
 
 #endif  // HORSE64_VFSPAK_H_

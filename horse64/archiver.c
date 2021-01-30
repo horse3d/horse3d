@@ -32,7 +32,7 @@
 #include "filesys.h"
 #include "filesys32.h"
 #include "nonlocale.h"
-#include "uri.h"
+#include "uri32.h"
 #include "vfs.h"
 #include "vfsstruct.h"
 
@@ -667,54 +667,64 @@ h64archive *archive_FromVFSHandle(
 }
 
 h64archive *archive_FromFilePathSlice(
-        const char *pathoruri, uint64_t fileoffset, uint64_t maxlen,
+        const h64wchar *pathoruri, int64_t pathorurilen,
+        uint64_t fileoffset, uint64_t maxlen,
         int createifmissing, int vfsflags, h64archivetype type
         ) {
     int was_originally_fileuri = 0;
     {
-        char header[32];
-        if (strlen(pathoruri) > strlen("file://")) {
-            memcpy(header, pathoruri, strlen("file://"));
-            header[strlen("file://")] = '\0';
+        int64_t headerlen = 0;
+        h64wchar header[32];
+        if (pathorurilen > (signed)strlen("file://")) {
+            memcpy(
+                header, pathoruri,
+                sizeof(*header) * strlen("file://")
+            );
+            headerlen = strlen("file://");
             was_originally_fileuri = (
-                h64casecmp(header, "file://") == 0 ||
-                h64casecmp(header, "file:\\\\") == 0
+                h64casecmp_u32u8(header, headerlen, "file://") == 0 ||
+                h64casecmp_u32u8(header, headerlen, "file:\\\\") == 0
             );
         }
     }
 
     // Parse path as URI to see if it's VFS or not:
-    uriinfo *uri = uri_ParseEx(
-        pathoruri, "file", 0
+    uri32info *uri = uri32_ParseExU8Protocol(
+        pathoruri, pathorurilen, "file", 0
     );
     if (!uri)
         return NULL;
-    if (h64casecmp(uri->protocol, "file") == 0 && (
+    if (h64casecmp_u32u8(uri->protocol,
+            uri->protocollen, "file") == 0 && (
              (was_originally_fileuri &&
               (vfsflags & VFSFLAG_NO_REALDISK_ACCESS) == 0))) {
         vfsflags |= VFSFLAG_NO_VIRTUALPAK_ACCESS;
-    } else if (h64casecmp(uri->protocol, "vfs") == 0) {
+    } else if (h64casecmp_u32u8(uri->protocol,
+            uri->protocollen, "vfs") == 0) {
         if ((vfsflags & VFSFLAG_NO_VIRTUALPAK_ACCESS) != 0) {
-            uri_Free(uri);
+            uri32_Free(uri);
             return NULL;
         }
         vfsflags |= VFSFLAG_NO_REALDISK_ACCESS;
     }
-    if (h64casecmp(uri->protocol, "file") != 0 &&
-            h64casecmp(uri->protocol, "vfs") != 0) {
-        uri_Free(uri);
+    if (h64casecmp_u32u8(uri->protocol, uri->protocollen,
+                "file") != 0 &&
+            h64casecmp_u32u8(uri->protocol, uri->protocollen,
+                "vfs") != 0) {
+        uri32_Free(uri);
         return NULL;
     }
 
     // Get the VFS file:
     errno = 0;
-    VFSFILE *f = vfs_fopen(
-        uri->path, "r+b", vfsflags
+    VFSFILE *f = vfs_fopen_u32(
+        uri->path, uri->pathlen, "r+b", vfsflags
     );
-    uri_Free(uri);
+    uri32_Free(uri);
     if (!f && errno == ENOENT && createifmissing) {
-        f = vfs_fopen(
-            uri->path, "w+b", VFSFLAG_NO_VIRTUALPAK_ACCESS
+        f = vfs_fopen_u32(
+            uri->path, uri->pathlen,
+            "w+b", VFSFLAG_NO_VIRTUALPAK_ACCESS
         );
     }
     if (f) {
@@ -748,10 +758,11 @@ h64archive *archive_FromFilePathSlice(
 }
 
 h64archive *archive_FromFilePath(
-        const char *pathoruri, int createifmissing, int vfsflags,
+        const h64wchar *pathoruri, int64_t pathorurilen,
+        int createifmissing, int vfsflags,
         h64archivetype type
         ) {
     return archive_FromFilePathSlice(
-        pathoruri, 0, 0, createifmissing, vfsflags, type
+        pathoruri, pathorurilen, 0, 0, createifmissing, vfsflags, type
     );
 }

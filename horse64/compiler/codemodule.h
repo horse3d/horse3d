@@ -9,10 +9,10 @@
 #include "compiler/warningconfig.h"
 
 typedef struct h64compileproject h64compileproject;
-typedef struct uriinfo uriinfo;
+typedef struct uri32info uri32info;
 
 h64ast *codemodule_GetASTUncached(
-    h64compileproject *pr, uriinfo *fileuri,
+    h64compileproject *pr, uri32info *fileuri,
     h64compilewarnconfig *wconfig
 );
 

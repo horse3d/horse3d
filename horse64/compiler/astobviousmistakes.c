@@ -69,7 +69,8 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
                 );
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,
-                        H64MSG_ERROR, buf, rinfo->ast->fileuri,
+                        H64MSG_ERROR, buf,
+                        rinfo->ast->fileuri, rinfo->ast->fileurilen,
                         expr->line,
                         expr->column
                         )) {
@@ -113,7 +114,8 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
                 );
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,
-                        H64MSG_WARNING, buf, rinfo->ast->fileuri,
+                        H64MSG_WARNING, buf,
+                        rinfo->ast->fileuri, rinfo->ast->fileurilen,
                         expr->line,
                         expr->column
                         )) {

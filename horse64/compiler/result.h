@@ -5,7 +5,11 @@
 #ifndef HORSE64_COMPILER_RESULT_H_
 #define HORSE64_COMPILER_RESULT_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
+
+#include "widechar.h"
 
 typedef enum h64messagetype {
     H64MSG_ERROR = 0,
@@ -17,13 +21,15 @@ typedef struct h64resultmessage {
     h64messagetype type;
     char id[32];
     char *message;
-    char *fileuri;
+    h64wchar *fileuri;
+    int64_t fileurilen;
     int64_t line, column;
 } h64resultmessage;
 
 typedef struct h64result {
     int success;
-    char *fileuri;
+    h64wchar *fileuri;
+    int64_t fileurilen;
 
     int message_count;
     h64resultmessage *message;
@@ -37,26 +43,26 @@ int result_TransferMessages(
 int result_Error(
     h64result *result,
     const char *message,
-    const char *fileuri,
+    const h64wchar *fileuri, int64_t fileurilen,
     int64_t line, int64_t column
 );
 
 int result_ErrorNoLoc(
     h64result *result,
     const char *message,
-    const char *fileuri
+    const h64wchar *fileuri, int64_t fileurilen
 );
 
 int result_Success(
     h64result *result,
-    const char *fileuri
+    const h64wchar *fileuri, int64_t fileurilen
 );
 
 int result_AddMessage(
     h64result *result,
     h64messagetype type,
     const char *message,
-    const char *fileuri,
+    const h64wchar *fileuri, int64_t fileurilen,
     int64_t line, int64_t column
 );
 
@@ -64,7 +70,7 @@ int result_AddMessageNoLoc(
     h64result *result,
     h64messagetype type,
     const char *message,
-    const char *fileuri
+    const h64wchar *fileuri, int64_t fileurilen
 );
 
 void result_FreeContents(h64result *result);

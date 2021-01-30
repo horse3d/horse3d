@@ -13,14 +13,15 @@
 #include "compiler/lexer.h"
 #include "compiler/operator.h"
 #include "compiler/scope.h"
-
+#include "widechar.h"
 
 typedef struct h64compileproject h64compileproject;
 typedef struct poolalloc poolalloc;
 
 typedef struct h64ast {
     int global_storage_built, identifiers_resolved, threadable_map_done;
-    char *fileuri, *module_path, *library_name;
+    h64wchar *fileuri; int64_t fileurilen;
+    char *module_path, *library_name;
     h64result resultmsg;
     h64scope scope;
     int stmt_count;
@@ -39,7 +40,8 @@ typedef struct h64parsecontext {
     h64compileproject *project;
     h64result *resultmsg;
     h64scope *global_scope;
-    const char *fileuri;
+    const h64wchar *fileuri;
+    int64_t fileurilen;
     tsinfo *tokenstreaminfo;
     h64ast *ast;
 } h64parsecontext;
@@ -120,7 +122,8 @@ int ast_ParseCodeBlock(
 );
 
 h64ast* ast_ParseFromTokens(
-    h64compileproject *project, const char *fileuri,
+    h64compileproject *project,
+    const h64wchar *fileuri, int64_t fileurilen,
     h64token *tokens, int token_count
 );
 

@@ -20,16 +20,18 @@
 #include "compiler/main.h"
 #include "compiler/scoperesolver.h"
 #include "filesys.h"
+#include "filesys32.h"
 #include "json.h"
 #include "nonlocale.h"
-#include "uri.h"
+#include "uri32.h"
 #include "vmexec.h"
 #include "vmschedule.h"
 
 static int _compileargparse(
         const char *cmd,
         const char **argv, int argc, int argoffset,
-        char **fileuriorexec, char **out_file,
+        h64wchar **fileuriorexec, int64_t *fileuriorexeclen,
+        char **out_file,
         h64compilewarnconfig *wconfig,
         h64misccompileroptions *miscoptions
         ) {
@@ -58,9 +60,9 @@ static int _compileargparse(
                     len += (k > i ? 1 : 0) + strlen(argv[k]);
                     k++;
                 }
-                *fileuriorexec = malloc(len + 1);
-                if (*fileuriorexec) {
-                    char *p = *fileuriorexec;
+                char *fileuriorexec_u8 = malloc(len + 1);
+                if (fileuriorexec_u8) {
+                    char *p = fileuriorexec_u8;
                     k = i;
                     while (k <= kmax) {
                         if (k > i) {
@@ -74,10 +76,20 @@ static int _compileargparse(
                         k++;
                     }
                     p[0] = '\0';
+                } else {
+                    h64fprintf(stderr, "horsec: error: "
+                        "out of memory parsing arguments\n");
+                    goto failquit;
                 }
+                *fileuriorexec = AS_U32(
+                    fileuriorexec_u8, fileuriorexeclen
+                );
+                free(fileuriorexec_u8);
                 i = kmax;
             } else {
-                *fileuriorexec = strdup(argv[i]);
+                *fileuriorexec = AS_U32(
+                    argv[i], fileuriorexeclen
+                );
             }
             if (!*fileuriorexec) {
                 h64fprintf(stderr, "horsec: error: "
@@ -280,7 +292,7 @@ static int _compileargparse(
 
 static void printmsg(
         h64result *result, h64resultmessage *msg,
-        const char *exectempfileuri
+        const h64wchar *exectempfileuri, int64_t exectempfileurilen
         ) {
     const char *verb = "<unknown-msg-type>";
     if (msg->type == H64MSG_ERROR)
@@ -295,13 +307,35 @@ static void printmsg(
     h64fprintf(output_fd,
         "horsec: %s: ", verb
     );
-    const char *fileuri = (msg->fileuri ? msg->fileuri : result->fileuri);
-    if (!fileuri && msg->line >= 0) {
-        fileuri = "<unknown-file>";
-    } else if (fileuri && exectempfileuri) {
+    // Get the file uri, both as utf32 and utf8:
+    char _oomfileuri[] = "<oom converting file uri>";
+    h64wchar *fileuri = NULL;
+    int64_t fileurilen = 0;
+    if (msg->fileuri) {
+        fileuri = msg->fileuri;
+        fileurilen = msg->fileurilen;
+    } else {
+        fileuri = result->fileuri;
+        fileurilen = result->fileurilen;
+    }
+    char *fileuri_u8 = NULL;
+    if (fileuri) {
+        fileuri_u8 = AS_U8(
+            fileuri, fileurilen
+        );
+        if (!fileuri_u8)
+            fileuri_u8 = _oomfileuri;
+    }
+    // A few special values for the URI:
+    if (!fileuri_u8 && msg->line >= 0) {
+        fileuri_u8 = strdup("<unknown-file>");
+        if (!fileuri_u8)
+            fileuri_u8 = _oomfileuri;
+    } else if (fileuri_u8 && exectempfileuri) {
         int isexecuri = 0;
-        int result = uri_CompareStrEx(
-            fileuri, exectempfileuri, 1,
+        int result = uri32_CompareStrEx(
+            fileuri, fileurilen, exectempfileuri,
+            exectempfileurilen, 1,
             #if defined(_WIN32) || defined(_WIN64)
             1,
             #else
@@ -310,21 +344,27 @@ static void printmsg(
             &isexecuri
         );
         if (!result) {
-            fileuri = "<compare-oom>";
+            fileuri_u8 = _oomfileuri;
         } else if (isexecuri) {
-            fileuri = "<exec>";
+            fileuri_u8 = strdup("<exec>");
+            if (!fileuri_u8)
+                fileuri_u8 = _oomfileuri;
         }
     }
-    if (fileuri) {
-        h64fprintf(output_fd, "%s", fileuri);
+    if (fileuri_u8) {
+        h64fprintf(output_fd, "%s", fileuri_u8);
         if (msg->line >= 0) {
             h64fprintf(output_fd, ":%" PRId64, msg->line);
             if (msg->column >= 0)
                 h64fprintf(output_fd, ":%" PRId64, msg->column);
         }
         h64fprintf(output_fd, ": ");
+    } else {
+        h64fprintf(output_fd, "<URI error>: ");
     }
     h64fprintf(output_fd, "%s\n", msg->message);
+    if (fileuri_u8 != _oomfileuri)
+        free(fileuri_u8);
 }
 
 int compiler_WriteProgram(
@@ -354,8 +394,10 @@ int compiler_command_CompileEx(
         int mode, const char **argv, int argc, int argoffset,
         int *return_int
         ) {
-    char *fileuri = NULL;
-    char *execarg = NULL;
+    h64wchar *fileuri = NULL;
+    int64_t fileurilen = 0;
+    h64wchar *execarg = NULL;
+    int64_t execarglen = 0;
     const char *_name_mode_compile = "compile";
     const char *_name_mode_run = "run";
     const char *_name_mode_exec = "exec";
@@ -371,13 +413,18 @@ int compiler_command_CompileEx(
     );
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
-    char *fileuriorexec = NULL;
+    h64wchar *fileuriorexec = NULL;
+    int64_t fileuriorexeclen = 0;
+
     char *outputfile = NULL;
-    char *tempfilepath = NULL;
-    char *tempfilefolder = NULL;
+    h64wchar *tempfilepath = NULL;
+    int64_t tempfilepathlen = 0;
+    h64wchar *tempfilefolder = NULL;
+    int64_t tempfilefolderlen = 0;
     if (!_compileargparse(
             command, argv, argc, argoffset,
-            &fileuriorexec, &outputfile, &wconfig, &moptions
+            &fileuriorexec, &fileuriorexeclen,
+            &outputfile, &wconfig, &moptions
             ))
         return 0;
     assert(
@@ -387,7 +434,9 @@ int compiler_command_CompileEx(
     assert(fileuriorexec != NULL || moptions.from_stdin);
     if (mode == COMPILEEX_MODE_EXEC || moptions.from_stdin) {
         execarg = fileuriorexec;
+        execarglen = fileuriorexeclen;
         fileuriorexec = NULL;
+        fileuriorexeclen = 0;
         if (moptions.from_stdin) {
             int bufsize = 4096;
             int buffill = 0;
@@ -425,39 +474,66 @@ int compiler_command_CompileEx(
             free(execarg);
             assert(buffill + 1 < bufsize);
             buf[buffill] = '\0';
-            execarg = buf;
+            execarg = AS_U32(
+                buf, &execarglen
+            );
         }
-        FILE *tempfile = filesys_TempFile(
-            1, "code", ".h64", &tempfilefolder, &tempfilepath
-        );
+        FILE *tempfile = NULL;
+        {
+            int64_t prefixlen = 0;
+            h64wchar *prefix = AS_U32("code", &prefixlen);
+            int64_t suffixlen = 0;
+            h64wchar *suffix = AS_U32(".h64", &suffixlen);
+            if (!prefix || !suffix) {
+                free(prefix);  free(suffix);
+                h64fprintf(stderr, "horsec: error: out of memory "
+                    "creating temporary file\n");
+                goto freeanderrorquit;
+            }
+            tempfile = filesys32_TempFile(
+                1, prefix, prefixlen, suffix, suffixlen,
+                &tempfilefolder, &tempfilefolderlen,
+                &tempfilepath, &tempfilepathlen
+            );
+            free(prefix);  free(suffix);
+        }
         if (!tempfile) {
             assert(tempfilefolder == NULL);
-            free(fileuriorexec);
-            free(outputfile);
-            h64fprintf(stderr, "horsec: error: out of memory or "
-                "internal error with temporary file\n");
-            return 0;
+            h64fprintf(stderr, "horsec: error: input/output error "
+                "with temporary file\n");
+            goto freeanderrorquit;
+        }
+        const char *execargu8 = AS_U8_TMP(execarg, execarglen);
+        if (!execargu8) {
+            fclose(tempfile);
+            h64fprintf(stderr, "horsec: error: out of memory"
+                "while writing temporary file\n");
+            goto freeanderrorquit;
         }
         ssize_t written = fwrite(
-            execarg, 1, strlen(execarg), tempfile
+            execargu8, 1, strlen(execargu8), tempfile
         );
-        if (written < (ssize_t)strlen(execarg)) {
+        if (written < (ssize_t)strlen(execargu8)) {
             fclose(tempfile);
             h64fprintf(stderr, "horsec: error: input/output error "
                 "with temporary file\n");
             goto freeanderrorquit;
         }
         fclose(tempfile);
-        fileuri = uri_Normalize(
-            tempfilepath, 1
+        fileuri = uri32_Normalize(
+            tempfilepath, tempfilepathlen, 1, &fileurilen
         );
         if (!fileuri) {
             h64fprintf(stderr, "horsec: error: out of memory or "
                 "internal error with temporary file\n");
             freeanderrorquit:
             if (tempfilepath) {
-                filesys_RemoveFileOrEmptyDir(tempfilepath);
-                filesys_RemoveFolderRecursively(tempfilefolder);
+                int _ignoreerr = 0;
+                filesys32_RemoveFileOrEmptyDir(
+                    tempfilepath, tempfilepathlen, &_ignoreerr);
+                filesys32_RemoveFolderRecursively(
+                    tempfilefolder, tempfilefolderlen, &_ignoreerr
+                );
                 free(tempfilepath);
                 free(tempfilefolder);
             }
@@ -472,20 +548,26 @@ int compiler_command_CompileEx(
     }
 
     char *error = NULL;
-    char *project_folder_uri = NULL;
+    int64_t project_folder_uri_len = 0;
+    h64wchar *project_folder_uri = NULL;
     if (mode != COMPILEEX_MODE_EXEC && !moptions.from_stdin) {
         project_folder_uri = compileproject_FolderGuess(
-            fileuri, 1, &error
+            fileuri, fileurilen, 1,
+            &project_folder_uri_len, &error
         );
     } else {
-        project_folder_uri = strdup(tempfilefolder);
+        project_folder_uri = strdupu32(
+            tempfilefolder, tempfilefolderlen, &project_folder_uri_len
+        );
     }
     if (!project_folder_uri) {
         h64fprintf(stderr, "horsec: error: %s: %s\n",
                    command, (error ? error : "out of memory"));
         goto freeanderrorquit;
     }
-    h64compileproject *project = compileproject_New(project_folder_uri);
+    h64compileproject *project = compileproject_New(
+        project_folder_uri, project_folder_uri_len
+    );
     free(project_folder_uri);
     project_folder_uri = NULL;
     if (!project) {
@@ -494,7 +576,9 @@ int compiler_command_CompileEx(
         goto freeanderrorquit;
     }
     h64ast *ast = NULL;
-    if (!compileproject_GetAST(project, fileuri, &ast, &error)) {
+    if (!compileproject_GetAST(
+            project, fileuri, fileurilen, &ast, &error
+            )) {
         h64fprintf(stderr, "horsec: error: %s: %s\n",
                    command, error);
         free(error);
@@ -502,7 +586,7 @@ int compiler_command_CompileEx(
         goto freeanderrorquit;
     }
     if (!compileproject_CompileAllToBytecode(
-            project, &moptions, fileuri, &error
+            project, &moptions, fileuri, fileurilen, &error
             )) {
         h64fprintf(stderr, "horsec: error: %s: %s\n",
                    command, error);
@@ -526,13 +610,19 @@ int compiler_command_CompileEx(
         printmsg(
             project->resultmsg, &project->resultmsg->message[i],
             ((mode == COMPILEEX_MODE_EXEC ||
-              moptions.from_stdin) ? tempfilepath : NULL)
+              moptions.from_stdin) ? tempfilepath : NULL),
+            ((mode == COMPILEEX_MODE_EXEC ||
+              moptions.from_stdin) ? tempfilepathlen : 0LL)
         );
         i++;
     }
     if (tempfilepath) {
-        filesys_RemoveFileOrEmptyDir(tempfilepath);
-        filesys_RemoveFolderRecursively(tempfilefolder);
+        int _ignoreerr = 0;
+        filesys32_RemoveFileOrEmptyDir(
+            tempfilepath, tempfilepathlen, &_ignoreerr);
+        filesys32_RemoveFolderRecursively(
+            tempfilefolder, tempfilefolderlen, &_ignoreerr
+        );
         free(tempfilepath);
         free(tempfilefolder);
     }
@@ -629,18 +719,30 @@ int compiler_AddResultMessageAsJson(
         return 0;
     }
     if (msg->fileuri) {
-        char *normalizedurimsg = uri_Normalize(msg->fileuri, 1);
+        int64_t normalizedurilen = 0;
+        h64wchar *normalizedurimsg = uri32_Normalize(
+            msg->fileuri, msg->fileurilen, 1, &normalizedurilen
+        );
         if (!normalizedurimsg) {
             json_Free(currmsg);
             return 0;
         }
-        if (!json_SetDictStr(
-                currmsg, "file-uri", normalizedurimsg)) {
+        char *normalizeduriu8 = AS_U8(
+            normalizedurimsg, normalizedurilen
+        );
+        if (!normalizeduriu8) {
             free(normalizedurimsg);
             json_Free(currmsg);
             return 0;
         }
         free(normalizedurimsg);
+        if (!json_SetDictStr(
+                currmsg, "file-uri", normalizeduriu8)) {
+            free(normalizeduriu8);
+            json_Free(currmsg);
+            return 0;
+        }
+        free(normalizeduriu8);
     }
     if (msg->line >= 0) {
         if (!json_SetDictInt(
@@ -680,21 +782,26 @@ int compiler_AddResultMessageAsJson(
 
 jsonvalue *compiler_TokenizeToJSON(
         ATTR_UNUSED h64misccompileroptions *moptions,
-        const char *fileuri, h64compilewarnconfig *wconfig
+        const h64wchar *fileuri, int64_t fileurilen,
+        h64compilewarnconfig *wconfig
         ) {
     h64tokenizedfile tfile = {0};
     {
-        uriinfo *fileuri_info = uri_ParseEx(
-            fileuri, "file", URI_PARSEEX_FLAG_GUESSPORT
+        uri32info *fileuri_info = uri32_ParseExU8Protocol(
+            fileuri, fileurilen,
+            "file", URI32_PARSEEX_FLAG_GUESSPORT
         );
         if (!fileuri_info)
             return NULL;
         tfile = lexer_ParseFromFile(
             fileuri_info, wconfig
         );
-        uri_Free(fileuri_info);
+        uri32_Free(fileuri_info);
     }
-    char *normalizeduri = uri_Normalize(fileuri, 1);
+    int64_t normalizedurilen = 0;
+    h64wchar *normalizeduri = uri32_Normalize(
+        fileuri, fileurilen, 1, &normalizedurilen
+    );
     if (!normalizeduri) {
         result_FreeContents(&tfile.resultmsg);
         lexer_FreeFileTokens(&tfile);
@@ -711,7 +818,7 @@ jsonvalue *compiler_TokenizeToJSON(
     int i = 0;
     while (i < tfile.token_count) {
         jsonvalue *token = lexer_TokenToJSON(
-            &tfile.token[i], normalizeduri
+            &tfile.token[i], normalizeduri, normalizedurilen
         );
         if (!token) {
             failure = 1;
@@ -763,7 +870,8 @@ jsonvalue *compiler_TokenizeToJSON(
         } else {
             infolist = NULL;
         }
-        if (!json_SetDictStr(v, "file-uri", normalizeduri)) {
+        if (!json_SetDictStr(v, "file-uri",
+                AS_U8_TMP(normalizeduri, normalizedurilen))) {
             failure = 1;
         }
         if (!json_SetDict(v, "tokens", tokenlist)) {
@@ -786,19 +894,20 @@ jsonvalue *compiler_TokenizeToJSON(
 }
 
 int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
-    char *fileuri = NULL;
+    h64wchar *fileuri = NULL;
+    int64_t fileurilen = 0;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
     char *output_file = NULL;
     if (!_compileargparse(
             "get_tokens", argv, argc, argoffset,
-            &fileuri, &output_file, &wconfig, &moptions
+            &fileuri, &fileurilen, &output_file, &wconfig, &moptions
             ))
         return 0;
     assert(fileuri != NULL && output_file == NULL);
 
     jsonvalue *v = compiler_TokenizeToJSON(
-        &moptions, fileuri, &wconfig
+        &moptions, fileuri, fileurilen, &wconfig
     );
     free(fileuri);
     if (!v) {
@@ -814,19 +923,20 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
 }
 
 int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
-    char *fileuri = NULL;
+    h64wchar *fileuri = NULL;
+    int64_t fileurilen = 0;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
     char *output_file = NULL;
     if (!_compileargparse(
             "get_ast", argv, argc, argoffset,
-            &fileuri, &output_file, &wconfig, &moptions
+            &fileuri, &fileurilen, &output_file, &wconfig, &moptions
             ))
         return 0;
     assert(fileuri != NULL && output_file == NULL);
 
     jsonvalue *v = compiler_ParseASTToJSON(
-        &moptions, fileuri, &wconfig, 0
+        &moptions, fileuri, fileurilen, &wconfig, 0
     );
     free(fileuri);
     if (!v) {
@@ -844,19 +954,21 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
 int compiler_command_GetResolvedAST(
         const char **argv, int argc, int argoffset
         ) {
-    char *fileuri = NULL;
+    h64wchar *fileuri = NULL;
+    int64_t fileurilen = 0;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
     char *output_file = NULL;
     if (!_compileargparse(
             "get_resolved_ast", argv, argc, argoffset,
-            &fileuri, &output_file, &wconfig, &moptions
+            &fileuri, &fileurilen, &output_file,
+            &wconfig, &moptions
             ))
         return 0;
     assert(fileuri != NULL && output_file == NULL);
 
     jsonvalue *v = compiler_ParseASTToJSON(
-        &moptions, fileuri, &wconfig, 1
+        &moptions, fileuri, fileurilen, &wconfig, 1
     );
     free(fileuri);
     if (!v) {
@@ -873,13 +985,15 @@ int compiler_command_GetResolvedAST(
 
 jsonvalue *compiler_ParseASTToJSON(
         h64misccompileroptions *moptions,
-        const char *fileuri, h64compilewarnconfig *wconfig,
+        const h64wchar *fileuri, int64_t fileurilen,
+        h64compilewarnconfig *wconfig,
         int resolve_references
         ) {
     char *error = NULL;
 
-    char *project_folder_uri = compileproject_FolderGuess(
-        fileuri, 1, &error
+    int64_t project_folder_uri_len = 0;
+    h64wchar *project_folder_uri = compileproject_FolderGuess(
+        fileuri, fileurilen, 1, &project_folder_uri_len, &error
     );
     if (!project_folder_uri) {
         failedproject: ;
@@ -914,7 +1028,9 @@ jsonvalue *compiler_ParseASTToJSON(
         }
         return v;
     }
-    h64compileproject *project = compileproject_New(project_folder_uri);
+    h64compileproject *project = compileproject_New(
+        project_folder_uri, project_folder_uri_len
+    );
     free(project_folder_uri);
     project_folder_uri = NULL;
     if (!project)
@@ -923,7 +1039,7 @@ jsonvalue *compiler_ParseASTToJSON(
         memcpy(&project->warnconfig, wconfig, sizeof(*wconfig));
     h64ast *tast = NULL;
     if (!compileproject_GetAST(
-            project, fileuri, &tast, &error
+            project, fileuri, fileurilen, &tast, &error
             )) {
         compileproject_Free(project);
         project = NULL;
@@ -935,8 +1051,10 @@ jsonvalue *compiler_ParseASTToJSON(
         project = NULL;
         goto failedproject;
     }
-
-    char *normalizeduri = uri_Normalize(fileuri, 1);
+    int64_t normalizedurilen = 0;
+    h64wchar *normalizeduri = uri32_Normalize(
+        fileuri, fileurilen, 1, &normalizedurilen
+    );
     if (!normalizeduri) {
         compileproject_Free(project);
         project = NULL;
@@ -953,7 +1071,7 @@ jsonvalue *compiler_ParseASTToJSON(
     int i = 0;
     while (i < tast->stmt_count) {
         jsonvalue *expr = ast_ExpressionToJSON(
-            tast->stmt[i], normalizeduri
+            tast->stmt[i], normalizeduri, normalizedurilen
         );
         if (!expr) {
             failure = 1;
@@ -999,7 +1117,8 @@ jsonvalue *compiler_ParseASTToJSON(
         failure = 1;
         json_Free(infolist);
     }
-    if (!json_SetDictStr(v, "file-uri", normalizeduri)) {
+    if (!json_SetDictStr(v, "file-uri", AS_U8_TMP(
+            normalizeduri, normalizedurilen))) {
         failure = 1;
     }
     jsonvalue *vscope = scope_ScopeToJSON(

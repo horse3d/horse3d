@@ -55,7 +55,7 @@ int asttransform_Apply(
                 result_AddMessage(
                     &ast->resultmsg,
                     H64MSG_ERROR, "out of memory during ast transform",
-                    ast->fileuri,
+                    ast->fileuri, ast->fileurilen,
                     -1, -1
                 );
                 // At least try to transfer messages:
@@ -94,7 +94,7 @@ int asttransform_Apply(
                 pr->resultmsg,
                 H64MSG_ERROR, "internal error: failed to apply "
                 "ast transform with unknown error",
-                ast->fileuri,
+                ast->fileuri, ast->fileurilen,
                 -1, -1
             );
             pr->resultmsg->success = 0;

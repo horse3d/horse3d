@@ -524,7 +524,7 @@ int corelib_RegisterContainerFuncs(h64program *p) {
     // '$$container_add' function:
     idx = h64program_RegisterCFunction(
         p, "$$container_add", &corelib_containeradd,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -535,7 +535,7 @@ int corelib_RegisterContainerFuncs(h64program *p) {
     // '$$container_contains' function:
     idx = h64program_RegisterCFunction(
         p, "$$container_contains", &corelib_containercontains,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -546,7 +546,7 @@ int corelib_RegisterContainerFuncs(h64program *p) {
     // '$$container_join_map' function:
     idx = h64program_RegisterCFunction(
         p, "$$container_join_map", &corelib_containerjoin_map,
-        NULL, 2, NULL, NULL, NULL, 1, -1
+        NULL, 0, 2, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -557,7 +557,7 @@ int corelib_RegisterContainerFuncs(h64program *p) {
     // '$$container_join_list' function:
     idx = h64program_RegisterCFunction(
         p, "$$container_join_list", &corelib_containerjoin_list,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;

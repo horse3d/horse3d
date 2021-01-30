@@ -270,14 +270,16 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 #ifndef NDEBUG
                 if (!mapsto->storage.set) {
                     char *s = ast_ExpressionToJSONStr(
-                        mapsto, rinfo->ast->fileuri
+                        mapsto, rinfo->ast->fileuri,
+                        rinfo->ast->fileurilen
                     );
                     h64fprintf(stderr,
                         "horsec: error: unexpectedly no storage on "
                         "resolved-to expr: %s\n", (s ? s : "<oom>"));
                     free(s);
                     s = ast_ExpressionToJSONStr(
-                        expr, rinfo->ast->fileuri
+                        expr, rinfo->ast->fileuri,
+                        rinfo->ast->fileurilen
                     );
                     h64fprintf(stderr,
                         "horsec: error: identifier that was resolved to "
@@ -350,6 +352,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             if (!result_AddMessage(
                     &rinfo->ast->resultmsg,
                     H64MSG_ERROR, buf, rinfo->ast->fileuri,
+                    rinfo->ast->fileurilen,
                     expr->line,
                     expr->column
                     )) {
@@ -367,6 +370,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
             if (!result_AddMessage(
                     &rinfo->ast->resultmsg,
                     H64MSG_ERROR, buf, rinfo->ast->fileuri,
+                    rinfo->ast->fileurilen,
                     expr->line,
                     expr->column
                     )) {
@@ -424,6 +428,7 @@ int _resolvercallback_AssignNonglobalStorage_visit_out(
                 if (!result_AddMessage(
                         &rinfo->ast->resultmsg,
                         H64MSG_WARNING, buf, rinfo->ast->fileuri,
+                        rinfo->ast->fileurilen,
                         expr->line,
                         expr->column
                         )) {

@@ -26,6 +26,12 @@ uri32info *uri32_ParseEx(
     int flags
 );
 
+uri32info *uri32_ParseExU8Protocol(
+    const h64wchar *uri, int64_t urilen,
+    const char *default_remote_protocol,
+    int flags
+);
+
 uri32info *uri32_Parse(
     const h64wchar *uri, int64_t urilen
 );

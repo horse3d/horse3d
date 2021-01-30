@@ -259,11 +259,11 @@ h64scope *ast_GetScope(h64expression *expr, h64scope *global_scope);
 const char *ast_ExpressionTypeToStr(h64expressiontype type);
 
 char *ast_ExpressionToJSONStr(
-    h64expression *e, const char *fileuri
+    h64expression *e, const h64wchar *fileuri, int64_t fileurilen
 );
 
 jsonvalue *ast_ExpressionToJSON(
-    h64expression *e, const char *fileuri
+    h64expression *e, const h64wchar *fileuri, int64_t fileurilen
 );
 
 void ast_ClearFunctionArgs(

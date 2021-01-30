@@ -163,7 +163,7 @@ int _threadablechecker_register_visitin(
                         rinfo->pr->resultmsg, H64MSG_ERROR,
                         "func marked as \"async\" cannot access "
                         "global variable that isn't a simple "
-                        "constant", NULL,
+                        "constant", NULL, 0,
                         (expr->identifierref.
                             resolved_to_expr != NULL ?
                         expr->identifierref.
@@ -223,7 +223,7 @@ int threadablechecker_RegisterASTForCheck(
             if (!result_AddMessage(
                     project->resultmsg, H64MSG_ERROR,
                     "out of memory during threadable check",
-                    NULL, -1, -1
+                    NULL, 0, -1, -1
                     )) {
                 // Nothing we can do.
             }
@@ -293,15 +293,19 @@ int threadablechecker_IterateFinalGraph(
                     project->program->classes[cid].is_threadable = 0;
                     gotchange = 1;
                     if (project->program->classes[cid].user_set_parallel) {
-                        char *def_fileuri = NULL;
+                        int64_t def_fileuri_len = 0;
+                        const h64wchar *def_fileuri = NULL;
                         if (fsymbol->fileuri_index >= 0) {
-                            def_fileuri = strdup(
+                            def_fileuri = (
                                 project->program->symbols->fileuri[
                                     fsymbol->fileuri_index
                                 ]
                             );
-                        } else {
-                            def_fileuri = strdup("<unknown>");
+                            def_fileuri_len = (
+                                project->program->symbols->fileurilen[
+                                    fsymbol->fileuri_index
+                                ]
+                            );
                         }
                         char buf[1024];
                         h64snprintf(buf, sizeof(buf) - 1,
@@ -313,7 +317,7 @@ int threadablechecker_IterateFinalGraph(
                         if (!result_AddMessage(
                                 project->resultmsg, H64MSG_ERROR,
                                 buf,
-                                def_fileuri,
+                                def_fileuri, def_fileuri_len,
                                 (fsymbol ? fsymbol->header_symbol_line :
                                     -1LL),
                                 (fsymbol ? fsymbol->header_symbol_column :
@@ -323,7 +327,7 @@ int threadablechecker_IterateFinalGraph(
                                     project->resultmsg, H64MSG_ERROR,
                                     "out of memory during threadable "
                                     "check",
-                                    NULL, -1, -1
+                                    NULL, 0, -1, -1
                                     )) {
                                 // Nothing we can do.
                             }
@@ -350,26 +354,30 @@ int threadablechecker_IterateFinalGraph(
                     project->program->func[i].is_threadable = 0;
                     gotchange = 1;
                     if (project->program->func[i].user_set_parallel) {
-                        char *func_fileuri = NULL;
+                        int64_t func_fileuri_len = 0;
+                        const h64wchar *func_fileuri = NULL;
                         h64funcsymbol *fsymbol = (
                             h64debugsymbols_GetFuncSymbolById(
                                 project->program->symbols, i
                             ));
                         if (fsymbol != NULL && fsymbol->fileuri_index >= 0) {
-                            func_fileuri = strdup(
+                            func_fileuri = (
                                 project->program->symbols->fileuri[
                                     fsymbol->fileuri_index
                                 ]
                             );
-                        } else {
-                            func_fileuri = strdup("<unknown>");
+                            func_fileuri_len = (
+                                project->program->symbols->fileurilen[
+                                    fsymbol->fileuri_index
+                                ]
+                            );
                         }
                         if (!result_AddMessage(
                                 project->resultmsg, H64MSG_ERROR,
                                 "func marked as \"async\" cannot "
                                 "be func attr of class "
                                 "that is not \"async\"",
-                                func_fileuri,
+                                func_fileuri, func_fileuri_len,
                                 (fsymbol ? fsymbol->header_symbol_line :
                                     -1LL),
                                 (fsymbol ? fsymbol->header_symbol_column :
@@ -379,7 +387,7 @@ int threadablechecker_IterateFinalGraph(
                                     project->resultmsg, H64MSG_ERROR,
                                     "out of memory during threadable "
                                     "check",
-                                    NULL, -1, -1
+                                    NULL, 0, -1, -1
                                     )) {
                                 // Nothing we can do.
                             }
@@ -406,26 +414,30 @@ int threadablechecker_IterateFinalGraph(
                     project->program->func[i].is_threadable = 0;
                     gotchange = 1;
                     if (project->program->func[i].user_set_parallel) {
-                        char *call_fileuri = NULL;
+                        int64_t call_fileuri_len = 0;
+                        const h64wchar *call_fileuri = NULL;
                         h64funcsymbol *fsymbol = (
                             h64debugsymbols_GetFuncSymbolById(
                                 project->program->symbols, i
                             ));
                         if (fsymbol != NULL && fsymbol->fileuri_index >= 0) {
-                            call_fileuri = strdup(
+                            call_fileuri = (
                                 project->program->symbols->fileuri[
                                     fsymbol->fileuri_index
                                 ]
                             );
-                        } else {
-                            call_fileuri = strdup("<unknown>");
+                            call_fileuri_len = (
+                                project->program->symbols->fileurilen[
+                                    fsymbol->fileuri_index
+                                ]
+                            );
                         }
                         if (!result_AddMessage(
                                 project->resultmsg, H64MSG_ERROR,
                                 "func marked as \"async\" cannot "
                                 "access func "
                                 "that is not \"async\" itself",
-                                call_fileuri,
+                                call_fileuri, call_fileuri_len,
                                 nodeinfo->called_func_info[k].line,
                                 nodeinfo->called_func_info[k].column
                                 )) {
@@ -433,7 +445,7 @@ int threadablechecker_IterateFinalGraph(
                                     project->resultmsg, H64MSG_ERROR,
                                     "out of memory during threadable "
                                     "check",
-                                    NULL, -1, -1
+                                    NULL, 0, -1, -1
                                     )) {
                                 // Nothing we can do.
                             }
@@ -459,26 +471,30 @@ int threadablechecker_IterateFinalGraph(
                     project->program->func[i].is_threadable = 0;
                     gotchange = 1;
                     if (project->program->func[i].user_set_parallel) {
-                        char *call_fileuri = NULL;
+                        int64_t call_fileuri_len = 0;
+                        const h64wchar *call_fileuri = NULL;
                         h64funcsymbol *fsymbol = (
                             h64debugsymbols_GetFuncSymbolById(
                                 project->program->symbols, i
                             ));
                         if (fsymbol != NULL && fsymbol->fileuri_index >= 0) {
-                            call_fileuri = strdup(
+                            call_fileuri = (
                                 project->program->symbols->fileuri[
                                     fsymbol->fileuri_index
                                 ]
                             );
-                        } else {
-                            call_fileuri = strdup("<unknown>");
+                            call_fileuri_len = (
+                                project->program->symbols->fileurilen[
+                                    fsymbol->fileuri_index
+                                ]
+                            );
                         }
                         if (!result_AddMessage(
                                 project->resultmsg, H64MSG_ERROR,
                                 "func marked as \"async\" cannot "
                                 "access class "
                                 "that is not \"async\" itself",
-                                call_fileuri,
+                                call_fileuri, call_fileuri_len,
                                 nodeinfo->called_class_info[k].line,
                                 nodeinfo->called_class_info[k].column
                                 )) {
@@ -486,7 +502,7 @@ int threadablechecker_IterateFinalGraph(
                                     project->resultmsg, H64MSG_ERROR,
                                     "out of memory during threadable "
                                     "check",
-                                    NULL, -1, -1
+                                    NULL, 0, -1, -1
                                     )) {
                                 // Nothing we can do.
                             }

@@ -908,9 +908,10 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
 }
 
 char *ast_ExpressionToJSONStr(
-        h64expression *e, const char *fileuri
+        h64expression *e, const h64wchar *fileuri,
+        int64_t fileurilen
         ) {
-    jsonvalue *v = ast_ExpressionToJSON(e, fileuri);
+    jsonvalue *v = ast_ExpressionToJSON(e, fileuri, fileurilen);
     if (!v)
         return NULL;
     char *s = json_Dump(v);
@@ -919,7 +920,8 @@ char *ast_ExpressionToJSONStr(
 }
 
 jsonvalue *ast_FuncArgsToJSON(
-        h64funcargs *fargs, const char *fileuri
+        h64funcargs *fargs, const h64wchar *fileuri,
+        int64_t fileurilen
         ) {
     jsonvalue *v = json_List();
     int fail = 0;
@@ -946,7 +948,7 @@ jsonvalue *ast_FuncArgsToJSON(
         }
         if (fargs->arg_value && fargs->arg_value[i]) {
             jsonvalue *innerv = ast_ExpressionToJSON(
-                fargs->arg_value[i], fileuri
+                fargs->arg_value[i], fileuri, fileurilen
             );
             if (!innerv) {
                 json_Free(arg);
@@ -980,7 +982,8 @@ jsonvalue *ast_FuncArgsToJSON(
 }
 
 jsonvalue *ast_ExpressionToJSON(
-        h64expression *e, const char *fileuri
+        h64expression *e, const h64wchar *fileuri,
+        int64_t fileurilen
         ) {
     if (!e)
         return NULL;
@@ -1039,7 +1042,9 @@ jsonvalue *ast_ExpressionToJSON(
             json_Free(attributes);
         }
         if (e->vardef.value) {
-            jsonvalue *val = ast_ExpressionToJSON(e->vardef.value, fileuri);
+            jsonvalue *val = ast_ExpressionToJSON(
+                e->vardef.value, fileuri, fileurilen
+            );
             if (!val) {
                 fail = 1;
             } else {
@@ -1082,7 +1087,7 @@ jsonvalue *ast_ExpressionToJSON(
             }
             if (current_clause->conditional) {
                 jsonvalue *conditionval = ast_ExpressionToJSON(
-                    current_clause->conditional, fileuri
+                    current_clause->conditional, fileuri, fileurilen
                 );
                 if (!json_SetDict(v, name_condition, conditionval)) {
                     json_Free(conditionval);
@@ -1097,7 +1102,7 @@ jsonvalue *ast_ExpressionToJSON(
             int i = 0;
             while (i < current_clause->stmt_count) {
                 jsonvalue *stmtjson = ast_ExpressionToJSON(
-                    current_clause->stmt[i], fileuri
+                    current_clause->stmt[i], fileuri, fileurilen
                 );
                 if (!json_AddToList(cblock, stmtjson)) {
                     json_Free(stmtjson);
@@ -1115,21 +1120,21 @@ jsonvalue *ast_ExpressionToJSON(
         }
     } else if (e->type == H64EXPRTYPE_GIVEN) {
         jsonvalue *conditionval = ast_ExpressionToJSON(
-            e->given.condition, fileuri
+            e->given.condition, fileuri, fileurilen
         );
         if (!json_SetDict(v, "condition", conditionval)) {
             json_Free(conditionval);
             fail = 1;
         }
         jsonvalue *valueyes = ast_ExpressionToJSON(
-            e->given.valueyes, fileuri
+            e->given.valueyes, fileuri, fileurilen
         );
         if (!json_SetDict(v, "if-yes-value", valueyes)) {
             json_Free(conditionval);
             fail = 1;
         }
         jsonvalue *valueno = ast_ExpressionToJSON(
-            e->given.valueno, fileuri
+            e->given.valueno, fileuri, fileurilen
         );
         if (!json_SetDict(v, "if-no-value", valueno)) {
             json_Free(conditionval);
@@ -1145,7 +1150,7 @@ jsonvalue *ast_ExpressionToJSON(
         int i = 0;
         while (i < e->whilestmt.stmt_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->whilestmt.stmt[i], fileuri
+                e->whilestmt.stmt[i], fileuri, fileurilen
             );
             if (!json_AddToList(cblock, stmtjson)) {
                 json_Free(stmtjson);
@@ -1159,7 +1164,7 @@ jsonvalue *ast_ExpressionToJSON(
             fail = 1;
         }
         jsonvalue *conditionval = ast_ExpressionToJSON(
-            e->whilestmt.conditional, fileuri
+            e->whilestmt.conditional, fileuri, fileurilen
         );
         if (!json_SetDict(v, "condition", conditionval)) {
             json_Free(conditionval);
@@ -1172,7 +1177,7 @@ jsonvalue *ast_ExpressionToJSON(
             fail = 1;
         }
         jsonvalue *iterate_container = ast_ExpressionToJSON(
-            e->forstmt.iterated_container, fileuri
+            e->forstmt.iterated_container, fileuri, fileurilen
         );
         if (!json_SetDict(v, "iterated-container", iterate_container)) {
             json_Free(iterate_container);
@@ -1187,7 +1192,7 @@ jsonvalue *ast_ExpressionToJSON(
         int i = 0;
         while (i < e->forstmt.stmt_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->forstmt.stmt[i], fileuri
+                e->forstmt.stmt[i], fileuri, fileurilen
             );
             if (!json_AddToList(cblock, stmtjson)) {
                 json_Free(stmtjson);
@@ -1205,7 +1210,7 @@ jsonvalue *ast_ExpressionToJSON(
         int i = 0;
         while (i < e->dostmt.dostmt_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->dostmt.dostmt[i], fileuri
+                e->dostmt.dostmt[i], fileuri, fileurilen
             );
             if (!json_AddToList(dosection, stmtjson)) {
                 json_Free(stmtjson);
@@ -1227,7 +1232,7 @@ jsonvalue *ast_ExpressionToJSON(
         i = 0;
         while (i < e->dostmt.errors_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->dostmt.errors[i], fileuri
+                e->dostmt.errors[i], fileuri, fileurilen
             );
             if (!json_AddToList(rescuetypes, stmtjson)) {
                 json_Free(stmtjson);
@@ -1253,7 +1258,7 @@ jsonvalue *ast_ExpressionToJSON(
         while (i < e->dostmt.rescuestmt_count) {
             assert(e->dostmt.rescuestmt[i] != NULL);
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->dostmt.rescuestmt[i], fileuri
+                e->dostmt.rescuestmt[i], fileuri, fileurilen
             );
             if (!json_AddToList(rescuesection, stmtjson)) {
                 json_Free(stmtjson);
@@ -1277,7 +1282,7 @@ jsonvalue *ast_ExpressionToJSON(
         i = 0;
         while (i < e->dostmt.finallystmt_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->dostmt.finallystmt[i], fileuri
+                e->dostmt.finallystmt[i], fileuri, fileurilen
             );
             if (!json_AddToList(finallysection, stmtjson)) {
                 json_Free(stmtjson);
@@ -1325,7 +1330,7 @@ jsonvalue *ast_ExpressionToJSON(
         int i = 0;
         while (i < e->classdef.vardef_count) {
             jsonvalue *varjson = ast_ExpressionToJSON(
-                e->classdef.vardef[i], fileuri
+                e->classdef.vardef[i], fileuri, fileurilen
             );
             if (!json_AddToList(vardefs, varjson)) {
                 json_Free(varjson);
@@ -1338,7 +1343,7 @@ jsonvalue *ast_ExpressionToJSON(
         i = 0;
         while (i < e->classdef.funcdef_count) {
             jsonvalue *funcjson = ast_ExpressionToJSON(
-                e->classdef.funcdef[i], fileuri
+                e->classdef.funcdef[i], fileuri, fileurilen
             );
             if (!json_AddToList(funcdefs, funcjson)) {
                 json_Free(funcjson);
@@ -1361,7 +1366,7 @@ jsonvalue *ast_ExpressionToJSON(
         int i = 0;
         while (i < e->constructormap.entry_count) {
             jsonvalue *exprjson = ast_ExpressionToJSON(
-                e->constructormap.key[i], fileuri
+                e->constructormap.key[i], fileuri, fileurilen
             );
             if (!json_AddToList(keys, exprjson)) {
                 json_Free(exprjson);
@@ -1369,7 +1374,7 @@ jsonvalue *ast_ExpressionToJSON(
                 break;
             }
             exprjson = ast_ExpressionToJSON(
-                e->constructormap.value[i], fileuri
+                e->constructormap.value[i], fileuri, fileurilen
             );
             if (!json_AddToList(values, exprjson)) {
                 json_Free(exprjson);
@@ -1388,7 +1393,7 @@ jsonvalue *ast_ExpressionToJSON(
         }
     } else if (e->type == H64EXPRTYPE_AWAIT_STMT) {
         jsonvalue *awaitedjson = ast_ExpressionToJSON(
-            e->awaitstmt.awaitedvalue, fileuri
+            e->awaitstmt.awaitedvalue, fileuri, fileurilen
         );
         if (!json_SetDict(v, "awaited", awaitedjson)) {
             fail = 1;
@@ -1396,10 +1401,10 @@ jsonvalue *ast_ExpressionToJSON(
         }
     } else if (e->type == H64EXPRTYPE_ASSIGN_STMT) {
         jsonvalue *lvaluejson = ast_ExpressionToJSON(
-            e->assignstmt.lvalue, fileuri
+            e->assignstmt.lvalue, fileuri, fileurilen
         );
         jsonvalue *rvaluejson = ast_ExpressionToJSON(
-            e->assignstmt.rvalue, fileuri
+            e->assignstmt.rvalue, fileuri, fileurilen
         );
         if (!json_SetDict(v, "lvalue", lvaluejson)) {
             fail = 1;
@@ -1414,7 +1419,7 @@ jsonvalue *ast_ExpressionToJSON(
         int i = 0;
         while (i < e->constructorlist.entry_count) {
             jsonvalue *exprjson = ast_ExpressionToJSON(
-                e->constructorlist.entry[i], fileuri
+                e->constructorlist.entry[i], fileuri, fileurilen
             );
             if (!json_AddToList(contents, exprjson)) {
                 json_Free(exprjson);
@@ -1432,7 +1437,7 @@ jsonvalue *ast_ExpressionToJSON(
         int i = 0;
         while (i < e->constructorvector.entry_count) {
             jsonvalue *exprjson = ast_ExpressionToJSON(
-                e->constructorvector.entry[i], fileuri
+                e->constructorvector.entry[i], fileuri, fileurilen
             );
             if (!json_AddToList(contents, exprjson)) {
                 json_Free(exprjson);
@@ -1450,7 +1455,7 @@ jsonvalue *ast_ExpressionToJSON(
         int i = 0;
         while (i < e->constructorset.entry_count) {
             jsonvalue *exprjson = ast_ExpressionToJSON(
-                e->constructorset.entry[i], fileuri
+                e->constructorset.entry[i], fileuri, fileurilen
             );
             if (!json_AddToList(contents, exprjson)) {
                 json_Free(exprjson);
@@ -1493,7 +1498,7 @@ jsonvalue *ast_ExpressionToJSON(
             json_Free(attributes);
         }
         jsonvalue *value2 = ast_FuncArgsToJSON(
-            &e->funcdef.arguments, fileuri
+            &e->funcdef.arguments, fileuri, fileurilen
         );
         if (!value2) {
             fail = 1;
@@ -1512,7 +1517,7 @@ jsonvalue *ast_ExpressionToJSON(
         int i = 0;
         while (i < e->funcdef.stmt_count) {
             jsonvalue *stmtjson = ast_ExpressionToJSON(
-                e->funcdef.stmt[i], fileuri
+                e->funcdef.stmt[i], fileuri, fileurilen
             );
             if (!json_AddToList(statements, stmtjson)) {
                 json_Free(stmtjson);
@@ -1574,7 +1579,7 @@ jsonvalue *ast_ExpressionToJSON(
     } else if (e->type == H64EXPRTYPE_RAISE_STMT) {
         if (e->raisestmt.raised_expression) {
             jsonvalue *value = ast_ExpressionToJSON(
-                e->raisestmt.raised_expression, fileuri
+                e->raisestmt.raised_expression, fileuri, fileurilen
             );
             if (!json_SetDict(v, "raised_value", value)) {
                 json_Free(value);
@@ -1587,7 +1592,7 @@ jsonvalue *ast_ExpressionToJSON(
     } else if (e->type == H64EXPRTYPE_RETURN_STMT) {
         if (e->returnstmt.returned_expression) {
             jsonvalue *value = ast_ExpressionToJSON(
-                e->returnstmt.returned_expression, fileuri
+                e->returnstmt.returned_expression, fileuri, fileurilen
             );
             if (!json_SetDict(v, "returned_value", value)) {
                 json_Free(value);
@@ -1599,7 +1604,7 @@ jsonvalue *ast_ExpressionToJSON(
         }
     } else if (e->type == H64EXPRTYPE_BINARYOP) {
         jsonvalue *value1 = ast_ExpressionToJSON(
-            e->op.value1, fileuri
+            e->op.value1, fileuri, fileurilen
         );
         if (!json_SetDictStr(v, "operator",
                 operator_OpTypeToStr(e->op.optype)))
@@ -1613,7 +1618,7 @@ jsonvalue *ast_ExpressionToJSON(
             }
         }
         jsonvalue *value2 = ast_ExpressionToJSON(
-            e->op.value2, fileuri
+            e->op.value2, fileuri, fileurilen
         );
         if (!value2) {
             fail = 1;
@@ -1632,7 +1637,7 @@ jsonvalue *ast_ExpressionToJSON(
                 operator_OpTypeToStr(e->op.optype)))
             fail = 1;
         jsonvalue *value1 = ast_ExpressionToJSON(
-            e->op.value1, fileuri
+            e->op.value1, fileuri, fileurilen
         );
         if (!value1) {
             fail = 1;
@@ -1650,7 +1655,7 @@ jsonvalue *ast_ExpressionToJSON(
         );
         if (innere->inlinecall.value != NULL) {
             jsonvalue *value1 = ast_ExpressionToJSON(
-                innere->inlinecall.value, fileuri
+                innere->inlinecall.value, fileuri, fileurilen
             );
             if (!value1) {
                 fail = 1;
@@ -1662,7 +1667,7 @@ jsonvalue *ast_ExpressionToJSON(
             }
         }
         jsonvalue *value2 = ast_FuncArgsToJSON(
-            &innere->inlinecall.arguments, fileuri
+            &innere->inlinecall.arguments, fileuri, fileurilen
         );
         if (!value2) {
             fail = 1;
@@ -1677,8 +1682,14 @@ jsonvalue *ast_ExpressionToJSON(
         }
     }
     if (fileuri) {
-        if (!json_SetDictStr(v, "file-uri", fileuri))
+        char *fileuri_u8 = AS_U8(fileuri, fileurilen);
+        if (!fileuri_u8) {
             fail = 1;
+        } else {
+            if (!json_SetDictStr(v, "file-uri", fileuri_u8))
+                fail = 1;
+            free(fileuri_u8);
+        }
     }
     if (fail) {
         json_Free(v);

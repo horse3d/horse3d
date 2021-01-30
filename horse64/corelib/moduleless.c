@@ -676,7 +676,7 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     // 'print' function:
     idx = h64program_RegisterCFunction(
         p, "print", &corelib_print,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -684,7 +684,7 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     // 'type' function:
     idx = h64program_RegisterCFunction(
         p, "type", &corelib_type,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -695,7 +695,7 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     };
     idx = h64program_RegisterCFunction(
         p, "assert", &corelib_assert,
-        NULL, 2, assert_arg_name, NULL, NULL, 1, -1
+        NULL, 0, 2, assert_arg_name, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;
@@ -703,7 +703,7 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     // '$$any.is_a' function:
     idx = h64program_RegisterCFunction(
         p, "$$anyis_a", &corelib_obj_is_a,
-        NULL, 1, NULL, NULL, NULL, 1, -1
+        NULL, 0, 1, NULL, NULL, NULL, 1, -1
     );
     if (idx < 0)
         return 0;

@@ -5,12 +5,23 @@
 #ifndef HORSE64_FILESYS32_H_
 #define HORSE64_FILESYS32_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 #include <stdio.h>
 
 #include "widechar.h"
 
+
+h64wchar *filesys32_GetOwnExecutable(int64_t *out_len);
+
+int filesys32_IsObviouslyInvalidPath(const h64wchar *p, int64_t plen);
+
 int filesys32_TargetExists(
+    const h64wchar *path, int64_t pathlen, int *result
+);
+
+int filesys32_IsDirectory(
     const h64wchar *path, int64_t pathlen, int *result
 );
 
@@ -44,6 +55,11 @@ enum {
 int filesys32_CreateDirectory(
     h64wchar *path, int64_t pathlen, int user_readable_only
 );
+
+int filesys32_CreateDirectoryRecursively(
+    h64wchar *path, int64_t pathlen, int user_readable_only
+);
+
 
 enum {
     FS32_REMOVEDIR_SUCCESS = 0,
@@ -125,6 +141,10 @@ h64wchar *filesys32_NormalizeEx(
     int64_t *out_len
 );
 
+int filesys32_GetSize(
+    const h64wchar *path, int64_t pathlen, uint64_t *size
+);
+
 h64wchar *filesys32_Normalize(
     const h64wchar *path, int64_t pathlen,
     int64_t *out_len
@@ -154,6 +174,14 @@ h64wchar *filesys32_Join(
 
 int filesys32_IsAbsolutePath(const h64wchar *path, int64_t pathlen);
 
+h64wchar *filesys32_Basename(
+    const h64wchar *path, int64_t pathlen, int64_t *out_len
+);
+
+h64wchar *filesys32_Dirname(
+    const h64wchar *path, int64_t pathlen, int64_t *out_len
+);
+
 h64wchar *filesys32_GetCurrentDirectory(int64_t *out_len);
 
 FILE *filesys32_OpenFromPath(
@@ -167,6 +195,26 @@ FILE *filesys32_TempFile(
     const h64wchar *suffix, int64_t suffixlen,
     h64wchar **folder_path, int64_t* folder_path_len,
     h64wchar **path, int64_t *path_len
+);
+
+h64wchar *filesys32_TurnIntoPathRelativeTo(
+    const h64wchar *path, int64_t pathlen,
+    const h64wchar *makerelativetopath, int64_t makerelativetopathlen,
+    int64_t *out_len
+);
+
+int filesys32_FolderContainsPath(
+    const h64wchar *folder_path, int64_t folder_path_len,
+    const h64wchar *check_path, int64_t check_path_len,
+    int *result
+);
+
+int filesys32_GetComponentCount(
+    const h64wchar *path, int64_t pathlen
+);
+
+h64wchar *filesys32_ParentdirOfItem(
+    const h64wchar *path, int64_t pathlen, int64_t *out_len
 );
 
 #endif  // HORSE64_FILESYS32_H_

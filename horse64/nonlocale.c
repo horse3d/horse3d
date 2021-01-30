@@ -4,6 +4,7 @@
 
 #include "compileconfig.h"
 
+#include <assert.h>
 #include <locale.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -185,4 +186,38 @@ int _doprintfwindows(
     #else
     return -1;
     #endif
+}
+
+int64_t h64casecmp_u32u8(
+        const h64wchar *s1, int64_t s1len,
+        const char *s2
+        ) {
+    const int64_t s2len = strlen(s2);
+    int64_t i1 = 0;
+    int64_t i2 = 0;
+    while (i1 < s1len && i2 < s2len) {
+        h64wchar s1char = s1[i1];
+        int s2charlen = utf8_char_len((const uint8_t *)(s2 + i2));
+        if (s2charlen < 1)
+            s2charlen = 1;
+        h64wchar s2char = 0;
+        int _cpbyteslen = 0;
+        if (!get_utf8_codepoint(
+                (const uint8_t *)(s2 + i2), s2charlen, &s2char,
+                &_cpbyteslen
+                ))
+            s2char = s2[i2];
+        utf32_tolower(&s1char, 1);
+        utf32_tolower(&s2char, 1);
+        if (s1char != s2char)
+            return (s1char - s2char);
+        i1++;
+        i2 += s2charlen;
+    }
+    if (i1 >= s1len && i2 < s2len) {
+        return -1;
+    } else if (i1 < s1len && i2 >= s2len) {
+        return 1;
+    }
+    return 0;
 }

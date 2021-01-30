@@ -875,3 +875,72 @@ const char *AS_U8_TMP(const h64wchar *s, int64_t slen) {
     store->buf[resultlen] = '\0';
     return store->buf;
 }
+
+h64wchar *strdupu32(
+        const h64wchar *s, int64_t slen, int64_t *out_len
+        ) {
+    if (!s)
+        return NULL;
+    h64wchar *result = malloc((slen > 0 ? slen : 1) * sizeof(*s));
+    if (!result)
+        return NULL;
+    memcpy(result, s, sizeof(*s) * slen);
+    *out_len = slen;
+    return result;
+}
+
+h64wchar *strdup_u32u8(const char *u8, int64_t *out_len) {
+    if (!u8)
+        return NULL;
+    return AS_U32(u8, out_len);
+}
+
+
+const h64wchar *strstr_u32u8(
+        const h64wchar *s, int64_t slen, const char *find
+        ) {
+    if (strlen(find) == 0)
+        return s;
+    int64_t i = 0;
+    while (i < slen) {
+        // See if 'find' code points match into 's' at offset 'i':
+        int nomatch = 0;
+        int soffset = 0;
+        int findoffset = 0;
+        while (findoffset < (signed)strlen(find)) {
+            // Get length of next code point in 'find':
+            int charlen = utf8_char_len(
+                (const uint8_t *)find + findoffset
+            );
+            if (charlen < 1) charlen = 1;
+
+            // Extract code point:
+            int findcpbytes = 0;
+            h64wchar findcp = 0;
+            findcp = get_utf8_codepoint(
+                (const uint8_t *)find + findoffset,
+                strlen(find) - findoffset,
+                &findcp, &findcpbytes
+            );
+            if (findcpbytes <= 0) {
+                assert(charlen == 1);
+                findcp = find[findoffset];
+            }
+
+            // Check if code point fits into 's':
+            if (i + soffset > slen)
+                return NULL;
+            if (s[i + soffset] != findcp) {
+                // Nope, so no match here.
+                nomatch = 1;
+                break;
+            }
+            soffset++;
+            findoffset += charlen;
+        }
+        if (!nomatch)
+            return (s + i);  // it all fit! return this position
+        i++;
+    }
+    return NULL;
+}
