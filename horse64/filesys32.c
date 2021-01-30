@@ -1978,18 +1978,11 @@ FILE *_filesys32_TempFile_SingleTry(
         free(tempbuf);
         tempbuf = NULL;
 
-        if (filesys32_CreateDirectory(
+        int _mkdirerror = 0;
+        if ((_mkdirerror = filesys32_CreateDirectory(
                 combined_path, combined_path_len, 1
-                ) < 0) {
-            int result = 0;
-            if (!filesys32_TargetExists(
-                    combined_path, combined_path_len, &result
-                    )) {
-                free(combined_path);
-                free(randomu32);
-                return NULL;
-            }
-            if (result) {
+                )) < 0) {
+            if (_mkdirerror == FS32_MKDIRERR_TARGETALREADYEXISTS) {
                 // Oops, somebody was faster/we hit an existing
                 // folder out of pure luck. Retry.
                 *do_retry = 1;
