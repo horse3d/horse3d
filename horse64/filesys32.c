@@ -2575,7 +2575,7 @@ h64wchar *filesys32_TurnIntoPathRelativeTo(
             )) {
         memmove(
             differingend, differingend + 1,
-            (differingendlen - 1) * sizeof(differingend)
+            (differingendlen - 1) * sizeof(*differingend)
         );
         differingendlen--;
     }
