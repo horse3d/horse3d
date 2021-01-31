@@ -1,0 +1,6 @@
+
+func main {
+    assert('\u1F3F4\uE0067\uE0062\uE0065\uE006E\uE0067\uE007F'.len == 1)
+}
+
+# expected return value: 0

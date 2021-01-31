@@ -191,11 +191,11 @@ int64_t utf32_letter_len(
         sdata_len--;
     }
     // Count follow-up tags as same letter:
-    if (unlikely(sdata_len > 1 && sdata[1] >= 0 &&
-            sdata[1] <= _widechartbl_highest_cp &&
-            _widechartbl_istag[sdata[1]])) {
-        sdata += 2;
-        sdata_len -= 2;
+    if (unlikely(sdata_len > 0 && sdata[0] >= 0 &&
+            sdata[0] <= _widechartbl_highest_cp &&
+            _widechartbl_istag[sdata[0]])) {
+        sdata++;
+        sdata_len--;
         len++;
         while (unlikely(sdata_len > 0 &&
                 *sdata >= 0 &&
