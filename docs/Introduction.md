@@ -27,7 +27,7 @@ Find the specifications here:
 
 ## Runtime information
 
-- [Platform Support](./Platform Support.md)
+- [Platform Support](./Platform%20Support.md)
 
 ---
 *This documentation is CC-BY-SA-4.0 licensed.

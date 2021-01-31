@@ -7,6 +7,9 @@ code to binaries. The source code can be found in the
     ../Contributing.md#corehorse64org-package
 ) inside the `horse64/compiler/` folder.
 
+The compiler should generally work on [all supported
+platforms](../Platform%20Support.md).
+
 
 ## Get it
 
