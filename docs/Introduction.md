@@ -15,7 +15,7 @@ To get started, get the SDK which includes `horsec`
 
 FIXME
 
-*You can also find a [feature overview here](./Feature.md).*
+*You can also find a [feature overview here](./Features.md).*
 
 ## Specification
 
