@@ -491,7 +491,6 @@ int filesys32_ListFolderEx(
     }
     free(p);
     if (!d) {
-        printf("errno: %d\n", errno);
         *error = FS32_LISTFOLDERERR_OTHERERROR;
         if (errno == EMFILE || errno == ENFILE)
             *error = FS32_LISTFOLDERERR_OUTOFFDS;
@@ -728,148 +727,8 @@ int filesys32_RemoveFolderRecursively(
     int64_t *contentslen = NULL;
     int firstitem = 1;
     while (1) {
-        if (scan_next) {
-            int listingworked = filesys32_ListFolderEx(
-                scan_next, scan_next_len, &contents, &contentslen, 1,
-                0,  // fail on symlinks!!! (no delete-descend INTO those!!)
-                &operror
-            );
-            if (!listingworked) {
-                if (operror == FS32_LISTFOLDERERR_TARGETNOTDIRECTORY ||
-                        operror == FS32_LISTFOLDERERR_SYMLINKSWEREEXCLUDED ||
-                        (firstitem && operror ==
-                            FS32_LISTFOLDERERR_NOSUCHTARGET)) {
-                    // It's a file or symlink.
-                    // If it's a file, and this is our first item, error:
-                    if (firstitem && operror ==
-                            FS32_LISTFOLDERERR_TARGETNOTDIRECTORY) {
-                        // We're advertising recursive DIRECTORY deletion,
-                        // so resuming here would be unexpected.
-                        *error = FS32_REMOVEDIR_NOTADIR;
-                        assert(!contents && queue_len == 0);
-                        return 0;
-                    } else if (firstitem &&
-                            operror == FS32_LISTFOLDERERR_NOSUCHTARGET) {
-                        *error = FS32_REMOVEDIR_NOSUCHTARGET;
-                        assert(!contents && queue_len == 0);
-                        return 0;
-                    }
-                    // Instantly remove it instead:
-                    if (operror != FS32_LISTFOLDERERR_NOSUCHTARGET &&
-                            !filesys32_RemoveFileOrEmptyDir(
-                            scan_next, scan_next_len, &operror
-                            )) {
-                        if (operror == FS32_REMOVEERR_NOSUCHTARGET) {
-                            // Maybe it was removed in parallel?
-                            // ignore this.
-                        } else if (final_error == FS32_REMOVEDIR_SUCCESS) {
-                            // No error yet, so take this one.
-                            if (operror == FS32_REMOVEERR_NOPERMISSION)
-                                final_error = FS32_REMOVEDIR_NOPERMISSION;
-                            else if (operror == FS32_REMOVEERR_OUTOFMEMORY)
-                                final_error = FS32_REMOVEDIR_OUTOFMEMORY;
-                            else if (operror == FS32_REMOVEERR_OUTOFFDS)
-                                final_error = FS32_REMOVEDIR_OUTOFFDS;
-                            else if (operror == FS32_REMOVEERR_DIRISBUSY)
-                                final_error = FS32_REMOVEDIR_DIRISBUSY;
-                            else if (operror ==
-                                    FS32_REMOVEERR_NONEMPTYDIRECTORY)
-                                final_error = (
-                                    FS32_REMOVEDIR_NONEMPTYDIRECTORY
-                                );
-                        }
-                    }
-                    if (queue_scan_index > 0 && queue_scan_index < queue_len) {
-                        free(removal_queue[queue_scan_index - 1]);
-                        memmove(
-                            &removal_queue[queue_scan_index - 1],
-                            &removal_queue_lens[queue_scan_index],
-                            sizeof(*removal_queue) * (
-                                queue_len - queue_scan_index
-                            )
-                        );
-                        queue_len--;
-                    }
-                    scan_next = NULL;
-                    firstitem = 0;
-                    continue;
-                }
-                // Another error. Consider it for returning at the end:
-                if (final_error == FS32_REMOVEDIR_SUCCESS) {
-                    // No error yet, so take this one.
-                    final_error = FS32_REMOVEDIR_OTHERERROR;
-                    if (operror == FS32_LISTFOLDERERR_NOPERMISSION)
-                        final_error = FS32_REMOVEDIR_NOPERMISSION;
-                    else if (operror == FS32_LISTFOLDERERR_OUTOFMEMORY)
-                        final_error = FS32_REMOVEDIR_OUTOFMEMORY;
-                    else if (operror == FS32_LISTFOLDERERR_OUTOFFDS)
-                        final_error = FS32_REMOVEDIR_OUTOFFDS;
-                    else if (operror == FS32_REMOVEERR_DIRISBUSY)
-                        final_error = FS32_REMOVEDIR_DIRISBUSY;
-                    else if (operror == FS32_REMOVEERR_NONEMPTYDIRECTORY)
-                        final_error = (
-                            FS32_REMOVEDIR_NONEMPTYDIRECTORY
-                        );
-                    else if (operror == FS32_REMOVEERR_NOSUCHTARGET)
-                        final_error = (
-                            FS32_REMOVEDIR_NOSUCHTARGET
-                        );
-                }
-            } else if (contents[0]) {  // one new item or more
-                int64_t addc = 0;
-                while (contents[addc])
-                    addc++;
-                h64wchar **new_removal_queue = realloc(
-                    removal_queue, sizeof(*removal_queue) * (
-                        queue_len + addc
-                    )
-                );
-                if (new_removal_queue)
-                    removal_queue = new_removal_queue;
-                int64_t *new_removal_queue_lens = realloc(
-                    removal_queue_lens, sizeof(*removal_queue_lens) * (
-                        queue_len + addc
-                    )
-                );
-                if (new_removal_queue_lens)
-                    removal_queue_lens = new_removal_queue_lens;
-                if (!new_removal_queue || !new_removal_queue_lens) {
-                    *error = FS32_REMOVEDIR_OUTOFMEMORY;
-                    int64_t k = 0;
-                    while (k < queue_len) {
-                        free(removal_queue[k]);
-                        k++;
-                    }
-                    free(removal_queue);
-                    free(removal_queue_lens);
-                    filesys32_FreeFolderList(contents, contentslen);
-                    contents = NULL;
-                    contentslen = 0;
-                    return 0;
-                }
-                memcpy(
-                    &removal_queue[queue_len],
-                    contents,
-                    sizeof(*contents) * addc
-                );
-                memcpy(
-                    &removal_queue_lens[queue_len],
-                    contentslen,
-                    sizeof(*contentslen) * addc
-                );
-                queue_len += addc;
-                free(contents);  // we copied contents, so only free outer
-                free(contentslen);
-            } else {
-                filesys32_FreeFolderList(contents, contentslen);
-            }
-            contents = NULL;
-            contentslen = 0;
-            scan_next = NULL;
-            scan_next_len = 0;
-        }
-        firstitem = 0;
         if (!scan_next) {
+            firstitem = 0;
             if (queue_scan_index < queue_len) {
                 scan_next = removal_queue[queue_scan_index];
                 scan_next_len = removal_queue_lens[queue_scan_index];
@@ -879,6 +738,154 @@ int filesys32_RemoveFolderRecursively(
                 break;
             }
         }
+        assert(scan_next != NULL);
+        int listingworked = filesys32_ListFolderEx(
+            scan_next, scan_next_len, &contents, &contentslen, 1,
+            0,  // fail on symlinks!!! (no delete-descend INTO those!!)
+            &operror
+        );
+        if (!listingworked) {
+            if (operror == FS32_LISTFOLDERERR_TARGETNOTDIRECTORY ||
+                    operror == FS32_LISTFOLDERERR_SYMLINKSWEREEXCLUDED ||
+                    (firstitem && operror ==
+                        FS32_LISTFOLDERERR_NOSUCHTARGET)) {
+                // It's a file or symlink.
+                // If it's a file, and this is our first item, error:
+                if (firstitem && operror ==
+                        FS32_LISTFOLDERERR_TARGETNOTDIRECTORY) {
+                    // We're advertising recursive DIRECTORY deletion,
+                    // so resuming here would be unexpected.
+                    *error = FS32_REMOVEDIR_NOTADIR;
+                    assert(!contents && queue_len == 0);
+                    return 0;
+                } else if (firstitem &&
+                        operror == FS32_LISTFOLDERERR_NOSUCHTARGET) {
+                    *error = FS32_REMOVEDIR_NOSUCHTARGET;
+                    assert(!contents && queue_len == 0);
+                    return 0;
+                }
+                // Instantly remove it instead:
+                if (operror != FS32_LISTFOLDERERR_NOSUCHTARGET &&
+                        !filesys32_RemoveFileOrEmptyDir(
+                        scan_next, scan_next_len, &operror
+                        )) {
+                    if (operror == FS32_REMOVEERR_NOSUCHTARGET) {
+                        // Maybe it was removed in parallel?
+                        // ignore this.
+                    } else if (final_error == FS32_REMOVEDIR_SUCCESS) {
+                        // No error yet, so take this one.
+                        if (operror == FS32_REMOVEERR_NOPERMISSION)
+                            final_error = FS32_REMOVEDIR_NOPERMISSION;
+                        else if (operror == FS32_REMOVEERR_OUTOFMEMORY)
+                            final_error = FS32_REMOVEDIR_OUTOFMEMORY;
+                        else if (operror == FS32_REMOVEERR_OUTOFFDS)
+                            final_error = FS32_REMOVEDIR_OUTOFFDS;
+                        else if (operror == FS32_REMOVEERR_DIRISBUSY)
+                            final_error = FS32_REMOVEDIR_DIRISBUSY;
+                        else if (operror ==
+                                FS32_REMOVEERR_NONEMPTYDIRECTORY)
+                            final_error = (
+                                FS32_REMOVEDIR_NONEMPTYDIRECTORY
+                            );
+                    }
+                }
+                if (queue_scan_index > 0 &&
+                        queue_scan_index < queue_len &&
+                        memcmp(
+                            removal_queue[queue_scan_index - 1],
+                            scan_next,
+                            sizeof(*scan_next) * scan_next_len
+                        ) == 0) {
+                    free(removal_queue[queue_scan_index - 1]);
+                    memmove(
+                        &removal_queue[queue_scan_index - 1],
+                        &removal_queue[queue_scan_index],
+                        sizeof(*removal_queue) * (
+                            queue_len - queue_scan_index
+                        )
+                    );
+                    memmove(
+                        &removal_queue_lens[queue_scan_index - 1],
+                        &removal_queue_lens[queue_scan_index],
+                        sizeof(*removal_queue_lens) * (
+                            queue_len - queue_scan_index
+                        )
+                    );
+                    queue_len--;
+                    queue_scan_index--;
+                }
+                scan_next = NULL;
+                firstitem = 0;
+                continue;
+            }
+            // Another error. Consider it for returning at the end:
+            if (final_error == FS32_REMOVEDIR_SUCCESS) {
+                // No error yet, so take this one.
+                final_error = FS32_REMOVEDIR_OTHERERROR;
+                if (operror == FS32_LISTFOLDERERR_NOPERMISSION)
+                    final_error = FS32_REMOVEDIR_NOPERMISSION;
+                else if (operror == FS32_LISTFOLDERERR_OUTOFMEMORY)
+                    final_error = FS32_REMOVEDIR_OUTOFMEMORY;
+                else if (operror == FS32_LISTFOLDERERR_OUTOFFDS)
+                    final_error = FS32_REMOVEDIR_OUTOFFDS;
+                else if (operror == FS32_LISTFOLDERERR_NOSUCHTARGET)
+                    final_error = (
+                        FS32_REMOVEDIR_NOSUCHTARGET
+                    );
+            }
+        } else if (contents[0]) {  // one new item or more
+            int64_t addc = 0;
+            while (contents[addc])
+                addc++;
+            h64wchar **new_removal_queue = realloc(
+                removal_queue, sizeof(*removal_queue) * (
+                    queue_len + addc
+                )
+            );
+            if (new_removal_queue)
+                removal_queue = new_removal_queue;
+            int64_t *new_removal_queue_lens = realloc(
+                removal_queue_lens, sizeof(*removal_queue_lens) * (
+                    queue_len + addc
+                )
+            );
+            if (new_removal_queue_lens)
+                removal_queue_lens = new_removal_queue_lens;
+            if (!new_removal_queue || !new_removal_queue_lens) {
+                *error = FS32_REMOVEDIR_OUTOFMEMORY;
+                int64_t k = 0;
+                while (k < queue_len) {
+                    free(removal_queue[k]);
+                    k++;
+                }
+                free(removal_queue);
+                free(removal_queue_lens);
+                filesys32_FreeFolderList(contents, contentslen);
+                contents = NULL;
+                contentslen = 0;
+                return 0;
+            }
+            memcpy(
+                &removal_queue[queue_len],
+                contents,
+                sizeof(*contents) * addc
+            );
+            memcpy(
+                &removal_queue_lens[queue_len],
+                contentslen,
+                sizeof(*contentslen) * addc
+            );
+            queue_len += addc;
+            free(contents);  // we copied contents, so only free outer
+            free(contentslen);
+        } else {
+            filesys32_FreeFolderList(contents, contentslen);
+        }
+        contents = NULL;
+        contentslen = 0;
+        scan_next = NULL;
+        scan_next_len = 0;
+        firstitem = 0;
     }
     // Now remove everything left in the queue, since we should have
     // gotten rid of all the files. However, there might still be nested
@@ -886,7 +893,7 @@ int filesys32_RemoveFolderRecursively(
     // to outer):
     int64_t k = queue_len - 1;
     while (k >= 0) {
-         if (!filesys32_RemoveFileOrEmptyDir(
+        if (!filesys32_RemoveFileOrEmptyDir(
                 removal_queue[k], removal_queue_lens[k],
                 &operror
                 )) {
@@ -914,6 +921,28 @@ int filesys32_RemoveFolderRecursively(
     }
     free(removal_queue);
     free(removal_queue_lens);
+    if (!filesys32_RemoveFileOrEmptyDir(
+            path32, path32len, &operror
+            )) {
+        if (operror == FS32_REMOVEERR_NOSUCHTARGET) {
+            // Maybe it was removed in parallel?
+            // ignore this.
+        } else if (final_error == FS32_REMOVEDIR_SUCCESS) {
+            // No error yet, so take this one.
+            if (operror == FS32_REMOVEERR_NOPERMISSION)
+                final_error = FS32_REMOVEDIR_NOPERMISSION;
+            else if (operror == FS32_REMOVEERR_OUTOFMEMORY)
+                final_error = FS32_REMOVEDIR_OUTOFMEMORY;
+            else if (operror == FS32_REMOVEERR_OUTOFFDS)
+                final_error = FS32_REMOVEDIR_OUTOFFDS;
+            else if (operror == FS32_REMOVEERR_DIRISBUSY)
+                final_error = FS32_REMOVEDIR_DIRISBUSY;
+            else if (operror == FS32_REMOVEERR_NONEMPTYDIRECTORY)
+                final_error = (
+                    FS32_REMOVEDIR_NONEMPTYDIRECTORY
+                );
+        }
+    }
     if (final_error != FS32_REMOVEDIR_SUCCESS) {
         *error = final_error;
         return 0;
@@ -2387,9 +2416,17 @@ int filesys32_CreateDirectoryRecursively(
     // Go back to end component by component, and create the dirs:
     while (skippedcomponents > 0) {
         // Reverse by one additional component:
-        skippedcomponents++;
+        skippedcomponents--;
         assert(skippedatend > 0);
         skippedatend--;
+        while (skippedatend > 0 && (
+                cleanpath[cleanpathlen - skippedatend - 1] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                || cleanpath[cleanpathlen - skippedatend - 1] == '\\'
+                #endif
+                )) {
+            skippedatend--;
+        }
         while (skippedatend > 0 && (
                 cleanpath[cleanpathlen - skippedatend - 1] != '/'
                 #if defined(_WIN32) || defined(_WIN64)
@@ -2403,17 +2440,8 @@ int filesys32_CreateDirectoryRecursively(
         int result = filesys32_CreateDirectory(
             cleanpath, actuallen, user_readable_only
         );
-        if (result < 0)
+        if (result < 0 && result != FS32_MKDIRERR_TARGETALREADYEXISTS)
             return result;
-        // Skip past additional component slashes:
-        while (skippedatend > 0 && (
-                cleanpath[cleanpathlen - skippedatend - 1] == '/'
-                #if defined(_WIN32) || defined(_WIN64)
-                || cleanpath[cleanpathlen - skippedatend - 1] == '\\'
-                #endif
-                )) {
-            skippedatend--;
-        }
         // Advance to next component:
         continue;
     }
