@@ -38,7 +38,13 @@ func process_command(c) {
 
 To facilitate work flows for multiple panes of code and to motivate
 keeping code nestings flat and simple, lines should not exceed 79
-characters in length.
+characters in length. This allows keeping two or even three files
+at once on the screen, which is useful especially as projects grow
+in size.
+
+If your code can't fit well into 79 lines due to nesting, it is
+recommended you try to simplify your nestings. Often, the same
+task can be achieved while nesting less deeply.
 
 
 ### Whitespace in statements
@@ -74,6 +80,26 @@ func main {  # '{' bracket separate (block bracket!)
 ```
 
 
+## Whitespace in constructors
+
+In any list/set/other container constructor, as well as in parameter lists,
+commas and colons should be followed but not preceded by a space:
+
+```
+func my_func(a, b, c) {  # space after each comma
+    print([1: 2])  # space after a colon.
+}
+```
+
+The key value arrows in maps should have space on each side:
+
+```
+func my_func {
+    return [1 -> 2, "test" -> 5]  # space after and before each -> arrow
+}
+```
+
+
 ## Identifiers
 
 ### Identifier naming
@@ -96,6 +122,14 @@ func main {
     player.teleport([x: 0, y: 0, z: 10])
 }
 ```
+
+
+## Other Rules
+
+This document is continuously updated, but in the end we recommend sticking
+to what `hstyle` checks. It should enforce all the rules listed here, and
+then some. If there is a discrepancy between this document and `hstyle`,
+please file a bug.  FIXME: add link to hstyle.
 
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
