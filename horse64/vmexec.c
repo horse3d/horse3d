@@ -3147,36 +3147,16 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 goto *jumptable[((h64instructionany *)p)->type];
             }
             // Actually set string value that we obtained:
-            target->type = H64VALTYPE_GCVAL;
-            target->ptr_value = poolalloc_malloc(
-                heap, 0
-            );
-            if (!target->ptr_value) {
+            target->type = H64VALTYPE_NONE;
+            if (!valuecontent_SetStringU32(
+                    vmthread, target, strvalue, strvaluelen
+                    )) {
                 if (strvalue != _strvalue_buf)
                     free(strvalue);
                 goto triggeroom;
             }
-            h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
-            gcval->hash = 0;
-            gcval->type = H64GCVALUETYPE_STRING;
-            gcval->heapreferencecount = 0;
-            gcval->externalreferencecount = 1;
-            if (!vmstrings_AllocBuffer(
-                    vmthread, &gcval->str_val, strvaluelen)) {
-                poolalloc_free(heap, gcval);
-                target->ptr_value = NULL;
-                if (strvalue != _strvalue_buf)
-                    free(strvalue);
-                goto triggeroom;
-            }
-            memcpy(
-                gcval->str_val.s,
-                strvalue, strvaluelen * sizeof(h64wchar)
-            );
             if (strvalue != _strvalue_buf)
                 free(strvalue);
-            assert((unsigned int)gcval->str_val.len ==
-                   (unsigned int)strvaluelen);
             ADDREF_NONHEAP(target);
             as_str_done: ;
         } else if (nameidx >= 0 &&

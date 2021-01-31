@@ -107,6 +107,8 @@ int valuecontent_SetStringU32(
         gcstr->str_val.s, s,
         sizeof(*s) * slen
     );
+    assert(gcstr->str_val.len == (unsigned)slen);
+    assert(gcstr->str_val.letterlen == 0);
     gcstr->type = H64GCVALUETYPE_STRING;
     return 1;
 }

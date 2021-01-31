@@ -544,6 +544,7 @@ int compiler_command_CompileEx(
         }
     } else {
         fileuri = fileuriorexec;
+        fileurilen = fileuriorexeclen;
         fileuriorexec = NULL;
     }
 
