@@ -20,7 +20,8 @@ be for you. The syntax is a mix of Python, Lua, and Go.
 
 - **Strong types with avoidance of error-prone type coercions**,
   e.g. no accidential additions of numbers and strings with
-  unexpected results. This prevents many sneaky typing bugs.
+  unexpected results, preventing many sneaky typing bugs. The horsec
+  compiler also finds many runtime errors at compile time.
 
 - **Flexible numbers data type with well-defined errors,**
   like a proper overflow error and division by zero errors.
