@@ -52,7 +52,7 @@ START_TEST (test_scope_import_complex)
     int64_t testfolder2_pathlen = 0;
     h64wchar *testfolder2_path = filesys32_Join(
         cwd, cwdlen, testproj_withsubdirs, testproj_withsubdirs_len,
-        &testfolder_pathlen
+        &testfolder2_pathlen
     );
     assert(testfolder2_path != NULL);
     free(cwd);
@@ -149,7 +149,7 @@ START_TEST (test_scope_import_complex)
         project, codefile_u32, codefile_u32len, &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    ck_assert(scoperesolver_ResolveAST(
+    assert(scoperesolver_ResolveAST(
         project, &moptions, ast, 0
     ) != 0);
     if (project->resultmsg->message_count > 0) {
@@ -349,6 +349,12 @@ START_TEST (test_scope_import_complex)
     }
     ck_assert(ast->resultmsg.success && project->resultmsg->success);
     compileproject_Free(project);  // This indirectly frees 'ast'
+
+    int _err = 0;
+    result = filesys32_RemoveFolderRecursively(
+        testfolder_path, testfolder_pathlen, &_err
+    );
+    assert(result == 0);
 
     free(codefile_u32);
     codefile_u32 = NULL;
