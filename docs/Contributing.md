@@ -122,4 +122,4 @@ provides easy graphics and audio access, as well as the default UI.)
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
 ( https://creativecommons.org/licenses/by-sa/4.0/ )
-Copyright (C) 2020  Horse64 Team (See AUTHORS.md)*
+Copyright (C) 2020-2021 Horse64 Team (See AUTHORS.md)*
