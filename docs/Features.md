@@ -29,7 +29,8 @@ be for you. The syntax is a mix of Python, Lua, and Go.
 
 - **Unicode as a first class citizen.** Strings do indexing,
   sub string, and length computations based on glyph boundaries
-  rather than code points. Even e.g. emojis have a length of one.
+  rather than code points. Even e.g. complex emojis glyphs
+  are understood as a length of one.
 
 - **AOT bytecode with excellent checks.** Programs are compiled
   ahead of time, and thoroughly: horsec finds typos, undefined
