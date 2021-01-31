@@ -62,6 +62,10 @@ be for you. The syntax is a mix of Python, Lua, and Go.
   name resolution, a good package manager, and more, make
   Horse64 ready to handle even sizeable endaveours.
 
+- **Supports multiple platforms.** Horse64 is available on many
+  [diverse platforms](./Platform%20Support.md), and will likely
+  expand to more in the future.
+
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
 ( https://creativecommons.org/licenses/by-sa/4.0/ )
