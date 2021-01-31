@@ -65,4 +65,4 @@ be for you. The syntax is a mix of Python, Lua, and Go.
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
 ( https://creativecommons.org/licenses/by-sa/4.0/ )
-Copyright (C) 20202-2021 Horse64 Team (See AUTHORS.md)*
+Copyright (C) 2020-2021 Horse64 Team (See AUTHORS.md)*
