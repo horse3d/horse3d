@@ -1,6 +1,7 @@
 
 # Introduction to Horse64
 
+Welcome to **Horse64!** Here are some points to get you started:
 
 ## Download
 
@@ -13,6 +14,8 @@ To get started, get the SDK which includes `horsec`
 ## Tutorials
 
 FIXME
+
+*You can also find a [feature overview here](./Feature.md).*
 
 ## Specification
 
@@ -29,4 +32,4 @@ Find the specifications here:
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
 ( https://creativecommons.org/licenses/by-sa/4.0/ )
-Copyright (C) 2020  Horse64 Team (See AUTHORS.md)*
+Copyright (C) 2020-2021 Horse64 Team (See AUTHORS.md)*

@@ -63,7 +63,7 @@ Here is an overview how it roughly compares:
 
 
 **There are also [detailed specifications](./Specification/Horse64.md)
-available.**
+available. Or check out the [feature overview](./Features.md).**
 
 
 ## Design Twist: Static Scope
