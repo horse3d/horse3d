@@ -369,18 +369,6 @@ h64tokenizedfile lexer_ParseFromFile(
         VFSFLAG_NO_VIRTUALPAK_ACCESS :
         VFSFLAG_NO_REALDISK_ACCESS
     );
-    char *fileuri_s_u8 = AS_U8(
-        fileuri_s, fileuri_slen
-    );
-    if (!fileuri_s_u8) {
-        result_ErrorNoLoc(
-            &result.resultmsg,
-            "out of memory on string conversion",
-            fileuri_s, fileuri_slen
-        );
-        free(fileuri_s);
-        return result;
-    }
     int _vfs_exists = 0;
     if (!vfs_ExistsU32(
             fileuri->path, fileuri->pathlen,
