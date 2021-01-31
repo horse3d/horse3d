@@ -2445,6 +2445,7 @@ int filesys32_CreateDirectoryRecursively(
         // Advance to next component:
         continue;
     }
+    free(cleanpath);
     return FS32_MKDIRERR_SUCCESS;
 }
 

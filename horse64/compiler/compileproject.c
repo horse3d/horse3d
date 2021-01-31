@@ -657,7 +657,8 @@ uri32info *compileproject_GetFileSubProjectURI(
                     }
                     memcpy(
                         project_name_u32, uinfo->path + firstslashindex + 1,
-                        secondslashindex - (firstslashindex + 1)
+                        (secondslashindex - (firstslashindex + 1)) *
+                            sizeof(*project_name_u32)
                     );  // extract name.
                     // Convert the project name to utf-8:
                     int64_t out_len = 0;
@@ -1015,7 +1016,7 @@ h64wchar *compileproject_ResolveImportToFile(
         );
         free(library_sourced_path_u8_external);
         free(library_sourced_path_u8);
-        if (!library_sourced_path || library_sourced_path_external) {
+        if (!library_sourced_path || !library_sourced_path_external) {
             free(import_relpath);
             free(library_sourced_path);
             free(library_sourced_path_external);

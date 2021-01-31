@@ -149,9 +149,9 @@ START_TEST (test_scope_import_complex)
         project, codefile_u32, codefile_u32len, &ast, &error
     ) != 0);
     ck_assert(error == NULL);
-    assert(scoperesolver_ResolveAST(
+    result = scoperesolver_ResolveAST(
         project, &moptions, ast, 0
-    ) != 0);
+    );
     if (project->resultmsg->message_count > 0) {
         int i = 0;
         while (i < project->resultmsg->message_count) {
@@ -171,6 +171,7 @@ START_TEST (test_scope_import_complex)
             i++;
         }
     }
+    assert(result != 0);
     ck_assert(ast->resultmsg.success && project->resultmsg->success);
     compileproject_Free(project);  // This indirectly frees 'ast'!
 
@@ -354,12 +355,16 @@ START_TEST (test_scope_import_complex)
     result = filesys32_RemoveFolderRecursively(
         testfolder_path, testfolder_pathlen, &_err
     );
-    assert(result == 0);
+    assert(result != 0 || _err == FS32_REMOVEERR_NOSUCHTARGET);
 
     free(codefile_u32);
     codefile_u32 = NULL;
     free(testfolder_path);
     testfolder_path = NULL;
+    free(testproj_name);
+    testproj_name = NULL;
+    free(testproj_withsubdirs);
+    testproj_withsubdirs = NULL;
 }
 END_TEST
 

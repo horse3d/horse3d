@@ -1683,7 +1683,8 @@ h64tokenizedfile lexer_ParseFromFile(
 void lexer_ClearToken(h64token *t) {
     if (t->type == H64TK_IDENTIFIER ||
             t->type == H64TK_KEYWORD ||
-            t->type == H64TK_CONSTANT_STRING) {
+            t->type == H64TK_CONSTANT_STRING ||
+            t->type == H64TK_CONSTANT_BYTES) {
         free(t->str_value);
     }
 }

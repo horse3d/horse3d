@@ -92,6 +92,7 @@ void h64debugsymbols_Free(h64debugsymbols *symbols) {
         i++;
     }
     free(symbols->fileuri);
+    free(symbols->fileurilen);
 
     if (symbols->func_id_to_module_symbols_index)
         hash_FreeMap(symbols->func_id_to_module_symbols_index);

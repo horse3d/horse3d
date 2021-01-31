@@ -289,7 +289,13 @@ int pathlib_remove(
         ) {
     /**
      * Remove the target represented given by the filesystem path, which
-     * may be a file or a directory.
+     * may be a file or a directory. If the function returns without an
+     * error then the target was successfully removed.
+     *
+     * Note on symbolic links: symbolic links will not be followed,
+     * so if the given target is a symbolic link or contains symbolic
+     * links to other folders only the links will be removed. None
+     * of the contents reached by following those links will be removed.
      *
      * @func remove
      * @param path the filesystem path of the item to be removed
@@ -339,40 +345,81 @@ int pathlib_remove(
         );
     }
 
+    int result = 0;
     int error = 0;
-    int result = filesys32_RemoveFolderRecursively(
-        pathstr, pathlen, &error
-    );
-    if (!result && error == FS32_REMOVEDIR_NOTADIR) {
-        result = filesys32_RemoveFileOrEmptyDir(
+    if (!recursive) {
+        goto removesinglefileordir;
+    } else {
+        result = filesys32_RemoveFolderRecursively(
             pathstr, pathlen, &error
         );
-        if (!result) {
-            if (error == FS32_REMOVEERR_DIRISBUSY) {
+        if (!result && error == FS32_REMOVEDIR_NOTADIR) {
+            removesinglefileordir:
+            result = filesys32_RemoveFileOrEmptyDir(
+                pathstr, pathlen, &error
+            );
+            if (!result) {
+                if (error == FS32_REMOVEERR_DIRISBUSY) {
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_RESOURCEERROR,
+                        "directory is in use by process "
+                        "and cannot be deleted"
+                    );
+                } else if (error == FS32_REMOVEERR_NONEMPTYDIRECTORY) {
+                    // Oops, seems like something concurrently
+                    // filled in files again.
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_RESOURCEERROR,
+                        "recursive delete encountered unexpected re-added "
+                        "file"
+                    );
+                } else if (error == FS32_REMOVEERR_NOPERMISSION) {
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_IOERROR,
+                        "permission denied"
+                    );
+                } else if (error == FS32_REMOVEERR_NOSUCHTARGET) {
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_IOERROR,
+                        "no such file or directory"
+                    );
+                } else if (error == FS32_REMOVEERR_OUTOFFDS) {
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_RESOURCEERROR,
+                        "out of file descriptors"
+                    );
+                }
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_RESOURCEERROR,
+                    "unexpected type of I/O error"
+                );
+            }
+        } else if (!result) {
+            if (error == FS32_REMOVEDIR_DIRISBUSY) {
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_RESOURCEERROR,
                     "directory is in use by process "
                     "and cannot be deleted"
                 );
-            } else if (error == FS32_REMOVEERR_NONEMPTYDIRECTORY) {
+            } else if (error == FS32_REMOVEDIR_NONEMPTYDIRECTORY) {
                 // Oops, seems like something concurrently
                 // filled in files again.
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_RESOURCEERROR,
-                    "recursive delete encountered unexpected re-added "
+                    "encountered unexpected re-added "
                     "file"
                 );
-            } else if (error == FS32_REMOVEERR_NOPERMISSION) {
+            } else if (error == FS32_REMOVEDIR_NOPERMISSION) {
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_IOERROR,
                     "permission denied"
                 );
-            } else if (error == FS32_REMOVEERR_NOSUCHTARGET) {
+            } else if (error == FS32_REMOVEDIR_NOSUCHTARGET) {
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_IOERROR,
                     "no such file or directory"
                 );
-            } else if (error == FS32_REMOVEERR_OUTOFFDS) {
+            } else if (error == FS32_REMOVEDIR_OUTOFFDS) {
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_RESOURCEERROR,
                     "out of file descriptors"
@@ -383,41 +430,6 @@ int pathlib_remove(
                 "unexpected type of I/O error"
             );
         }
-    } else if (!result) {
-        if (error == FS32_REMOVEDIR_DIRISBUSY) {
-            return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_RESOURCEERROR,
-                "directory is in use by process "
-                "and cannot be deleted"
-            );
-        } else if (error == FS32_REMOVEDIR_NONEMPTYDIRECTORY) {
-            // Oops, seems like something concurrently
-            // filled in files again.
-            return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_RESOURCEERROR,
-                "encountered unexpected re-added "
-                "file"
-            );
-        } else if (error == FS32_REMOVEDIR_NOPERMISSION) {
-            return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_IOERROR,
-                "permission denied"
-            );
-        } else if (error == FS32_REMOVEDIR_NOSUCHTARGET) {
-            return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_IOERROR,
-                "no such file or directory"
-            );
-        } else if (error == FS32_REMOVEDIR_OUTOFFDS) {
-            return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_RESOURCEERROR,
-                "out of file descriptors"
-            );
-        }
-        return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_RESOURCEERROR,
-            "unexpected type of I/O error"
-        );
     }
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);

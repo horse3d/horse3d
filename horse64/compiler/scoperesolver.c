@@ -1896,26 +1896,26 @@ int scoperesolver_ResolveAST(
 
     // Make sure global storage was assigned on this AST and all
     // referenced ones:
-    if (!scoperesolver_BuildASTGlobalStorage(
-            pr, miscoptions, unresolved_ast, 1, &rinfo
+    int result = scoperesolver_BuildASTGlobalStorage(
+        pr, miscoptions, unresolved_ast, 1, &rinfo
+    );
+    // Copy any generated errors or warnings:
+    if (!result_TransferMessages(
+            &unresolved_ast->resultmsg, pr->resultmsg
             )) {
+        result_AddMessage(
+            &unresolved_ast->resultmsg,
+            H64MSG_ERROR, "out of memory",
+            unresolved_ast->fileuri,
+            unresolved_ast->fileurilen,
+            -1, -1
+        );
+        return 0;
+    }
+    if (!result) {  // scope build global storage failed.
         pr->resultmsg->success = 0;
         unresolved_ast->resultmsg.success = 0;
         return 0;
-    } else {
-        // Copy any generated errors or warnings:
-        if (!result_TransferMessages(
-                &unresolved_ast->resultmsg, pr->resultmsg
-                )) {
-            result_AddMessage(
-                &unresolved_ast->resultmsg,
-                H64MSG_ERROR, "out of memory",
-                unresolved_ast->fileuri,
-                unresolved_ast->fileurilen,
-                -1, -1
-            );
-            return 0;
-        }
     }
 
     // Abort if we ran into an error at this point:
