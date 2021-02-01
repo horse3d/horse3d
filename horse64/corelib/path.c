@@ -211,9 +211,11 @@ int pathlib_is_symlink(
     /**
      * Check whether the given path points to a symbolic link,
      * rather than another type of item like a regular file or directory.
+     * If the given path doesn't exist at all, no is returned.
      *
-     * Compatibility note:
-     * on Windows, this will also return yes for an NTFS junction:
+     * **Note for Windows**:
+     * On Windows, this will return yes both for an NTFS junction, and
+     * for symbolic links.
      *
      * @func exists
      * @param path the filesystem path to check for being a symbolic link
@@ -278,6 +280,7 @@ int pathlib_is_symlink(
     DELREF_NONHEAP(vcresult);
     valuecontent_Free(vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
+    vcresult->int_value = result;
     return 1;
 }
 
@@ -418,10 +421,12 @@ int pathlib_remove(
      * may be a file or a directory. If the function returns without an
      * error then the target was successfully removed.
      *
-     * Note on symbolic links: symbolic links will not be followed,
-     * so if the given target is a symbolic link or contains symbolic
-     * links to other folders only the links will be removed. None
-     * of the contents reached by following those links will be removed.
+     * **Note on symbolic links:** on Unix symbolic links will not be followed
+     * for recursive deletion, so if the given target is a symbolic link or
+     * contains symbolic links to other folders only the links themselves
+     * will be removed. On Windows, there is no differentiation and even
+     * symbolic links or junctions will have their contents recursively
+     * deleted.
      *
      * @func remove
      * @param path the filesystem path of the item to be removed
@@ -1107,7 +1112,7 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
         NULL
     };
     idx = h64program_RegisterCFunction(
-        p, "is_symlink", &pathlib_to_abs,
+        p, "is_symlink", &pathlib_is_symlink,
         NULL, 0, 1, path_is_symlink_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
