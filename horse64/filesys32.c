@@ -2210,9 +2210,9 @@ h64filehandle filesys32_OpenFromPathAsOSHandleEx(
             | (mode_write ? GENERIC_WRITE : 0),
             (mode_write ? 0 : FILE_SHARE_READ),
             NULL,
-            OPEN_EXISTING | (
-                (mode_write && !mode_append) ? CREATE_NEW : 0
-            ),
+            ((mode_write && !mode_append) ?
+                TRUNCATE_EXISTING : OPEN_EXISTING) |
+            ((mode_write && !mode_append) ? CREATE_NEW : 0),
             ((flags & (OPEN_ONLY_IF_NOT_LINK | _WIN32_OPEN_LINK_ITSELF)) ?
             FILE_FLAG_OPEN_REPARSE_POINT : 0),
             NULL
@@ -2261,7 +2261,8 @@ h64filehandle filesys32_OpenFromPathAsOSHandleEx(
         (((mode_write || mode_append) && mode_read) ? O_RDWR : 0) |
         (mode_append ? O_APPEND : 0) |
         ((flags & OPEN_ONLY_IF_NOT_LINK) != 0 ? O_NOFOLLOW : 0) |
-        O_LARGEFILE | O_NOCTTY
+        O_LARGEFILE | O_NOCTTY |
+        ((mode_write && !mode_append) ? O_TRUNC : 0)
     );
     free(pathu8);
     if (fd < 0) {

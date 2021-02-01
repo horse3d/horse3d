@@ -41,8 +41,9 @@ void _parsetest_do(const char *testcode, int expectOK) {
     h64wchar *_testdata_txt_name = AS_U32(
         ".testdata.txt", &_testdata_txt_name_len
     );
+    int openerr = 0;
     FILE *f = filesys32_OpenFromPath(
-        _testdata_txt_name, _testdata_txt_name_len, "wb"
+        _testdata_txt_name, _testdata_txt_name_len, "wb", &openerr
     );
     ck_assert(f != NULL);
     ck_assert(fwrite(testcode, 1, strlen(testcode), f) == strlen(testcode));
