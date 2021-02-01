@@ -111,27 +111,27 @@ int pathlib_add_dir(
         );
     }
     if (result < 0) {
-        if (result == FS32_MKDIRERR_TARGETALREADYEXISTS) {
+        if (result == FS32_ERR_TARGETALREADYEXISTS) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
                 "target already exists"
             );
-        } else if (result == FS32_MKDIRERR_NOPERMISSION) {
+        } else if (result == FS32_ERR_NOPERMISSION) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
                 "permission denied"
             );
-        } else if (result == FS32_MKDIRERR_PARENTSDONTEXIST) {
+        } else if (result == FS32_ERR_PARENTSDONTEXIST) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
                 "parent directory missing"
             );
-        } else if (result == FS32_MKDIRERR_OUTOFFDS) {
+        } else if (result == FS32_ERR_OUTOFFDS) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_RESOURCEERROR,
                 "out of file descriptors"
             );
-        } else if (result == FS32_MKDIRERR_OUTOFMEMORY) {
+        } else if (result == FS32_ERR_OUTOFMEMORY) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
                 "out of memory creating directory"
@@ -205,6 +205,81 @@ int pathlib_exists(
     return 1;
 }
 
+int pathlib_is_symlink(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Check whether the given path points to a symbolic link,
+     * rather than another type of item like a regular file or directory.
+     *
+     * Compatibility note:
+     * on Windows, this will also return yes for an NTFS junction:
+     *
+     * @func exists
+     * @param path the filesystem path to check for being a symbolic link
+     * @raises IOError raised when there is a failure that is not expected
+     *     to go away on retry, like a permission error accessing the info
+     *     about the target.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a write timeout, and similar.
+     * @return @see{yes} if target path points to a symbolic link,
+     *         otherwise @see{no} (also if target does not exist).
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    int innererr = 0;
+    int result = 0;
+    if (!filesys32_IsSymlink(
+            pathstr, pathlen, &innererr, &result)) {
+        if (innererr == FS32_ERR_NOSUCHTARGET) {
+            result = 0;
+       } else if (innererr == FS32_ERR_NOPERMISSION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "permission denied"
+            );
+        } else if (innererr == FS32_ERR_OUTOFFDS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "out of file descriptors"
+            );
+        } else {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "unexpected type of I/O error"
+            );
+        }
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    return 1;
+}
 
 int pathlib_get_cwd(
         h64vmthread *vmthread
@@ -301,20 +376,25 @@ int pathlib_set_cwd(
         pathstr, pathlen
     );
     if (result < 0) {
-        if (result == FS32_CHDIRERR_NOPERMISSION) {
+        if (result == FS32_ERR_NOPERMISSION) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
                 "permission denied"
             );
-        } else if (result == FS32_CHDIRERR_OUTOFMEMORY) {
+        } else if (result == FS32_ERR_OUTOFMEMORY) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
                 "out of memory trying to change directory"
             );
-        } else if (result == FS32_CHDIRERR_TARGETNOTADIRECTORY) {
+        } else if (result == FS32_ERR_TARGETNOTADIRECTORY) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
-                "target directory does not exist"
+                "target is not a directory"
+            );
+        } else if (result == FS32_ERR_NOSUCHTARGET) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no such file or directory"
             );
         }
         return vmexec_ReturnFuncError(
@@ -399,19 +479,19 @@ int pathlib_remove(
         result = filesys32_RemoveFolderRecursively(
             pathstr, pathlen, &error
         );
-        if (!result && error == FS32_REMOVEDIR_NOTADIR) {
+        if (!result && error == FS32_ERR_TARGETNOTADIRECTORY) {
             removesinglefileordir:
             result = filesys32_RemoveFileOrEmptyDir(
                 pathstr, pathlen, &error
             );
             if (!result) {
-                if (error == FS32_REMOVEERR_DIRISBUSY) {
+                if (error == FS32_ERR_DIRISBUSY) {
                     return vmexec_ReturnFuncError(
                         vmthread, H64STDERROR_RESOURCEERROR,
                         "directory is in use by process "
                         "and cannot be deleted"
                     );
-                } else if (error == FS32_REMOVEERR_NONEMPTYDIRECTORY) {
+                } else if (error == FS32_ERR_NONEMPTYDIRECTORY) {
                     // Oops, seems like something concurrently
                     // filled in files again.
                     return vmexec_ReturnFuncError(
@@ -419,17 +499,17 @@ int pathlib_remove(
                         "recursive delete encountered unexpected re-added "
                         "file"
                     );
-                } else if (error == FS32_REMOVEERR_NOPERMISSION) {
+                } else if (error == FS32_ERR_NOPERMISSION) {
                     return vmexec_ReturnFuncError(
                         vmthread, H64STDERROR_IOERROR,
                         "permission denied"
                     );
-                } else if (error == FS32_REMOVEERR_NOSUCHTARGET) {
+                } else if (error == FS32_ERR_NOSUCHTARGET) {
                     return vmexec_ReturnFuncError(
                         vmthread, H64STDERROR_IOERROR,
                         "no such file or directory"
                     );
-                } else if (error == FS32_REMOVEERR_OUTOFFDS) {
+                } else if (error == FS32_ERR_OUTOFFDS) {
                     return vmexec_ReturnFuncError(
                         vmthread, H64STDERROR_RESOURCEERROR,
                         "out of file descriptors"
@@ -441,13 +521,13 @@ int pathlib_remove(
                 );
             }
         } else if (!result) {
-            if (error == FS32_REMOVEDIR_DIRISBUSY) {
+            if (error == FS32_ERR_DIRISBUSY) {
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_RESOURCEERROR,
                     "directory is in use by process "
                     "and cannot be deleted"
                 );
-            } else if (error == FS32_REMOVEDIR_NONEMPTYDIRECTORY) {
+            } else if (error == FS32_ERR_NONEMPTYDIRECTORY) {
                 // Oops, seems like something concurrently
                 // filled in files again.
                 return vmexec_ReturnFuncError(
@@ -455,17 +535,17 @@ int pathlib_remove(
                     "encountered unexpected re-added "
                     "file"
                 );
-            } else if (error == FS32_REMOVEDIR_NOPERMISSION) {
+            } else if (error == FS32_ERR_NOPERMISSION) {
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_IOERROR,
                     "permission denied"
                 );
-            } else if (error == FS32_REMOVEDIR_NOSUCHTARGET) {
+            } else if (error == FS32_ERR_NOSUCHTARGET) {
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_IOERROR,
                     "no such file or directory"
                 );
-            } else if (error == FS32_REMOVEDIR_OUTOFFDS) {
+            } else if (error == FS32_ERR_OUTOFFDS) {
                 return vmexec_ReturnFuncError(
                     vmthread, H64STDERROR_RESOURCEERROR,
                     "out of file descriptors"
@@ -533,6 +613,75 @@ int pathlib_is_abs(
     vcresult->int_value = (result != 0);
     return 1;
 }
+
+
+int pathlib_normalize(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * This normalizes the given filesystem path. All uses of separators,
+     * unnecessary ascending double dots, etc. will be normalized.
+     * Since this function does not actually access the disk, relative
+     * paths remain as such, (since that would otherwise need querying the
+     * working directory on the real disk) and letter casing remains
+     * untouched since it would need checking whether a path points to
+     * a case insensitive filesystem on disk.
+     *
+     * @func normalize
+     * @param path the filesystem path as a @see{string} to be normalized
+     * @returns the @see{string} of the resulting normalized path
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    h64wchar *resultstr = NULL;
+    int64_t resultstrlen = 0;
+    resultstr = filesys32_Normalize(
+        pathstr, pathlen, &resultstrlen
+    );
+    if (!resultstr) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory transforming to normalized path"
+        );
+    }
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    if (!valuecontent_SetStringU32(vmthread, vcresult,
+            resultstr, resultstrlen)) {
+        free(resultstr);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory transforming to normalized path"
+        );
+    }
+    free(resultstr);
+    return 1;
+}
+
 
 int pathlib_to_abs(
         h64vmthread *vmthread
@@ -657,7 +806,7 @@ int pathlib_list(
         );
     }
 
-    int error = FS32_LISTFOLDERERR_OTHERERROR;
+    int error = FS32_ERR_OTHERERROR;
     h64wchar **contents = NULL;
     int64_t *contentslen = NULL;
     int result = filesys32_ListFolder(
@@ -665,22 +814,22 @@ int pathlib_list(
         full_paths, &error
     );
     if (!result) {
-        if (error == FS32_LISTFOLDERERR_OUTOFMEMORY) {
+        if (error == FS32_ERR_OUTOFMEMORY) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
                 "out of memory while computing path listing"
             );
-        } else if (error == FS32_LISTFOLDERERR_NOPERMISSION) {
+        } else if (error == FS32_ERR_NOPERMISSION) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
                 "permission denied"
             );
-        } else if (error == FS32_LISTFOLDERERR_TARGETNOTDIRECTORY) {
+        } else if (error == FS32_ERR_TARGETNOTADIRECTORY) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
                 "target path is not a directory"
             );
-        } else if (error == FS32_LISTFOLDERERR_OUTOFFDS) {
+        } else if (error == FS32_ERR_OUTOFFDS) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_RESOURCEERROR,
                 "out of file descriptors"
@@ -917,6 +1066,18 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     if (idx < 0)
         return 0;
 
+    // path.normalize:
+    const char *path_normalize_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "normalize", &pathlib_normalize,
+        NULL, 0, 1, path_normalize_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
     // path.is_abs:
     const char *path_is_abs_kw_arg_name[] = {
         NULL
@@ -936,6 +1097,18 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "to_abs", &pathlib_to_abs,
         NULL, 0, 1, path_to_abs_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // path.is_symlink:
+    const char *path_is_symlink_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "is_symlink", &pathlib_to_abs,
+        NULL, 0, 1, path_is_symlink_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)

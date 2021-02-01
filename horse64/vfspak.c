@@ -51,7 +51,8 @@ int vfs_AddPakEx(
     h64printf("horse64/vfs.c: debug: "
            "adding resource pack: %s\n", path);
     #endif
-    FILE *f = filesys32_OpenFromPath(path, pathlen, "rb");
+    int innererr = 0;
+    FILE *f = filesys32_OpenFromPath(path, pathlen, "rb", &innererr);
     if (!f) {
         return 0;
     }

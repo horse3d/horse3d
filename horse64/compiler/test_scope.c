@@ -83,7 +83,7 @@ START_TEST (test_scope_import_complex)
     int createresult = filesys32_CreateDirectoryRecursively(
         testfolder2_path, testfolder2_pathlen, 1
     );
-    ck_assert(createresult == FS32_MKDIRERR_SUCCESS);
+    ck_assert(createresult == FS32_ERR_SUCCESS);
     free(testfolder2_path);
     testfolder2_path = NULL;
 
@@ -355,7 +355,7 @@ START_TEST (test_scope_import_complex)
     result = filesys32_RemoveFolderRecursively(
         testfolder_path, testfolder_pathlen, &_err
     );
-    assert(result != 0 || _err == FS32_REMOVEERR_NOSUCHTARGET);
+    assert(result != 0 || _err == FS32_ERR_NOSUCHTARGET);
 
     free(codefile_u32);
     codefile_u32 = NULL;

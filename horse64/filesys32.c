@@ -16,9 +16,11 @@
 #if defined(_WIN32) || defined(_WIN64)
 #define fseek64 _fseeki64
 #define ftell64 _ftelli64
+#define fdopen64 fdopen
 #else
 #define fseek64 fseeko64
 #define ftell64 ftello64
+#define fdopen64 fdopen
 #endif
 
 #include <assert.h>
@@ -29,6 +31,9 @@
 #include <unistd.h>
 #if defined(_WIN32) || defined(_WIN64)
 #define _O_RDONLY 0x0000
+#define _O_WRONLY 0x0001
+#define _O_RDWR 0x0002
+#define _O_APPEND 0x0008
 #include <malloc.h>
 #include <windows.h>
 #include <shlobj.h>
@@ -56,91 +61,59 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 
 FILE *filesys32_OpenFromPath(
         const h64wchar *path, int64_t pathlen,
-        const char *mode
+        const char *mode, int *err
         ) {
     if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
-        errno = ENOENT;
+        *err = FS32_ERR_NOSUCHTARGET;
         return NULL;
     }
+
+    int innererr = 0;
+    h64filehandle os_f = filesys32_OpenFromPathAsOSHandleEx(
+        path, pathlen, mode, 0, &innererr
+    );
+    if (os_f == H64_NOFILE) {
+        *err = innererr;
+        return NULL;
+    }
+
     #if defined(_WIN32) || defined(_WIN64)
-    assert(sizeof(uint16_t) == sizeof(wchar_t));
-    uint16_t *wpath = malloc(
-        sizeof(uint16_t) * (pathlen * 2 + 3)
-    );
-    if (!wpath) {
-        errno = ENOMEM;
-        return NULL;
-    }
-    int64_t out_len = 0;
-    int result = utf32_to_utf16(
-        path, pathlen, (char *) wpath,
-        sizeof(uint16_t) * (pathlen * 2 + 3),
-        &out_len, 1
-    );
-    if (!result || (uint64_t)out_len >=
-            (uint64_t)(pathlen * 2 + 3)) {
-        free(wpath);
-        errno = ENOMEM;
-        return NULL;
-    }
-    wpath[out_len] = '\0';
     int mode_read = strstr(mode, "r") || strstr(mode, "a");
     int mode_write = strstr(mode, "w") || strstr(mode, "a");
     int mode_append = strstr(mode, "r+") || strstr(mode, "a");
-    HANDLE f = CreateFileW(
-        (LPCWSTR)wpath,
-        0 | (mode_read ? GENERIC_READ : 0)
-        | (mode_write ? GENERIC_WRITE : 0),
-        (mode_write ? 0 : FILE_SHARE_READ),
-        NULL,
-        OPEN_EXISTING | (
-            (mode_write && !mode_append) ? CREATE_NEW : 0
-        ),
-        FILE_ATTRIBUTE_NORMAL,
-        NULL
-    );
-    free(wpath);  wpath = NULL;
-    if (f == INVALID_HANDLE_VALUE) {
-        uint32_t err = GetLastError();
-        if (err == ERROR_SHARING_VIOLATION ||
-                err == ERROR_ACCESS_DENIED) {
-            errno = EACCES;
-        } else if (err== ERROR_PATH_NOT_FOUND ||
-                err == ERROR_FILE_NOT_FOUND) {
-            errno = ENOENT;
-        } else if (err == ERROR_TOO_MANY_OPEN_FILES) {
-            errno = EMFILE;
-        } else if (err == ERROR_INVALID_NAME ||
-                err == ERROR_LABEL_TOO_LONG ||
-                err == ERROR_BUFFER_OVERFLOW ||
-                err == ERROR_FILENAME_EXCED_RANGE
-                ) {
-            errno = EINVAL;
-        } else {
-            errno = ENOMEM;
-        }
-        return NULL;
-    }
     int filedescr = _open_osfhandle(
-        (intptr_t)f, _O_RDONLY
+        (intptr_t)os_f,
+        ((mode_read && !mode_read && !mode_write) ? _O_RDONLY : 0) |
+        (((mode_write || mode_append) && !mode_read) ? _O_WRONLY : 0) |
+        (((mode_write || mode_append) && mode_read) ? _O_RDWR : 0) |
+        (mode_append ? _O_APPEND : 0)
     );
     if (filedescr < 0) {
-        errno = ENOMEM;
-        CloseHandle(f);
+        *err = FS32_ERR_OTHERERROR;
+        CloseHandle(os_f);
         return NULL;
     }
-    f = NULL;  // now owned by 'filedescr'
+    os_f = NULL;  // now owned by 'filedescr'
     errno = 0;
-    FILE *fresult = _fdopen(filedescr, "rb");
+    FILE *fresult = _fdopen(filedescr, mode);
+    if (!fresult) {
+        *err = FS32_ERR_OTHERERROR;
+        _close(filedescr);
+        return NULL;
+    }
     return fresult;
     #else
-    char *pathu8 = AS_U8(path, pathlen);
-    if (!pathu8) {
-        errno = ENOMEM;
+    FILE *f = fdopen64(os_f, mode);
+    if (!f) {
+        *err = FS32_ERR_OTHERERROR;
+        if (errno == ENOENT)
+            *err = FS32_ERR_NOSUCHTARGET;
+        else if (errno == EMFILE || errno == ENFILE)
+            *err = FS32_ERR_OUTOFFDS;
+        else if (errno == EACCES || errno == EPERM)
+            *err = FS32_ERR_NOPERMISSION;
         return NULL;
     }
-    FILE *f = fopen64(pathu8, mode);
-    free(pathu8);
     return f;
     #endif
 }
@@ -169,52 +142,43 @@ char *filesys23_ContentsAsStr(
         const h64wchar *path, int64_t pathlen, int *error
         ) {
     if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
-        *error = FS32_CONTENTASSTR_TARGETNOTAFILE;
+        *error = FS32_ERR_NOSUCHTARGET;
         return NULL;
     }
+    int _innererr = 0;
     FILE *f = filesys32_OpenFromPath(
-        path, pathlen, "rb"
+        path, pathlen, "rb", &_innererr
     );
     if (!f) {
-        *error = FS32_CONTENTASSTR_OTHERERROR;
-        if (errno == EACCES)
-            *error = FS32_CONTENTASSTR_NOPERMISSION;
-        else if (errno == ENOENT)
-            *error = FS32_CONTENTASSTR_TARGETNOTAFILE;
-        else if (errno == EMFILE || errno == ENFILE)
-            *error = FS32_CONTENTASSTR_OUTOFFDS;
-        else if (errno == EINVAL)
-            *error = FS32_CONTENTASSTR_INVALIDFILENAME;
-        else if (errno == ENOMEM)
-            *error = FS32_CONTENTASSTR_OUTOFMEMORY;
+        *error = _innererr;
         return NULL;
     }
     if (fseek64(f, 0, SEEK_END) != 0) {
-        *error = FS32_CONTENTASSTR_IOERROR;
+        *error = FS32_ERR_IOERROR;
         fclose(f);
         return NULL;
     }
     int64_t len = ftell64(f);
     if (len < 0) {
-        *error = FS32_CONTENTASSTR_IOERROR;
+        *error = FS32_ERR_IOERROR;
         fclose(f);
         return NULL;
     }
     if (fseek64(f, 0, SEEK_SET) != 0) {
-        *error = FS32_CONTENTASSTR_IOERROR;
+        *error = FS32_ERR_IOERROR;
         fclose(f);
         return NULL;
     }
     char *resultstr = malloc(len + 1);
     if (!resultstr) {
-        *error = FS32_CONTENTASSTR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         fclose(f);
         return NULL;
     }
     size_t result = fread(resultstr, 1, len, f);
     fclose(f);
     if ((int64_t)result != len) {
-        *error = FS32_CONTENTASSTR_IOERROR;
+        *error = FS32_ERR_IOERROR;
         free(resultstr);
         return NULL;
     }
@@ -239,7 +203,7 @@ int filesys32_RemoveFileOrEmptyDir(
         const h64wchar *path32, int64_t path32len, int *error
         ) {
     if (filesys32_IsObviouslyInvalidPath(path32, path32len)) {
-        *error = FS32_REMOVEERR_NOSUCHTARGET;
+        *error = FS32_ERR_NOSUCHTARGET;
         return 0;
     }
 
@@ -249,7 +213,7 @@ int filesys32_RemoveFileOrEmptyDir(
         sizeof(*targetpath) * (path32len * 2 + 1)
     );
     if (!targetpath) {
-        *error = FS32_REMOVEERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     int64_t targetpathlen = 0;
@@ -259,42 +223,43 @@ int filesys32_RemoveFileOrEmptyDir(
         &targetpathlen, 1
     );
     if (!result || targetpathlen >= (path32len * 2 + 1)) {
-        *error = FS32_REMOVEERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     targetpath[targetpathlen] = '\0';
     if (DeleteFileW(targetpath) != TRUE) {
         uint32_t werror = GetLastError();
-        *error = FS32_REMOVEERR_OTHERERROR;
+        *error = FS32_ERR_OTHERERROR;
         if (werror == ERROR_DIRECTORY_NOT_SUPPORTED ||
                 werror == ERROR_DIRECTORY) {
             if (RemoveDirectoryW(targetpath) != TRUE) {
                 free(targetpath);
                 werror = GetLastError();
-                *error = FS32_REMOVEERR_OTHERERROR;
+                *error = FS32_ERR_OTHERERROR;
                 if (werror == ERROR_PATH_NOT_FOUND ||
                         werror == ERROR_FILE_NOT_FOUND ||
                         werror == ERROR_INVALID_PARAMETER ||
                         werror == ERROR_INVALID_NAME ||
                         werror == ERROR_INVALID_DRIVE)
-                    *error = FS32_REMOVEERR_NOSUCHTARGET;
+                    *error = FS32_ERR_NOSUCHTARGET;
                 else if (werror == ERROR_ACCESS_DENIED ||
-                        werror == ERROR_WRITE_PROTECT)
-                    *error = FS32_REMOVEERR_NOPERMISSION;
+                        werror == ERROR_WRITE_PROTECT ||
+                        werror == ERROR_SHARING_VIOLATION)
+                    *error = FS32_ERR_NOPERMISSION;
                 else if (werror == ERROR_NOT_ENOUGH_MEMORY)
-                    *error = FS32_REMOVEERR_OUTOFMEMORY;
+                    *error = FS32_ERR_OUTOFMEMORY;
                 else if (werror == ERROR_TOO_MANY_OPEN_FILES)
-                    *error = FS32_REMOVEERR_OUTOFFDS;
+                    *error = FS32_ERR_OUTOFFDS;
                 else if (werror == ERROR_PATH_BUSY ||
                         werror == ERROR_BUSY ||
                         werror == ERROR_CURRENT_DIRECTORY)
-                    *error = FS32_REMOVEERR_DIRISBUSY;
+                    *error = FS32_ERR_DIRISBUSY;
                 else if (werror == ERROR_DIR_NOT_EMPTY)
-                    *error = FS32_REMOVEERR_NONEMPTYDIRECTORY;
+                    *error = FS32_ERR_NONEMPTYDIRECTORY;
                 return 0;
             }
             free(targetpath);
-            *error = FS32_REMOVEERR_SUCCESS;
+            *error = FS32_ERR_SUCCESS;
             return 1;
         }
         free(targetpath);
@@ -303,26 +268,27 @@ int filesys32_RemoveFileOrEmptyDir(
                 werror == ERROR_INVALID_PARAMETER ||
                 werror == ERROR_INVALID_NAME ||
                 werror == ERROR_INVALID_DRIVE)
-            *error = FS32_REMOVEERR_NOSUCHTARGET;
+            *error = FS32_ERR_NOSUCHTARGET;
         else if (werror == ERROR_ACCESS_DENIED ||
-                werror == ERROR_WRITE_PROTECT)
-            *error = FS32_REMOVEERR_NOPERMISSION;
+                werror == ERROR_WRITE_PROTECT ||
+                werror == ERROR_SHARING_VIOLATION)
+            *error = FS32_ERR_NOPERMISSION;
         else if (werror == ERROR_NOT_ENOUGH_MEMORY)
-            *error = FS32_REMOVEERR_OUTOFMEMORY;
+            *error = FS32_ERR_OUTOFMEMORY;
         else if (werror == ERROR_TOO_MANY_OPEN_FILES)
-            *error = FS32_REMOVEERR_OUTOFFDS;
+            *error = FS32_ERR_OUTOFFDS;
         else if (werror == ERROR_PATH_BUSY ||
                 werror == ERROR_BUSY)
-            *error = FS32_REMOVEERR_DIRISBUSY;
+            *error = FS32_ERR_DIRISBUSY;
         return 0;
     }
     free(targetpath);
-    *error = FS32_REMOVEERR_SUCCESS;
+    *error = FS32_ERR_SUCCESS;
     #else
     int64_t plen = 0;
     char *p = malloc(path32len * 5 + 1);
     if (!p) {
-        *error = FS32_REMOVEERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     int result = utf32_to_utf8(
@@ -331,7 +297,7 @@ int filesys32_RemoveFileOrEmptyDir(
     );
     if (!result || plen >= path32len * 5 + 1) {
         free(p);
-        *error = FS32_REMOVEERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     p[plen] = '\0';
@@ -339,21 +305,21 @@ int filesys32_RemoveFileOrEmptyDir(
     result = remove(p);
     free(p);
     if (result != 0) {
-        *error = FS32_REMOVEERR_OTHERERROR;
+        *error = FS32_ERR_OTHERERROR;
         if (errno == EACCES || errno == EPERM ||
                 errno == EROFS) {
-            *error = FS32_REMOVEERR_NOPERMISSION;
+            *error = FS32_ERR_NOPERMISSION;
         } else if (errno == ENOTEMPTY) {
-            *error = FS32_REMOVEERR_NONEMPTYDIRECTORY;
+            *error = FS32_ERR_NONEMPTYDIRECTORY;
         } else if (errno == ENOENT || errno == ENAMETOOLONG ||
                 errno == ENOTDIR) {
-            *error = FS32_REMOVEERR_NOSUCHTARGET;
+            *error = FS32_ERR_NOSUCHTARGET;
         } else if (errno == EBUSY) {
-            *error = FS32_REMOVEERR_DIRISBUSY;
+            *error = FS32_ERR_DIRISBUSY;
         }
         return 0;
     }
-    *error = FS32_REMOVEERR_SUCCESS;
+    *error = FS32_ERR_SUCCESS;
     #endif
     return 1;
 }
@@ -364,7 +330,7 @@ int filesys32_ListFolderEx(
         int returnFullPath, int allowsymlink, int *error
         ) {
     if (filesys32_IsObviouslyInvalidPath(path32, path32len)) {
-        *error = FS32_LISTFOLDERERR_TARGETNOTDIRECTORY;
+        *error = FS32_ERR_TARGETNOTADIRECTORY;
         return 0;
     }
 
@@ -384,7 +350,7 @@ int filesys32_ListFolderEx(
         sizeof(*folderpath) * (path32len * 2 + 1)
     );
     if (!folderpath) {
-        *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     int64_t folderpathlen = 0;
@@ -395,14 +361,14 @@ int filesys32_ListFolderEx(
     );
     if (!result || folderpathlen >= (path32len * 2)) {
         free(folderpath);
-        *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     folderpath[folderpathlen] = '\0';
     wchar_t *p = malloc(wcslen(folderpath) + 3);
     if (!p) {
         free(folderpath);
-        *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     memcpy(p, folderpath, wcslen(folderpath) + 1);
@@ -425,29 +391,30 @@ int filesys32_ListFolderEx(
             if (!*contents || !*contentslen) {
                 free(*contents);
                 free(*contentslen);
-                *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+                *error = FS32_ERR_OUTOFMEMORY;
                 return 0;
             }
             (*contents)[0] = NULL;
             (*contentslen)[0] = -1;
-            *error = FS32_LISTFOLDERERR_SUCCESS;
+            *error = FS32_ERR_SUCCESS;
             return 1;
         }
-        *error = FS32_LISTFOLDERERR_OTHERERROR;
+        *error = FS32_ERR_OTHERERROR;
         if (werror == ERROR_PATH_NOT_FOUND ||
                 werror == ERROR_FILE_NOT_FOUND)
-            *error = FS32_LISTFOLDERERR_NOSUCHTARGET;
+            *error = FS32_ERR_NOSUCHTARGET;
         else if (werror == ERROR_INVALID_PARAMETER ||
                 werror == ERROR_INVALID_NAME ||
                 werror == ERROR_INVALID_DRIVE ||
                 werror == ERROR_DIRECTORY_NOT_SUPPORTED)
-            *error = FS32_LISTFOLDERERR_TARGETNOTDIRECTORY;
-        else if (werror == ERROR_ACCESS_DENIED)
-            *error = FS32_LISTFOLDERERR_NOPERMISSION;
+            *error = FS32_ERR_TARGETNOTADIRECTORY;
+        else if (werror == ERROR_ACCESS_DENIED ||
+                werror == ERROR_SHARING_VIOLATION)
+            *error = FS32_ERR_NOPERMISSION;
         else if (werror == ERROR_NOT_ENOUGH_MEMORY)
-            *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+            *error = FS32_ERR_OUTOFMEMORY;
         else if (werror == ERROR_TOO_MANY_OPEN_FILES)
-            *error = FS32_LISTFOLDERERR_OUTOFFDS;
+            *error = FS32_ERR_OUTOFFDS;
         return 0;
     }
     free(p);
@@ -455,7 +422,7 @@ int filesys32_ListFolderEx(
     int64_t plen = 0;
     char *p = malloc(path32len * 5 + 1);
     if (!p) {
-        *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     int result = utf32_to_utf8(
@@ -464,7 +431,7 @@ int filesys32_ListFolderEx(
     );
     if (!result || plen >= path32len * 5 + 1) {
         free(p);
-        *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     p[plen] = '\0';
@@ -478,36 +445,36 @@ int filesys32_ListFolderEx(
     } else {
         // Open as fd first, so we can avoid symlinks.
         errno = 0;
-        int dirfd = open(
+        int dirfd = open64(
             (strlen(p) > 0 ? p : "."),
             O_RDONLY | O_NOFOLLOW | O_LARGEFILE | O_NOCTTY
         );
         if (dirfd < 0) {
             free(p);
-            *error = FS32_LISTFOLDERERR_OTHERERROR;
+            *error = FS32_ERR_OTHERERROR;
             if (errno == EMFILE || errno == ENFILE)
-                *error = FS32_LISTFOLDERERR_OUTOFFDS;
+                *error = FS32_ERR_OUTOFFDS;
             else if (errno == ENOMEM)
-                *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+                *error = FS32_ERR_OUTOFMEMORY;
             else if (errno == ELOOP)
-                *error = FS32_LISTFOLDERERR_SYMLINKSWEREEXCLUDED;
+                *error = FS32_ERR_SYMLINKSWEREEXCLUDED;
             else if (errno == EACCES)
-                *error = FS32_LISTFOLDERERR_NOPERMISSION;
+                *error = FS32_ERR_NOPERMISSION;
             return 0;
         }
         d = fdopendir(dirfd);
     }
     free(p);
     if (!d) {
-        *error = FS32_LISTFOLDERERR_OTHERERROR;
+        *error = FS32_ERR_OTHERERROR;
         if (errno == EMFILE || errno == ENFILE)
-            *error = FS32_LISTFOLDERERR_OUTOFFDS;
+            *error = FS32_ERR_OUTOFFDS;
         else if (errno == ENOMEM)
-            *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+            *error = FS32_ERR_OUTOFMEMORY;
         else if (errno == ENOTDIR || errno == ENOENT)
-            *error = FS32_LISTFOLDERERR_TARGETNOTDIRECTORY;
+            *error = FS32_ERR_TARGETNOTADIRECTORY;
         else if (errno == EACCES)
-            *error = FS32_LISTFOLDERERR_NOPERMISSION;
+            *error = FS32_ERR_NOPERMISSION;
         return 0;
     }
     #endif
@@ -517,7 +484,7 @@ int filesys32_ListFolderEx(
     if (!list || !listlen) {
         free(list);
         free(listlen);
-        *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+        *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
     list[0] = NULL;
@@ -533,9 +500,9 @@ int filesys32_ListFolderEx(
             if (FindNextFileW(hFind, &ffd) == 0) {
                 uint32_t werror = GetLastError();
                 if (werror != ERROR_NO_MORE_FILES) {
-                    *error = FS32_LISTFOLDERERR_OTHERERROR;
+                    *error = FS32_ERR_OTHERERROR;
                     if (werror == ERROR_NOT_ENOUGH_MEMORY)
-                        *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+                        *error = FS32_ERR_OUTOFMEMORY;
                     goto errorquit;
                 }
                 break;
@@ -549,14 +516,14 @@ int filesys32_ListFolderEx(
             &entryNameLen, 1, &_conversionoom
         );
         if (!entryName) {
-            *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+            *error = FS32_ERR_OUTOFMEMORY;
             goto errorquit;
         }
         #else
         errno = 0;
         struct dirent *entry = readdir(d);
         if (!entry && errno != 0) {
-            *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+            *error = FS32_ERR_OUTOFMEMORY;
             goto errorquit;
         }
         if (!entry)
@@ -572,7 +539,7 @@ int filesys32_ListFolderEx(
             NULL, NULL, &entryNameLen
         );
         if (!entryName) {
-            *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+            *error = FS32_ERR_OUTOFMEMORY;
             goto errorquit;
         }
         #endif
@@ -587,7 +554,7 @@ int filesys32_ListFolderEx(
         if (nlistlen)
             listlen = nlistlen;
         if (!nlist || !nlistlen) {
-            *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+            *error = FS32_ERR_OUTOFMEMORY;
             free(entryName);
             errorquit: ;
             #if defined(_WIN32) || defined(_WIN64)
@@ -641,12 +608,12 @@ int filesys32_ListFolderEx(
         // No conversion needed:
         *contents = list;
         *contentslen = listlen;
-        *error = FS32_LISTFOLDERERR_SUCCESS;
+        *error = FS32_ERR_SUCCESS;
     } else {
         // Ok, allocate new array for conversion:
         fullPathList = malloc(sizeof(*fullPathList) * (entriesSoFar + 1));
         if (!fullPathList) {
-            *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+            *error = FS32_ERR_OUTOFMEMORY;
             goto errorquit;
         }
         memset(fullPathList, 0, sizeof(*fullPathList) * (entriesSoFar + 1));
@@ -654,7 +621,7 @@ int filesys32_ListFolderEx(
             sizeof(*fullPathListLen) * (entriesSoFar + 1)
         );
         if (!fullPathListLen) {
-            *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+            *error = FS32_ERR_OUTOFMEMORY;
             goto errorquit;
         }
         int k = 0;
@@ -663,7 +630,7 @@ int filesys32_ListFolderEx(
                 (path32len + 1 + listlen[k]) * sizeof(*list[k])
             );
             if (!fullPathList[k]) {
-                *error = FS32_LISTFOLDERERR_OUTOFMEMORY;
+                *error = FS32_ERR_OUTOFMEMORY;
                 goto errorquit;
             }
             memcpy(fullPathList[k], path32, sizeof(*path32) * path32len);
@@ -698,7 +665,7 @@ int filesys32_ListFolderEx(
         // Return the full path arrays:
         *contents = fullPathList;
         *contentslen = fullPathListLen;
-        *error = FS32_LISTFOLDERERR_SUCCESS;
+        *error = FS32_ERR_SUCCESS;
     }
     return 1;
 }
@@ -718,11 +685,11 @@ int filesys32_RemoveFolderRecursively(
         const h64wchar *path32, int64_t path32len, int *error
         ) {
     if (filesys32_IsObviouslyInvalidPath(path32, path32len)) {
-        *error = FS32_REMOVEDIR_NOTADIR;
+        *error = FS32_ERR_TARGETNOTADIRECTORY;
         return 0;
     }
 
-    int final_error = FS32_REMOVEDIR_SUCCESS;
+    int final_error = FS32_ERR_SUCCESS;
     const h64wchar *scan_next = path32;
     int64_t scan_next_len = path32len;
     int operror = 0;
@@ -753,48 +720,36 @@ int filesys32_RemoveFolderRecursively(
             &operror
         );
         if (!listingworked) {
-            if (operror == FS32_LISTFOLDERERR_TARGETNOTDIRECTORY ||
-                    operror == FS32_LISTFOLDERERR_SYMLINKSWEREEXCLUDED ||
+            if (operror == FS32_ERR_TARGETNOTADIRECTORY ||
+                    operror == FS32_ERR_SYMLINKSWEREEXCLUDED ||
                     (firstitem && operror ==
-                        FS32_LISTFOLDERERR_NOSUCHTARGET)) {
+                        FS32_ERR_NOSUCHTARGET)) {
                 // It's a file or symlink.
                 // If it's a file, and this is our first item, error:
                 if (firstitem && operror ==
-                        FS32_LISTFOLDERERR_TARGETNOTDIRECTORY) {
+                        FS32_ERR_TARGETNOTADIRECTORY) {
                     // We're advertising recursive DIRECTORY deletion,
                     // so resuming here would be unexpected.
-                    *error = FS32_REMOVEDIR_NOTADIR;
+                    *error = FS32_ERR_TARGETNOTADIRECTORY;
                     assert(!contents && queue_len == 0);
                     return 0;
                 } else if (firstitem &&
-                        operror == FS32_LISTFOLDERERR_NOSUCHTARGET) {
-                    *error = FS32_REMOVEDIR_NOSUCHTARGET;
+                        operror == FS32_ERR_NOSUCHTARGET) {
+                    *error = FS32_ERR_NOSUCHTARGET;
                     assert(!contents && queue_len == 0);
                     return 0;
                 }
                 // Instantly remove it instead:
-                if (operror != FS32_LISTFOLDERERR_NOSUCHTARGET &&
+                if (operror != FS32_ERR_NOSUCHTARGET &&
                         !filesys32_RemoveFileOrEmptyDir(
                         scan_next, scan_next_len, &operror
                         )) {
-                    if (operror == FS32_REMOVEERR_NOSUCHTARGET) {
+                    if (operror == FS32_ERR_NOSUCHTARGET) {
                         // Maybe it was removed in parallel?
                         // ignore this.
-                    } else if (final_error == FS32_REMOVEDIR_SUCCESS) {
+                    } else if (final_error == FS32_ERR_SUCCESS) {
                         // No error yet, so take this one.
-                        if (operror == FS32_REMOVEERR_NOPERMISSION)
-                            final_error = FS32_REMOVEDIR_NOPERMISSION;
-                        else if (operror == FS32_REMOVEERR_OUTOFMEMORY)
-                            final_error = FS32_REMOVEDIR_OUTOFMEMORY;
-                        else if (operror == FS32_REMOVEERR_OUTOFFDS)
-                            final_error = FS32_REMOVEDIR_OUTOFFDS;
-                        else if (operror == FS32_REMOVEERR_DIRISBUSY)
-                            final_error = FS32_REMOVEDIR_DIRISBUSY;
-                        else if (operror ==
-                                FS32_REMOVEERR_NONEMPTYDIRECTORY)
-                            final_error = (
-                                FS32_REMOVEDIR_NONEMPTYDIRECTORY
-                            );
+                        final_error = operror;
                     }
                 }
                 if (queue_scan_index > 0 &&
@@ -827,19 +782,9 @@ int filesys32_RemoveFolderRecursively(
                 continue;
             }
             // Another error. Consider it for returning at the end:
-            if (final_error == FS32_REMOVEDIR_SUCCESS) {
+            if (final_error == FS32_ERR_SUCCESS) {
                 // No error yet, so take this one.
-                final_error = FS32_REMOVEDIR_OTHERERROR;
-                if (operror == FS32_LISTFOLDERERR_NOPERMISSION)
-                    final_error = FS32_REMOVEDIR_NOPERMISSION;
-                else if (operror == FS32_LISTFOLDERERR_OUTOFMEMORY)
-                    final_error = FS32_REMOVEDIR_OUTOFMEMORY;
-                else if (operror == FS32_LISTFOLDERERR_OUTOFFDS)
-                    final_error = FS32_REMOVEDIR_OUTOFFDS;
-                else if (operror == FS32_LISTFOLDERERR_NOSUCHTARGET)
-                    final_error = (
-                        FS32_REMOVEDIR_NOSUCHTARGET
-                    );
+                final_error = operror;
             }
         } else if (contents[0]) {  // one new item or more
             int64_t addc = 0;
@@ -860,7 +805,7 @@ int filesys32_RemoveFolderRecursively(
             if (new_removal_queue_lens)
                 removal_queue_lens = new_removal_queue_lens;
             if (!new_removal_queue || !new_removal_queue_lens) {
-                *error = FS32_REMOVEDIR_OUTOFMEMORY;
+                *error = FS32_ERR_OUTOFMEMORY;
                 int64_t k = 0;
                 while (k < queue_len) {
                     free(removal_queue[k]);
@@ -905,23 +850,12 @@ int filesys32_RemoveFolderRecursively(
                 removal_queue[k], removal_queue_lens[k],
                 &operror
                 )) {
-            if (operror == FS32_REMOVEERR_NOSUCHTARGET) {
+            if (operror == FS32_ERR_NOSUCHTARGET) {
                 // Maybe it was removed in parallel?
                 // ignore this.
-            } else if (final_error == FS32_REMOVEDIR_SUCCESS) {
+            } else if (final_error == FS32_ERR_SUCCESS) {
                 // No error yet, so take this one.
-                if (operror == FS32_REMOVEERR_NOPERMISSION)
-                    final_error = FS32_REMOVEDIR_NOPERMISSION;
-                else if (operror == FS32_REMOVEERR_OUTOFMEMORY)
-                    final_error = FS32_REMOVEDIR_OUTOFMEMORY;
-                else if (operror == FS32_REMOVEERR_OUTOFFDS)
-                    final_error = FS32_REMOVEDIR_OUTOFFDS;
-                else if (operror == FS32_REMOVEERR_DIRISBUSY)
-                    final_error = FS32_REMOVEDIR_DIRISBUSY;
-                else if (operror == FS32_REMOVEERR_NONEMPTYDIRECTORY)
-                    final_error = (
-                        FS32_REMOVEDIR_NONEMPTYDIRECTORY
-                    );
+                final_error = operror;
             }
         }
         free(removal_queue[k]);
@@ -932,26 +866,15 @@ int filesys32_RemoveFolderRecursively(
     if (!filesys32_RemoveFileOrEmptyDir(
             path32, path32len, &operror
             )) {
-        if (operror == FS32_REMOVEERR_NOSUCHTARGET) {
+        if (operror == FS32_ERR_NOSUCHTARGET) {
             // Maybe it was removed in parallel?
             // ignore this.
-        } else if (final_error == FS32_REMOVEDIR_SUCCESS) {
+        } else if (final_error == FS32_ERR_SUCCESS) {
             // No error yet, so take this one.
-            if (operror == FS32_REMOVEERR_NOPERMISSION)
-                final_error = FS32_REMOVEDIR_NOPERMISSION;
-            else if (operror == FS32_REMOVEERR_OUTOFMEMORY)
-                final_error = FS32_REMOVEDIR_OUTOFMEMORY;
-            else if (operror == FS32_REMOVEERR_OUTOFFDS)
-                final_error = FS32_REMOVEDIR_OUTOFFDS;
-            else if (operror == FS32_REMOVEERR_DIRISBUSY)
-                final_error = FS32_REMOVEDIR_DIRISBUSY;
-            else if (operror == FS32_REMOVEERR_NONEMPTYDIRECTORY)
-                final_error = (
-                    FS32_REMOVEDIR_NONEMPTYDIRECTORY
-                );
+            final_error = operror;
         }
     }
-    if (final_error != FS32_REMOVEDIR_SUCCESS) {
+    if (final_error != FS32_ERR_SUCCESS) {
         *error = final_error;
         return 0;
     }
@@ -962,7 +885,7 @@ int filesys32_ChangeDirectory(
         h64wchar *path, int64_t pathlen
         ) {
     if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
-        return FS32_CHDIRERR_TARGETNOTADIRECTORY;
+        return FS32_ERR_TARGETNOTADIRECTORY;
     }
 
     #if defined(_WIN32) || defined(_WIN64)
@@ -970,7 +893,7 @@ int filesys32_ChangeDirectory(
         sizeof(*targetpath) * (pathlen * 2 + 1)
     );
     if (!targetpath) {
-        return FS32_CHDIRERR_OUTOFMEMORY;
+        return FS32_ERR_OUTOFMEMORY;
     }
     int64_t targetpathlen = 0;
     int uresult = utf32_to_utf16(
@@ -980,7 +903,7 @@ int filesys32_ChangeDirectory(
     );
     if (!uresult || targetpathlen >= (pathlen * 2 + 1)) {
         free(targetpath);
-        return FS32_CHDIRERR_OUTOFMEMORY;
+        return FS32_ERR_OUTOFMEMORY;
     }
     targetpath[targetpathlen] = '\0';
     BOOL result = SetCurrentDirectoryW(targetpath);
@@ -993,13 +916,14 @@ int filesys32_ChangeDirectory(
                 werror == ERROR_INVALID_NAME ||
                 werror == ERROR_INVALID_DRIVE ||
                 werror == ERROR_BAD_PATHNAME) {
-            return FS32_CHDIRERR_TARGETNOTADIRECTORY;
-        } else if (werror == ERROR_ACCESS_DENIED) {
-            return FS32_CHDIRERR_NOPERMISSION;
+            return FS32_ERR_TARGETNOTADIRECTORY;
+        } else if (werror == ERROR_ACCESS_DENIED ||
+                werror == ERROR_SHARING_VIOLATION) {
+            return FS32_ERR_NOPERMISSION;
         } else if (werror == ERROR_NOT_ENOUGH_MEMORY) {
-            return FS32_CHDIRERR_OUTOFMEMORY;
+            return FS32_ERR_OUTOFMEMORY;
         }
-        return FS32_CHDIRERR_OTHERERROR;
+        return FS32_ERR_OTHERERROR;
     }
     return 1;
     #else
@@ -1007,7 +931,7 @@ int filesys32_ChangeDirectory(
         sizeof(*targetpath) * (pathlen * 5 + 1)
     );
     if (!targetpath) {
-        return FS32_MKDIRERR_OUTOFMEMORY;
+        return FS32_ERR_OUTOFMEMORY;
     }
     int64_t targetpathlen = 0;
     int uresult = utf32_to_utf8(
@@ -1017,20 +941,22 @@ int filesys32_ChangeDirectory(
     );
     if (!uresult || targetpathlen >= (pathlen * 5 + 1)) {
         free(targetpath);
-        return FS32_MKDIRERR_OUTOFMEMORY;
+        return FS32_ERR_OUTOFMEMORY;
     }
     targetpath[targetpathlen] = '\0';
     int statresult = chdir(targetpath);
     free(targetpath);
     if (statresult < 0) {
         if (errno == EACCES || errno == EPERM) {
-            return FS32_CHDIRERR_NOPERMISSION;
+            return FS32_ERR_NOPERMISSION;
         } else if (errno == ENOMEM) {
-            return FS32_CHDIRERR_OUTOFMEMORY;
+            return FS32_ERR_OUTOFMEMORY;
         } else if (errno == ENOENT) {
-            return FS32_CHDIRERR_TARGETNOTADIRECTORY;
+            return FS32_ERR_NOSUCHTARGET;
+        } else if (errno == ENOTDIR) {
+            return FS32_ERR_TARGETNOTADIRECTORY;
         }
-        return FS32_CHDIRERR_OTHERERROR;
+        return FS32_ERR_OTHERERROR;
     }
     return 1;
     #endif
@@ -1091,7 +1017,7 @@ int filesys32_CreateDirectory(
         int user_readable_only
         ) {
     if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
-        return FS32_MKDIRERR_INVALIDNAME;
+        return FS32_ERR_INVALIDNAME;
     }
 
     #if defined(_WIN32) || defined(_WIN64)
@@ -1099,7 +1025,7 @@ int filesys32_CreateDirectory(
         sizeof(*targetpath) * (pathlen * 2 + 1)
     );
     if (!targetpath) {
-        return FS32_MKDIRERR_OUTOFMEMORY;
+        return FS32_ERR_OUTOFMEMORY;
     }
     int64_t targetpathlen = 0;
     int uresult = utf32_to_utf16(
@@ -1109,7 +1035,7 @@ int filesys32_CreateDirectory(
     );
     if (!uresult || targetpathlen >= (pathlen * 2 + 1)) {
         free(targetpath);
-        return FS32_MKDIRERR_OUTOFMEMORY;
+        return FS32_ERR_OUTOFMEMORY;
     }
     targetpath[targetpathlen] = '\0';
     BOOL result = CreateDirectoryW(targetpath, NULL);
@@ -1121,19 +1047,21 @@ int filesys32_CreateDirectory(
                 werror == ERROR_INVALID_PARAMETER ||
                 werror == ERROR_INVALID_NAME ||
                 werror == ERROR_INVALID_DRIVE) {
-            return FS32_MKDIRERR_PARENTSDONTEXIST;
-        } else if (werror == ERROR_ACCESS_DENIED) {
-            return FS32_MKDIRERR_NOPERMISSION;
+            return FS32_ERR_PARENTSDONTEXIST;
+        } else if (werror == ERROR_ACCESS_DENIED ||
+                werror == ERROR_SHARING_VIOLATION ||
+                werror == ERROR_WRITE_PROTECT) {
+            return FS32_ERR_NOPERMISSION;
         } else if (werror == ERROR_NOT_ENOUGH_MEMORY) {
-            return FS32_MKDIRERR_OUTOFMEMORY;
+            return FS32_ERR_OUTOFMEMORY;
         } else if (werror == ERROR_TOO_MANY_OPEN_FILES) {
-            return FS32_MKDIRERR_OUTOFFDS;
+            return FS32_ERR_OUTOFFDS;
         } else if (werror == ERROR_ALREADY_EXISTS) {
-            return FS32_MKDIRERR_TARGETALREADYEXISTS;
+            return FS32_ERR_TARGETALREADYEXISTS;
         } else if (werror == ERROR_BAD_PATHNAME) {
-            return FS32_MKDIRERR_INVALIDNAME;
+            return FS32_ERR_INVALIDNAME;
         }
-        return FS32_MKDIRERR_OTHERERROR;
+        return FS32_ERR_OTHERERROR;
     }
     return 1;
     #else
@@ -1141,7 +1069,7 @@ int filesys32_CreateDirectory(
         sizeof(*targetpath) * (pathlen * 5 + 1)
     );
     if (!targetpath) {
-        return FS32_MKDIRERR_OUTOFMEMORY;
+        return FS32_ERR_OUTOFMEMORY;
     }
     int64_t targetpathlen = 0;
     int uresult = utf32_to_utf8(
@@ -1151,7 +1079,7 @@ int filesys32_CreateDirectory(
     );
     if (!uresult || targetpathlen >= (pathlen * 5 + 1)) {
         free(targetpath);
-        return FS32_MKDIRERR_OUTOFMEMORY;
+        return FS32_ERR_OUTOFMEMORY;
     }
     targetpath[targetpathlen] = '\0';
     int statresult = (
@@ -1160,19 +1088,19 @@ int filesys32_CreateDirectory(
     free(targetpath);
     if (!statresult) {
         if (errno == EACCES || errno == EPERM) {
-            return FS32_MKDIRERR_NOPERMISSION;
+            return FS32_ERR_NOPERMISSION;
         } else if (errno == EMFILE || errno == ENFILE) {
-            return FS32_MKDIRERR_OUTOFFDS;
+            return FS32_ERR_OUTOFFDS;
         } else if (errno == ENOMEM) {
-            return FS32_MKDIRERR_OUTOFMEMORY;
+            return FS32_ERR_OUTOFMEMORY;
         } else if (errno == ENOENT) {
-            return FS32_MKDIRERR_PARENTSDONTEXIST;
+            return FS32_ERR_PARENTSDONTEXIST;
         } else if (errno == EEXIST) {
-            return FS32_MKDIRERR_TARGETALREADYEXISTS;
+            return FS32_ERR_TARGETALREADYEXISTS;
         }
-        return FS32_MKDIRERR_OTHERERROR;
+        return FS32_ERR_OTHERERROR;
     }
-    return FS32_MKDIRERR_SUCCESS;
+    return FS32_ERR_SUCCESS;
     #endif
 }
 
@@ -1226,7 +1154,8 @@ int filesys32_TargetExists(
         } else if (werror == ERROR_NOT_ENOUGH_MEMORY ||
                 werror == ERROR_TOO_MANY_OPEN_FILES ||
                 werror == ERROR_PATH_BUSY ||
-                werror == ERROR_BUSY) {
+                werror == ERROR_BUSY ||
+                werror == ERROR_SHARING_VIOLATION) {
             *result = 0;
             return 0;  // unexpected I/O error!
         }
@@ -1503,11 +1432,15 @@ h64wchar *filesys32_NormalizeEx(
         if (result[i] == '/' ||
                 (couldbewinpath && result[i] == '\\')
                 ) {
-            #if defined(_WIN32) || defined(_WIN64)
-            result[i] = '\\';
-            #else
-            result[i] = '/';
-            #endif
+            if (couldbewinpath) {
+                #if defined(_WIN32) || defined(_WIN64)
+                result[i] = '\\';
+                #else
+                result[i] = '/';
+                #endif
+            } else {
+                result[i] = '/';
+            }
         }
         i++;
     }
@@ -2019,7 +1952,7 @@ FILE *_filesys32_TempFile_SingleTry(
         if ((_mkdirerror = filesys32_CreateDirectory(
                 combined_path, combined_path_len, 1
                 )) < 0) {
-            if (_mkdirerror == FS32_MKDIRERR_TARGETALREADYEXISTS) {
+            if (_mkdirerror == FS32_ERR_TARGETALREADYEXISTS) {
                 // Oops, somebody was faster/we hit an existing
                 // folder out of pure luck. Retry.
                 *do_retry = 1;
@@ -2087,8 +2020,9 @@ FILE *_filesys32_TempFile_SingleTry(
     free(randomu32);
 
     // Create file and return result:
+    int _innererr = 0;
     FILE *f = filesys32_OpenFromPath(
-        file_path, file_path_len, "wb"
+        file_path, file_path_len, "wb", &_innererr
     );
     if (!f) {
         if (subfolder) {
@@ -2159,8 +2093,194 @@ int filesys32_GetComponentCount(
     return component_count;
 }
 
+h64filehandle filesys32_OpenFromPathAsOSHandle(
+        const h64wchar *pathu32, int64_t pathu32len,
+        const char *mode, int *err
+        ) {
+    return filesys32_OpenFromPathAsOSHandleEx(
+        pathu32, pathu32len, mode, 0, err
+    );
+}
+
+#if defined(_WIN32) || defined(_WIN64)
+int _check_if_symlink_or_junction(HANDLE fhandle) {
+    DWORD written = 0;
+    char reparse_buf[MAXIMUM_REPARSE_DATA_BUFFER_SIZE] = {0};
+    struct reparse_tag {
+        ULONG tag;
+    };
+    if (!DeviceIoControl(
+            fhandle, FSCTL_GET_REPARSE_POINT, NULL, 0,
+            (LPVOID)reparse_buf, sizeof(reparse_buf),
+            &written, 0
+            )) {
+        // Assume there is no reparse point.
+    } else {
+        struct reparse_tag *tagcheck = (
+            (struct reparse_tag *)reparse_buf
+        );
+        if (tagcheck->tag == IO_REPARSE_TAG_SYMLINK ||
+                tagcheck->tag == IO_REPARSE_TAG_MOUNT_POINT) {
+            CloseHandle(fhandle);
+            return 1;
+        }
+    }
+    return 0;
+}
+#endif
+
+h64filehandle filesys32_OpenFromPathAsOSHandleEx(
+        const h64wchar *pathu32, int64_t pathu32len,
+        const char *mode, int flags, int *err
+        ) {
+    if (filesys32_IsObviouslyInvalidPath(pathu32, pathu32len)) {
+        *err = FS32_ERR_NOSUCHTARGET;
+        return H64_NOFILE;
+    }
+
+    // Hack for "" referring to cwd:
+    const h64wchar _cwdbuf[] = {'.'};
+    if (pathu32len == 0) {
+        pathu32 = _cwdbuf;
+        pathu32len = 1;
+    }
+
+    int mode_read = strstr(mode, "r") || strstr(mode, "a");
+    int mode_write = strstr(mode, "w") || strstr(mode, "a");
+    int mode_append = strstr(mode, "r+") || strstr(mode, "a");
+
+    #if defined(_WIN32) || defined(_WIN64)
+    assert(sizeof(uint16_t) == sizeof(wchar_t));
+    uint16_t *pathw = malloc(
+        sizeof(uint16_t) * (pathu32len * 2 + 3)
+    );
+    if (!pathw) {
+        *err = FS32_ERR_OUTOFMEMORY;
+        return H64_NOFILE;
+    }
+    int64_t out_len = 0;
+    int result = utf32_to_utf16(
+        pathu32, pathu32len, (char *) pathw,
+        sizeof(uint16_t) * (pathu32len * 2 + 3),
+        &out_len, 1
+    );
+    if (!result || (uint64_t)out_len >=
+            (uint64_t)(pathu32len * 2 + 3)) {
+        free(pathw);
+        *err = FS32_ERR_OUTOFMEMORY;
+        return H64_NOFILE;
+    }
+    pathw[out_len] = '\0';
+    HANDLE fhandle = INVALID_HANDLE_VALUE;
+    if (!mode_write && !mode_append &&
+            (flags & _WIN32_OPEN_DIR) != 0) {
+        fhandle = CreateFileW(
+            pathw,
+            GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS |
+             // ^ first try: this is needed for dirs
+            ((flags & (OPEN_ONLY_IF_NOT_LINK | _WIN32_OPEN_LINK_ITSELF)) ?
+             FILE_FLAG_OPEN_REPARSE_POINT : 0),
+            0
+        );
+        if (fhandle != INVALID_HANDLE_VALUE) {
+            // If this is not a directory, throw away handle again:
+            BY_HANDLE_FILE_INFORMATION finfo = {0};
+            if (!GetFileInformationByHandle(fhandle, &finfo)) {
+                uint32_t werror = GetLastError();
+                *err = FS32_ERR_OTHERERROR;
+                if (werror == ERROR_ACCESS_DENIED ||
+                        werror == ERROR_SHARING_VIOLATION)
+                    *err = FS32_ERR_NOPERMISSION;
+                return H64_NOFILE;
+            }
+            if ((finfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+                // Oops, not a dir. We shouldn't open this like we have.
+                // (We want to reopen without FILE_FLAG_BACKUP_SEMANTICS)
+                CloseHandle(fhandle);
+                fhandle = INVALID_HANDLE_VALUE;
+            }
+        }
+    }
+    if (!fhandle) {
+        fhandle = CreateFileW(
+            (LPCWSTR)pathw,
+            0 | (mode_read ? GENERIC_READ : 0)
+            | (mode_write ? GENERIC_WRITE : 0),
+            (mode_write ? 0 : FILE_SHARE_READ),
+            NULL,
+            OPEN_EXISTING | (
+                (mode_write && !mode_append) ? CREATE_NEW : 0
+            ),
+            ((flags & (OPEN_ONLY_IF_NOT_LINK | _WIN32_OPEN_LINK_ITSELF)) ?
+            FILE_FLAG_OPEN_REPARSE_POINT : 0),
+            NULL
+        );
+    }
+    free(pathw);
+    pathw = NULL;
+    if (fhandle == INVALID_HANDLE_VALUE) {
+        uint32_t werror = GetLastError();
+        if (werror == ERROR_SHARING_VIOLATION ||
+                werror == ERROR_ACCESS_DENIED) {
+            *err = FS32_ERR_NOPERMISSION;
+        } else if (werror== ERROR_PATH_NOT_FOUND ||
+                werror == ERROR_FILE_NOT_FOUND) {
+            *err = FS32_ERR_NOSUCHTARGET;
+        } else if (werror == ERROR_TOO_MANY_OPEN_FILES) {
+            *err = FS32_ERR_OUTOFFDS;
+        } else if (werror == ERROR_INVALID_NAME ||
+                werror == ERROR_LABEL_TOO_LONG ||
+                werror == ERROR_BUFFER_OVERFLOW ||
+                werror == ERROR_FILENAME_EXCED_RANGE
+                ) {
+            *err = FS32_ERR_INVALIDNAME;
+        } else {
+            *err = FS32_ERR_OTHERERROR;
+        }
+        return H64_NOFILE;
+    }
+    if ((flags & OPEN_ONLY_IF_NOT_LINK) != 0) {
+        if (_check_if_symlink_or_junction(fhandle)) {
+            *err = FS32_ERR_SYMLINKSWEREEXCLUDED;
+            return H64_NOFILE;
+        }
+    }
+    return fhandle;
+    #else
+    char *pathu8 = AS_U8(pathu32, pathu32len);
+    if (!pathu8) {
+        *err = FS32_ERR_OUTOFMEMORY;
+        return H64_NOFILE;
+    }
+    int fd = open64(
+        (strlen(pathu8) > 0 ? pathu8 : "."),
+        ((mode_read && !mode_read && !mode_write) ? O_RDONLY : 0) |
+        (((mode_write || mode_append) && !mode_read) ? O_WRONLY : 0) |
+        (((mode_write || mode_append) && mode_read) ? O_RDWR : 0) |
+        (mode_append ? O_APPEND : 0) |
+        ((flags & OPEN_ONLY_IF_NOT_LINK) != 0 ? O_NOFOLLOW : 0) |
+        O_LARGEFILE | O_NOCTTY
+    );
+    free(pathu8);
+    if (fd < 0) {
+        *err = FS32_ERR_OTHERERROR;
+        if (errno == ENOENT)
+            *err = FS32_ERR_NOSUCHTARGET;
+        else if (errno == EMFILE || errno == ENFILE)
+            *err = FS32_ERR_OUTOFFDS;
+        else if (errno == EACCES || errno == EPERM)
+            *err = FS32_ERR_NOPERMISSION;
+        return H64_NOFILE;
+    }
+    return fd;
+    #endif
+}
+
 int filesys32_GetSize(
-        const h64wchar *pathu32, int64_t pathu32len, uint64_t *size
+        const h64wchar *pathu32, int64_t pathu32len, uint64_t *size,
+        int *err
         ) {
     if (filesys32_IsObviouslyInvalidPath(pathu32, pathu32len))
         return 0;
@@ -2171,11 +2291,20 @@ int filesys32_GetSize(
     char *p = AS_U8(pathu32, pathu32len);
     if (!p)
         return 0;
-    if (stat64(p, &statbuf) == -1) {
+    if (stat64(p, &statbuf) < 0) {
         free(p);
+        *err = FS32_ERR_OTHERERROR;
+        if (errno == ENOENT)
+            *err = FS32_ERR_NOSUCHTARGET;
+        else if (errno == EACCES || errno == EPERM)
+            *err = FS32_ERR_NOPERMISSION;
         return 0;
     }
     free(p);
+    if (!S_ISREG(statbuf.st_mode)) {
+        *err = FS32_ERR_TARGETNOTAFILE;
+        return 0;
+    }
     *size = (uint64_t)statbuf.st_size;
     return 1;
     #else
@@ -2193,16 +2322,72 @@ int filesys32_GetSize(
         return 0;
     }
     pathw[resultlen] = '\0';
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (!GetFileAttributesExW(pathw, GetFileExInfoStandard, &fad)) {
-        free(pathw);
-        return 0;
+    HANDLE fhandle = CreateFileW(
+        pathw,
+        GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+		FILE_FLAG_BACKUP_SEMANTICS |  // first try: this is needed for dirs
+        FILE_FLAG_OPEN_REPARSE_POINT,
+		0
+    );
+    if (!fhandle) {
+        fhandle = CreateFileW(
+            pathw,
+            GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING,
+            FILE_FLAG_OPEN_REPARSE_POINT,  // in case it's not a directory
+            0
+        );
+        if (!fhandle) {
+            free(pathw);
+            uint32_t werror = GetLastError();
+            *err = FS32_ERR_OTHERERROR;
+            if (werror == ERROR_ACCESS_DENIED ||
+                    werror == ERROR_SHARING_VIOLATION)
+                *err = FS32_ERR_NOPERMISSION;
+            else if (werror == ERROR_PATH_NOT_FOUND ||
+                    werror == ERROR_FILE_NOT_FOUND ||
+                    werror == ERROR_INVALID_NAME ||
+                    werror == ERROR_INVALID_DRIVE)
+                *err = FS32_ERR_NOSUCHTARGET;
+            return 0;
+        }
     }
     free(pathw);
+    DWORD written = 0;
+    char reparse_buf[MAXIMUM_REPARSE_DATA_BUFFER_SIZE] = {0};
+    struct reparse_tag {
+        ULONG tag;
+    };
+    if (!DeviceIoControl(
+            fhandle, FSCTL_GET_REPARSE_POINT, NULL, 0,
+            (LPVOID)reparse_buf, sizeof(reparse_buf),
+            &written, 0
+            )) {
+        // Assume there is no reparse point.
+    } else {
+        struct reparse_tag *tagcheck = (
+            (struct reparse_tag *)reparse_buf
+        );
+        if (tagcheck->tag == IO_REPARSE_TAG_SYMLINK ||
+                tagcheck->tag == IO_REPARSE_TAG_MOUNT_POINT) {
+            CloseHandle(fhandle);
+            *err = FS32_ERR_TARGETNOTAFILE;
+            return 0;
+        }
+    }
+    BY_HANDLE_FILE_INFORMATION finfo = {0};
+    if (!GetFileInformationByHandle(fhandle, &finfo)) {
+        uint32_t werror = GetLastError();
+        *err = FS32_ERR_OTHERERROR;
+        if (werror == ERROR_ACCESS_DENIED ||
+                werror == ERROR_SHARING_VIOLATION)
+            *err = FS32_ERR_NOPERMISSION;
+        return 0;
+    }
     LARGE_INTEGER v;
-    v.HighPart = fad.nFileSizeHigh;
-    v.LowPart = fad.nFileSizeLow;
+    v.HighPart = finfo.nFileSizeHigh;
+    v.LowPart = finfo.nFileSizeLow;
     *size = (uint64_t)v.QuadPart;
+    CloseHandle(fhandle);
     return 1;
     #endif
 }
@@ -2348,6 +2533,44 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
     #endif
 }
 
+int filesys32_IsSymlink(
+        h64wchar *pathu32, int64_t pathu32len, int *err, int *result
+        ) {
+    #if !defined(_WIN32) && !defined(_WIN64)
+    struct stat64 statbuf;
+
+    char *p = AS_U8(pathu32, pathu32len);
+    if (!p)
+        return 0;
+    if (stat64(p, &statbuf) < 0) {
+        free(p);
+        *err = FS32_ERR_OTHERERROR;
+        if (errno == ENOENT)
+            *err = FS32_ERR_NOSUCHTARGET;
+        else if (errno == EACCES || errno == EPERM)
+            *err = FS32_ERR_NOPERMISSION;
+        return 0;
+    }
+    free(p);
+    *result = (S_ISLNK(statbuf.st_mode) != 0);
+    return 1;
+    #else
+    int innererr = 0;
+    h64filehandle os_f = filesys32_OpenFromPathAsOSHandleEx(
+        pathu32, pathu32len, "rb", _WIN32_OPEN_LINK_ITSELF,
+        &innererr
+    );
+    if (os_f == H64_NOFILE) {
+        *err = innererr;
+        return 0;
+    }
+    HANDLE fhandle = os_f;
+    *result = _check_if_symlink_or_junction(fhandle);
+    CloseHandle(fhandle);
+    return 1;
+    #endif
+}
+
 int filesys32_CreateDirectoryRecursively(
         h64wchar *path, int64_t pathlen, int user_readable_only
         ) {
@@ -2357,7 +2580,7 @@ int filesys32_CreateDirectoryRecursively(
         path, pathlen, &cleanpathlen
     );
     if (!cleanpath)
-        return FS32_MKDIRERR_OUTOFMEMORY;
+        return FS32_ERR_OUTOFMEMORY;
 
     // Go back in components until we got a subpath that exists:
     int64_t skippedatend = 0;
@@ -2378,7 +2601,7 @@ int filesys32_CreateDirectoryRecursively(
         if (!filesys32_TargetExists(
                 cleanpath, actuallen, &_exists)) {
             free(cleanpath);
-            return FS32_MKDIRERR_OTHERERROR;
+            return FS32_ERR_OTHERERROR;
         }
         if (_exists)
             break;
@@ -2404,7 +2627,7 @@ int filesys32_CreateDirectoryRecursively(
             // However, this means the base should have existed
             // -> return I/O error
             free(cleanpath);
-            return FS32_MKDIRERR_OTHERERROR;
+            return FS32_ERR_OTHERERROR;
         }
         // Remove one additional component at the end:
         skippedcomponents++;
@@ -2420,7 +2643,7 @@ int filesys32_CreateDirectoryRecursively(
     }
     // If we didn't skip back any components, we're done already:
     if (skippedcomponents <= 0)
-        return FS32_MKDIRERR_SUCCESS;
+        return FS32_ERR_SUCCESS;
     // Go back to end component by component, and create the dirs:
     while (skippedcomponents > 0) {
         // Reverse by one additional component:
@@ -2448,13 +2671,13 @@ int filesys32_CreateDirectoryRecursively(
         int result = filesys32_CreateDirectory(
             cleanpath, actuallen, user_readable_only
         );
-        if (result < 0 && result != FS32_MKDIRERR_TARGETALREADYEXISTS)
+        if (result < 0 && result != FS32_ERR_TARGETALREADYEXISTS)
             return result;
         // Advance to next component:
         continue;
     }
     free(cleanpath);
-    return FS32_MKDIRERR_SUCCESS;
+    return FS32_ERR_SUCCESS;
 }
 
 h64wchar *filesys32_TurnIntoPathRelativeTo(

@@ -9,9 +9,20 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#endif
 
 #include "widechar.h"
 
+
+#if defined(_WIN32) || defined(_WIN64)
+#define h64filehandle HANDLE
+#define H64_NOFILE (INVALID_HANDLE_VALUE)
+#else
+typedef int h64filehandle;
+#define H64_NOFILE ((int)0)
+#endif
 
 h64wchar *filesys32_GetOwnExecutable(int64_t *out_len);
 
@@ -30,27 +41,26 @@ void filesys32_FreeFolderList(
 );
 
 enum {
-    FS32_CHDIRERR_SUCCESS = 0,
-    FS32_CHDIRERR_NOPERMISSION = -1,
-    FS32_CHDIRERR_TARGETNOTADIRECTORY = -2,
-    FS32_CHDIRERR_OUTOFMEMORY = -3,
-    FS32_CHDIRERR_OTHERERROR = -4
+    FS32_ERR_SUCCESS = 0,
+    FS32_ERR_NOPERMISSION = -1,
+    FS32_ERR_TARGETNOTADIRECTORY = -2,
+    FS32_ERR_TARGETNOTAFILE = -3,
+    FS32_ERR_NOSUCHTARGET = -4,
+    FS32_ERR_OUTOFMEMORY = -5,
+    FS32_ERR_TARGETALREADYEXISTS = -6,
+    FS32_ERR_INVALIDNAME = -7,
+    FS32_ERR_OUTOFFDS = -8,
+    FS32_ERR_PARENTSDONTEXIST = -9,
+    FS32_ERR_DIRISBUSY = -10,
+    FS32_ERR_NONEMPTYDIRECTORY = -11,
+    FS32_ERR_SYMLINKSWEREEXCLUDED = -12,
+    FS32_ERR_IOERROR = -13,
+    FS32_ERR_OTHERERROR = -14
 };
 
 int filesys32_ChangeDirectory(
     h64wchar *path, int64_t pathlen
 );
-
-enum {
-    FS32_MKDIRERR_SUCCESS = 0,
-    FS32_MKDIRERR_OUTOFMEMORY = -1,
-    FS32_MKDIRERR_NOPERMISSION = -2,
-    FS32_MKDIRERR_TARGETALREADYEXISTS = -3,
-    FS32_MKDIRERR_OUTOFFDS = -4,
-    FS32_MKDIRERR_PARENTSDONTEXIST = -5,
-    FS32_MKDIRERR_INVALIDNAME = -6,
-    FS32_MKDIRERR_OTHERERROR = -7
-};
 
 int filesys32_CreateDirectory(
     h64wchar *path, int64_t pathlen, int user_readable_only
@@ -60,65 +70,20 @@ int filesys32_CreateDirectoryRecursively(
     h64wchar *path, int64_t pathlen, int user_readable_only
 );
 
-
-enum {
-    FS32_REMOVEDIR_SUCCESS = 0,
-    FS32_REMOVEDIR_OUTOFMEMORY = -1,
-    FS32_REMOVEDIR_NOPERMISSION = -2,
-    FS32_REMOVEDIR_NOSUCHTARGET = -3,
-    FS32_REMOVEDIR_OUTOFFDS = -4,
-    FS32_REMOVEDIR_DIRISBUSY = -5,
-    FS32_REMOVEDIR_NOTADIR = -6,
-    FS32_REMOVEDIR_NONEMPTYDIRECTORY = -7,
-    FS32_REMOVEDIR_OTHERERROR = -8
-};
-
 int filesys32_RemoveFolderRecursively(
     const h64wchar *path, int64_t pathlen, int *error
 );
 
-enum {
-    FS32_REMOVEERR_SUCCESS = 0,
-    FS32_REMOVEERR_OUTOFMEMORY = -1,
-    FS32_REMOVEERR_NOPERMISSION = -2,
-    FS32_REMOVEERR_NOSUCHTARGET = -3,
-    FS32_REMOVEERR_NONEMPTYDIRECTORY = -4,
-    FS32_REMOVEERR_OUTOFFDS = -5,
-    FS32_REMOVEERR_DIRISBUSY = -6,
-    FS32_REMOVEERR_OTHERERROR = -6
-};
 
 int filesys32_RemoveFileOrEmptyDir(
     const h64wchar *path, int64_t pathlen, int *error
 );
-
-enum {
-    FS32_LISTFOLDERERR_SUCCESS = 0,
-    FS32_LISTFOLDERERR_OUTOFMEMORY = -1,
-    FS32_LISTFOLDERERR_NOPERMISSION = -2,
-    FS32_LISTFOLDERERR_TARGETNOTDIRECTORY = -3,
-    FS32_LISTFOLDERERR_OUTOFFDS = -4,
-    FS32_LISTFOLDERERR_SYMLINKSWEREEXCLUDED = -5,
-    FS32_LISTFOLDERERR_NOSUCHTARGET = -6,
-    FS32_LISTFOLDERERR_OTHERERROR = -7
-};
 
 int filesys32_ListFolderEx(
     const h64wchar *path, int64_t pathlen,
     h64wchar ***contents, int64_t **contentslen,
     int returnFullPath, int allowsymlink, int *error
 );
-
-enum {
-    FS32_CONTENTASSTR_SUCCESS = 0,
-    FS32_CONTENTASSTR_OUTOFMEMORY = -1,
-    FS32_CONTENTASSTR_NOPERMISSION = -2,
-    FS32_CONTENTASSTR_TARGETNOTAFILE = -3,
-    FS32_CONTENTASSTR_OUTOFFDS = -4,
-    FS32_CONTENTASSTR_INVALIDFILENAME = -5,
-    FS32_CONTENTASSTR_IOERROR = -6,
-    FS32_CONTENTASSTR_OTHERERROR = -7
-};
 
 char *filesys23_ContentsAsStr(
     const h64wchar *path, int64_t pathlen, int *error
@@ -142,7 +107,8 @@ h64wchar *filesys32_NormalizeEx(
 );
 
 int filesys32_GetSize(
-    const h64wchar *path, int64_t pathlen, uint64_t *size
+    const h64wchar *path, int64_t pathlen, uint64_t *size,
+    int *err
 );
 
 h64wchar *filesys32_Normalize(
@@ -184,10 +150,26 @@ h64wchar *filesys32_Dirname(
 
 h64wchar *filesys32_GetCurrentDirectory(int64_t *out_len);
 
+h64filehandle filesys32_OpenFromPathAsOSHandle(
+    const h64wchar *pathu32, int64_t pathu32len,
+    const char *mode, int *err
+);
+
+enum {
+    _WIN32_OPEN_LINK_ITSELF = 0x1,
+    _WIN32_OPEN_DIR = 0x2,
+    OPEN_ONLY_IF_NOT_LINK = 0x4
+};
+
+h64filehandle filesys32_OpenFromPathAsOSHandleEx(
+    const h64wchar *pathu32, int64_t pathu32len,
+    const char *mode, int flags, int *err
+);
+
 FILE *filesys32_OpenFromPath(
     const h64wchar *path, int64_t pathlen,
-    const char *mode
-);  // sets errno in case of errors (even on winows!!)
+    const char *mode, int *err
+);
 
 FILE *filesys32_TempFile(
     int subfolder,
@@ -215,6 +197,10 @@ int filesys32_GetComponentCount(
 
 h64wchar *filesys32_ParentdirOfItem(
     const h64wchar *path, int64_t pathlen, int64_t *out_len
+);
+
+int filesys32_IsSymlink(
+    h64wchar *pathu32, int64_t pathu32len, int *err, int *result
 );
 
 #endif  // HORSE64_FILESYS32_H_

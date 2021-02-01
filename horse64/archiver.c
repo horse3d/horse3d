@@ -347,8 +347,9 @@ int h64archive_ReadFileByteSlice(
     );
     if (!file_path)
         return 0;
+    int innererr = 0;
     FILE *f = filesys32_OpenFromPath(
-        file_path, file_path_len, "rb"
+        file_path, file_path_len, "rb", &innererr
     );
     if (!f)
         return 0;

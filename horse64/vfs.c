@@ -424,8 +424,9 @@ VFSFILE *vfs_fopen_u32(
     if ((flags & VFSFLAG_NO_REALDISK_ACCESS) == 0) {
         vfile->via_physfs = 0;
         errno = 0;
+        int innererr = 0;
         vfile->diskhandle = filesys32_OpenFromPath(
-            path, pathlen, mode
+            path, pathlen, mode, &innererr
         );
         if (!vfile->diskhandle) {
             free(vfile->mode);
@@ -709,7 +710,8 @@ int vfs_SizeExU32(
         );
         if (!_result)
             return 0;
-        if (filesys32_GetSize(abspath, abspathlen, result))
+        int innererr = 0;
+        if (filesys32_GetSize(abspath, abspathlen, result, &innererr))
             return 1;
     }
 
@@ -814,7 +816,10 @@ int vfs_GetBytesExU32(
         );
         if (!_result)
             return 0;
-        FILE *f = filesys32_OpenFromPath(abspath, abspathlen, "rb");
+        int innererr = 0;
+        FILE *f = filesys32_OpenFromPath(
+            abspath, abspathlen, "rb", &innererr
+        );
         if (f) {
             if (fseek64(f, (int64_t)offset, SEEK_SET) != 0) {
                 fclose(f);
