@@ -26,11 +26,25 @@ int pathlib_add_dir(
         h64vmthread *vmthread
         ) {
     /**
-     * Add a new directory at the given target path. The parent
-     * directories must already exist.
+     * Add a new empty directory at the given target path.
      *
      * @func add_dir
      * @param path the filesystem path for the new directory to be added
+     * @param recursive=no whether to recursively add the parent directories
+     *     in case these don't exist yet (recursive=yes), or whether to
+     *     raise an IOError if all but the last path component don't exist
+     *     already (recursive=no, the default).
+     * @param limit_to_owner=no whether the new directory created
+     *     should have permissions set to only allow the user under which
+     *     this program runs to access its contents, and also disallow
+     *     any write access from groups. Changing the permissions
+     *     manually after you create the directory might have already
+     *     allowed a different process to change their working directory
+     *     into it or write a file via group permissions, so
+     *     limit_to_owner=yes is a safe alternative to prevent that.
+     *     By default, other processes will be allowed to read from and change
+     *     their working directory to the new directory, or write into it
+     *     based on group permissions (limit_to_owner=no).
      * @raises IOError raised when there was an error adding the directory
      *     that will likely persist on immediate retry, like lack of
      *     permissions, the target already exists, and so on.
@@ -38,33 +52,65 @@ int pathlib_add_dir(
      *     away on retry, like an unexpected disk input output error,
      *     a write timeout, and similar.
      */
-    assert(STACK_TOP(vmthread->stack) >= 1);
+    assert(STACK_TOP(vmthread->stack) >= 3);
 
     h64wchar *pathstr = NULL;
     int64_t pathlen = 0;
-    valuecontent *vccomponents = STACK_ENTRY(vmthread->stack, 0);
-    if (vccomponents->type == H64VALTYPE_GCVAL &&
-            ((h64gcvalue*)(vccomponents->ptr_value))->type ==
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
                 H64GCVALUETYPE_STRING) {
         pathstr = (
-            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.s
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
         );
         pathlen = (
-            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.len
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
         );
-    } else if (vccomponents->type == H64VALTYPE_SHORTSTR) {
-        pathstr = vccomponents->shortstr_value;
-        pathlen = vccomponents->shortstr_len;
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
     } else {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
             "path argument must be a string"
         );
     }
+    int recursive = 0;
+    valuecontent *vcrecursive = STACK_ENTRY(vmthread->stack, 1);
+    if (vcrecursive->type == H64VALTYPE_BOOL) {
+        recursive = (vcrecursive->int_value != 0);
+    } else if (vcrecursive->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        recursive = 0;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "recursive argument must be a boolean"
+        );
+    }
+    int limittoowner = 0;
+    valuecontent *vclimittoowner = STACK_ENTRY(vmthread->stack, 2);
+    if (vclimittoowner->type == H64VALTYPE_BOOL) {
+        limittoowner = (vclimittoowner->int_value != 0);
+    } else if (vclimittoowner->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        limittoowner = 0;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "limit_to_owner argument must be a boolean"
+        );
+    }
 
     int result = 0;
-    if ((result = filesys32_CreateDirectory(
-            pathstr, pathlen, 0)) < 0) {
+    if (recursive) {
+        result = filesys32_CreateDirectoryRecursively(
+            pathstr, pathlen, limittoowner
+        );
+    } else {
+        result = filesys32_CreateDirectory(
+            pathstr, pathlen, limittoowner
+        );
+    }
+    if (result < 0) {
         if (result == FS32_MKDIRERR_TARGETALREADYEXISTS) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_IOERROR,
@@ -313,19 +359,19 @@ int pathlib_remove(
 
     h64wchar *pathstr = NULL;
     int64_t pathlen = 0;
-    valuecontent *vccomponents = STACK_ENTRY(vmthread->stack, 0);
-    if (vccomponents->type == H64VALTYPE_GCVAL &&
-            ((h64gcvalue*)(vccomponents->ptr_value))->type ==
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
                 H64GCVALUETYPE_STRING) {
         pathstr = (
-            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.s
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
         );
         pathlen = (
-            ((h64gcvalue*)(vccomponents->ptr_value))->str_val.len
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
         );
-    } else if (vccomponents->type == H64VALTYPE_SHORTSTR) {
-        pathstr = vccomponents->shortstr_value;
-        pathlen = vccomponents->shortstr_len;
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
     } else {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
@@ -436,6 +482,120 @@ int pathlib_remove(
     DELREF_NONHEAP(vcresult);
     valuecontent_Free(vcresult);
     vcresult->type = H64VALTYPE_NONE;
+    return 1;
+}
+
+int pathlib_is_abs(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * This returns whether the path given is an absolute filesystem
+     * path. The disk is not touched to check this, so whether the target
+     * of the path actually exists is irrelevant.
+     *
+     * @func is_abs
+     * @param path the directory path @see{string} to check
+     * @returns a @see{boolean} `yes` when the path is absolute, `no`
+     *     when it is relative
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    int result = filesys32_IsAbsolutePath(
+        pathstr, pathlen
+    );
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    vcresult->type = H64VALTYPE_BOOL;
+    vcresult->int_value = (result != 0);
+    return 1;
+}
+
+int pathlib_to_abs(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * This transforms the given relative path into an absolute path. This
+     * function does not actually access the disk beyond getting the current
+     * directory path, so it will work no matter if the resulting target path
+     * actually exists on disk or not. Paths that are already absolute paths
+     * will be returned unchanged.
+     *
+     * @func to_abs
+     * @param path the directory path @see{string} to return as absolute path
+     * @returns the @see{string} of the path now as an absolute path
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    h64wchar *resultstr = NULL;
+    int64_t resultstrlen = 0;
+    resultstr = filesys32_ToAbsolutePath(
+        pathstr, pathlen, &resultstrlen
+    );
+    if (!resultstr) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory transforming to absolute path"
+        );
+    }
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    if (!valuecontent_SetStringU32(vmthread, vcresult,
+            resultstr, resultstrlen)) {
+        free(resultstr);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory transforming to absolute path"
+        );
+    }
+    free(resultstr);
     return 1;
 }
 
@@ -735,11 +895,11 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
 
     // path.add_dir:
     const char *path_add_dir_kw_arg_name[] = {
-        NULL
+        NULL, "recursive", "limit_to_owner"
     };
     idx = h64program_RegisterCFunction(
         p, "add_dir", &pathlib_add_dir,
-        NULL, 0, 1, path_add_dir_kw_arg_name,  // fileuri, args
+        NULL, 0, 3, path_add_dir_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)
@@ -752,6 +912,30 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "exists", &pathlib_exists,
         NULL, 0, 1, path_exists_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // path.is_abs:
+    const char *path_is_abs_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "is_abs", &pathlib_is_abs,
+        NULL, 0, 1, path_is_abs_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // path.to_abs:
+    const char *path_to_abs_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "to_abs", &pathlib_to_abs,
+        NULL, 0, 1, path_to_abs_kw_arg_name,  // fileuri, args
         "path", "core.horse64.org", 1, -1
     );
     if (idx < 0)

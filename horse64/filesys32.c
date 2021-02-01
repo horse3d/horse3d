@@ -242,6 +242,7 @@ int filesys32_RemoveFileOrEmptyDir(
         *error = FS32_REMOVEERR_NOSUCHTARGET;
         return 0;
     }
+
     #if defined(_WIN32) || defined(_WIN64)
     assert(sizeof(wchar_t) == sizeof(uint16_t));
     wchar_t *targetpath = malloc(
@@ -365,6 +366,13 @@ int filesys32_ListFolderEx(
     if (filesys32_IsObviouslyInvalidPath(path32, path32len)) {
         *error = FS32_LISTFOLDERERR_TARGETNOTDIRECTORY;
         return 0;
+    }
+
+    // Hack for "" referring to cwd:
+    static h64wchar dotfolder[] = {'.'};
+    if (path32len == 0) {
+        path32 = dotfolder;
+        path32len = 1;
     }
 
     // Start scanning the files:
