@@ -325,7 +325,10 @@ static h64wchar *_corelib_value_to_str_do(
             assert(buflen >= 25);
             assert(c->shortstr_len >= 0 &&
                    c->shortstr_len < 5);
-            memcpy(buf, c->shortstr_value, c->shortstr_len);
+            memcpy(
+                buf, c->shortstr_value,
+                sizeof(*c->shortstr_value) * c->shortstr_len
+            );
             *outlen = c->shortstr_len;
             return buf;
         }
@@ -623,6 +626,12 @@ int corelib_print(  // $$builtin.print
     free(outbuf);
     free(s);
     h64printf("\n");
+
+    // Clear return value:
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    vcresult->type = H64VALTYPE_NONE;
     return 1;
 }
 
