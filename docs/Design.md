@@ -19,10 +19,11 @@ Use for multimedia and basic 3D is also possible.
 In overall, Horse64 is designed to be somewhere between a typical
 scripting language like JavaScript, Python, or Lua, and a generic
 managed backend programming language like C#, Java, or Go.
+You may also want to take a look at the [feature list](./Features.md).
 
 Here is an overview how it roughly compares:
 
-|*Feature List*                 |Horse64 |Scripting Lang|Backend Lang      |
+|*Design Property*              |Horse64 |Scripting Lang|Backend Lang      |
 |-------------------------------|--------|--------------|------------------|
 |Dynamically typed              |Yes     |Yes           |No                |
 |Heavy duck typing              |No      |Some          |No                |
