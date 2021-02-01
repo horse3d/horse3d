@@ -2254,8 +2254,8 @@ h64filehandle filesys32_OpenFromPathAsOSHandleEx(
         *err = FS32_ERR_OUTOFMEMORY;
         return H64_NOFILE;
     }
-    int fd = open64(
-        (strlen(pathu8) > 0 ? pathu8 : "."),
+    assert(mode_read || mode_write);
+    int open_options = (
         ((mode_read && !mode_read && !mode_write) ? O_RDONLY : 0) |
         (((mode_write || mode_append) && !mode_read) ? O_WRONLY : 0) |
         (((mode_write || mode_append) && mode_read) ? O_RDWR : 0) |
@@ -2265,6 +2265,16 @@ h64filehandle filesys32_OpenFromPathAsOSHandleEx(
         O_LARGEFILE | O_NOCTTY |
         ((mode_write && !mode_append) ? O_TRUNC : 0)
     );
+    int fd = -1;
+    if ((open_options & O_CREAT) != 0) {
+        fd = open64(
+            (strlen(pathu8) > 0 ? pathu8 : "."), open_options, 0664
+        );
+    } else {
+        fd = open64(
+            (strlen(pathu8) > 0 ? pathu8 : "."), open_options
+        );
+    }
     free(pathu8);
     if (fd < 0) {
         *err = FS32_ERR_OTHERERROR;
