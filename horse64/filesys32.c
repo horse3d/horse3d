@@ -2260,6 +2260,7 @@ h64filehandle filesys32_OpenFromPathAsOSHandleEx(
         (((mode_write || mode_append) && !mode_read) ? O_WRONLY : 0) |
         (((mode_write || mode_append) && mode_read) ? O_RDWR : 0) |
         (mode_append ? O_APPEND : 0) |
+        ((mode_write && !mode_append) ? O_CREAT : 0) |
         ((flags & OPEN_ONLY_IF_NOT_LINK) != 0 ? O_NOFOLLOW : 0) |
         O_LARGEFILE | O_NOCTTY |
         ((mode_write && !mode_append) ? O_TRUNC : 0)
