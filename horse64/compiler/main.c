@@ -491,7 +491,7 @@ int compiler_command_CompileEx(
                 goto freeanderrorquit;
             }
             tempfile = filesys32_TempFile(
-                1, prefix, prefixlen, suffix, suffixlen,
+                1, 0, prefix, prefixlen, suffix, suffixlen,
                 &tempfilefolder, &tempfilefolderlen,
                 &tempfilepath, &tempfilepathlen
             );

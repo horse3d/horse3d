@@ -267,7 +267,7 @@ const h64wchar *_h64archive_GetFileCachePath(
     h64wchar *full_path = NULL;
     int64_t full_path_len = 0;
     FILE *f = filesys32_TempFile(
-        1, h64archive_s, h64archive_slen,
+        1, 0, h64archive_s, h64archive_slen,
         NULL, 0,
         &folder_path, &folder_path_len,
         &full_path, &full_path_len

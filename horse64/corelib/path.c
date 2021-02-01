@@ -205,6 +205,87 @@ int pathlib_exists(
     return 1;
 }
 
+int pathlib_create_tmp_dir(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Create a new empty subfolder with limit_to_owner=yes (inaccessible
+     * to other processes of different users) inside the system's
+     * temporary folder locations. Your program is responsible for
+     * removing this directory when you're done with using it.
+     *
+     * @func create_tmp_dir
+     * @param prefix="" what sort of prefix to use for the otherwise
+     *     randomized subfolder name.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a read timeout, and similar.
+     * @return @see{string} of the system's temporary files directory.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    h64wchar *prefixstr = NULL;
+    int64_t prefixlen = 0;
+    valuecontent *vcprefix = STACK_ENTRY(vmthread->stack, 0);
+    if (vcprefix->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcprefix->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        prefixstr = (
+            ((h64gcvalue*)(vcprefix->ptr_value))->str_val.s
+        );
+        prefixlen = (
+            ((h64gcvalue*)(vcprefix->ptr_value))->str_val.len
+        );
+    } else if (vcprefix->type == H64VALTYPE_SHORTSTR) {
+        prefixstr = vcprefix->shortstr_value;
+        prefixlen = vcprefix->shortstr_len;
+    } else if (vcprefix->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        prefixstr = NULL;
+        prefixlen = 0;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "prefix argument must be a string"
+        );
+    }
+
+    int64_t folder_path_len = 0;
+    h64wchar *folder_path = NULL;
+    int64_t file_path_len = 0;
+    h64wchar *file_path = NULL;
+    FILE *f = filesys32_TempFile(
+        1, 1, prefixstr, prefixlen, NULL, 0,
+        &folder_path, &folder_path_len,
+        &file_path, &file_path_len
+    );
+    assert(!f && file_path == NULL);
+    if (!folder_path) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unexpected I/O error creating a temporary dir"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    if (!valuecontent_SetStringU32(
+            vmthread, vcresult, folder_path, folder_path_len)) {
+        free(folder_path);
+        int innererror = 0;
+        filesys32_RemoveFileOrEmptyDir(
+            folder_path, folder_path_len, &innererror
+        );
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "failed to allocate temporary dir name"
+        );
+    }
+    free(folder_path);
+    return 1;
+}
+
 int pathlib_is_symlink(
         h64vmthread *vmthread
         ) {
@@ -270,7 +351,7 @@ int pathlib_is_symlink(
             );
         } else {
             return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                vmthread, H64STDERROR_RESOURCEERROR,
                 "unexpected type of I/O error"
             );
         }
@@ -401,7 +482,7 @@ int pathlib_set_cwd(
             );
         }
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            vmthread, H64STDERROR_RESOURCEERROR,
             "unexpected type of I/O error"
         );
     }
@@ -762,10 +843,10 @@ int pathlib_list(
      *
      * @func list
      * @param path the directory path to list files from as a @see{string}.
-     * @param full_path=no whether to return just the names of the entries
-     *     themselves (full_path=no, the default), or each name appended to
+     * @param full_paths=no whether to return just the names of the entries
+     *     themselves (full_paths=no, the default), or each name appended to
      *     the directory path argument you submitted as a combined path
-     *     (full_path=yes).
+     *     (full_paths=yes).
      * @raises IOError raised when there was an error accessing the directory
      *     that will likely persist on immediate retry, like lack of
      *     permissions, the target not being a directory, and so on.
@@ -1011,6 +1092,18 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     if (idx < 0)
         return 0;
 
+    // path.create_tmp_dir:
+    const char *path_create_tmp_dir_kw_arg_name[] = {
+        "prefix"
+    };
+    idx = h64program_RegisterCFunction(
+        p, "create_tmp_dir", &pathlib_create_tmp_dir,
+        NULL, 0, 1, path_create_tmp_dir_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
     // path.set_cwd:
     const char *path_set_cwd_kw_arg_name[] = {
         NULL
@@ -1121,7 +1214,7 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
 
     // path.list:
     const char *path_list_kw_arg_name[] = {
-        NULL, "full_path"
+        NULL, "full_paths"
     };
     idx = h64program_RegisterCFunction(
         p, "list", &pathlib_list,

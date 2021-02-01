@@ -171,8 +171,10 @@ FILE *filesys32_OpenFromPath(
     const char *mode, int *err
 );
 
+h64wchar *filesys32_GetSysTempdir(int64_t *output_len);
+
 FILE *filesys32_TempFile(
-    int subfolder,
+    int subfolder, int folderonly,
     const h64wchar *prefix, int64_t prefixlen,
     const h64wchar *suffix, int64_t suffixlen,
     h64wchar **folder_path, int64_t* folder_path_len,

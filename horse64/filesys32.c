@@ -1826,22 +1826,7 @@ int filesys32_IsAbsolutePath(
     return 0;
 }
 
-
-FILE *_filesys32_TempFile_SingleTry(
-        int subfolder,
-        const h64wchar *prefix, int64_t prefixlen,
-        const h64wchar *suffix, int64_t suffixlen,
-        h64wchar **folder_path, int64_t* folder_path_len,
-        h64wchar **path, int64_t *path_len,
-        int *do_retry
-        ) {
-    *do_retry = 0;
-    *path = NULL;
-    *path_len = 0;
-    *folder_path = NULL;
-    *folder_path_len = 0;
-
-    // Get the folder path for system temp location:
+h64wchar *filesys32_GetSysTempdir(int64_t *output_len) {
     #if defined(_WIN32) || defined(_WIN64)
     int tempbufwsize = 512;
     wchar_t *tempbufw = malloc(tempbufwsize * sizeof(wchar_t));
@@ -1883,6 +1868,8 @@ FILE *_filesys32_TempFile_SingleTry(
     free(tempbufw);
     if (!tempbuf)
         return NULL;
+    *output_len = tempbuffill;
+    return tempbuf;
     #else
     char *tempbufu8 = NULL;
     tempbufu8 = strdup("/tmp/");
@@ -1894,7 +1881,32 @@ FILE *_filesys32_TempFile_SingleTry(
     free(tempbufu8);
     if (!tempbuf)
         return NULL;
+    *output_len = tempbuffill;
+    return tempbuf;
     #endif
+}
+
+
+FILE *_filesys32_TempFile_SingleTry(
+        int subfolder, int folderonly,
+        const h64wchar *prefix, int64_t prefixlen,
+        const h64wchar *suffix, int64_t suffixlen,
+        h64wchar **folder_path, int64_t* folder_path_len,
+        h64wchar **path, int64_t *path_len,
+        int *do_retry
+        ) {
+    assert(!folderonly || subfolder);
+    *do_retry = 0;
+    *path = NULL;
+    *path_len = 0;
+    *folder_path = NULL;
+    *folder_path_len = 0;
+
+    // Get the folder path for system temp location:
+    int64_t tempbuffill = 0;
+    h64wchar *tempbuf = filesys32_GetSysTempdir(&tempbuffill);
+    if (!tempbuf)
+        return NULL;
 
     // Random bytes we use in the name:
     uint64_t v[4];
@@ -1929,7 +1941,7 @@ FILE *_filesys32_TempFile_SingleTry(
         );
         combined_path = malloc(
             sizeof(*combined_path) * (tempbuffill +
-            randomu32len + 1)
+            prefixlen + randomu32len + 1)
         );
         if (!combined_path) {
             free(tempbuf);
@@ -1938,7 +1950,10 @@ FILE *_filesys32_TempFile_SingleTry(
         }
         memcpy(combined_path, tempbuf,
                sizeof(*combined_path) * tempbuffill);
-        memcpy(combined_path + tempbuffill, randomu32,
+        if (prefixlen > 0)
+            memcpy(combined_path + tempbuffill, prefix,
+               sizeof(*randomu32) * prefixlen);
+        memcpy(combined_path + tempbuffill + prefixlen, randomu32,
                sizeof(*randomu32) * randomu32len);
         #if defined(_WIN32) || defined(_WIN64)
         combined_path[tempbuffill + randomu32len] = '\\';
@@ -1963,6 +1978,12 @@ FILE *_filesys32_TempFile_SingleTry(
         }
         *folder_path = combined_path;
         *folder_path_len = combined_path_len;
+        if (folderonly) {
+            *path = NULL;
+            *path_len = 0;
+            free(randomu32);
+            return NULL;
+        }
     } else {
         combined_path_len = tempbuffill;
         combined_path = tempbuf;
@@ -2043,7 +2064,7 @@ FILE *_filesys32_TempFile_SingleTry(
 }
 
 FILE *filesys32_TempFile(
-        int subfolder,
+        int subfolder, int folderonly,
         const h64wchar *prefix, int64_t prefixlen,
         const h64wchar *suffix, int64_t suffixlen,
         h64wchar **folder_path, int64_t* folder_path_len,
@@ -2052,15 +2073,20 @@ FILE *filesys32_TempFile(
     while (1) {
         int retry = 0;
         FILE *f = _filesys32_TempFile_SingleTry(
-            subfolder, prefix, prefixlen,
+            subfolder, folderonly, prefix, prefixlen,
             suffix, suffixlen, folder_path,
             folder_path_len,
             path, path_len, &retry
         );
-        if (!f && !retry)
-            return NULL;
         if (f)
             return f;
+        if (subfolder && folderonly && *folder_path != NULL)
+            return NULL;
+        if (!f && !retry) {
+            *folder_path = NULL;
+            *path = NULL;
+            return NULL;
+        }
     }
 }
 
