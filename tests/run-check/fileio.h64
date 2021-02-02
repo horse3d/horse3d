@@ -16,9 +16,9 @@ func main {
         f.write("test data")
     }
     assert(path.list("").len == 1)
-    assert(path.list[0] == "testfile.txt")
+    assert(path.list("")[1] == "testfile.txt")
     var data
-    with io.open("testfile.txt", "r") as f {
+    with io.open("testfile.txt") as f {
         data = f.read()
     }
     assert(data == "test data")

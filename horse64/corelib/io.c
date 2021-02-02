@@ -142,8 +142,8 @@ int iolib_open(
     }
 
     valuecontent *vcargread = STACK_ENTRY(vmthread->stack, 1);
-    valuecontent *vcargwrite = STACK_ENTRY(vmthread->stack, 1);
-    valuecontent *vcargappend = STACK_ENTRY(vmthread->stack, 1);
+    valuecontent *vcargwrite = STACK_ENTRY(vmthread->stack, 2);
+    valuecontent *vcargappend = STACK_ENTRY(vmthread->stack, 3);
 
     uint8_t flags = 0;
     int mode_read = 1;
@@ -671,7 +671,7 @@ int iolib_filewrite(
             "data argument must be string for non-binary file"
         );
     }
-    if (writebytes == NULL && !readbinary) {
+    if (writebytes == NULL && readbinary) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
             "data argument must be bytes for binary file"
