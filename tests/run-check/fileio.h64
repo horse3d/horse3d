@@ -1,0 +1,32 @@
+
+import io from core.horse64.org
+import path from core.horse64.org
+
+func main {
+    var orig_cwd = path.get_cwd()
+
+    # Create a temp folder and go inside:
+    var p = path.create_tmp_dir(prefix="io_h64_check")
+    assert(path.exists(p))
+    path.set_cwd(p)
+
+    # Folder listing should be empty:
+    assert(path.list("").len == 0)
+    with io.open("testfile.txt", "w") as f {
+        f.write("test data")
+    }
+    assert(path.list("").len == 1)
+    assert(path.list[0] == "testfile.txt")
+    var data
+    with io.open("testfile.txt", "r") as f {
+        data = f.read()
+    }
+    assert(data == "test data")
+
+    # Go back to initial cwd, and remove our temp dir again
+    path.set_cwd(orig_cwd)
+    path.remove(p)
+    assert(not path.exists(p))
+}
+
+# expected result value: 0
