@@ -46,8 +46,7 @@ int processlib_run(
      *    (=yes), or whether to wait until it terminates before resuming
      *    (=no, the default).
      * @param search_system=yes whether to search for command names in
-     *    system-wide folders, other than just the local folder and/or the
-     *    exact binary path
+     *    system-wide folders, other than just the exact binary path.
      * @returns a @see{process object|process.process} if background=yes,
      *     otherwise returns the exit code of the process as @see{number}.
      */
@@ -154,6 +153,7 @@ int processlib_run(
         asprogress->run_job->type = (
             ASYNCSYSJOB_RUNCMD
         );
+        asprogress->run_job->runcmd.search_in_path = searchsystem;
         asprogress->run_job->runcmd.cmd = malloc(
             sizeof(*asprogress->run_job->runcmd.cmd) *
                 runcmdlen

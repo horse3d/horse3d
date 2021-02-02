@@ -417,13 +417,70 @@ void asyncsysjobworker_Do(void *userdata) {
             continue;
         } else if (ourjob != NULL &&
                 ourjob->type == ASYNCSYSJOB_RUNCMD) {
-            #ifndef NDEBUG
-            if (_vmasyncjobs_debug)
-                h64fprintf(stderr, "horsevm: debug: "
-                    "run cmd launch... (job ptr=%p)\n",
-                    ourjob);
-            #endif
-            assert(0);
+            if (!ourjob->runcmd.processrunptr) {
+                #ifndef NDEBUG
+                if (_vmasyncjobs_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "run cmd launch... (job ptr=%p)\n",
+                        ourjob);
+                #endif
+                ourjob->runcmd.processrunptr = (
+                    processrun_Launch(
+                        ourjob->runcmd.cmd,
+                        ourjob->runcmd.cmdlen,
+                        ourjob->runcmd.argcount,
+                        (const h64wchar **)ourjob->runcmd.arg,
+                        ourjob->runcmd.arglen,
+                        ourjob->runcmd.search_in_path
+                    )
+                );
+                if (!ourjob->runcmd.processrunptr) {
+                    // Mark done on failure:
+                    mutex_Lock(asyncsysjob_schedule_lock);
+                    ourjob->inprogress = 0;
+                    ourjob->done = 1;
+                    ourjob->failed_external = 1;
+                    mutex_Release(asyncsysjob_schedule_lock);
+                    threadevent_Set(job_done_supervisor_waitevent);
+                    #ifndef NDEBUG
+                    if (_vmasyncjobs_debug)
+                        h64fprintf(stderr, "horsevm: debug: "
+                            "run cmd launch fail (job ptr=%p)"
+                            " -> fail\n",
+                            ourjob);
+                    #endif
+                    continue;
+                }
+                #ifndef NDEBUG
+                if (_vmasyncjobs_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "run cmd is running. (job ptr=%p)\n",
+                        ourjob);
+                #endif
+                int exit_code = 0;
+                processrun_Wait(
+                    ourjob->runcmd.processrunptr, &exit_code
+                );
+                processrun_Deref(ourjob->runcmd.processrunptr);
+                ourjob->runcmd.processrunptr = NULL;
+                ourjob->runcmd.exit_code = exit_code;
+                // Mark done with exit_code:
+                mutex_Lock(asyncsysjob_schedule_lock);
+                ourjob->inprogress = 0;
+                ourjob->done = 1;
+                ourjob->failed_external = 0;
+                ourjob->failed_oomorinternal = 0;
+                mutex_Release(asyncsysjob_schedule_lock);
+                threadevent_Set(job_done_supervisor_waitevent);
+                #ifndef NDEBUG
+                if (_vmasyncjobs_debug)
+                    h64fprintf(stderr, "horsevm: debug: "
+                        "run cmd launch fail (job ptr=%p)"
+                        " -> fail\n",
+                        ourjob);
+                #endif
+                continue;
+            }
         }
         threadevent_WaitUntilSet(
             async_worker_event[worker_id],

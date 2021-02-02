@@ -5,11 +5,17 @@
 #include "compileconfig.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#else
+#include <sys/wait.h>
+#endif
 
 #if defined(__linux__) || defined(__LINUX)
 pid_t vfork(void);
@@ -81,6 +87,35 @@ void processrun_Deref(processrun *run) {
         }
     }
     mutex_Release(_processrun_mutex);
+}
+
+void processrun_Wait(processrun *pr, int *exit_code) {
+    #if defined(_WIN32) || defined(_WIN64)
+
+    #else
+    while (1) {
+        siginfo_t sinfo = {0};
+        errno = 0;
+        int result = waitid(
+            P_PID, pr->pid, &sinfo, WEXITED
+        );
+        if (result < 0) {
+            if (errno == EINTR)
+                continue;
+            *exit_code = -1;
+            return;
+        }
+        if (sinfo.si_code == CLD_CONTINUED ||
+                sinfo.si_code == CLD_TRAPPED)
+            continue;
+        if (sinfo.si_code != CLD_EXITED) {
+            *exit_code = -1;
+        } else {
+            *exit_code = sinfo.si_status;
+        }
+        break;
+    }
+    #endif
 }
 
 processrun *processrun_Launch(

@@ -21,4 +21,6 @@ void processrun_Deref(processrun *run);
 
 void processrun_AddRef(processrun *run);
 
+void processrun_Wait(processrun *pr, int *exit_code);
+
 #endif  // HORSE64_PROCESSRUN_H_

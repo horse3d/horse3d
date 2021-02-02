@@ -5,11 +5,14 @@
 #ifndef HORSE64_ASYNCSYSJOB_H_
 #define HORSE64_ASYNCSYSJOB_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 
 #include "widechar.h"
 
 typedef struct h64vmthread h64vmthread;
+typedef struct processrun processrun;
 
 typedef enum h64asyncsysjobtype {
     ASYNCSYSJOB_NONE = 0,
@@ -37,7 +40,9 @@ typedef struct h64asyncsysjob {
             h64wchar **arg;
             int64_t *arglen;
             int argcount;
-            int search_in_path;
+            uint8_t search_in_path;
+            processrun *processrunptr;
+            int exit_code;
         } runcmd;
     };
 } h64asyncsysjob;
