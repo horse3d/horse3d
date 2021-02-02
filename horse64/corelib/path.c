@@ -584,8 +584,7 @@ int pathlib_remove(
                     // filled in files again.
                     return vmexec_ReturnFuncError(
                         vmthread, H64STDERROR_RESOURCEERROR,
-                        "recursive delete encountered unexpected re-added "
-                        "file"
+                        "target directory is not empty"
                     );
                 } else if (error == FS32_ERR_NOPERMISSION) {
                     return vmexec_ReturnFuncError(

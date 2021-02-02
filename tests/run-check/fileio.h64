@@ -25,7 +25,7 @@ func main {
 
     # Go back to initial cwd, and remove our temp dir again
     path.set_cwd(orig_cwd)
-    path.remove(p)
+    path.remove(p, recursive=yes)
     assert(not path.exists(p))
 }
 
