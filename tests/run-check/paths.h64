@@ -1,0 +1,25 @@
+
+import path from core.horse64.org
+
+func main {
+    var orig_cwd = path.get_cwd()
+
+    # Create a temp folder and go inside:
+    var p = path.create_tmp_dir(prefix="paths_h64_check")
+    print("1/4 created a tmp folder: " + p)
+    assert(path.exists(p))
+    assert(p.contains("paths_h64_check"))
+    path.set_cwd(p)
+    var p2 = path.get_cwd()
+    print("2/4 changed current working directory: " + p2)
+    assert(path.normalize(path.to_abs(p)) == path.normalize(path.to_abs(p2)))
+
+    # Go back to initial cwd, and remove our temp dir again
+    path.set_cwd(orig_cwd)
+    path.remove(p)
+    print("3/4 removed directory again")
+    assert(not path.exists(p))
+    print("4/4 success!")
+}
+
+# expected result value: 0

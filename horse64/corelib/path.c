@@ -202,6 +202,8 @@ int pathlib_exists(
     DELREF_NONHEAP(vcresult);
     valuecontent_Free(vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
+    vcresult->type = H64VALTYPE_BOOL;
+    vcresult->int_value = (result != 0);
     return 1;
 }
 
