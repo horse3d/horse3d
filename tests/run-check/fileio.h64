@@ -12,7 +12,7 @@ func main {
 
     # Folder listing should be empty:
     assert(path.list("").len == 0)
-    with io.open("testfile.txt", "w") as f {
+    with io.open("testfile.txt", write=yes) as f {
         f.write("test data")
     }
     assert(path.list("").len == 1)

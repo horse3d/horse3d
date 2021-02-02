@@ -111,7 +111,7 @@ int scope_AddItem(
         h64scope *scope, const char *identifier_ref,
         h64expression *expr, int *outofmemory
         ) {
-    // Try to add to existing entry:
+    // Check against existing entry:
     h64scopedef *def = scope_QueryItem(
         scope, identifier_ref, SCOPEQUERY_FLAG_QUERYCLASSITEMS
     );

@@ -5253,7 +5253,7 @@ int ast_ParseExprStmt(
             // Add with clause to scope:
             int scopeoom = 0;
             if (!scope_AddItem(
-                    parsethis->scope,
+                    &expr->withstmt.scope,
                     withclause->withclause.withitem_identifier,
                     withclause, &scopeoom
                     )) {

@@ -2,6 +2,7 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "valuecontentstruct.h"
 #define _FILE_OFFSET_BITS 64
 #ifndef __USE_LARGEFILE64
 #define __USE_LARGEFILE64 1
@@ -84,30 +85,18 @@ int iolib_open(
      *
      * @func open
      * @param path the path of the file to be opened
-     * @param read=yes whether the file should be opened for @see(
-              reading|io.file.read).
+     * @param read=(yes or no) whether the file should be opened for
+              @see(reading|io.file.read). Will default to yes if
+              all other options like write and append are unset or no.
      * @param write=no whether the file should be opened for @see(
-              writing|io.file.write).
-     * @param append=io.APPEND_DEFAULT whether if opening writing, the
+              writing|io.file.write), defaults to no.
+     * @param append=(yes or no) whether if opening writing, the
               writing should always be appended to the end.
-              For opening a file for reading only, this option is ignored.
-
-              **append=yes:** the file that is opened for writing will
-              keep its contents, and reading will occur from the start.
-              However, any write will always append to its end, ignoring
-              @see{seeks|io.file.seek}. The file must exist when opened
-              even if writing is enabled, or you'll get an @see{IOError}.
-
-              **append=no:** if writing is enabled the file will
-              be cleared on open, and both reading and writing will
-              occur from the start of the file, or wherever you
-              @see{seek|io.file.seek} to. The file will be creeated if
-              it doesn't exist yet and was opened for writing, otherwise
-              a missing file causes an @see{IOError}.
-
-              **append=io.APPEND_DEFAULT:** make append mode depend
-              on write/read. A file opened for both will use
-              append=yes, all other cases use append=no.
+              Usually, this defaults to no.
+              When a file is explicitly opened with BOTH write=yes and
+              read=yes, then however this defaults to yes (such that
+              the file isn't also wiped).
+              When a file isn't opened for writing, this is ignored.
      * @param binary=no whether the file should be read as unchanged
               binary which will return @see(bytes) when reading, or
               otherwise it will be decoded from utf-8 and return a
@@ -152,51 +141,57 @@ int iolib_open(
         );
     }
 
+    valuecontent *vcargread = STACK_ENTRY(vmthread->stack, 1);
+    valuecontent *vcargwrite = STACK_ENTRY(vmthread->stack, 1);
+    valuecontent *vcargappend = STACK_ENTRY(vmthread->stack, 1);
+
     uint8_t flags = 0;
     int mode_read = 1;
     int mode_write = 0;
     int mode_append = 2;
     {
-        valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 1);
-        if (vcarg->type != H64VALTYPE_BOOL &&
-                vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG) {
+        if (vcargread->type != H64VALTYPE_BOOL &&
+                vcargread->type != H64VALTYPE_UNSPECIFIED_KWARG) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
                 "read option must be a boolean"
             );
         }
-        if (vcarg->type == H64VALTYPE_UNSPECIFIED_KWARG)
-            mode_read = 1;
-        else
-            mode_read = (vcarg->int_value != 0);
+        if (vcargread->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+            if (vcargwrite->type == H64VALTYPE_UNSPECIFIED_KWARG ||
+                    (vcargwrite->type == H64VALTYPE_BOOL &&
+                     vcargwrite->int_value == 0)) {
+                mode_read = 1;
+            } else {
+                mode_read = 0;
+            }
+        } else {
+            mode_read = (vcargread->int_value != 0);
+        }
     }
     {
-        valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 2);
-        if (vcarg->type != H64VALTYPE_BOOL &&
-                vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG) {
+        if (vcargwrite->type != H64VALTYPE_BOOL &&
+                vcargwrite->type != H64VALTYPE_UNSPECIFIED_KWARG) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
                 "write option must be a boolean"
             );
         }
-        if (vcarg->type == H64VALTYPE_UNSPECIFIED_KWARG)
+        if (vcargwrite->type == H64VALTYPE_UNSPECIFIED_KWARG)
             mode_write = 0;
         else
-            mode_write = (vcarg->int_value != 0);
+            mode_write = (vcargwrite->int_value != 0);
     }
     {
-        valuecontent *vcarg = STACK_ENTRY(vmthread->stack, 3);
-        if (vcarg->type != H64VALTYPE_BOOL && (
-                vcarg->type != H64VALTYPE_INT64 ||
-                vcarg->int_value != 2) &&
-                vcarg->type != H64VALTYPE_UNSPECIFIED_KWARG) {
+        if (vcargappend->type != H64VALTYPE_BOOL &&
+                vcargappend->type != H64VALTYPE_UNSPECIFIED_KWARG) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_TYPEERROR,
-                "append option must be a boolean or io.APPEND_DEFAULT"
+                "append option must be a boolean"
             );
         }
-        if (vcarg->type == H64VALTYPE_BOOL)
-            mode_append = (vcarg->int_value != 0);
+        if (vcargappend->type == H64VALTYPE_BOOL)
+            mode_append = (vcargappend->int_value != 0);
         else
             mode_append = (mode_write && mode_read);
     }
