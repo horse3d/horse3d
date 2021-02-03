@@ -1957,6 +1957,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             int i = 0;
             while (i < inst->kwargs * 2) {
                 int64_t idx = stack_args_bottom + inst->posargs + i;
+                // Each kw arg is at slot i, with value at i + 1.
                 assert(STACK_ENTRY(stack, idx)->type == H64VALTYPE_INT64);
                 if (i > 0) {
                     assert(STACK_ENTRY(stack, idx)->int_value >=
@@ -2133,9 +2134,9 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 memset(
                     STACK_ENTRY(stack, (int64_t)i * 2 + inst->posargs +
                                        stack_args_bottom),
-                    0, sizeof(valuecontent)
+                    0, sizeof(valuecontent) * 2  // clear both nameidx + value
                 );
-                i += 2;
+                i += 1;
             }
             // Now cut off the stack above where we need to change it:
             int result = stack_ToSize(
