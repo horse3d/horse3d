@@ -23,6 +23,22 @@ func main {
     }
     assert(data == "test data")
 
+    # Append data but now in binary mode:
+    with io.open("testfile.txt", write=yes, append=yes,
+                 binary=yes) as f {
+        f.write(b"\xC3\xB6")  # small o with dots (umlaut 'ö')
+    }
+
+    # Read it again, but this time partial:
+    with io.open("testfile.txt") as f {  # implies binary=no!
+        data = f.read(len="test data".len)
+        assert(data == "test data")
+        data = f.read(len=1)
+        # ^ should be TWO BYTES (for umlaut, in binary=no mode!)
+        assert(data == "ö")
+        assert(f.read() == "")  # since we should be at end of file
+    }
+
     # Go back to initial cwd, and remove our temp dir again
     path.set_cwd(orig_cwd)
     path.remove(p, recursive=yes)

@@ -676,7 +676,7 @@ h64archive *archive_FromFilePathSlice(
     {
         int64_t headerlen = 0;
         h64wchar header[32];
-        if (pathorurilen > (signed)strlen("file://")) {
+        if (pathorurilen > (int64_t)strlen("file://")) {
             memcpy(
                 header, pathoruri,
                 sizeof(*header) * strlen("file://")

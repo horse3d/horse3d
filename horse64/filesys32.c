@@ -1854,7 +1854,7 @@ h64wchar *filesys32_GetSysTempdir(int64_t *output_len) {
         tempbufw[rval] = '\0';
         break;
     }
-    assert(wcslen(tempbufw) < (unsigned)tempbufwsize - 2);
+    assert(wcslen(tempbufw) < (uint64_t)tempbufwsize - 2);
     if (tempbufw[wcslen(tempbufw) - 1] != '\\') {
         tempbufw[wcslen(tempbufw) + 1] = '\0';
         tempbufw[wcslen(tempbufw)] = '\\';
@@ -2509,7 +2509,7 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
         size_t written = (
             GetModuleFileNameW(NULL, fp, MAX_PATH + 1)
         );
-        if (written >= (unsigned)fplen - 1 ||
+        if (written >= (uint64_t)fplen - 1 ||
                 GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
             fplen *= 2;
             free(fp);

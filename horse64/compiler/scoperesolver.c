@@ -1566,7 +1566,7 @@ int scoperesolver_BuildASTGlobalStorage(
         project_path = NULL;
 
         // Strip away file extension and normalize:
-        if (module_path_len > (signed)strlen(".h64") && (
+        if (module_path_len > (int64_t)strlen(".h64") && (
                 h64casecmp_u32u8(
                     module_path + module_path_len - strlen(".h64"),
                     strlen(".h64"), ".h64") == 0)) {

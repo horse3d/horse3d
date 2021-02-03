@@ -23,7 +23,7 @@ h64wchar *_u32(const char *u8) {
         _uri32arglen = 0;
         return NULL;
     }
-    if ((unsigned)asu32len >
+    if ((uint64_t)asu32len >
             sizeof(_uri32arg) / sizeof(_uri32arg[0])) {
         asu32len = (
             sizeof(_uri32arg) / sizeof(_uri32arg[0])
@@ -43,7 +43,7 @@ int64_t _u32len(const char *u8) {
         return 0;
     }
     free(asu32);
-    if ((unsigned)asu32len >
+    if ((uint64_t)asu32len >
             sizeof(_uri32arg) / sizeof(_uri32arg[0])) {
         asu32len = (
             sizeof(_uri32arg) / sizeof(_uri32arg[0])

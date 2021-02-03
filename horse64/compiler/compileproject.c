@@ -239,7 +239,7 @@ uri32info *compileproject_URIRelPathToBase(
             if (outofmemory) *outofmemory = 1;
             return NULL;
         }
-        if (newpathlen >= (signed)strlen("../") &&
+        if (newpathlen >= (int64_t)strlen("../") &&
                 newpath[0] == '.' && newpath[1] == '.' &&
                 (newpath[2] == '/'
                 #if defined(_WIN32) || defined(_WIN64)
@@ -555,7 +555,7 @@ uri32info *compileproject_GetFileSubProjectURI(
         if (i == 1)
             memcpy(hmodules_path, "horse_modules",
                    strlen("horse_modules") + 1);
-        if (uinfo->pathlen <= (signed)strlen(hmodules_path)) {
+        if (uinfo->pathlen <= (int64_t)strlen(hmodules_path)) {
             // Too short to have horse_modules + sub_folder in path.
             i++;
             continue;

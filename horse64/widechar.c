@@ -907,7 +907,7 @@ const h64wchar *strstr_u32u8(
         int nomatch = 0;
         int soffset = 0;
         int findoffset = 0;
-        while (findoffset < (signed)strlen(find)) {
+        while (findoffset < (int64_t)strlen(find)) {
             // Get length of next code point in 'find':
             int charlen = utf8_char_len(
                 (const uint8_t *)find + findoffset

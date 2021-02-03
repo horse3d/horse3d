@@ -273,7 +273,7 @@ void threadlocalstorage_CleanForThread(uint64_t tid) {
         cleaned_something = 0;
         mutex_Lock(_tls_type_access);
         uint32_t type_id = 0;
-        while (type_id < (unsigned)_tls_type_count) {
+        while (type_id < (uint64_t)_tls_type_count) {
             mutex_Release(_tls_type_access);
             cleaned_something = (
                 cleaned_something ||
@@ -290,7 +290,7 @@ void threadlocalstorage_CleanForThread(uint64_t tid) {
     // back up in parallel after the above cleaning ended)
     mutex_Lock(_tls_type_access);
     uint32_t type_id = 0;
-    while (type_id < (unsigned)_tls_type_count) {
+    while (type_id < (uint64_t)_tls_type_count) {
         mutex_Release(_tls_type_access);
         int unallocate_result = (
             threadlocalstorage_UnallocateTypeForThread(tid, type_id)

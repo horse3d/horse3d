@@ -660,7 +660,7 @@ int iolib_filewrite(
         writebyteslen = (
             ((h64gcvalue *)vcwriteobj->ptr_value)->bytes_val.len
         );
-    } else if (vcwriteobj->type == H64VALTYPE_SHORTSTR) {
+    } else if (vcwriteobj->type == H64VALTYPE_SHORTBYTES) {
         writebytes = vcwriteobj->shortbytes_value;
         writebyteslen = vcwriteobj->shortbytes_len;
     }
@@ -788,6 +788,62 @@ int iolib_filewrite(
     }
 }
 
+void _count_actual_letters_in_raw(
+        const uint8_t *raw, int64_t rawlen,
+        h64wchar *decodebuf,
+        int64_t *codepoints, int64_t *letters,
+        int *last_codepoint_was_incomplete
+        ) {
+    *last_codepoint_was_incomplete = 0;
+    int64_t cpcount = 0;
+    int64_t lettercount = 0;
+    int64_t i = 0;
+    while (i < rawlen) {
+        int charlen = utf8_char_len(
+            (const uint8_t *)(raw + i)
+        );
+        h64wchar cp = 0;
+        if (charlen <= 0)
+            charlen = 1;
+        if (charlen + i > rawlen) {
+            charlen = 1;
+            *last_codepoint_was_incomplete = 1;
+        }
+        uint8_t *p = (uint8_t *)(raw + i);
+        if (charlen <= 1 && *p > 127) {
+            // Invalid byte, surrogate escape:
+            cp = (0xDC80ULL + (
+                (h64wchar)((uint8_t)*p)
+            ));
+        } else if (charlen == 1) {
+            cp = *p;
+        } else {
+            int out_len = 0;
+            int cpresult = get_utf8_codepoint(
+                p, charlen, &cp, &out_len
+            );
+            if (!cpresult) {
+                charlen = 1;
+                cp = (0xDC80ULL + (
+                    (h64wchar)((uint8_t)*p)
+                ));
+            } else {
+                assert(out_len == charlen);
+            }
+        }
+        decodebuf[cpcount] = cp;
+        cpcount++;
+        i += charlen;
+    }
+    if (cpcount > 0) {
+        lettercount = utf32_letters_count(
+            decodebuf, cpcount
+        );
+    }
+    *codepoints = cpcount;
+    *letters = lettercount;
+}
+
 int iolib_fileread(
         h64vmthread *vmthread
         ) {
@@ -880,6 +936,12 @@ int iolib_fileread(
     int64_t readcount = 0;
     int readbufheap = 0;
 
+    char _stackdecodebuf[1024];
+    h64wchar *decodebuf = (h64wchar *)_stackdecodebuf;
+    int decodebufsize = 1024 / sizeof(*decodebuf);
+    int decodebuffill = 0;
+    int decodebufheap = 0;
+
     if (ferror(f)) {
         clearerr(f);
         return vmexec_ReturnFuncError(
@@ -919,6 +981,8 @@ int iolib_fileread(
                 if (!newbuf) {
                     if (readbufheap)
                         free(readbuf);
+                    if (decodebufheap)
+                        free(decodebuf);
                     return vmexec_ReturnFuncError(
                         vmthread, H64STDERROR_OUTOFMEMORYERROR,
                         "out of memory"
@@ -939,6 +1003,8 @@ int iolib_fileread(
                     if (readbuffill <= 0) {
                         if (readbufheap)
                             free(readbuf);
+                        if (decodebufheap)
+                            free(decodebuf);
                         return vmexec_ReturnFuncError(
                             vmthread, H64STDERROR_RESOURCEERROR,
                             "unknown I/O error"
@@ -949,19 +1015,151 @@ int iolib_fileread(
                 }
                 continue;
             }
+            assert(_didread > 0);
+            int64_t oldfill = readbuffill;
             readbuffill += _didread;
             if (readbinary) {
-                if (_didread >= 0)
-                    readcount += _didread;
+                readcount += _didread;
+            } else if (amount >= 0) {
+                int64_t orig_lettercount = -1;
+                int64_t orig_codepoints = -1;
+                int orig_last_cp_incomplete = 0;
+                int64_t last_stable_lettercount = -1;
+                int64_t extra_read_bytes = 0;
+                // Ok, we need to read further until we firstly
+                // have no incomplete code point, secondly letter count
+                // changes (so we know we hit the next letter.
+                int _ferrorabort = 0;
+                while (1) {
+                    // Make sure we got enough decode space:
+                    if (decodebufsize < (readbuffill - oldfill) + 3) {
+                        int64_t newsize = (
+                            (readbuffill - oldfill) + 3 + decodebufsize * 2
+                        );
+                        h64wchar *decodebufnew = NULL;
+                        if (decodebufheap) {
+                            decodebufnew = realloc(
+                                decodebuf, sizeof(*decodebuf) * newsize
+                            );
+                        } else {
+                            decodebufnew = malloc(
+                                sizeof(*decodebuf) * newsize
+                            );
+                            if (decodebufnew && decodebuffill > 0)
+                                memcpy(
+                                    decodebufnew, decodebuf,
+                                    sizeof(*decodebuf) * decodebuffill
+                                );
+                        }
+                        if (!decodebufnew) {
+                            if (readbufheap)
+                                free(readbuf);
+                            if (decodebufheap)
+                                free(decodebuf);
+                            return vmexec_ReturnFuncError(
+                                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                                "out of memory resizing decode buf"
+                            );
+                        }
+                    }
+                    // Make sure we take stock of initial data if not done:
+                    if (orig_lettercount < 0) {
+                        _count_actual_letters_in_raw(
+                            (const uint8_t *)readbuf + oldfill,
+                            readbuffill - oldfill,
+                            decodebuf, &orig_codepoints, &orig_lettercount,
+                            &orig_last_cp_incomplete
+                        );
+                        assert(orig_codepoints >= 0);
+                        assert(orig_lettercount >= 0);
+                        if (!orig_last_cp_incomplete &&
+                                last_stable_lettercount < 0) {
+                            last_stable_lettercount = orig_lettercount;
+                        }
+                    }
+                    // Read one more byte until letter count changes:
+                    int64_t _didread2 = fread(
+                        readbuf + readbuffill, 1, 1, f
+                    );
+                    if (_didread2 <= 0) {
+                        if (feof(f)) {
+                            break;
+                        } else if (ferror(f)) {
+                            clearerr(f);
+                            if (readbuffill <= 0) {
+                                if (readbufheap)
+                                    free(readbuf);
+                                if (decodebufheap)
+                                    free(decodebuf);
+                                return vmexec_ReturnFuncError(
+                                    vmthread, H64STDERROR_RESOURCEERROR,
+                                    "unknown I/O error"
+                                );
+                            }
+                            cdata->flags |= FILEOBJ_FLAGS_CACHEDUNSENTERROR;
+                            _ferrorabort = 1;
+                            break;
+                        }
+                        continue;
+                    }
+                    extra_read_bytes += _didread2;
+                    readbuffill +=_didread2;
+                    int64_t newcodepoints = -1;
+                    int64_t newletters = -1;
+                    int newlastcpincomplete = 0;
+                    _count_actual_letters_in_raw(
+                        (const uint8_t *)readbuf + oldfill,
+                        (readbuffill - oldfill),
+                        decodebuf, &newcodepoints, &newletters,
+                        &newlastcpincomplete
+                    );
+                    if (last_stable_lettercount < 0) {
+                        // We didn't have a complete last letter,
+                        // we want to complete it in any case.
+                        if (!newlastcpincomplete) {
+                            last_stable_lettercount = newletters;
+                        }
+                    } else if (newletters > last_stable_lettercount) {
+                        // Ok, this was one too far. Revert.
+                        int result = fseek64(
+                            f, -1, SEEK_CUR
+                        );
+                        if (result != 0) {
+                            if (readbufheap)
+                                free(readbuf);
+                            if (decodebufheap)
+                                free(decodebuf);
+                            return vmexec_ReturnFuncError(
+                                vmthread, H64STDERROR_RESOURCEERROR,
+                                "unknown I/O error"
+                            );
+                        }
+                        readbuffill--;
+                        extra_read_bytes--;
+                        // Ok, we should be at the end of this letter now.
+                        // Add up how many new letters we have:
+                        readcount += (newletters - 1);
+                        break;
+                    }
+                }
+                if (_ferrorabort || feof(f))
+                    break;
             }
         }
         #ifndef NDEBUG
         if (!readbinary) {
-            assert(readcount == 0 && amount < 0);
+            assert(
+                (readcount == 0 && amount < 0) ||
+                (readcount >= 0 && amount >= 0)
+            );
         }
         #endif
     } else {
         assert(0);  // FIXME: implement this code path
+    }
+    if (decodebufheap) {
+        free(decodebuf);
+        decodebuf = NULL;
     }
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);

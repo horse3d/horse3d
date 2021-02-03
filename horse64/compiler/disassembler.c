@@ -121,12 +121,13 @@ static char *_nicelywritebytes(
         const char *s, int64_t slen
         ) {
     int alloclen = -1;
-    alloclen = slen * 4 + 3;  // 1x escaped char -> \xYY
+    alloclen = slen * 4 + 5;  // 1x escaped char -> \xYY
     char *outbuf = malloc(alloclen);
     if (!outbuf)
         return NULL;
-    outbuf[0] = '\"';
-    int outfill = 1;
+    outbuf[0] = 'b';
+    outbuf[1] = '\"';
+    int outfill = 2;
     int k = 0;
     while (k < slen) {
         uint8_t c = 0;

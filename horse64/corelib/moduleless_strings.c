@@ -123,7 +123,7 @@ static int _contains_or_find(
                 charidx++;
                 int charlen = utf32_letter_len(s + i, slen - i);
                 assert(charlen > 0);
-                if ((unsigned)(paramlen) > (unsigned)(slen - i))
+                if ((uint64_t)(paramlen) > (uint64_t)(slen - i))
                     break;
                 if (memcmp(s + i, params,
                         paramlen * sizeof(*params)
@@ -196,8 +196,8 @@ static int _contains_or_find(
             int64_t found_at = -1;
             int64_t i = 0;
             while (i < slen) {
-                if ((unsigned)(paramlen) >
-                    (unsigned)(slen - i))
+                if ((uint64_t)(paramlen) >
+                        (uint64_t)(slen - i))
                     break;
                 if (memcmp(s + i, params, paramlen
                         ) == 0) {
