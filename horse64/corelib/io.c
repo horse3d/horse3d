@@ -563,6 +563,7 @@ int iolib_open(
             "out of memory allocating file object"
         );
     }
+    memset(fileobj->cdata, 0, sizeof(_fileobj_cdata));
     ((_fileobj_cdata*)fileobj->cdata)->file_handle = f;
     ((_fileobj_cdata*)fileobj->cdata)->flags = flags;
     assert(STACK_TOP(vmthread->stack) >= 1);
