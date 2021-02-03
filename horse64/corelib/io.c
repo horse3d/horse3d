@@ -1244,6 +1244,10 @@ int iolib_fileread(
             free(converted);
         gcval->str_val.refcount = 1;
         gcval->externalreferencecount = 1;
+        vmstrings_RequireLetterLen(
+            &gcval->str_val
+        );
+        cdata->text_offset += gcval->str_val.letterlen;
     } else if (readbinary && readbuffill == 0) {
         vresult->type = H64VALTYPE_SHORTBYTES;
         vresult->constpreallocbytes_len = 0;
@@ -1333,7 +1337,7 @@ int iolib_fileseek(
     } else if ((cdata->flags & FILEOBJ_FLAGS_BINARY) != 0) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
-            "cannot seek on non-binary mode file"
+            "cannot seek in non-binary mode file"
         );
     }
 
@@ -1376,9 +1380,9 @@ int iolib_fileoffset(
         h64vmthread *vmthread
         ) {
     /**
-     * Get the seek offset in the given file. When binary mode is off,
-     * even though seeking will be unavailable this function will still work
-     * and return the characters read so far.
+     * Get the seek offset in the given file, which in binary mode is
+     * the read position in bytes from the beginning of the file, and
+     * in non-binary mode is the letters read so far.
      *
      * @funcattr io.file offset
      * @raises IOERROR raised when there is a failure that is NOT expected
