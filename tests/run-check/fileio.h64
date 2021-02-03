@@ -33,10 +33,13 @@ func main {
     with io.open("testfile.txt") as f {  # implies binary=no!
         data = f.read(len="test data".len)
         assert(data == "test data")
+        assert(f.offset() == "test data".len)
         data = f.read(len=1)
         # ^ should be TWO BYTES (for umlaut, in binary=no mode!)
         assert(data == "ö")
+        assert(f.offset() == "test dataX".len)
         assert(f.read() == "")  # since we should be at end of file
+        assert(f.offset() == "test dataX".len)
     }
 
     # Go back to initial cwd, and remove our temp dir again
