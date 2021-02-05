@@ -1018,9 +1018,11 @@ int iolib_fileread(
                 readbuf = newbuf;
                 readbufsize = newreadbufsize;
             }
-            int64_t _didread = fread(
-                readbuf + readbuffill, 1, readbytes, f
-            );
+            int64_t _didread = 0;
+            if (!feof(f))
+                _didread = fread(
+                    readbuf + readbuffill, 1, readbytes, f
+                );
             if (_didread <= 0) {
                 if (feof(f)) {
                     break;
@@ -1108,9 +1110,11 @@ int iolib_fileread(
                         }
                     }
                     // Read one more byte until letter count changes:
-                    int64_t _didread2 = fread(
-                        readbuf + readbuffill, 1, 1, f
-                    );
+                    int64_t _didread2 = 0;
+                    if (!feof(f))
+                        _didread2 = fread(
+                            readbuf + readbuffill, 1, 1, f
+                        );
                     if (_didread2 <= 0) {
                         if (feof(f)) {
                             // See if we must revert:
@@ -1246,6 +1250,7 @@ int iolib_fileread(
                                 "unknown I/O error"
                             );
                         }
+                        clearerr(f);
                         readbuffill -= revert_dist;
                         assert(readbuffill > 0);
                         extra_read_bytes -= revert_dist;
@@ -1515,6 +1520,7 @@ int iolib_fileseek(
             "unexpected seek failure"
         );
     }
+    clearerr(cdata->file_handle);
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);
