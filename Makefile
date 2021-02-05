@@ -137,6 +137,7 @@ veryclean: clean
 	rm -f $(BINNAME)-*.exe $(BINNAME)-*.bin
 	cd $(OPENSSLPATH) && rm -f lib*.a
 	cd $(PHYSFSPATH) && rm -f libphysfs.a
+	cd $(MINIZPATH) && rm -f ./_build/CMakeCache.txt && rm -rf ./include/miniz/
 
 install:
 	echo "Use horp to install horsec. Or just run the horsec binary directly."
