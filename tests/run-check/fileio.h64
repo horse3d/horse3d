@@ -73,6 +73,10 @@ func main {
         s = f.read(len=1)
         assert(s.as_bytes == b"\xC3")
         s = f.read(len=1)
+        if s.as_bytes != b"\xC3\uE0067" {
+            print("ERROR: this assert will fail, wrong value: " +
+                s.as_bytes.as_str)
+        }
         assert(s.as_bytes == b"\xC3\uE0067")
         s = f.read(len=1)
         assert(s.as_bytes == b"\xC3")
