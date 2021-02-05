@@ -24,6 +24,7 @@
 
 // The equivalents to the unicode data header "extern" refs:
 uint8_t *_widechartbl_ismodifier = NULL;
+uint8_t *_widechartbl_iscombining = NULL;
 uint8_t *_widechartbl_istag = NULL;
 int64_t *_widechartbl_lowercp = NULL;
 int64_t *_widechartbl_uppercp = NULL;
@@ -53,6 +54,27 @@ void _load_unicode_data() {
             0, sizeof(*_widechartbl_ismodifier) *
             _widechartbl_arraylen,
             (char *)_widechartbl_ismodifier,
+            VFSFLAG_NO_REALDISK_ACCESS))
+        goto loadfail;
+
+    if (!vfs_ExistsEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_iscombining.dat",
+            &_exists, VFSFLAG_NO_REALDISK_ACCESS
+            ) || !_exists)
+        goto loadfail;
+    _widechartbl_iscombining = malloc(
+        sizeof(*_widechartbl_iscombining) *
+        _widechartbl_arraylen
+    );
+    if (!_widechartbl_iscombining)
+        goto loadfail;
+    if (!vfs_GetBytesEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_iscombining.dat",
+            0, sizeof(*_widechartbl_iscombining) *
+            _widechartbl_arraylen,
+            (char *)_widechartbl_iscombining,
             VFSFLAG_NO_REALDISK_ACCESS))
         goto loadfail;
 
@@ -190,27 +212,41 @@ int64_t utf32_letter_len(
         len++;
         sdata_len--;
     }
-    // Count follow-up tags as same letter:
-    if (unlikely(sdata_len > 0 && sdata[0] >= 0 &&
-            sdata[0] <= _widechartbl_highest_cp &&
-            _widechartbl_istag[sdata[0]])) {
-        sdata++;
-        sdata_len--;
-        len++;
-        while (unlikely(sdata_len > 0 &&
-                *sdata >= 0 &&
-                *sdata <= _widechartbl_highest_cp &&
-                _widechartbl_istag[sdata[0]] &&
-                sdata[0] != 0xE007FLL)) {
+
+    while (1) {
+        // Count follow-up tags as same letter:
+        if (unlikely(sdata_len > 0 && sdata[0] >= 0 &&
+                sdata[0] <= _widechartbl_highest_cp &&
+                _widechartbl_istag[sdata[0]])) {
             sdata++;
             sdata_len--;
             len++;
-        }
-        if (likely(sdata_len > 0 &&
-                *sdata == 0xE007FLL)) {  // cancel tag
+            while (unlikely(sdata_len > 0 &&
+                    *sdata >= 0 &&
+                    *sdata <= _widechartbl_highest_cp &&
+                    _widechartbl_istag[sdata[0]] &&
+                    sdata[0] != 0xE007FLL)) {
+                sdata++;
+                sdata_len--;
+                len++;
+            }
+            if (likely(sdata_len > 0 &&
+                    *sdata == 0xE007FLL)) {  // cancel tag
+                sdata++;
+                sdata_len--;
+                len++;
+            }
+        // Count combining characters into the same letter:
+        } else if (unlikely(sdata_len > 0 &&
+                sdata[0] >= 0 &&
+                sdata[0] <= _widechartbl_highest_cp &&
+                _widechartbl_iscombining[sdata[0]])) {
             sdata++;
             sdata_len--;
             len++;
+        } else {
+            // Nothing else that we recognize? Bail.
+            break;
         }
     }
     return len;

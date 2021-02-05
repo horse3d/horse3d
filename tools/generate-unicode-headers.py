@@ -48,7 +48,9 @@ with open(os.path.join(
             (int(entries[13].strip(), 16) if   # lower case code point, or -1
                 len(entries[13].strip()) > 0 else -1),
             (int(entries[12].strip(), 16) if   # upper case code point, or -1
-                len(entries[12].strip()) > 0 else -1)
+                len(entries[12].strip()) > 0 else -1),
+            (True if entries[1].strip().upper().   # combining (true/false)
+                startswith("COMBINING ") else False),
         )
         #print(str(chars[codepoint]))
         if smallest_cp_seen is None or codepoint < smallest_cp_seen:
@@ -79,17 +81,31 @@ with open(os.path.join(
     f.write("extern uint8_t *_widechartbl_istag;");
     f.write("extern int64_t *_widechartbl_lowercp;");
     f.write("extern int64_t *_widechartbl_uppercp;");
+    f.write("extern int64_t *_widechartbl_iscombining;");
 
 arraylen = (highest_cp_seen - smallest_cp_seen) + 1
 
 with open(os.path.join(
         os.path.abspath(os.path.dirname(__file__)),
-        "..", "vendor", "unicode", "unicode_data___widechartbl_ismodifier.dat"),
+            "..", "vendor", "unicode",
+            "unicode_data___widechartbl_ismodifier.dat"),
         "wb") as f:
     i = smallest_cp_seen
     while i <= highest_cp_seen:
         f.write(struct.pack(
             "<B", 1 if i in chars and chars[i][2] else 0
+        ))
+        i += 1
+
+with open(os.path.join(
+        os.path.abspath(os.path.dirname(__file__)),
+            "..", "vendor", "unicode",
+            "unicode_data___widechartbl_iscombining.dat"),
+        "wb") as f:
+    i = smallest_cp_seen
+    while i <= highest_cp_seen:
+        f.write(struct.pack(
+            "<B", 1 if i in chars and chars[i][6] else 0
         ))
         i += 1
 
