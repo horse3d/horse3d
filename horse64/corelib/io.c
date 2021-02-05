@@ -1116,7 +1116,8 @@ int iolib_fileread(
                             readbuf + readbuffill, 1, 1, f
                         );
                     if (_didread2 <= 0) {
-                        if (feof(f)) {
+                        int neederrorrevert = 0;
+                        {
                             // See if we must revert:
                             int64_t newcodepoints = -1;
                             int64_t newletters = -1;
@@ -1135,12 +1136,18 @@ int iolib_fileread(
                                 // Our last pre-EOF addition can not be
                                 // considered a valid appendage that counts
                                 // into same letter. -> must exclude it
-                                goto dorevert;
+                                neederrorrevert = 1;
                             }
-                            break;
-                        } else if (ferror(f)) {
+                        }
+                        if (feof(f) && neederrorrevert)
+                            goto dorevert;
+                        if (ferror(f)) {
                             clearerr(f);
-                            if (readbuffill <= 0) {
+                            if (readbuffill <= 0 ||
+                                    neederrorrevert  // We cannot possibly
+                                        // resolve this situation because
+                                        // reverting might not work. -> error
+                                    ) {
                                 if (readbufheap)
                                     free(readbuf);
                                 if (decodebufheap)
@@ -1154,7 +1161,7 @@ int iolib_fileread(
                             _ferrorabort = 1;
                             break;
                         }
-                        continue;
+                        break;  // must be EOF then.
                     }
                     // Ok, see how what we've read changes letter count:
                     extra_read_bytes += _didread2;
