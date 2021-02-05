@@ -792,13 +792,17 @@ int iolib_filewrite(
 void _count_actual_letters_in_raw(
         const uint8_t *raw, int64_t rawlen,
         h64wchar *decodebuf,
+        int64_t consider_all_valid_upto,
         int64_t *codepoints, int64_t *letters,
-        int *last_codepoint_was_incomplete
+        int *last_codepoint_was_incomplete,
+        int *endsinmultipleinvalid
         ) {
     *last_codepoint_was_incomplete = 0;
+    *endsinmultipleinvalid = 0;
     int64_t cpcount = 0;
     int64_t lettercount = 0;
     int64_t i = 0;
+    int previouswasinvalid = 0;
     while (i < rawlen) {
         int charlen = utf8_char_len(
             (const uint8_t *)(raw + i)
@@ -816,19 +820,40 @@ void _count_actual_letters_in_raw(
             cp = (0xDC80ULL + (
                 (h64wchar)((uint8_t)*p)
             ));
+            decodebuf[cpcount] = cp;
+            cpcount++;
+            i += 1;
+            while (i < rawlen) {  // Finish incomplete code point:
+                uint8_t *p = (uint8_t *)(raw + i);
+                cp = (0xDC80ULL + (
+                    (h64wchar)((uint8_t)*p)
+                ));
+                decodebuf[cpcount] = cp;
+                cpcount++;
+                i += 1;
+            }
+            *endsinmultipleinvalid = previouswasinvalid;
+            break;
         } else if (charlen == 1) {
             cp = *p;
+            assert(cp <= 127);
+            previouswasinvalid = 0;
         } else {
             int out_len = 0;
             int cpresult = get_utf8_codepoint(
                 p, charlen, &cp, &out_len
             );
             if (!cpresult) {
+                assert(*((uint8_t*)p) > 127);
                 charlen = 1;
+                previouswasinvalid = (
+                    i > consider_all_valid_upto
+                );
                 cp = (0xDC80ULL + (
                     (h64wchar)((uint8_t)*p)
                 ));
             } else {
+                previouswasinvalid = 0;
                 assert(out_len == charlen);
             }
         }
@@ -986,7 +1011,7 @@ int iolib_fileread(
                         free(decodebuf);
                     return vmexec_ReturnFuncError(
                         vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                        "out of memory"
+                        "out of memory resizing read buf"
                     );
                 }
                 readbufheap = 1;
@@ -1026,6 +1051,7 @@ int iolib_fileread(
                 int64_t orig_codepoints = -1;
                 int orig_last_cp_incomplete = 0;
                 int64_t last_stable_lettercount = -1;
+                int64_t last_stable_lettercount_at = -1;
                 int64_t extra_read_bytes = 0;
                 // Ok, we need to read further until we firstly
                 // have no incomplete code point, secondly letter count
@@ -1065,17 +1091,20 @@ int iolib_fileread(
                     }
                     // Make sure we take stock of initial data if not done:
                     if (orig_lettercount < 0) {
+                        int endsinmultipleinvalid = 0;
                         _count_actual_letters_in_raw(
                             (const uint8_t *)readbuf + oldfill,
                             readbuffill - oldfill,
-                            decodebuf, &orig_codepoints, &orig_lettercount,
-                            &orig_last_cp_incomplete
+                            decodebuf, last_stable_lettercount_at,
+                            &orig_codepoints, &orig_lettercount,
+                            &orig_last_cp_incomplete, &endsinmultipleinvalid
                         );
                         assert(orig_codepoints >= 0);
                         assert(orig_lettercount >= 0);
                         if (!orig_last_cp_incomplete &&
                                 last_stable_lettercount < 0) {
                             last_stable_lettercount = orig_lettercount;
+                            last_stable_lettercount_at = readbuffill;
                         }
                     }
                     // Read one more byte until letter count changes:
@@ -1084,6 +1113,26 @@ int iolib_fileread(
                     );
                     if (_didread2 <= 0) {
                         if (feof(f)) {
+                            // See if we must revert:
+                            int64_t newcodepoints = -1;
+                            int64_t newletters = -1;
+                            int endsinmultipleinvalid = 0;
+                            int newlastcpincomplete = 0;
+                            _count_actual_letters_in_raw(
+                                (const uint8_t *)readbuf + oldfill,
+                                (readbuffill - oldfill),
+                                decodebuf, last_stable_lettercount_at,
+                                &newcodepoints, &newletters,
+                                &newlastcpincomplete, &endsinmultipleinvalid
+                            );
+                            if (last_stable_lettercount >= 0 &&
+                                    newlastcpincomplete &&
+                                    newletters > last_stable_lettercount) {
+                                // Our last pre-EOF addition can not be
+                                // considered a valid appendage that counts
+                                // into same letter. -> must exclude it
+                                goto dorevert;
+                            }
                             break;
                         } else if (ferror(f)) {
                             clearerr(f);
@@ -1103,27 +1152,89 @@ int iolib_fileread(
                         }
                         continue;
                     }
+                    // Ok, see how what we've read changes letter count:
                     extra_read_bytes += _didread2;
                     readbuffill +=_didread2;
                     int64_t newcodepoints = -1;
                     int64_t newletters = -1;
+                    int endsinmultipleinvalid = 0;
                     int newlastcpincomplete = 0;
                     _count_actual_letters_in_raw(
                         (const uint8_t *)readbuf + oldfill,
                         (readbuffill - oldfill),
-                        decodebuf, &newcodepoints, &newletters,
-                        &newlastcpincomplete
+                        decodebuf, last_stable_lettercount_at,
+                        &newcodepoints, &newletters,
+                        &newlastcpincomplete, &endsinmultipleinvalid
                     );
-                    if (last_stable_lettercount < 0) {
-                        // We didn't have a complete last letter,
-                        // we want to complete it in any case.
-                        if (!newlastcpincomplete) {
-                            last_stable_lettercount = newletters;
-                        }
-                    } else if (newletters > last_stable_lettercount) {
-                        // Ok, this was one too far. Revert.
+                    if (endsinmultipleinvalid &&
+                            last_stable_lettercount < 0) {
+                        // Since we got two unrelated broken ones
+                        // after one another, the first broken one
+                        // now counts as a separate completed char.
+                        // (Since the first broken one for sure isn't
+                        // completed/repaired by anything after, so it's
+                        // always going to be a singled out broken item.)
+                        assert(readbuffill >= oldfill + 2);
+                        last_stable_lettercount_at = readbuffill - 1;
+                        // Count how many letters that would be:
+                        int64_t _innercodepoints = -1;
+                        int64_t _innerletters = -1;
+                        int _innerendsinmultipleinvalid = 0;
+                        int _innernewlastcpincomplete = 0;
+                        _count_actual_letters_in_raw(
+                            (const uint8_t *)readbuf + oldfill,
+                            (last_stable_lettercount_at - oldfill),
+                            decodebuf, last_stable_lettercount_at,
+                            &_innercodepoints, &_innerletters,
+                            &_innernewlastcpincomplete,
+                            &_innerendsinmultipleinvalid
+                        );
+                        last_stable_lettercount = _innerletters;
+                        assert(_innerletters >= 0);
+                        // Update the statistics since everything up to
+                        // 'last_stable_lettercount_at' (which we just changed)
+                        // must be considered valid characters, such that
+                        // an invalid broken standalone glyph taken as stable
+                        // end can have a valid multibyte unicode tag
+                        // as a follow-up (which would otherwise trigger
+                        // endsismultipleinvalid=1):
+                        _count_actual_letters_in_raw(  // repeat from before.
+                            (const uint8_t *)readbuf + oldfill,
+                            (readbuffill - oldfill),
+                            decodebuf, last_stable_lettercount_at,
+                            &newcodepoints, &newletters,
+                            &newlastcpincomplete, &endsinmultipleinvalid
+                        );
+                    }
+                    if (last_stable_lettercount < 0 &&
+                            !endsinmultipleinvalid &&
+                            !newlastcpincomplete) {
+                        // We didn't have a complete last letter yet,
+                        // so take this even if it might be not a full
+                        // glyph/letter as a minimum base.
+                        last_stable_lettercount_at = readbuffill;
+                        last_stable_lettercount = newletters;
+                    } else if (newletters == last_stable_lettercount &&
+                            !newlastcpincomplete) {
+                        // This didn't increase letter count and it's
+                        // not obviously incomplete/broken, so count it
+                        // as 'established' part of our previous chunk
+                        // (so we don't revert further back later):
+                        last_stable_lettercount_at = readbuffill;
+                        last_stable_lettercount = newletters;
+                    } else if (last_stable_lettercount >= 0 &&
+                            newletters > last_stable_lettercount &&
+                            (!newlastcpincomplete ||
+                             endsinmultipleinvalid)) {
+                        dorevert:
+                        // Ok, this was too far. Revert.
+                        assert(last_stable_lettercount_at >= 0);
+                        int64_t revert_dist = (
+                            readbuffill - last_stable_lettercount_at
+                        );
+                        assert(revert_dist > 0);
                         int result = fseek64(
-                            f, -1, SEEK_CUR
+                            f, -revert_dist, SEEK_CUR
                         );
                         if (result != 0) {
                             if (readbufheap)
@@ -1135,8 +1246,9 @@ int iolib_fileread(
                                 "unknown I/O error"
                             );
                         }
-                        readbuffill--;
-                        extra_read_bytes--;
+                        readbuffill -= revert_dist;
+                        assert(readbuffill > 0);
+                        extra_read_bytes -= revert_dist;
                         // Ok, we should be at the end of this letter now.
                         // Add up how many new letters we have:
                         readcount += (newletters - 1);
@@ -1156,7 +1268,42 @@ int iolib_fileread(
         }
         #endif
     } else {
-        assert(0);  // FIXME: implement this code path
+        assert(amount > 0);
+        if (amount > readbufsize) {
+            if (readbufheap)
+                free(readbuf);
+            readbufheap = 1;
+            readbuf = malloc(
+                sizeof(*readbuf) * readbufsize
+            );
+            if (!readbuf) {
+                if (decodebufheap)
+                    free(decodebuf);
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                    "out of memory resizing read buf"
+                );
+            }
+        }
+        int64_t _didread = fread(
+            readbuf, 1, amount, f
+        );
+        if (_didread < 0) {
+            if (feof(f)) {
+                _didread = 0;
+            } else if (ferror(f)) {
+                clearerr(f);
+                if (readbufheap)
+                    free(readbuf);
+                if (decodebufheap)
+                    free(decodebuf);
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_RESOURCEERROR,
+                    "unknown I/O error"
+                );
+            }
+        }
+        readbuffill = _didread;
     }
     if (decodebufheap) {
         free(decodebuf);

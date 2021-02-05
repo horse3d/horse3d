@@ -42,6 +42,44 @@ func main {
         assert(f.offset() == "test dataX".len)
     }
 
+    # Append a really complicated unicode flag:
+    with io.open("testfile.txt", write=yes, append=yes, binary=yes)
+            as f {
+        f.write(b"\u1F3F4\uE0067"
+            b"\uE0062\uE0065\uE006E\uE0067\uE007F")
+        f.write(b".")  # a dot because why not!
+    }
+
+    # Test partial reading again:
+    with io.open("testfile.txt") as f {  # implies binary=no!
+        data = f.read(len="test dataX".len)
+        assert(data == "test dataö")
+        var emoji = f.read(len=1)
+        assert(emoji.as_bytes == b"\u1F3F4\uE0067"
+            b"\uE0062\uE0065\uE006E\uE0067\uE007F")
+        var dot = f.read()
+        assert(dot == ".")
+    }
+
+    # Test reading with broken code points:
+    with io.open("testfile.txt", write=yes, binary=yes)
+            as f {
+        f.write(b"\u1F3F4\xC3\xC3\uE0067\xC3")
+        # ^ begin of multi-cp glyph but then broken singular \xC3 twice.
+    }
+    with io.open("testfile.txt", allow_bad_encoding=yes) as f {
+        var s = f.read(len=1)
+        assert(s.as_bytes == b"\u1F3F4")
+        s = f.read(len=1)
+        assert(s.as_bytes == b"\xC3")
+        s = f.read(len=1)
+        assert(s.as_bytes == b"\xC3\uE0067")
+        s = f.read(len=1)
+        assert(s.as_bytes == b"\xC3")
+        s = f.read(len=1)
+        assert(s.as_bytes == b"")
+    }
+
     # Go back to initial cwd, and remove our temp dir again
     path.set_cwd(orig_cwd)
     path.remove(p, recursive=yes)
