@@ -879,8 +879,8 @@ int iolib_fileread(
      * @funcattr file read
      * @param len=-1 amount of bytes/letters to read. When
      *    the file was opened with binary=yes then amount will be
-     *    interpreted as bytes, otherwise with binary=no as full
-     *    decoded Unicode characters. Specify -1 to read
+     *    interpreted as bytes, otherwise with binary=no as fully
+     *    decoded text (decoded from utf-8). Specify -1 to read
      *    everything until the end of the file.
      * @returns the data read, which is a @see{bytes} value when the
      *    file was opened with binary=yes, otherwise a @see{string}
