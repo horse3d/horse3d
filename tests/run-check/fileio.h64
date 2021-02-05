@@ -79,6 +79,15 @@ func main {
         s = f.read(len=1)
         assert(s.as_bytes == b"")
     }
+    var hadencodingerror = no
+    do {  # finally, test EncodingError:
+        with io.open("testfile.txt") as f {
+            var s = f.read()
+        }
+    } rescue EncodingError {
+        hadencodingerror = yes
+    }
+    assert(hadencodingerror)
 
     # Go back to initial cwd, and remove our temp dir again
     path.set_cwd(orig_cwd)
