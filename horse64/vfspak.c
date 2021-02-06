@@ -12,6 +12,14 @@
 #define _LARGEFILE64_SOURCE
 #endif
 #define _LARGEFILE_SOURCE
+#if defined(_WIN32) || defined(_WIN64)
+#define fseek64 _fseeki64
+#define ftell64 _ftelli64
+#else
+#define fseek64 fseeko64
+#define ftell64 ftello64
+#endif
+
 #include "physfs.h"
 #include <inttypes.h>
 #include <stdint.h>
@@ -22,6 +30,7 @@
 #include "archiver.h"
 #include "filesys.h"
 #include "filesys32.h"
+#include "nonlocale.h"
 #include "vfs.h"
 #include "vfspak.h"
 #include "vfspartialfileio.h"
@@ -94,10 +103,14 @@ int vfs_AddPakStdioEx(
     // Ok, attempt to add:
     #if defined(DEBUG_VFS) && !defined(NDEBUG)
     h64printf("horse64/vfs.c: debug: "
-           "adding resource pack: %s\n", path);
+           "adding resource pack: FILE %p\n", origf);
     #endif
     FILE *f = _dupfhandle(origf, "rb");
     if (!f) {
+        return 0;
+    }
+    if (fseek64(f, 0, SEEK_SET) != 0) {
+        fclose(f);
         return 0;
     }
     PHYSFS_Io *io = (PHYSFS_Io *)(
@@ -147,6 +160,11 @@ int vfs_GetEmbbeddedPakInfoByStdioFile(
 int _vfs_GetEmbbeddedPakInfoByVFSFile_Do(
         VFSFILE *f, int64_t end_offset, embeddedvfspakinfo **einfo
         ) {
+    #if defined(DEBUG_VFS) && !defined(NDEBUG)
+    h64printf("horse64/vfs.c: debug: "
+           "checking for pack with end_offset %" PRId64 " "
+           "in: VFSILE %p\n", end_offset, f);
+    #endif
     if (vfs_fseektoend(f) < 0) {
         *einfo = NULL;
         return 0;
@@ -156,6 +174,11 @@ int _vfs_GetEmbbeddedPakInfoByVFSFile_Do(
         *einfo = NULL;
         return 0;
     }
+    #if defined(DEBUG_VFS) && !defined(NDEBUG)
+    h64printf("horse64/vfs.c: debug: "
+           "have size %" PRId64 " "
+           "for file: VFSILE %p\n", file_len, f);
+    #endif
     uint64_t end_check = file_len - end_offset;
     char magic_pakappend[] = (
         "\x00\xFF\x00H64PAKAPPEND_V1\x00\xFF\x00"

@@ -92,7 +92,7 @@ remove-main-o:
 
 checkdco:
 	python3 tools/check-dco.py
-test: checkdco datapak $(ALL_OBJECTS) $(TEST_BINARIES)
+test: checkdco wchar_data datapak $(ALL_OBJECTS) $(TEST_BINARIES)
 	for x in $(TEST_BINARIES); do echo ">>> TEST RUN: $$x"; CK_FORK=no valgrind --track-origins=yes --leak-check=full ./$$x || { exit 1; }; done
 	@echo "All tests were run."
 test_%.bin: test_%.c $(PROGRAM_OBJECTS_NO_MAIN)
@@ -121,6 +121,8 @@ build-deps:
 
 clean:
 	rm -f $(ALL_OBJECTS) coreapi.h3dpak $(TEST_BINARIES)
+	rm -f ./vendor/unicode/unicode_data_header.h
+	rm -f ./vendor/unicode/unicode*.dat
 
 physfs:
 	CC="$(CC)" python3 tools/physfsmakefile.py > $(PHYSFSPATH)/Makefile

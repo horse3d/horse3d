@@ -32,6 +32,9 @@
 #include <errno.h>
 #endif
 
+#include "filesys32.h"
+#include "vfspartialfileio.h"
+
 typedef struct partialfileinfo {
     FILE *f;
     uint64_t offset;
@@ -136,12 +139,7 @@ int _partialfile_flush(struct PHYSFS_Io *io) {
 void *_PhysFS_Io_partialFileReadOnlyStruct(
         FILE *forig, uint64_t start, uint64_t len
         ) {
-    FILE *f = NULL;
-    #if defined(_WIN32) || defined(_WIN64)
-    f = _fdopen(_dup(_fileno(forig)), "rb");
-    #else
-    f = fdopen(dup(fileno(forig)), "rb");
-    #endif
+    FILE *f = _dupfhandle(forig, "rb");
     if (!f)
         return NULL;
     if (len <= 0) {
