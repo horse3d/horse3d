@@ -5,10 +5,18 @@ FROM ubuntu:18.04
 RUN apt update -y && DEBIAN_FRONTEND=noninteractive apt upgrade -y
 
 # Install various tools like git, python3, and more:
-RUN apt update -y && DEBIAN_FRONTEND=noninteractive apt install -y git zip valgrind bash python3 make sed vim gcc g++ g++-mingw-w64 gcc-mingw-w64 mingw-w64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+RUN apt update -y && DEBIAN_FRONTEND=noninteractive apt install -y git zip gdb bash python3 make sed vim gcc g++ g++-mingw-w64 gcc-mingw-w64 mingw-w64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
 # Install needed base system libraries:
 RUN DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt install -y check automake libtool autotools-dev libreadline-dev cmake
+
+# Install valgrind manually for newer version:
+RUN mkdir -p /tmp/valgrind && cd /tmp/valgrind && git clone git://sourceware.org/git/valgrind.git .
+ADD ./tools/valgrind_patch /tmp/valgrind/valgrind.patch
+RUN cd /tmp/valgrind && patch -p1 < ./valgrind.patch
+RUN cd /tmp/valgrind && ./autogen.sh && ./configure
+RUN cd /tmp/valgrind && make && make install
+RUN valgrind --help
 
 # Add in our project code and make sure submodules are initialized:
 ADD ./ /compile-tree/

@@ -1,3 +1,8 @@
+**/*.o
+**/*.so
+**/*.exe
+**/*.dylib
+**/*.dll
 /binaries/
 /core.h3dpak
 /releases/
