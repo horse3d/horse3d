@@ -81,7 +81,7 @@ with open(os.path.join(
     f.write("extern uint8_t *_widechartbl_istag;");
     f.write("extern int64_t *_widechartbl_lowercp;");
     f.write("extern int64_t *_widechartbl_uppercp;");
-    f.write("extern int64_t *_widechartbl_iscombining;");
+    f.write("extern uint8_t *_widechartbl_iscombining;");
 
 arraylen = (highest_cp_seen - smallest_cp_seen) + 1
 
