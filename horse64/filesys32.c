@@ -2613,18 +2613,14 @@ FILE *filesys32_OpenOwnExecutable_Uncached() {
         return NULL;
     #else
     // This should be race-condition free against moving around:
-    const char *checkpath = NULL;
-    char _path1[] = "/proc/self/exe";
-    char _path2[] = "/proc/curproc/file";
-    char _path3[] = "/proc/curproc/exe";
     int64_t pathlen = 0;
     h64wchar *path = NULL;
     if (filesys_FileExists("/proc/self/exe")) {
-        path = AS_U32(checkpath, &pathlen);
+        path = AS_U32("/proc/self/exe", &pathlen);
     } else if (filesys_FileExists("/proc/curproc/file")) {
-        path = AS_U32(checkpath, &pathlen);
+        path = AS_U32("/proc/curproc/file", &pathlen);
     } else if (filesys_FileExists("/proc/curproc/exe")) {
-        path = AS_U32(checkpath, &pathlen);
+        path = AS_U32("/proc/curproc/exe", &pathlen);
     } else {
         path = filesys32_GetOwnExecutable(&pathlen);
     }
@@ -2661,7 +2657,7 @@ FILE *filesys32_OpenOwnExecutable() {
             return NULL;
         }
     }
-    FILE *dup = freopen64(NULL, "rb", _cached_ownexecutable_handle);
+    FILE *dup = _dupfhandle(_cached_ownexecutable_handle, "rb");
     mutex_Release(_openownexec_mutex);
     if (fseek64(dup, 0, SEEK_SET) != 0) {
         fclose(dup);

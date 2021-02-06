@@ -88,10 +88,6 @@ int vfs_AddPakEx(
     return 1;
 }
 
-static FILE *_dupfile(FILE *f) {
-    return freopen64(NULL, "rb", f);
-}
-
 int vfs_AddPakStdioEx(
         FILE *origf, uint64_t start_offset, uint64_t max_len
         ) {
@@ -100,7 +96,7 @@ int vfs_AddPakStdioEx(
     h64printf("horse64/vfs.c: debug: "
            "adding resource pack: %s\n", path);
     #endif
-    FILE *f = _dupfile(origf);
+    FILE *f = _dupfhandle(origf, "rb");
     if (!f) {
         return 0;
     }
@@ -152,7 +148,6 @@ int _vfs_GetEmbbeddedPakInfoByVFSFile_Do(
         VFSFILE *f, int64_t end_offset, embeddedvfspakinfo **einfo
         ) {
     if (vfs_fseektoend(f) < 0) {
-        vfs_fclose(f);
         *einfo = NULL;
         return 0;
     }

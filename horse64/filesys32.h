@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <unistd.h>
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #endif
@@ -206,5 +207,29 @@ h64wchar *filesys32_ParentdirOfItem(
 int filesys32_IsSymlink(
     h64wchar *pathu32, int64_t pathu32len, int *err, int *result
 );
+
+ATTR_UNUSED static FILE *_dupfhandle(FILE *f, const char* mode) {
+    int fd = -1;
+    int fd2 = -1;
+    #if defined(_WIN32) || defined(_WIN64)
+    fd = _fileno(f);
+    fd2 = _dup(fd);
+    #else
+    fd = fileno(f);
+    fd2 = dup(fd);
+    #endif
+    if (fd2 < 0)
+        return NULL;
+    FILE *f2 = fdopen(fd2, mode);
+    if (!f2) {
+        #if defined(_WIN32) || defined(_WIN64)
+        _close(fd2);
+        #else
+        close(fd);
+        #endif
+        return NULL;
+    }
+    return f2;
+}
 
 #endif  // HORSE64_FILESYS32_H_

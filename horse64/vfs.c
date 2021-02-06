@@ -111,15 +111,7 @@ VFSFILE *vfs_fdup(VFSFILE *f) {
     }
     fnew->path = NULL;
     if (!fnew->via_physfs) {
-        #if defined(_WIN32) || defined(_WIN64)
-        fnew->diskhandle = _fdopen(_dup(
-            _fileno(fnew->diskhandle
-            )), f->mode);
-        #else
-        fnew->diskhandle = fdopen(dup(
-            fileno(fnew->diskhandle)),
-            f->mode);
-        #endif
+        fnew->diskhandle = _dupfhandle(fnew->diskhandle, f->mode);
         if (!fnew->diskhandle) {
             free(fnew->mode);
             free(fnew);
