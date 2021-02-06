@@ -65,4 +65,9 @@ h64archive *archive_FromFilePathSlice(
     int createifmissing, int vfsflags, h64archivetype type
 );
 
+h64archive *archive_FromFileHandleSlice(
+    FILE *origf, uint64_t fileoffset, uint64_t maxlen,
+    h64archivetype type
+);
+
 #endif  // HORSE64_ARCHIVER_H_

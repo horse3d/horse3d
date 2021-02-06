@@ -52,10 +52,14 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif
+#if defined(__FreeBSD__) || defined(__FREEBSD__)
+#include <sys/sysctl.h>
+#endif
 
 #include "filesys.h"
 #include "filesys32.h"
 #include "secrandom.h"
+#include "threading.h"
 #include "widechar.h"
 
 
@@ -2529,6 +2533,20 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
     free(fp);
     *out_len = result_u32len;
     return result_u32;
+    #elif defined(__FREEBSD__) || defined(__FreeBSD__)
+    char result[4096];
+    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
+    size_t len = sizeof(result) - 1;
+    if (sysctl(mib, 4, result, &len, NULL, 0) != 0) {
+        return NULL;
+    }
+    result[sizeof(result) - 1] = '\0';
+    int result_u32len = 0;
+    h64wchar *result_u32 = AS_U32(result, result_u32len);
+    if (!result_u32)
+        return NULL;
+    *out_len = result_u32len;
+    return result_u32;
     #else
     int alloc = 16;
     char *fpath = malloc(alloc);
@@ -2546,9 +2564,23 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
                 return NULL;
             }
             return fpath;
-        }     
+        }
         #else
-        int written = readlink("/proc/self/exe", fpath, alloc);
+        const char *checkpath = NULL;
+        char _path1[] = "/proc/self/exe";
+        char _path2[] = "/proc/curproc/file";
+        char _path3[] = "/proc/curproc/exe";
+        if (filesys_FileExists("/proc/self/exe")) {
+            checkpath = _path1;
+        } else if (filesys_FileExists("/proc/curproc/file")) {
+            checkpath = _path2;
+        } else if (filesys_FileExists("/proc/curproc/exe")) {
+            checkpath = _path3;
+        } else {
+            free(fpath);
+            return NULL;
+        }
+        int written = readlink(checkpath, fpath, alloc);
         if (written >= alloc) {
             alloc *= 2;
             free(fpath);
@@ -2561,7 +2593,7 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
             return NULL;
         }
         fpath[written] = '\0';
-         int64_t result_u32len = 0;
+        int64_t result_u32len = 0;
         h64wchar *result_u32 = AS_U32(fpath, &result_u32len);
         free(fpath);
         *out_len = result_u32len;
@@ -2569,6 +2601,73 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
         #endif
     }
     #endif
+}
+
+FILE *filesys32_OpenOwnExecutable_Uncached() {
+    #if defined(APPLE) || defined(__APPLE__) || \
+            defined(_WIN32) || defined(_WIN64)
+    h64wchar *path;
+    int64_t pathlen;
+    path = filesys32_GetOwnExecutable(&pathlen);
+    if (!path)
+        return NULL;
+    #else
+    // This should be race-condition free against moving around:
+    const char *checkpath = NULL;
+    char _path1[] = "/proc/self/exe";
+    char _path2[] = "/proc/curproc/file";
+    char _path3[] = "/proc/curproc/exe";
+    int64_t pathlen = 0;
+    h64wchar *path = NULL;
+    if (filesys_FileExists("/proc/self/exe")) {
+        path = AS_U32(checkpath, &pathlen);
+    } else if (filesys_FileExists("/proc/curproc/file")) {
+        path = AS_U32(checkpath, &pathlen);
+    } else if (filesys_FileExists("/proc/curproc/exe")) {
+        path = AS_U32(checkpath, &pathlen);
+    } else {
+        path = filesys32_GetOwnExecutable(&pathlen);
+    }
+    if (!path)
+        return NULL;
+    int _err = 0;
+    FILE *f = filesys32_OpenFromPath(
+        path, pathlen, "rb", &_err
+    );
+    free(path);
+    return f;
+    #endif
+}
+
+FILE *_cached_ownexecutable_handle = NULL;
+mutex *_openownexec_mutex = NULL;
+
+static __attribute__((constructor)) void _filesys32_OpenOwnExec_Mutex() {
+    _openownexec_mutex = mutex_Create();
+    if (!_openownexec_mutex) {
+        fprintf(stderr, "filesys32.c: failed to "
+            "create mutex, out of memory?\n");
+    }
+}
+
+FILE *filesys32_OpenOwnExecutable() {
+    mutex_Lock(_openownexec_mutex);
+    if (!_cached_ownexecutable_handle) {
+        _cached_ownexecutable_handle = (
+            filesys32_OpenOwnExecutable_Uncached()
+        );
+        if (!_cached_ownexecutable_handle) {
+            mutex_Release(_openownexec_mutex);
+            return NULL;
+        }
+    }
+    FILE *dup = freopen64(NULL, "rb", _cached_ownexecutable_handle);
+    mutex_Release(_openownexec_mutex);
+    if (fseek64(dup, 0, SEEK_SET) != 0) {
+        fclose(dup);
+        return NULL;
+    }
+    return dup;
 }
 
 int filesys32_IsSymlink(

@@ -20,6 +20,7 @@
 
 #include "compileconfig.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <physfs.h>
 #include <stdint.h>
@@ -43,10 +44,12 @@
 //#define DEBUG_VFS
 
 void vfs_fclose(VFSFILE *f) {
-    if (!f->via_physfs)
-        fclose(f->diskhandle);
-    else
+    if (!f->via_physfs) {
+        if (f->diskhandle)
+            fclose(f->diskhandle);
+    } else {
         PHYSFS_close(f->physfshandle);
+    }
     free(f->mode);
     free(f->path);
     free(f);
@@ -847,27 +850,55 @@ void vfs_Init() {
 
     PHYSFS_init(NULL);
 
-    int64_t execpathlen = 0;
-    h64wchar *execpath = filesys32_GetOwnExecutable(&execpathlen);
-    if (!execpath) {
+    FILE *f = filesys32_OpenOwnExecutable();
+    if (!f) {
         h64fprintf(
             stderr, "horse64/vfs.c: error: fatal, "
-            "failed to locate binary directory. "
-            "out of memory?\n"
+            "failed to access own binary. "
+            "out of memory or file deleted?\n"
         );
         exit(1);
         return;
     }
-    if (!vfs_AddPaksEmbeddedInBinary(execpath, execpathlen)) {
+    if (!vfs_AddPaksEmbeddedInBinary(f)) {
         h64fprintf(
             stderr, "horse64/vfs.c: error: fatal, "
             "failed to load appended VFS data. "
             "out of memory or disk error??\n"
         );
+        fclose(f);
         exit(1);
         return;
     }
-    free(execpath);
+    fclose(f);
+}
+
+void vfs_DetachFD(VFSFILE *f) {
+    assert(f->via_physfs == 0);
+    f->diskhandle = NULL;
+}
+
+VFSFILE *vfs_ownThisFD(FILE *f, const char *reopenmode) {
+    VFSFILE *vfile = malloc(sizeof(*vfile));
+    if (!vfile)
+        return NULL;
+    memset(vfile, 0, sizeof(*vfile));
+    vfile->mode = strdup(reopenmode);
+    if (!vfile->mode) {
+        free(vfile);
+        return NULL;
+    }
+    vfile->size = -1;
+    vfile->via_physfs = 0;
+    vfile->diskhandle = f;
+    int64_t i = ftell64(vfile->diskhandle);
+    if (i < 0) {
+        free(vfile->mode);
+        free(vfile);
+        return NULL;
+    }
+    vfile->offset = i;
+    return vfile;
 }
 
 void vfs_FreeFolderList(char **list) {

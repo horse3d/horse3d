@@ -8,6 +8,7 @@
 #include "compileconfig.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "widechar.h"
@@ -108,6 +109,10 @@ VFSFILE *vfs_fopen_u32(
 );
 
 VFSFILE *vfs_fopen(const char *path, const char *mode, int flags);
+
+VFSFILE *vfs_ownThisFD(FILE *f, const char *reopenmode);
+
+void vfs_DetachFD(VFSFILE *f);
 
 int vfs_feof(VFSFILE *f);
 

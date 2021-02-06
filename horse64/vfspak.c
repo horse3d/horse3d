@@ -4,9 +4,18 @@
 
 #include "compileconfig.h"
 
+#define _FILE_OFFSET_BITS 64
+#ifndef __USE_LARGEFILE64
+#define __USE_LARGEFILE64 1
+#endif
+#ifndef _LARGEFILE64_SOURCE
+#define _LARGEFILE64_SOURCE
+#endif
+#define _LARGEFILE_SOURCE
 #include "physfs.h"
 #include <inttypes.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -79,23 +88,69 @@ int vfs_AddPakEx(
     return 1;
 }
 
+static FILE *_dupfile(FILE *f) {
+    return freopen64(NULL, "rb", f);
+}
+
+int vfs_AddPakStdioEx(
+        FILE *origf, uint64_t start_offset, uint64_t max_len
+        ) {
+    // Ok, attempt to add:
+    #if defined(DEBUG_VFS) && !defined(NDEBUG)
+    h64printf("horse64/vfs.c: debug: "
+           "adding resource pack: %s\n", path);
+    #endif
+    FILE *f = _dupfile(origf);
+    if (!f) {
+        return 0;
+    }
+    PHYSFS_Io *io = (PHYSFS_Io *)(
+        _PhysFS_Io_partialFileReadOnlyStruct(f, start_offset, max_len)
+    );
+    if (!io) {
+        fclose(f);
+        return 0;
+    }
+    fclose(f);
+    f = NULL;
+    char pakname[128];
+    snprintf(
+        pakname, sizeof(pakname) - 1, "m%" PRIu64 ".zip",
+        _pakcounter
+    );
+    _pakcounter++;
+    if (!PHYSFS_mountIo(io, pakname, "/", 1)) {
+        io->destroy(io);
+        return 0;
+    }
+
+    return 1;
+}
+
 int vfs_AddPak(const h64wchar *path, int64_t pathlen) {
     return vfs_AddPakEx(path, pathlen, 0, 0, 0);
 }
 
-int vfs_GetEmbbeddedPakInfo(
-        const h64wchar *path, int64_t pathlen,
-        int64_t end_offset,
-        embeddedvfspakinfo **einfo
+
+int vfs_GetEmbbeddedPakInfoByStdioFile(
+        FILE *f, embeddedvfspakinfo **einfo
         ) {
-    VFSFILE *f = vfs_fopen_u32(
-        path, pathlen, "rb",
-        VFSFLAG_NO_VIRTUALPAK_ACCESS
-    );
-    if (!f) {
+    VFSFILE *vfsf = vfs_ownThisFD(f, "rb");
+    if (!vfsf) {
         *einfo = NULL;
         return 0;
     }
+    int result = vfs_GetEmbbeddedPakInfoByVFSFile(
+        vfsf, einfo
+    );
+    vfs_DetachFD(vfsf);
+    vfs_fclose(vfsf);
+    return result;
+}
+
+int _vfs_GetEmbbeddedPakInfoByVFSFile_Do(
+        VFSFILE *f, int64_t end_offset, embeddedvfspakinfo **einfo
+        ) {
     if (vfs_fseektoend(f) < 0) {
         vfs_fclose(f);
         *einfo = NULL;
@@ -103,7 +158,6 @@ int vfs_GetEmbbeddedPakInfo(
     }
     int64_t file_len = vfs_ftell(f);
     if (file_len <= 0) {
-        vfs_fclose(f);
         *einfo = NULL;
         return 0;
     }
@@ -113,14 +167,12 @@ int vfs_GetEmbbeddedPakInfo(
     );
     int magiclen = strlen("\x01\xFF\x01H64PAKAPPEND_V1\x01\xFF\x01");
     if (end_check < magiclen + sizeof(uint64_t) * 2) {
-        vfs_fclose(f);
         *einfo = NULL;
         return 1;  // no pak append header, so no pak to find.
     }
     if (vfs_fseek(f,
             end_check - magiclen - sizeof(uint64_t) * 2
             ) < 0) {
-        vfs_fclose(f);
         *einfo = NULL;
         return 0;
     }
@@ -128,13 +180,11 @@ int vfs_GetEmbbeddedPakInfo(
     if (vfs_fread(comparedata,
             magiclen + sizeof(uint64_t) * 2,
             1, f) != 1) {
-        vfs_fclose(f);
         *einfo = NULL;
         return 0;
     }
     if (memcmp(comparedata + sizeof(uint64_t) * 2, magic_pakappend,
             magiclen) != 0) {
-        vfs_fclose(f);
         *einfo = NULL;
         return 1;  // no pak append header, so no pak to find.
     }
@@ -144,11 +194,9 @@ int vfs_GetEmbbeddedPakInfo(
     if (pak_end != end_check - magiclen -
             sizeof(uint64_t) * 2 ||
             pak_start >= pak_end || end_check - pak_start <= 0) {
-        vfs_fclose(f);
         *einfo = NULL;
         return 1;  // wrong pak offsets, so no working pak appended
     }
-    vfs_fclose(f);
     
     *einfo = malloc(sizeof(**einfo));
     if (!*einfo) {
@@ -162,8 +210,8 @@ int vfs_GetEmbbeddedPakInfo(
         pak_end + magiclen + sizeof(uint64_t) * 2
     );
     embeddedvfspakinfo *next_einfo = NULL;
-    if (!vfs_GetEmbbeddedPakInfo(
-            path, pathlen, file_len - pak_start, &next_einfo
+    if (!_vfs_GetEmbbeddedPakInfoByVFSFile_Do(
+            f, file_len - pak_start, &next_einfo
             )) {
         free(*einfo);
         *einfo = NULL;
@@ -171,6 +219,33 @@ int vfs_GetEmbbeddedPakInfo(
     }
     (*einfo)->next = next_einfo;
     return 1;
+}
+
+int vfs_GetEmbbeddedPakInfoByVFSFile(
+        VFSFILE *f, embeddedvfspakinfo **einfo
+        ) {
+    return _vfs_GetEmbbeddedPakInfoByVFSFile_Do(
+        f, 0, einfo
+    );
+}
+
+int vfs_GetEmbbeddedPakInfo(
+        const h64wchar *path, int64_t pathlen,
+        embeddedvfspakinfo **einfo
+        ) {
+    VFSFILE *f = vfs_fopen_u32(
+        path, pathlen, "rb",
+        VFSFLAG_NO_VIRTUALPAK_ACCESS
+    );
+    if (!f) {
+        *einfo = NULL;
+        return 0;
+    }
+    int result = vfs_GetEmbbeddedPakInfoByVFSFile(
+        f, einfo
+    );
+    vfs_fclose(f);
+    return result;
 }
 
 int vfs_HasEmbbededPakThatContainsFilePath(
@@ -190,8 +265,33 @@ int vfs_HasEmbbededPakThatContainsFilePath(
     }
     int64_t idx = -1;
     if (!h64archive_GetEntryIndex(a, file_path, &idx)) {
+        h64archive_Close(a);
         return 0;
     }
+    h64archive_Close(a);
+    *out_result = (idx >= 0);
+    return 1;
+}
+
+int vfs_HasEmbbededPakThatContainsFilePath_Stdio(
+        embeddedvfspakinfo *einfo,
+        FILE *binary_file,
+        const char *file_path, int *out_result
+        ) {
+    h64archive *a = archive_FromFileHandleSlice(
+        binary_file, einfo->data_start_offset,
+        einfo->data_end_offset - einfo->data_start_offset,
+        H64ARCHIVE_TYPE_AUTODETECT
+    );
+    if (!a) {
+        return 0;
+    }
+    int64_t idx = -1;
+    if (!h64archive_GetEntryIndex(a, file_path, &idx)) {
+        h64archive_Close(a);
+        return 0;
+    }
+    h64archive_Close(a);
     *out_result = (idx >= 0);
     return 1;
 }
@@ -203,21 +303,20 @@ void vfs_FreeEmbeddedPakInfo(embeddedvfspakinfo *einfo) {
     free(einfo);
 }
 
-int _vfs_AddPaksFromBinaryWithEndOffset(
-        const h64wchar *path, int64_t pathlen,
-        int64_t end_offset
+int vfs_AddPaksEmbeddedInBinary(
+        FILE *binhandle
         ) {
     embeddedvfspakinfo *einfo = NULL;
     int result = (
-        vfs_GetEmbbeddedPakInfo(path, pathlen, end_offset, &einfo)
+        vfs_GetEmbbeddedPakInfoByStdioFile(binhandle, &einfo)
     );
     if (!result)
         return 0;
     embeddedvfspakinfo *einfo_orig = einfo;
     while (einfo) {
-        if (!vfs_AddPakEx(
-                path, pathlen, einfo->data_start_offset,
-                einfo->data_end_offset - einfo->data_start_offset, 1
+        if (!vfs_AddPakStdioEx(
+                binhandle, einfo->data_start_offset,
+                einfo->data_end_offset - einfo->data_start_offset
                 )) {
             vfs_FreeEmbeddedPakInfo(einfo_orig);
             return 0;
@@ -226,10 +325,4 @@ int _vfs_AddPaksFromBinaryWithEndOffset(
     }
     vfs_FreeEmbeddedPakInfo(einfo_orig);
     return 1;
-}
-
-int vfs_AddPaksEmbeddedInBinary(
-        const h64wchar *path, int64_t pathlen
-        ) {
-    return _vfs_AddPaksFromBinaryWithEndOffset(path, pathlen, 0);
 }

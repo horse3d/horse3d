@@ -171,6 +171,8 @@ FILE *filesys32_OpenFromPath(
     const char *mode, int *err
 );
 
+FILE *filesys32_OpenOwnExecutable();
+
 h64wchar *filesys32_GetSysTempdir(int64_t *output_len);
 
 FILE *filesys32_TempFile(

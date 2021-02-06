@@ -24,6 +24,7 @@
 #include "json.h"
 #include "nonlocale.h"
 #include "uri32.h"
+#include "vmbinarywriter.h"
 #include "vmexec.h"
 #include "vmschedule.h"
 
@@ -31,7 +32,7 @@ static int _compileargparse(
         const char *cmd,
         const char **argv, int argc, int argoffset,
         h64wchar **fileuriorexec, int64_t *fileuriorexeclen,
-        char **out_file,
+        h64wchar **out_file, int64_t *out_file_len,
         h64compilewarnconfig *wconfig,
         h64misccompileroptions *miscoptions
         ) {
@@ -176,12 +177,16 @@ static int _compileargparse(
                 *fileuriorexec = NULL;
                 return 0;
             }
-            *out_file = strdup(argv[i + 1]);
+            *out_file = utf8_to_utf32(
+                argv[i + 1], strlen(argv[i + 1]),
+                NULL, NULL, out_file_len
+            );
             if (!*out_file) {
                 h64fprintf(stderr, "horsec: error: "
                     "out of memory parsing arguments\n");
                 goto failquit;
             }
+
             i += 2;
             continue;
         } else if (strcmp(argv[i], "--from-stdin") == 0 && (
@@ -367,22 +372,6 @@ static void printmsg(
         free(fileuri_u8);
 }
 
-int compiler_WriteProgram(
-        const char *crossplatform_target,
-        const char *targetfile,
-        const char *bytes, int64_t byteslen
-        ) {
-    FILE *f = filesys_OpenFromPath(
-        targetfile, "wb"
-    );
-    if (!f)
-        return 0;
-    uint64_t result = fwrite(bytes, 1, byteslen, f);
-    fclose(f);
-    if (result != (uint64_t)bytes)
-        return 0;
-    return 1;
-}
 
 #define COMPILEEX_MODE_COMPILE 1
 #define COMPILEEX_MODE_RUN 2
@@ -416,7 +405,8 @@ int compiler_command_CompileEx(
     h64wchar *fileuriorexec = NULL;
     int64_t fileuriorexeclen = 0;
 
-    char *outputfile = NULL;
+    h64wchar *outputfile = NULL;
+    int64_t outputfilelen = 0;
     h64wchar *tempfilepath = NULL;
     int64_t tempfilepathlen = 0;
     h64wchar *tempfilefolder = NULL;
@@ -424,7 +414,7 @@ int compiler_command_CompileEx(
     if (!_compileargparse(
             command, argv, argc, argoffset,
             &fileuriorexec, &fileuriorexeclen,
-            &outputfile, &wconfig, &moptions
+            &outputfile, &outputfilelen, &wconfig, &moptions
             ))
         return 0;
     assert(
@@ -670,23 +660,15 @@ int compiler_command_CompileEx(
                 "not running program due to compile errors\n");
         }
     } else if (mode == COMPILEEX_MODE_COMPILE) {
-        char *out = NULL;
-        int64_t outlen = 0;
-        if (!h64program_Dump(
-                project->program, &out, &outlen
-                )) {
+        char *errormsg = NULL;
+        int writeresult = vmbinarywriter_WriteProgram(
+            outputfile, outputfilelen, project->program,
+            &errormsg
+        );
+        if (!writeresult) {
             h64fprintf(stderr, "horsec: error: "
-                "internal error, failed to dump code\n");
-            compileproject_Free(project);  // This indirectly frees 'ast'!
-            free(outputfile);
-            return 0;
-        }
-        assert(outputfile != NULL && outlen > 0);
-        if (compiler_WriteProgram(
-                NULL, outputfile, out, outlen
-                )) {
-            h64fprintf(stderr, "horsec: error: "
-                "failed to write to output file\n");
+                "failed to write result: %s\n", errormsg);
+            free(errormsg);
             compileproject_Free(project);  // This indirectly frees 'ast'!
             free(outputfile);
             return 0;
@@ -899,10 +881,12 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
     int64_t fileurilen = 0;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
-    char *output_file = NULL;
+    h64wchar *output_file = NULL;
+    int64_t output_file_len = 0;
     if (!_compileargparse(
             "get_tokens", argv, argc, argoffset,
-            &fileuri, &fileurilen, &output_file, &wconfig, &moptions
+            &fileuri, &fileurilen, &output_file, &output_file_len,
+            &wconfig, &moptions
             ))
         return 0;
     assert(fileuri != NULL && output_file == NULL);
@@ -928,10 +912,12 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
     int64_t fileurilen = 0;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
-    char *output_file = NULL;
+    h64wchar *output_file = NULL;
+    int64_t output_file_len = 0;
     if (!_compileargparse(
             "get_ast", argv, argc, argoffset,
-            &fileuri, &fileurilen, &output_file, &wconfig, &moptions
+            &fileuri, &fileurilen, &output_file, &output_file_len,
+            &wconfig, &moptions
             ))
         return 0;
     assert(fileuri != NULL && output_file == NULL);
@@ -959,10 +945,11 @@ int compiler_command_GetResolvedAST(
     int64_t fileurilen = 0;
     h64compilewarnconfig wconfig = {0};
     h64misccompileroptions moptions = {0};
-    char *output_file = NULL;
+    h64wchar *output_file = NULL;
+    int64_t output_file_len = 0;
     if (!_compileargparse(
             "get_resolved_ast", argv, argc, argoffset,
-            &fileuri, &fileurilen, &output_file,
+            &fileuri, &fileurilen, &output_file, &output_file_len,
             &wconfig, &moptions
             ))
         return 0;

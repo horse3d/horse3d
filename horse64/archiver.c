@@ -758,6 +758,48 @@ h64archive *archive_FromFilePathSlice(
     return NULL;
 }
 
+h64archive *archive_FromFileHandleSlice(
+        FILE *origf, uint64_t fileoffset, uint64_t maxlen,
+        h64archivetype type
+        ) {
+    // Get the VFS file:
+    errno = 0;
+    VFSFILE *f = vfs_ownThisFD(origf, "r+b");
+    if (f) {
+        // Make sure the offset parameters are applied & valid:
+        if (fileoffset > 0 || maxlen > 0) {
+            if (vfs_fseektoend(f) != 0) {
+                vfs_DetachFD(f);
+                vfs_fclose(f);
+                return NULL;
+            }
+            int64_t end = vfs_ftell(f);
+            if (end < 0 || fileoffset + maxlen > (uint64_t)end ||
+                    fileoffset >= (uint64_t)end) {
+                vfs_DetachFD(f);
+                vfs_fclose(f);
+                return NULL;
+            }
+            if (maxlen == 0) {
+                maxlen = (uint64_t)end - fileoffset;
+            }
+            if (!vfs_flimitslice(f, fileoffset, maxlen)) {
+                vfs_DetachFD(f);
+                vfs_fclose(f);
+                return NULL;
+            }
+        }
+        // Now load archive:
+        h64archive *a = archive_FromVFSHandleEx(f, 0, type);
+        vfs_DetachFD(f);
+        vfs_fclose(f);
+        return a;
+    }
+    vfs_DetachFD(f);
+    vfs_fclose(f);
+    return NULL;
+}
+
 h64archive *archive_FromFilePath(
         const h64wchar *pathoruri, int64_t pathorurilen,
         int createifmissing, int vfsflags,
