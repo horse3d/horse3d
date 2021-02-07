@@ -1057,7 +1057,7 @@ int iolib_fileread(
                 int64_t extra_read_bytes = 0;
                 // Ok, we need to read further until we firstly
                 // have no incomplete code point, secondly letter count
-                // changes (so we know we hit the next letter.
+                // changes (so we know we hit the next letter).
                 int _ferrorabort = 0;
                 while (1) {
                     // Make sure we got enough decode space:
@@ -1104,9 +1104,42 @@ int iolib_fileread(
                         assert(orig_codepoints >= 0);
                         assert(orig_lettercount >= 0);
                         if (!orig_last_cp_incomplete &&
-                                last_stable_lettercount < 0) {
+                                last_stable_lettercount_at < 0) {
                             last_stable_lettercount = orig_lettercount;
                             last_stable_lettercount_at = readbuffill;
+                        }
+                    }
+                    if (last_stable_lettercount_at < 0 && oldfill > 0) {
+                        // Find out if we have a shorter stable set of
+                        // letters that are already a complete chunk:
+                        int changedoldfill = 0;
+                        int64_t k = oldfill;
+                        while (k > 0) {
+                            int64_t _codepoints, _lettercount;
+                            int _lastincomplete, _endsmultipleinvalid;
+                            _count_actual_letters_in_raw(
+                                (const uint8_t *)readbuf + k,
+                                readbuffill - k,
+                                decodebuf, -1, &_codepoints, &_lettercount,
+                                &_lastincomplete, &_endsmultipleinvalid
+                            );
+                            if (!_lastincomplete && _lettercount >= 0) {
+                                last_stable_lettercount = (
+                                    k < oldfill ? -1 : 0
+                                );  // (-1 -> we can read 1 full new letter,
+                                    //  not just complete the current one)
+                                last_stable_lettercount_at = k;
+                                if (k < oldfill) {
+                                    changedoldfill = 1;
+                                    oldfill = k;
+                                }
+                                break;
+                            }
+                            k--;
+                        }
+                        if (changedoldfill) {
+                            // We changed oldfill, so start over:
+                            continue;
                         }
                     }
                     // Read one more byte until letter count changes:
@@ -1130,7 +1163,7 @@ int iolib_fileread(
                                 &newcodepoints, &newletters,
                                 &newlastcpincomplete, &endsinmultipleinvalid
                             );
-                            if (last_stable_lettercount >= 0 &&
+                            if (last_stable_lettercount_at >= 0 &&
                                     newlastcpincomplete &&
                                     newletters > last_stable_lettercount) {
                                 // Our last pre-EOF addition can not be
@@ -1139,8 +1172,10 @@ int iolib_fileread(
                                 neederrorrevert = 1;
                             }
                         }
-                        if (feof(f) && neederrorrevert)
+                        if (feof(f) && neederrorrevert) {
+                            _ferrorabort = 1;  // ensure we actually bail
                             goto dorevert;
+                        }
                         if (ferror(f)) {
                             clearerr(f);
                             if (readbuffill <= 0 ||
@@ -1178,7 +1213,7 @@ int iolib_fileread(
                         &newlastcpincomplete, &endsinmultipleinvalid
                     );
                     if (endsinmultipleinvalid &&
-                            last_stable_lettercount < 0) {
+                            last_stable_lettercount_at < 0) {
                         // Since we got two unrelated broken ones
                         // after one another, the first broken one
                         // now counts as a separate completed char.
@@ -1217,7 +1252,7 @@ int iolib_fileread(
                             &newlastcpincomplete, &endsinmultipleinvalid
                         );
                     }
-                    if (last_stable_lettercount < 0 &&
+                    if (last_stable_lettercount_at < 0 &&
                             !endsinmultipleinvalid &&
                             !newlastcpincomplete) {
                         // We didn't have a complete last letter yet,
@@ -1225,7 +1260,8 @@ int iolib_fileread(
                         // glyph/letter as a minimum base.
                         last_stable_lettercount_at = readbuffill;
                         last_stable_lettercount = newletters;
-                    } else if (newletters == last_stable_lettercount &&
+                    } else if ((newletters == last_stable_lettercount ||
+                            newletters <= 0) &&
                             !newlastcpincomplete) {
                         // This didn't increase letter count and it's
                         // not obviously incomplete/broken, so count it
@@ -1233,8 +1269,9 @@ int iolib_fileread(
                         // (so we don't revert further back later):
                         last_stable_lettercount_at = readbuffill;
                         last_stable_lettercount = newletters;
-                    } else if (last_stable_lettercount >= 0 &&
+                    } else if (last_stable_lettercount_at >= 0 &&
                             newletters > last_stable_lettercount &&
+                            newletters > 0 &&
                             (!newlastcpincomplete ||
                              endsinmultipleinvalid)) {
                         dorevert:
@@ -1263,7 +1300,18 @@ int iolib_fileread(
                         extra_read_bytes -= revert_dist;
                         // Ok, we should be at the end of this letter now.
                         // Add up how many new letters we have:
-                        readcount += (newletters - 1);
+                        _count_actual_letters_in_raw(
+                            (const uint8_t *)readbuf + oldfill,
+                            (readbuffill - oldfill),
+                            decodebuf, last_stable_lettercount_at,
+                            &newcodepoints, &newletters,
+                            &newlastcpincomplete, &endsinmultipleinvalid
+                        );
+                        assert(  // must avoid infinite loops:
+                            newletters > 0 || _ferrorabort ||
+                            (readcount >= amount && amount >= 0)
+                        );
+                        readcount += newletters;
                         break;
                     }
                 }
