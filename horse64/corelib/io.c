@@ -1136,6 +1136,38 @@ int iolib_fileread(
                 readbuf = newbuf;
                 readbufsize = newreadbufsize;
             }
+            // Make sure decode buffer is large enough:
+            if (readbytes + decodebuffill + 1 >
+                    decodebufsize) {
+                h64wchar *newbuf = NULL;
+                int64_t newdecodebusize = (
+                    readbytes + decodebuffill + 512
+                );
+                if (!decodebufheap) {
+                    newbuf = malloc(newdecodebusize * sizeof(*newbuf));
+                    if (newbuf) {
+                        memcpy(newbuf, decodebuf,
+                            decodebuffill * sizeof(*newbuf));
+                    }
+                } else {
+                    newbuf = realloc(
+                        decodebuf, newdecodebusize * sizeof(*newbuf)
+                    );
+                }
+                if (!newbuf) {
+                    if (readbufheap)
+                        free(readbuf);
+                    if (decodebufheap)
+                        free(decodebuf);
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                        "out of memory resizing read buf"
+                    );
+                }
+                decodebufheap = 1;
+                decodebuf = newbuf;
+                decodebufsize = newdecodebusize;
+            }
             // Do the reading:
             size_t amountread = fread(
                 readbuf + readbuffill, 1, readbytes, f
