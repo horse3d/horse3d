@@ -82,8 +82,12 @@ FILE *filesys32_OpenFromPath(
     }
 
     #if defined(_WIN32) || defined(_WIN64)
-    int mode_read = strstr(mode, "r") || strstr(mode, "a");
-    int mode_write = strstr(mode, "w") || strstr(mode, "a");
+    int mode_read = (
+        strstr(mode, "r") || strstr(mode, "a") || strstr(mode, "w+")
+    );
+    int mode_write = (
+        strstr(mode, "w") || strstr(mode, "a") || strstr(mode, "r+")
+    );
     int mode_append = strstr(mode, "r+") || strstr(mode, "a");
     int filedescr = _open_osfhandle(
         (intptr_t)os_f,
@@ -2175,8 +2179,12 @@ h64filehandle filesys32_OpenFromPathAsOSHandleEx(
         pathu32len = 1;
     }
 
-    int mode_read = strstr(mode, "r") || strstr(mode, "a");
-    int mode_write = strstr(mode, "w") || strstr(mode, "a");
+    int mode_read = (
+        strstr(mode, "r") || strstr(mode, "a") || strstr(mode, "w+")
+    );
+    int mode_write = (
+        strstr(mode, "w") || strstr(mode, "a") || strstr(mode, "r+")
+    );
     int mode_append = strstr(mode, "r+") || strstr(mode, "a");
 
     #if defined(_WIN32) || defined(_WIN64)

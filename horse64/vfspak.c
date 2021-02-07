@@ -281,13 +281,15 @@ int vfs_HasEmbbededPakThatContainsFilePath(
     if (!a) {
         return 0;
     }
+    int existsasfolder = 0;
     int64_t idx = -1;
-    if (!h64archive_GetEntryIndex(a, file_path, &idx)) {
+    if (!h64archive_GetEntryIndex(a, file_path, &idx,
+            &existsasfolder)) {
         h64archive_Close(a);
         return 0;
     }
     h64archive_Close(a);
-    *out_result = (idx >= 0);
+    *out_result = (idx >= 0 || existsasfolder);
     return 1;
 }
 
@@ -304,13 +306,15 @@ int vfs_HasEmbbededPakThatContainsFilePath_Stdio(
     if (!a) {
         return 0;
     }
+    int existsasfolder = 0;
     int64_t idx = -1;
-    if (!h64archive_GetEntryIndex(a, file_path, &idx)) {
+    if (!h64archive_GetEntryIndex(a, file_path, &idx,
+            &existsasfolder)) {
         h64archive_Close(a);
         return 0;
     }
     h64archive_Close(a);
-    *out_result = (idx >= 0);
+    *out_result = (idx >= 0 || existsasfolder);
     return 1;
 }
 

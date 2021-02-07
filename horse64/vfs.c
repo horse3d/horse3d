@@ -44,6 +44,8 @@
 //#define DEBUG_VFS
 
 void vfs_fclose(VFSFILE *f) {
+    if (!f)
+        return;
     if (!f->via_physfs) {
         if (f->diskhandle)
             fclose(f->diskhandle);
@@ -64,10 +66,17 @@ int vfs_fgetc(VFSFILE *f) {
 }
 
 int64_t vfs_ftell(VFSFILE *f) {
+    int64_t result = -1;
     if (!f->via_physfs)
-        return ftell(f->diskhandle);
+        result = ftell(f->diskhandle);
     else
-        return PHYSFS_tell(f->physfshandle);
+        result = PHYSFS_tell(f->physfshandle);
+    if (result >= 0 && f->is_limited) {
+        result -= f->limit_start;
+        if (result < 0 || result > (int64_t)f->limit_len)
+            result = -1;
+    }
+    return result;
 }
 
 int vfs_peakc(VFSFILE *f) {
@@ -209,7 +218,7 @@ int vfs_fseek(VFSFILE *f, uint64_t offset) {
 
 int vfs_fseektoend(VFSFILE *f) {
     if (f->is_limited)
-        return vfs_fseek(f, f->limit_len);
+        return (vfs_fseek(f, f->limit_len) == 0);
     if (!f->via_physfs) {
         if (fseek64(f->diskhandle, 0, SEEK_END) == 0) {
             int64_t tellpos = ftell64(f->diskhandle);

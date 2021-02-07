@@ -29,6 +29,8 @@ const char *h64archive_GetEntryName(h64archive *a, uint64_t entry);
 
 int64_t h64archive_GetEntrySize(h64archive *a, uint64_t entry);
 
+int h64archive_GetEntryIsDir(h64archive *a, uint64_t entry);
+
 typedef enum h64archive_adderror {
     H64ARCHIVE_ADDERROR_SUCCESS = 0,
     H64ARCHIVE_ADDERROR_IOERROR = -1,
@@ -43,7 +45,8 @@ int h64archive_AddFileFromMem(
 );
 
 int h64archive_GetEntryIndex(
-    h64archive *a, const char *filename, int64_t *index
+    h64archive *a, const char *filename, int64_t *index,
+    int *existsasfolder
 );
 
 int h64archive_ReadFileByteSlice(

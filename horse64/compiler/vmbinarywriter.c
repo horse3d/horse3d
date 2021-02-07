@@ -100,6 +100,13 @@ int vmbinarywriter_WriteProgram(
             fclose(fbin);
         free(out);
         vfs_FreeEmbeddedPakInfo(appendedpaks);
+        if (f) {
+            // Since we didn't finish writing it, truncate to
+            // zero bytes so it's obvious the result is broken.
+            // Don't want the user to try to use a half written binary.
+            fflush(f);
+            ftruncate(fileno(f), 0);
+        }
         fclose(f);
         free(pakarchivepath);
         if (appendpakarchive)

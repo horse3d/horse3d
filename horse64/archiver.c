@@ -41,11 +41,13 @@
 typedef struct h64archive {
     h64archivetype archive_type;
     union {
-        uint8_t in_writing_mode, finalize_before_read;
-        int64_t cached_entry_count;
-        char **cached_entry;
-        mz_zip_archive zip_archive;
-        char *_last_returned_name;
+        struct {  // archive_type == H64ARCHIVE_TYPE_ZIP
+            uint8_t in_writing_mode, finalize_before_read;
+            int64_t cached_entry_count;
+            char **cached_entry;
+            mz_zip_archive zip_archive;
+            char *_last_returned_name;
+        };
     };
     VFSFILE *f;
     struct {
@@ -69,6 +71,20 @@ int64_t h64archive_GetEntryCount(h64archive *a) {
     }
 }
 
+int h64archive_GetEntryIsDir(h64archive *a, uint64_t entry) {
+    if (a->archive_type == H64ARCHIVE_TYPE_ZIP) {
+        mz_zip_archive_file_stat stat = {0};
+        mz_bool result = mz_zip_reader_file_stat(
+            &a->zip_archive, entry, &stat
+        );
+        if (!result)
+            return -1;
+        return (stat.m_is_directory != 0);
+    } else {
+        return -1;
+    }
+}
+
 int64_t h64archive_GetEntrySize(h64archive *a, uint64_t entry) {
     if (a->archive_type == H64ARCHIVE_TYPE_ZIP) {
         mz_zip_archive_file_stat stat = {0};
@@ -77,6 +93,8 @@ int64_t h64archive_GetEntrySize(h64archive *a, uint64_t entry) {
         );
         if (!result)
             return -1;
+        if (stat.m_is_directory)
+            return 0;
         if (stat.m_uncomp_size > (uint64_t)INT64_MAX)
             return -1;
         return stat.m_uncomp_size;
@@ -109,8 +127,10 @@ char *h64archive_NormalizeName(const char *name) {
 }
 
 int h64archive_GetEntryIndex(
-        h64archive *a, const char *filename, int64_t *index
+        h64archive *a, const char *filename, int64_t *index,
+        int *existsasfolder
         ) {
+    *existsasfolder = 0;
     char *cleanname = h64archive_NormalizeName(filename);
     int64_t entry_count = h64archive_GetEntryCount(a);
     int64_t i2 = 0;
@@ -125,11 +145,15 @@ int h64archive_GetEntryIndex(
             free(cleanname);
             return 0;
         }
-        if (strcmp(e, cleanname) == 0) {
+        if (strcmp(eclean, cleanname) == 0) {
             free(eclean);
             free(cleanname);
             *index = i2;
             return 1;
+        } else if (strlen(eclean) > strlen(cleanname) && (
+                cleanname[strlen(cleanname)] == '/' ||
+                cleanname[strlen(cleanname)] == '\\')) {
+            *existsasfolder = 1;
         }
         free(eclean);
         i2++;
@@ -144,6 +168,7 @@ const char *h64archive_GetEntryName(h64archive *a, uint64_t entry) {
         if (a->in_writing_mode) {
             if (entry >= (uint64_t)a->cached_entry_count)
                 return NULL;
+            assert(a->cached_entry != NULL);
             return a->cached_entry[entry];
         }
         if (a->_last_returned_name) {
@@ -416,6 +441,7 @@ int _h64archive_EnableWriting(h64archive *a) {
         if (!result) {
             return 0;
         }
+        a->in_writing_mode = 1;
         return 1;
     }
     return 1;
@@ -556,8 +582,8 @@ void h64archive_Close(h64archive *a) {
 static size_t miniz_read_h64archive(
         void *pOpaque, mz_uint64 file_ofs, void *pBuf, size_t n
         ) {
-    mz_zip_archive *mza = (mz_zip_archive *)pOpaque;
-    h64archive *a = (h64archive *)mza->m_pIO_opaque;
+    h64archive *a = (h64archive *)pOpaque;
+    assert(a != NULL);
     if (vfs_fseek(a->f, file_ofs) != 0)
         return 0;
     size_t result = vfs_fread(pBuf, 1, n, a->f);
@@ -567,8 +593,7 @@ static size_t miniz_read_h64archive(
 static size_t miniz_write_h64archive(
         void *pOpaque, mz_uint64 file_ofs, const void *pBuf, size_t n
         ) {
-    mz_zip_archive *mza = (mz_zip_archive *)pOpaque;
-    h64archive *a = (h64archive *)mza->m_pIO_opaque;
+    h64archive *a = (h64archive *)pOpaque;
     if (vfs_fseek(a->f, file_ofs) != 0)
         return 0;
     size_t result = vfs_fwrite(pBuf, 1, n, a->f);
@@ -639,6 +664,24 @@ h64archive *archive_FromVFSHandleEx(
                 return NULL;
             }
             mz_zip_writer_end(&a->zip_archive);
+            // Update our archive size (which we pass to the reader below):
+            if (!vfs_fseektoend(a->f)) {
+                vfs_fclose(fnew);
+                free(a);
+                return NULL;
+            }
+            size = vfs_ftell(a->f);
+            if (size <= 0) {
+                vfs_fclose(fnew);
+                free(a);
+                return NULL;
+            }
+            // Seek to beginning again:
+            if (vfs_fseek(a->f, 0) != 0) {
+                vfs_fclose(fnew);
+                free(a);
+                return NULL;
+            }
         }
         // Get a reader.
         mz_bool result = mz_zip_reader_init(
@@ -721,13 +764,13 @@ h64archive *archive_FromFilePathSlice(
     VFSFILE *f = vfs_fopen_u32(
         uri->path, uri->pathlen, "r+b", vfsflags
     );
-    uri32_Free(uri);
     if (!f && errno == ENOENT && createifmissing) {
         f = vfs_fopen_u32(
             uri->path, uri->pathlen,
             "w+b", VFSFLAG_NO_VIRTUALPAK_ACCESS
         );
     }
+    uri32_Free(uri);
     if (f) {
         // Make sure the offset parameters are applied & valid:
         if (fileoffset > 0 || maxlen > 0) {
