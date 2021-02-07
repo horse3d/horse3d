@@ -541,6 +541,8 @@ void valuecontent_Free(valuecontent *content) {
         return;
     if (content->type == H64VALTYPE_CONSTPREALLOCSTR)
         free(content->constpreallocstr_value);
+    else if (content->type == H64VALTYPE_CONSTPREALLOCBYTES)
+        free(content->constpreallocbytes_value);
 }
 
 void h64program_FreeInstructions(

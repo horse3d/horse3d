@@ -1417,6 +1417,8 @@ int _codegencallback_DoCodegen_visit_out(
         if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
             if (inst.content.type == H64VALTYPE_CONSTPREALLOCSTR)
                 free(inst.content.constpreallocstr_value);
+            else if (inst.content.type == H64VALTYPE_CONSTPREALLOCBYTES)
+                free(inst.content.constpreallocbytes_value);
             rinfo->hadoutofmemory = 1;
             return 0;
         }
@@ -3270,6 +3272,11 @@ int _codegencallback_DoCodegen_visit_in(
             }
             i--;
         }
+
+        free(_withclause_rescueframeid);
+        _withclause_rescueframeid = NULL;
+        free(_withclause_jumpfinallyid);
+        _withclause_jumpfinallyid = NULL;
 
         // End of entire block here.
         h64instruction_poprescueframe inst_popcatch = {0};
