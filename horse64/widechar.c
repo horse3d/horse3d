@@ -181,6 +181,94 @@ int64_t utf32_letters_count(
     return len;
 }
 
+int64_t utf32_next_letter_byteslen_in_utf8(
+        const char *sdata, int64_t sdata_len
+        ) {
+    h64wchar _tempbuf[128];
+    h64wchar *tempbuf = _tempbuf;
+    int tempbufheap = 0;
+    int tempbufsize = sizeof(_tempbuf) / sizeof(*_tempbuf);
+    int tempbuffill = 0;
+    const char *p = sdata;
+    int64_t plen = sdata_len;
+    while (1) {
+        if (tempbuffill + 1 > tempbufsize) {
+            int64_t newsize = tempbuffill + 1;
+            if (newsize < tempbufsize * 2)
+                newsize = tempbufsize * 2;
+            h64wchar *newtempbuf;
+            if (tempbufheap) {
+                newtempbuf = realloc(
+                    tempbuf, sizeof(*tempbuf) * newsize
+                );
+            } else {
+                newtempbuf = malloc(
+                    sizeof(*tempbuf) * newsize
+                );
+                if (newtempbuf) {
+                    memcpy(
+                        newtempbuf, tempbuf,
+                        sizeof(*tempbuf) * tempbuffill
+                    );
+                }
+            }
+            if (!newtempbuf) {
+                if (tempbufheap)
+                    free(tempbuf);
+                return -1;
+            }
+            tempbuf = newtempbuf;
+            tempbufheap = 1;
+        }
+        int next_char_len = 0;
+        if (plen > 0) {
+            next_char_len = utf8_char_len((const uint8_t *)p);
+            assert(next_char_len >= 1);
+            if (next_char_len > plen)
+                next_char_len = plen;
+        }
+        if (next_char_len >= 0) {
+            char utf8tmp[7];
+            assert(next_char_len <= 6);
+            memcpy(utf8tmp, p, next_char_len);
+            utf8tmp[next_char_len] = '\0';
+            int used_up_bytes = 0;
+            int result = get_utf8_codepoint(
+                (const uint8_t *)utf8tmp, strlen(utf8tmp),
+                tempbuf + tempbuffill, &used_up_bytes
+            );
+            if (!result || used_up_bytes <= 0) {
+                if (next_char_len > 0) {
+                    tempbuf[tempbuffill] = utf8tmp[0];
+                    tempbuffill++;
+                    next_char_len = 1;
+                } else {
+                    // We hit the end.
+                    if (tempbufheap)
+                        free(tempbuf);
+                    return sdata_len;
+                }
+            } else {
+                tempbuffill++;
+            }
+        }
+        assert(plen - next_char_len >= 0);
+        int64_t current_len = utf32_letter_len(
+            tempbuf, tempbuffill
+        );
+        if (current_len < tempbuffill || plen == 0) {
+            // We started a second char or hit the end.
+            // Return the bytes we ate up before this loop iteration.
+            if (tempbufheap)
+                free(tempbuf);
+            return sdata_len - plen;
+        }
+        // No second char started yet, so resume.
+        plen -= next_char_len;
+        p += next_char_len;
+    }
+}
+
 int64_t utf32_letter_len(
         const h64wchar *sdata, int64_t sdata_len
         ) {

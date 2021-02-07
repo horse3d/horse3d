@@ -73,6 +73,10 @@ int64_t utf32_letter_len(
     const h64wchar *sdata, int64_t sdata_len
 );
 
+int64_t utf32_next_letter_byteslen_in_utf8(
+    const char *sdata, int64_t sdata_len
+);
+
 int64_t utf32_letters_count(
     h64wchar *sdata, int64_t sdata_len
 );
