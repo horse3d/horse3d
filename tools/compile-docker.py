@@ -8,6 +8,7 @@ import sys
 IMAGE_LBL = "horse64-3hg290g"
 CONTAINER_LBL = "horse64-r0y30i4jioog"
 RUN_TESTS = False
+RUN_BASH = False
 
 if "--help" in sys.argv[1:]:
     print("Runs build in docker. Use --run-tests to also run tests.")
