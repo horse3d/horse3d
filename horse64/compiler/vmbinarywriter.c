@@ -72,6 +72,7 @@ int vmbinarywriter_WriteProgram(
         *error = strdup("failed to read embedded h64pak data");
         fclose(fbin);
         free(out);
+        vfs_FreeEmbeddedPakInfo(appendedpaks);
         return 0;
     }
     int64_t prepaklen = -1;
@@ -238,6 +239,8 @@ int vmbinarywriter_WriteProgram(
     }
     fclose(fbin);  // don't need that anymore
     fbin = NULL;
+    vfs_FreeEmbeddedPakInfo(appendedpaks);
+    appendedpaks = NULL;
 
     // Now, create custom .h64pak with program code & resources:
     pakfolder = NULL;
