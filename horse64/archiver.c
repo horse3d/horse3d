@@ -589,7 +589,7 @@ h64archive *archive_FromVFSHandleEx(
     }
     memset(a, 0, sizeof(*a));
     a->f = fnew;
-    if (vfs_fseektoend(a->f) != 0) {
+    if (!vfs_fseektoend(a->f)) {
         vfs_fclose(fnew);
         free(a);
         return NULL;
@@ -731,7 +731,7 @@ h64archive *archive_FromFilePathSlice(
     if (f) {
         // Make sure the offset parameters are applied & valid:
         if (fileoffset > 0 || maxlen > 0) {
-            if (vfs_fseektoend(f) != 0) {
+            if (!vfs_fseektoend(f)) {
                 vfs_fclose(f);
                 return NULL;
             }
@@ -760,15 +760,17 @@ h64archive *archive_FromFilePathSlice(
 
 h64archive *archive_FromFileHandleSlice(
         FILE *origf, uint64_t fileoffset, uint64_t maxlen,
-        h64archivetype type
+        h64archivetype type, int fdiswritable
         ) {
     // Get the VFS file:
     errno = 0;
-    VFSFILE *f = vfs_ownThisFD(origf, "r+b");
+    VFSFILE *f = vfs_ownThisFD(
+        origf, (fdiswritable ? "r+b" : "rb")
+    );
     if (f) {
         // Make sure the offset parameters are applied & valid:
         if (fileoffset > 0 || maxlen > 0) {
-            if (vfs_fseektoend(f) != 0) {
+            if (!vfs_fseektoend(f)) {
                 vfs_DetachFD(f);
                 vfs_fclose(f);
                 return NULL;

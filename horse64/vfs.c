@@ -136,7 +136,7 @@ VFSFILE *vfs_fdup(VFSFILE *f) {
         int seekworked = 0;
         int64_t pos = PHYSFS_tell(f->physfshandle);
         if (pos >= 0) {
-            if (PHYSFS_seek(f->physfshandle, pos) == 0) {
+            if (PHYSFS_seek(f->physfshandle, pos)) {
                 seekworked = 1;
             }
         }
@@ -200,6 +200,7 @@ int vfs_fseek(VFSFILE *f, uint64_t offset) {
         return -1;
     }
     if (PHYSFS_seek(f->physfshandle, offset + startoffset) != 0) {
+        // Seek worked.
         f->offset = offset;
         return 0;
     }
@@ -298,7 +299,7 @@ int vfs_flimitslice(VFSFILE *f, uint64_t fileoffset, uint64_t maxlen) {
 
     // Get the old position to revert to if stuff goes wrong:
     int64_t pos = (
-        f->via_physfs ? ftell64(f->diskhandle) :
+        (!f->via_physfs) ? ftell64(f->diskhandle) :
         PHYSFS_tell(f->physfshandle)
     );
     if (pos < 0)
@@ -335,7 +336,7 @@ int vfs_flimitslice(VFSFILE *f, uint64_t fileoffset, uint64_t maxlen) {
 
     // Now, try to seek to the new position that is now inside the window:
     if (f->via_physfs ? PHYSFS_seek(f->physfshandle, newpos) == 0 :
-            fseek64(f->diskhandle, newpos, SEEK_SET) == 0) {
+            fseek64(f->diskhandle, newpos, SEEK_SET) < 0) {
         if (f->via_physfs) {  // at least TRY to seek back
             PHYSFS_seek(f->physfshandle, pos);
         } else {

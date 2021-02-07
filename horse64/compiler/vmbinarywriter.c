@@ -113,7 +113,7 @@ int vmbinarywriter_WriteProgram(
         return 0;
     }
     // Write out the binary itself:
-    if (!fseek64(fbin, 0, SEEK_SET)) {
+    if (fseek64(fbin, 0, SEEK_SET) != 0) {
         *error = strdup("failed to read base binary");
         goto abort;
     }

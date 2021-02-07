@@ -165,7 +165,7 @@ int _vfs_GetEmbbeddedPakInfoByVFSFile_Do(
            "checking for pack with end_offset %" PRId64 " "
            "in: VFSILE %p\n", end_offset, f);
     #endif
-    if (vfs_fseektoend(f) < 0) {
+    if (!vfs_fseektoend(f)) {
         *einfo = NULL;
         return 0;
     }
@@ -299,7 +299,7 @@ int vfs_HasEmbbededPakThatContainsFilePath_Stdio(
     h64archive *a = archive_FromFileHandleSlice(
         binary_file, einfo->data_start_offset,
         einfo->data_end_offset - einfo->data_start_offset,
-        H64ARCHIVE_TYPE_AUTODETECT
+        H64ARCHIVE_TYPE_AUTODETECT, 0
     );
     if (!a) {
         return 0;

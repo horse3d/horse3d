@@ -7,6 +7,7 @@
 
 #include "compileconfig.h"
 
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -225,7 +226,7 @@ ATTR_UNUSED static FILE *_dupfhandle(FILE *f, const char* mode) {
         #if defined(_WIN32) || defined(_WIN64)
         _close(fd2);
         #else
-        close(fd);
+        close(fd2);
         #endif
         return NULL;
     }
