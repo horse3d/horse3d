@@ -22,6 +22,7 @@ RUN valgrind --help; valgrind --version
 
 # Command to build release builds, and optionally run tests:
 RUN echo "#!/bin/bash" > /do-build
+RUN echo "cd /compile-tree/" >> /do-build
 RUN echo "if [ ! -e ./.git ]; then" >> /do-build
 RUN echo "    git init ." >> /do-build
 RUN echo "    git remote add origin https://github.com/horse64/core.horse64.org" >> /do-build
