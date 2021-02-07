@@ -13,9 +13,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive 
 # Install valgrind manually for newer version:
 RUN valgrind --help || { echo "No valgrind yet, this is expected."; }
 RUN mkdir -p /tmp/valgrind && cd /tmp/valgrind && git clone git://sourceware.org/git/valgrind.git .
-RUN cd /tmp/valgrind && git checkout b918f710208889d579026627830a80b24be1513d
-ADD ./vendor/valgrind.patch /tmp/valgrind/valgrind.patch
-RUN cd /tmp/valgrind && patch -p1 < ./valgrind.patch
+RUN cd /tmp/valgrind && git checkout 57c823aefea32e1fba3af47d29e66313d0bc13cd
 RUN cd /tmp/valgrind && ./autogen.sh && ./configure
 RUN cd /tmp/valgrind && make && make install
 RUN valgrind --help; valgrind --version
