@@ -30,7 +30,7 @@ RUN echo "    git checkout -b main -t origin/main" >> /do-build
 RUN echo "    git submodule foreach git reset --hard" >> /do-build
 RUN echo "    make check-submodules || git submodule update --init" >> /do-build
 RUN echo "fi" >> /do-build
-RUN echo "rm -f ./binaries/* && make veryclean && if [ \"x$RUN_TESTS\" = xyes ]; then echo ""; echo \" *** BUILDING DEBUG (for tests) ***\"; make clean debug; echo \" *** RUNNING TESTS (DEBUG)***\"; echo ""; make test; fi && make clean release && mv horsec ./binaries/horsec-x64 && chmod -R 777 /compile-tree/binaries/* && if [ \"x$RUN_TESTS\" = xyes ]; then echo ""; echo \" *** RUNNING TESTS (release) ***\"; echo ""; make test; fi && CC=x86_64-w64-mingw32-gcc make veryclean release && rm -f ./binaries/horsec-x64.exe && mv horsec.exe ./binaries/horsec-x64.exe && CC=aarch64-linux-gnu-gcc make veryclean release && mv horsec ./binaries/horsec-aarch64" >> /do-build
+RUN echo "rm -f ./binaries/* && make veryclean && if [ \"x\$RUN_TESTS\" = xyes ]; then echo ""; echo \" *** BUILDING DEBUG (for tests) ***\"; make clean debug; echo \" *** RUNNING TESTS (DEBUG)***\"; echo ""; make test; fi && make clean release && mv horsec ./binaries/horsec-x64 && chmod -R 777 /compile-tree/binaries/* && if [ \"x\$RUN_TESTS\" = xyes ]; then echo ""; echo \" *** RUNNING TESTS (release) ***\"; echo ""; make test; fi && CC=x86_64-w64-mingw32-gcc make veryclean release && rm -f ./binaries/horsec-x64.exe && mv horsec.exe ./binaries/horsec-x64.exe && CC=aarch64-linux-gnu-gcc make veryclean release && mv horsec ./binaries/horsec-aarch64" >> /do-build
 RUN chmod +x /do-build
 RUN mkdir -p /compile-tree/
 WORKDIR /compile-tree/
