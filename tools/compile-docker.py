@@ -14,6 +14,8 @@ if "--help" in sys.argv[1:]:
     sys.exit(0)
 if "--run-tests" in sys.argv[1:]:
     RUN_TESTS = True
+if "--shell" in sys.argv[1:]:
+    RUN_BASH = True
 
 tools_dir = os.path.abspath(os.path.dirname(__file__))
 os.chdir(os.path.join(os.path.dirname(__file__), ".."))
@@ -48,11 +50,18 @@ finally:
         os.remove(".dockerignore")
 if not os.path.exists("binaries"):
     os.mkdir("binaries")
-subprocess.run(
-    ["docker", "run", "--label", CONTAINER_LBL,
+args = (
+    ["docker", "run"] +
+    (["-ti"] if RUN_BASH else []) +
+    ["--label", CONTAINER_LBL,
     "-e", "RUN_TESTS=" + ("yes" if RUN_TESTS else "no"),
     "-v",
     os.path.abspath("./binaries/") +
-    ":/compile-tree/binaries/:rw,z", IMAGE_LBL],
+    ":/compile-tree/binaries/:rw,z", IMAGE_LBL] +
+    (["/bin/bash"] if RUN_BASH else [])
+)
+
+subprocess.run(
+    args,
     stderr=subprocess.STDOUT
 ).check_returncode()
