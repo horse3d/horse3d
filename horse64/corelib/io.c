@@ -1286,6 +1286,8 @@ int iolib_fileread(
     if (!readbinary && readbuffill == 0) {
         vresult->type = H64VALTYPE_SHORTSTR;
         vresult->constpreallocstr_len = 0;
+        if (readbufheap)
+            free(readbuf);
     } else if (!readbinary) {
         char _convertedbuf[1024];
         h64wchar* converted = (h64wchar*)_convertedbuf;
@@ -1367,6 +1369,8 @@ int iolib_fileread(
     } else if (readbinary && readbuffill == 0) {
         vresult->type = H64VALTYPE_SHORTBYTES;
         vresult->constpreallocbytes_len = 0;
+        if (readbufheap)
+            free(readbuf);
     } else {
         assert(readbinary);
         vresult->type = H64VALTYPE_GCVAL;
