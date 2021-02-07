@@ -42,9 +42,8 @@ Help & Docs
     https://horse64.org/docs
   )
 
-* [Help & community chat on Matrix](
-    https://matrix.to/#/+horse64:matrix.org
-  )
+* [Help](https://matrix.to/#/#horse64:matrix.org) and [Community](
+  https://matrix.to/#/#horse64-community-barn:matrix.org) chat on Matrix
 
   [![chat icon](misc/logo_README_chat.png)](
     https://matrix.to/#/+horse64:matrix.org
