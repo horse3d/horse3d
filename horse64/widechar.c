@@ -878,7 +878,8 @@ void utf32_tolower(h64wchar *s, int64_t slen) {
     while (i < slen) {
         uint64_t codepoint = s[i];
         int64_t lowered = -1;
-        if ((int64_t)codepoint <= _widechartbl_highest_cp)
+        if ((int64_t)codepoint <= _widechartbl_highest_cp &&
+                (int64_t)codepoint >= _widechartbl_lowest_cp)
             lowered = _widechartbl_lowercp[codepoint];
         if (lowered >= 0)
             s[i] = lowered;
@@ -891,7 +892,8 @@ void utf32_toupper(h64wchar *s, int64_t slen) {
     while (i < slen) {
         uint64_t codepoint = s[i];
         int64_t uppered = -1;
-        if ((int64_t)codepoint <= _widechartbl_highest_cp)
+        if ((int64_t)codepoint <= _widechartbl_highest_cp &&
+                (int64_t)codepoint >= _widechartbl_lowest_cp)
             uppered = _widechartbl_uppercp[codepoint];
         if (uppered >= 0)
             s[i] = uppered;

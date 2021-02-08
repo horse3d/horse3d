@@ -233,6 +233,11 @@ int vmbinarywriter_WriteProgram(
                     *error = strdup("failed to write base h64pak");
                     goto abort;
                 }
+                outputoffset = ftell64(f);
+                if (outputoffset < 0) {
+                    *error = strdup("failed ftell64() after writing");
+                    goto abort;
+                }
             }
             pinfo = pinfo->next;
         }
