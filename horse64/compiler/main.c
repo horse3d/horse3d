@@ -324,7 +324,7 @@ static void printmsg(
         fileurilen = result->fileurilen;
     }
     char *fileuri_u8 = NULL;
-    if (fileuri) {
+    if (fileuri && fileurilen > 0) {
         fileuri_u8 = AS_U8(
             fileuri, fileurilen
         );

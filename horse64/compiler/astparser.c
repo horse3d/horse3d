@@ -5859,6 +5859,7 @@ h64ast *ast_ParseFromTokens(
         pcontext.ast = result;
         pcontext.resultmsg = &result->resultmsg;
         pcontext.fileuri = fileuri;
+        pcontext.fileurilen = fileurilen;
         pcontext.tokenstreaminfo = &tokenstreaminfo;
         h64parsethis pthis;
         memset(&pthis, 0, sizeof(pthis));
@@ -5978,6 +5979,7 @@ void ast_FreeContents(h64ast *ast) {
     ast->stmt = NULL;
     free(ast->fileuri);
     ast->fileuri = NULL;
+    ast->fileurilen = 0;
     free(ast->module_path);
     ast->module_path = NULL;
     free(ast->library_name);
