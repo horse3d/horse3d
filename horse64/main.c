@@ -15,6 +15,8 @@
 #include <signal.h>
 #endif
 
+#include "bytecode.h"
+#include "bytecodeserialize.h"
 #include "horse64/compiler/main.h"
 #include "horse64/packageversion.h"
 #include "filesys.h"
@@ -33,7 +35,66 @@ int main_TryRunAttachedProgram(
         int argc, const char **argv
         ) {
     *wasrun = 0;
-    return 0;
+    int _progexists = 0;
+    if (!vfs_ExistsEx(NULL, "__horse_program.hasm_raw",
+            &_progexists, VFSFLAG_NO_REALDISK_ACCESS)) {
+        fprintf(stderr,
+            "main.c: error: failed to check VFS code bytecode - "
+            "out of memory or disk I/O error?\n");
+        *wasrun = 1;
+        return -1;
+    }
+    if (!_progexists)
+        return 0;
+
+    char *programbytes = NULL;
+    uint64_t programbyteslen = 0;
+    if (!vfs_SizeEx(
+            NULL, "__horse_program.hasm_raw", &programbyteslen,
+            VFSFLAG_NO_REALDISK_ACCESS
+            )) {
+        fprintf(stderr,
+            "main.c: error: failed to check VFS code bytecode - "
+            "out of memory or disk I/O error?\n");
+        *wasrun = 1;
+        return -1;
+    }
+    programbytes = malloc(programbyteslen);
+    if (!programbytes) {
+        fprintf(stderr,
+            "main.c: error: out of memory loading bytecode\n");
+        *wasrun = 1;
+        return -1;
+    }
+    if (!vfs_GetBytesEx(
+            NULL, "__horse_program.hasm_raw",
+            0, programbyteslen, programbytes,
+            VFSFLAG_NO_REALDISK_ACCESS
+            )) {
+        fprintf(stderr,
+            "main.c: error: failed to check VFS code bytecode - "
+            "out of memory or disk I/O error?\n");
+        *wasrun = 1;
+        return -1;
+    }
+    h64program *p = NULL;
+    if (!h64program_Restore(
+            &p, programbytes, programbyteslen
+            )) {
+        fprintf(stderr,
+            "main.c: error: failed to load VFS code bytecode - "
+            "out of memory or disk I/O error?\n");
+        *wasrun = 1;
+        return -1;
+    }
+
+    *wasrun = 1;
+    h64misccompileroptions moptions = {0};
+    int resultcode = vmschedule_ExecuteProgram(
+        p, &moptions
+    );
+    h64program_Free(p);
+    return resultcode;
 }
 
 #if defined(_WIN32) || defined(_WIN64)

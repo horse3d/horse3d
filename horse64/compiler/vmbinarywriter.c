@@ -162,7 +162,7 @@ int vmbinarywriter_WriteProgram(
                 goto abort;
             }
             if (!vfs_HasEmbbededPakThatContainsFilePath_Stdio(
-                    pinfo, fbin, "program.hasm_raw",
+                    pinfo, fbin, "__horse_program.hasm_raw",
                     &result_programcode
                     )) {
                 *error = strdup("failed to examine h64paks for "
@@ -293,7 +293,7 @@ int vmbinarywriter_WriteProgram(
         goto abort;
     }
     if (!h64archive_AddFileFromMem(
-            appendpakarchive, "program.hasm_raw",
+            appendpakarchive, "__horse_program.hasm_raw",
             out, outlen
             )) {
         *error = strdup("failed to add bytecode to h64pak archive");
