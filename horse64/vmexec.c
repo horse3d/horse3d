@@ -701,7 +701,8 @@ static int _framedoesntcatchtype(
 
 static int vmthread_errors_Raise(
         h64vmthread *vmthread, int64_t class_id,
-        int64_t *current_func_id, ptrdiff_t *current_exec_offset,
+        int64_t *current_func_id, int *funcnestdepth,
+        ptrdiff_t *current_exec_offset,
         int canfailonoom,
         int *returneduncaughterror,
         h64errorinfo *out_uncaughterror,
@@ -851,6 +852,7 @@ static int vmthread_errors_Raise(
                 (i - 1 < 0 || i - 1 == unroll_to_frame)) {
             fataloom = 1;
         }
+        (*funcnestdepth)--;
         k++;
         i--;
     }
@@ -996,7 +998,8 @@ static int _rescueframefromid(
 
 static void vmthread_errors_EndFinally(
         h64vmthread *vmthread, int rescueframeid,
-        int64_t *current_func_id, ptrdiff_t *current_exec_offset,
+        int64_t *current_func_id, int *funcnestdepth,
+        ptrdiff_t *current_exec_offset,
         int *returneduncaughterror,
         h64errorinfo *out_uncaughterror
         ) {
@@ -1036,7 +1039,8 @@ static void vmthread_errors_EndFinally(
             if (e.msg != NULL) {
                 result = vmthread_errors_Raise(
                     vmthread, e.error_class_id,
-                    current_func_id, current_exec_offset,
+                    current_func_id, funcnestdepth,
+                    current_exec_offset,
                     !wasoom, returneduncaughterror,
                     out_uncaughterror,
                     1, (const char *)e.msg, (int)e.msglen
@@ -1044,7 +1048,8 @@ static void vmthread_errors_EndFinally(
             } else {
                 result = vmthread_errors_Raise(
                     vmthread, e.error_class_id,
-                    current_func_id, current_exec_offset,
+                    current_func_id, funcnestdepth,
+                    current_exec_offset,
                     !wasoom, returneduncaughterror,
                     out_uncaughterror,
                     1, NULL, (int)0
@@ -1054,7 +1059,8 @@ static void vmthread_errors_EndFinally(
                 assert(!wasoom);
                 result = vmthread_errors_Raise(
                     vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                    current_func_id, current_exec_offset,
+                    current_func_id, funcnestdepth,
+                    current_exec_offset,
                     0, returneduncaughterror,
                     out_uncaughterror,
                     1, NULL, (int)0
@@ -1132,7 +1138,7 @@ static void vmexec_PrintPostErrorInfo(
     }\
     int raiseresult = vmthread_errors_Raise( \
         vmthread, class_id, \
-        &func_id, &offset, \
+        &func_id, &funcnestdepth, &offset, \
         (class_id != H64STDERROR_OUTOFMEMORYERROR), \
         &returneduncaught, \
         &uncaughterror, is_u32, __VA_ARGS__ \
@@ -1142,7 +1148,7 @@ static void vmexec_PrintPostErrorInfo(
         uncaughterror.error_class_id = -1; \
         raiseresult = vmthread_errors_Raise( \
             vmthread, H64STDERROR_OUTOFMEMORYERROR, \
-            &func_id, &offset, 0, \
+            &func_id, &funcnestdepth, &offset, 0, \
             &returneduncaught, \
             &uncaughterror, is_u32, "Allocation failure" \
         );\
@@ -3072,7 +3078,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
             h64errorinfo e = {0};
             vmthread_errors_EndFinally(
                 vmthread, inst->frameid,
-                &func_id, &offset,
+                &func_id, &funcnestdepth, &offset,
                 &exitwitherror, &e
             );  // calls poperrorframe
             if (exitwitherror) {
