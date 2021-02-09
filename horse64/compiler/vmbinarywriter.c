@@ -184,7 +184,7 @@ int vmbinarywriter_WriteProgram(
                 int64_t paklen = pinfo->data_end_offset -
                     pinfo->data_start_offset;
                 assert(paklen > 0);
-                while (i < paklen) {
+                while (i < paklen) {  // Transfer all bytes in chunks
                     char buf[512];
                     uint64_t transferbytes = sizeof(buf);
                     if (i + transferbytes > (uint64_t)paklen)
@@ -322,7 +322,7 @@ int vmbinarywriter_WriteProgram(
     }
     int64_t newpakstart = outputoffset;
     i = 0;
-    while (i < newarchivesize) {
+    while (i < newarchivesize) {  // Append all bytes in chunks
         char buf[512];
         uint64_t transferbytes = sizeof(buf);
         if (i + transferbytes > (uint64_t)newarchivesize)
@@ -345,6 +345,7 @@ int vmbinarywriter_WriteProgram(
     int64_t newpakend = outputoffset;
     fflush(f);
     fclose(pakarchivef);
+    pakarchivef = NULL;
     int _ignoreerr = 0;
     filesys32_RemoveFolderRecursively(
         pakfolder, pakfolderlen, &_ignoreerr
