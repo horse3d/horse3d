@@ -1593,6 +1593,105 @@ int iolib_fileclose(
 }
 
 
+int iolib_get_unix_perms(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Get Unix style permissions from the target as an
+     * octal permission string, e.g. "0755" for
+     * user read/write/exec, group read/exec, any read/exec.
+     *
+     * On non-Unix platforms, this will raise a NotImplementedError.
+     *
+     * @func get_unix_perms
+     * @param path the target from which to get Unix style permissions
+     * @raises NotImplementedError raised on non-Unix platforms that
+     *     do not support this permission style.
+     * @raises IOError raised when there was an error getting permissions
+     *     that will likely persist on immediate retry, like lack of
+     *     access permission, the target not existing, and so on.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a read timeout, and similar.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    int permextra, permuser, permgroup, permany;
+    int _err = 0;
+    int result = filesys32_GetOctalPermissions(
+        pathstr, pathlen, &_err, &permextra,
+        &permuser, &permgroup, &permany
+    );
+    if (!result) {
+        if (_err == FS32_ERR_UNSUPPORTEDPLATFORM) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_NOTIMPLEMENTEDERROR,
+                "not a unix platform"
+            );
+        } else if (_err == FS32_ERR_NOPERMISSION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "permission denied"
+            );
+        } else if (_err == FS32_ERR_NOSUCHTARGET) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no such file or directory"
+            );
+        } else if (_err == FS32_ERR_OUTOFFDS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "out of file descriptors"
+            );
+        }
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unexpected type of I/O error"
+        );
+    }
+
+    int64_t slen = 4;
+    h64wchar s[4];
+    s[0] = '0' + permextra;
+    s[1] = '0' + permuser;
+    s[2] = '0' + permgroup;
+    s[3] = '0' + permany;
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    vcresult->type = H64VALTYPE_NONE;
+    if (!valuecontent_SetStringU32(
+            vmthread, vcresult, s, slen)) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory returning permission string"
+        );
+    }
+    return 1;
+}
+
 int iolib_set_unix_perms(
         h64vmthread *vmthread
         ) {
@@ -1641,7 +1740,7 @@ int iolib_set_unix_perms(
 
     h64wchar *permstr = NULL;
     int64_t permlen = 0;
-    valuecontent *vcperm = STACK_ENTRY(vmthread->stack, 0);
+    valuecontent *vcperm = STACK_ENTRY(vmthread->stack, 1);
     if (vcperm->type == H64VALTYPE_GCVAL &&
             ((h64gcvalue*)(vcpath->ptr_value))->type ==
                 H64GCVALUETYPE_STRING) {
@@ -1663,8 +1762,8 @@ int iolib_set_unix_perms(
 
     if (permlen != 3 && permlen != 4) {
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_TYPEERROR,
-            "permissions string must be of length 3 or 4"
+            vmthread, H64STDERROR_ARGUMENTERROR,
+            "permissions string must be 3 or 4 digits"
         );
     }
     if ((permstr[0] < '0' || permstr[0] > '9') ||
@@ -1673,8 +1772,8 @@ int iolib_set_unix_perms(
             (permlen == 4 && (
                 permstr[3] < '0' || permstr[3] > '9'))) {
         return vmexec_ReturnFuncError(
-            vmthread, H64STDERROR_TYPEERROR,
-            "permissions string must consist of digits only"
+            vmthread, H64STDERROR_ARGUMENTERROR,
+            "permissions string must be 3 or 4 digits"
         );
     }
 
@@ -2226,6 +2325,18 @@ int iolib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "remove", &iolib_remove,
         NULL, 0, 2, io_remove_kw_arg_name,  // fileuri, args
+        "io", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // io.get_unix_perms:
+    const char *io_get_unix_perms_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "get_unix_perms", &iolib_get_unix_perms,
+        NULL, 0, 1, io_get_unix_perms_kw_arg_name,  // fileuri, args
         "io", "core.horse64.org", 1, -1
     );
     if (idx < 0)

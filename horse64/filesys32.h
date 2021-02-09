@@ -44,9 +44,14 @@ int filesys32_SetExecutable(
 
 int filesys32_SetOctalPermissions(
     const h64wchar *path, int64_t pathlen, int *err,
-    int permission_extra,
-    int permission_user, int permission_group,
-    int permission_any
+    int permission_extra, int permission_user,
+    int permission_group, int permission_any
+);
+
+int filesys32_GetOctalPermissions(
+    const h64wchar *path, int64_t pathlen, int *err,
+    int *permission_extra, int *permission_user,
+    int *permission_group, int *permission_any
 );
 
 void filesys32_FreeFolderList(

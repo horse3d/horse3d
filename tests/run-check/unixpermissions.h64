@@ -1,0 +1,31 @@
+
+import io from core.horse64.org
+import path from core.horse64.org
+
+func main {
+    var orig_cwd = path.get_cwd()
+
+    # Create a temp folder and go inside:
+    var p = io.add_tmp_dir(prefix="io_h64_check")
+    assert(path.exists(p))
+    path.set_cwd(p)
+
+    do {
+        # Make test file and get permissions:
+        with io.open("file.txt", write=yes, binary=yes) as f {
+            f.write(b"test data")
+        }
+        var perm = io.get_unix_perms("file.txt")
+        assert(perm.len == 4)
+        print("Initial permissions: " + perm)
+
+        # Set read-only permissions:
+        io.set_unix_perms("file.txt", "444")
+    } rescue MathError {
+        # Platform without Unix permissions.
+    } finally {
+        io.remove(p, recursive=yes)
+    }
+}
+
+# expected return value: 0
