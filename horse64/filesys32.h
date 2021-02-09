@@ -38,6 +38,17 @@ int filesys32_IsDirectory(
     const h64wchar *path, int64_t pathlen, int *result
 );
 
+int filesys32_SetExecutable(
+    const h64wchar *path, int64_t pathlen, int *err
+);
+
+int filesys32_SetOctalPermissions(
+    const h64wchar *path, int64_t pathlen, int *err,
+    int permission_extra,
+    int permission_user, int permission_group,
+    int permission_any
+);
+
 void filesys32_FreeFolderList(
     h64wchar **list, int64_t *listlen
 );
@@ -57,7 +68,8 @@ enum {
     FS32_ERR_NONEMPTYDIRECTORY = -11,
     FS32_ERR_SYMLINKSWEREEXCLUDED = -12,
     FS32_ERR_IOERROR = -13,
-    FS32_ERR_OTHERERROR = -14
+    FS32_ERR_UNSUPPORTEDPLATFORM = -14,
+    FS32_ERR_OTHERERROR = -15
 };
 
 int filesys32_ChangeDirectory(

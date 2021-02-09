@@ -45,6 +45,7 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 #include "bytecode.h"
 #include "corelib/errors.h"
 #include "corelib/io.h"
+#include "filesys32.h"
 #include "gcvalue.h"
 #include "poolalloc.h"
 #include "stack.h"
@@ -61,7 +62,8 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 #define FILEOBJ_FLAGS_CACHEDUNSENTERROR 0x20
 #define FILEOBJ_FLAGS_IGNOREENCODINGERROR 0x40
 
-/// @module io Disk access functions, reading and writing to files.
+/// @module io A module for manipulation files and directories
+///     on disk, using whatever filesystems your computer provides.
 
 typedef struct _fileobj_cdata {
     void (*on_destroy)(h64gcvalue *fileobj);
@@ -1590,13 +1592,674 @@ int iolib_fileclose(
     return 1;
 }
 
+
+int iolib_set_unix_perms(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Directly set Unix style permissions on the target from
+     * the given octal permission string, e.g. "0755" for
+     * user read/write/exec, group read/exec, any read/exec.
+     *
+     * On non-Unix platforms, this will raise a NotImplementedError.
+     *
+     * @func set_unix_perms
+     * @param path the target for which to set Unix style permissions
+     * @param permissions the permissions string, e.g. "0755".
+     * @raises NotImplementedError raised on non-Unix platforms that
+     *     do not support this permission style.
+     * @raises IOError raised when there was an error setting permissions
+     *     that will likely persist on immediate retry, like lack of
+     *     permission, the target not existing, and so on.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a write timeout, and similar.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    h64wchar *permstr = NULL;
+    int64_t permlen = 0;
+    valuecontent *vcperm = STACK_ENTRY(vmthread->stack, 0);
+    if (vcperm->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        permstr = (
+            ((h64gcvalue*)(vcperm->ptr_value))->str_val.s
+        );
+        permlen = (
+            ((h64gcvalue*)(vcperm->ptr_value))->str_val.len
+        );
+    } else if (vcperm->type == H64VALTYPE_SHORTSTR) {
+        permstr = vcperm->shortstr_value;
+        permlen = vcperm->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "permissions argument must be a string"
+        );
+    }
+
+    if (permlen != 3 && permlen != 4) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "permissions string must be of length 3 or 4"
+        );
+    }
+    if ((permstr[0] < '0' || permstr[0] > '9') ||
+            (permstr[1] < '0' || permstr[1] > '9') ||
+            (permstr[2] < '0' || permstr[2] > '9') ||
+            (permlen == 4 && (
+                permstr[3] < '0' || permstr[3] > '9'))) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "permissions string must consist of digits only"
+        );
+    }
+
+    int permextra = (
+        (permlen == 4) ? (permstr[0] - '0') : 0
+    );
+    int permuser = (
+        (permlen == 4) ? (permstr[1] - '0') : (permstr[0] - '0')
+    );
+    int permgroup = (
+        (permlen == 4) ? (permstr[2] - '0') : (permstr[1] - '0')
+    );
+    int permany = (
+        (permlen == 4) ? (permstr[3] - '0') : (permstr[2] - '0')
+    );
+
+    int _err = 0;
+    int result = filesys32_SetOctalPermissions(
+        pathstr, pathlen, &_err, permextra, permuser,
+        permgroup, permany
+    );
+    if (!result) {
+        if (_err == FS32_ERR_UNSUPPORTEDPLATFORM) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_NOTIMPLEMENTEDERROR,
+                "not a unix platform"
+            );
+        } else if (_err == FS32_ERR_NOPERMISSION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "permission denied"
+            );
+        } else if (_err == FS32_ERR_NOSUCHTARGET) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no such file or directory"
+            );
+        } else if (_err == FS32_ERR_OUTOFFDS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "out of file descriptors"
+            );
+        }
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unexpected type of I/O error"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    vcresult->type = H64VALTYPE_NONE;
+    return 1;
+}
+
+int iolib_set_as_exec(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Change the permissions of the given target to mark it as an
+     * executable.
+     *
+     * On platforms where this is not meaningful (like MS Windows),
+     * the target will be verified to exist and otherwise nothing is done.
+     * Therefore, it is safe to use this function on all platforms.
+     *
+     * @func set_as_exec
+     * @param path the target which to mark as executable
+     * @param enabled=yes whether to mark it as executable (enabled=yes,
+     *     the default), or the opposite and unmark it so it is no
+     *     longer executable (enabled=no).
+     * @raises IOError raised when there was an error marking the item
+     *     that will likely persist on immediate retry, like lack of
+     *     permission, the target not existing, and so on.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a read timeout, and similar.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    int enabled = 0;
+    valuecontent *vcenabled = STACK_ENTRY(vmthread->stack, 1);
+    if (vcenabled->type == H64VALTYPE_BOOL) {
+        enabled = (vcenabled->int_value != 0);
+    } else if (vcenabled->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        enabled = 1;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "enabled argument must be a boolean"
+        );
+    }
+
+    int _err = 0;
+    int result = filesys32_SetExecutable(
+        pathstr, pathlen, &_err
+    );
+    if (!result) {
+        if (_err == FS32_ERR_NOPERMISSION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "permission denied"
+            );
+        } else if (_err == FS32_ERR_NOSUCHTARGET) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "no such file or directory"
+            );
+        } else if (_err == FS32_ERR_OUTOFFDS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "out of file descriptors"
+            );
+        }
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unexpected type of I/O error"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    vcresult->type = H64VALTYPE_NONE;
+    return 1;
+}
+
+int iolib_remove(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Remove the target represented given by the filesystem path, which
+     * may be a file or a directory. If the function returns without an
+     * error then the target was successfully removed.
+     *
+     * **Note on symbolic links:** on Unix symbolic links will not be followed
+     * for recursive deletion, so if the given target is a symbolic link or
+     * contains symbolic links to other folders only the links themselves
+     * will be removed. On Windows, there is no differentiation and even
+     * symbolic links or junctions will have their contents recursively
+     * deleted.
+     *
+     * @func remove
+     * @param path the filesystem path of the item to be removed
+     * @param recursive=no whether a non-empty directory will cause an
+     *     IOError (default, recursive=no), or the items will also be
+     *     recursively removed (recursive=yes).
+     * @raises IOError raised when there was an error removing the item
+     *     that will likely persist on immediate retry, like lack of
+     *     permissions, the target not existing, and so on.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a write timeout, and similar.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+    int recursive = 0;
+    valuecontent *vcrecursive = STACK_ENTRY(vmthread->stack, 1);
+    if (vcrecursive->type == H64VALTYPE_BOOL) {
+        recursive = (vcrecursive->int_value != 0);
+    } else if (vcrecursive->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        recursive = 0;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "recursive argument must be a boolean"
+        );
+    }
+
+    int result = 0;
+    int error = 0;
+    if (!recursive) {
+        goto removesinglefileordir;
+    } else {
+        result = filesys32_RemoveFolderRecursively(
+            pathstr, pathlen, &error
+        );
+        if (!result && error == FS32_ERR_TARGETNOTADIRECTORY) {
+            removesinglefileordir:
+            result = filesys32_RemoveFileOrEmptyDir(
+                pathstr, pathlen, &error
+            );
+            if (!result) {
+                if (error == FS32_ERR_DIRISBUSY) {
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_RESOURCEERROR,
+                        "directory is in use by process "
+                        "and cannot be deleted"
+                    );
+                } else if (error == FS32_ERR_NONEMPTYDIRECTORY) {
+                    // Oops, seems like something concurrently
+                    // filled in files again.
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_RESOURCEERROR,
+                        "target directory is not empty"
+                    );
+                } else if (error == FS32_ERR_NOPERMISSION) {
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_IOERROR,
+                        "permission denied"
+                    );
+                } else if (error == FS32_ERR_NOSUCHTARGET) {
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_IOERROR,
+                        "no such file or directory"
+                    );
+                } else if (error == FS32_ERR_OUTOFFDS) {
+                    return vmexec_ReturnFuncError(
+                        vmthread, H64STDERROR_RESOURCEERROR,
+                        "out of file descriptors"
+                    );
+                }
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_RESOURCEERROR,
+                    "unexpected type of I/O error"
+                );
+            }
+        } else if (!result) {
+            if (error == FS32_ERR_DIRISBUSY) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_RESOURCEERROR,
+                    "directory is in use by process "
+                    "and cannot be deleted"
+                );
+            } else if (error == FS32_ERR_NONEMPTYDIRECTORY) {
+                // Oops, seems like something concurrently
+                // filled in files again.
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_RESOURCEERROR,
+                    "encountered unexpected re-added "
+                    "file"
+                );
+            } else if (error == FS32_ERR_NOPERMISSION) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_IOERROR,
+                    "permission denied"
+                );
+            } else if (error == FS32_ERR_NOSUCHTARGET) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_IOERROR,
+                    "no such file or directory"
+                );
+            } else if (error == FS32_ERR_OUTOFFDS) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_RESOURCEERROR,
+                    "out of file descriptors"
+                );
+            }
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "unexpected type of I/O error"
+            );
+        }
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    vcresult->type = H64VALTYPE_NONE;
+    return 1;
+}
+
+
+int iolib_add_tmp_dir(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Create a new empty subfolder with equivalent of @see{add_dir}'s
+     * limit_to_owner=yes (inaccessible to other processes of different
+     * users) at whatever place the system stores temporary files.
+     * Your program is responsible for removing this directory when
+     * you're done with using it.
+     *
+     * @func add_tmp_dir
+     * @param prefix="" what sort of prefix to use for the otherwise
+     *     randomized subfolder name.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a read timeout, and similar.
+     * @return @see{string} of the system's temporary files directory.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    h64wchar *prefixstr = NULL;
+    int64_t prefixlen = 0;
+    valuecontent *vcprefix = STACK_ENTRY(vmthread->stack, 0);
+    if (vcprefix->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcprefix->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        prefixstr = (
+            ((h64gcvalue*)(vcprefix->ptr_value))->str_val.s
+        );
+        prefixlen = (
+            ((h64gcvalue*)(vcprefix->ptr_value))->str_val.len
+        );
+    } else if (vcprefix->type == H64VALTYPE_SHORTSTR) {
+        prefixstr = vcprefix->shortstr_value;
+        prefixlen = vcprefix->shortstr_len;
+    } else if (vcprefix->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        prefixstr = NULL;
+        prefixlen = 0;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "prefix argument must be a string"
+        );
+    }
+
+    int64_t folder_path_len = 0;
+    h64wchar *folder_path = NULL;
+    int64_t file_path_len = 0;
+    h64wchar *file_path = NULL;
+    FILE *f = filesys32_TempFile(
+        1, 1, prefixstr, prefixlen, NULL, 0,
+        &folder_path, &folder_path_len,
+        &file_path, &file_path_len
+    );
+    assert(!f && file_path == NULL);
+    if (!folder_path) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unexpected I/O error creating a temporary dir"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    if (!valuecontent_SetStringU32(
+            vmthread, vcresult, folder_path, folder_path_len)) {
+        free(folder_path);
+        int innererror = 0;
+        filesys32_RemoveFileOrEmptyDir(
+            folder_path, folder_path_len, &innererror
+        );
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "failed to allocate temporary dir name"
+        );
+    }
+    free(folder_path);
+    return 1;
+}
+
+int iolib_add_dir(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * Add a new empty directory at the given target path.
+     *
+     * @func add_dir
+     * @param path the filesystem path for the new directory to be added
+     * @param recursive=no whether to recursively add the parent directories
+     *     in case these don't exist yet (recursive=yes), or whether to
+     *     raise an IOError if all but the last path component don't exist
+     *     already (recursive=no, the default).
+     * @param limit_to_owner=no whether the new directory created
+     *     should have permissions set to only allow the user under which
+     *     this program runs to access its contents, and also disallow
+     *     any write access from groups. Changing the permissions
+     *     manually after you create the directory might have already
+     *     allowed a different process to change their working directory
+     *     into it or write a file via group permissions, so
+     *     limit_to_owner=yes is a safe alternative to prevent that.
+     *     By default, other processes will be allowed to read from and change
+     *     their working directory to the new directory, or write into it
+     *     based on group permissions (limit_to_owner=no).
+     * @raises IOError raised when there was an error adding the directory
+     *     that will likely persist on immediate retry, like lack of
+     *     permissions, the target already exists, and so on.
+     * @raises ResourceError raised when there is a failure that might go
+     *     away on retry, like an unexpected disk input output error,
+     *     a write timeout, and similar.
+     */
+    assert(STACK_TOP(vmthread->stack) >= 3);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+    int recursive = 0;
+    valuecontent *vcrecursive = STACK_ENTRY(vmthread->stack, 1);
+    if (vcrecursive->type == H64VALTYPE_BOOL) {
+        recursive = (vcrecursive->int_value != 0);
+    } else if (vcrecursive->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        recursive = 0;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "recursive argument must be a boolean"
+        );
+    }
+    int limittoowner = 0;
+    valuecontent *vclimittoowner = STACK_ENTRY(vmthread->stack, 2);
+    if (vclimittoowner->type == H64VALTYPE_BOOL) {
+        limittoowner = (vclimittoowner->int_value != 0);
+    } else if (vclimittoowner->type == H64VALTYPE_UNSPECIFIED_KWARG) {
+        limittoowner = 0;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "limit_to_owner argument must be a boolean"
+        );
+    }
+
+    int result = 0;
+    if (recursive) {
+        result = filesys32_CreateDirectoryRecursively(
+            pathstr, pathlen, limittoowner
+        );
+    } else {
+        result = filesys32_CreateDirectory(
+            pathstr, pathlen, limittoowner
+        );
+    }
+    if (result < 0) {
+        if (result == FS32_ERR_TARGETALREADYEXISTS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "target already exists"
+            );
+        } else if (result == FS32_ERR_NOPERMISSION) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "permission denied"
+            );
+        } else if (result == FS32_ERR_PARENTSDONTEXIST) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_IOERROR,
+                "parent directory missing"
+            );
+        } else if (result == FS32_ERR_OUTOFFDS) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_RESOURCEERROR,
+                "out of file descriptors"
+            );
+        } else if (result == FS32_ERR_OUTOFMEMORY) {
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory creating directory"
+            );
+        }
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_RESOURCEERROR,
+            "unexpected type of I/O error"
+        );
+    }
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    return 1;
+}
+
 int iolib_RegisterFuncsAndModules(h64program *p) {
+    int64_t idx;
+
+    // io.add_tmp_dir:
+    const char *io_add_tmp_dir_kw_arg_name[] = {
+        "prefix"
+    };
+    idx = h64program_RegisterCFunction(
+        p, "add_tmp_dir", &iolib_add_tmp_dir,
+        NULL, 0, 1, io_add_tmp_dir_kw_arg_name,  // fileuri, args
+        "io", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // io.add_dir:
+    const char *iolib_add_dir_kw_arg_name[] = {
+        NULL, "recursive", "limit_to_owner"
+    };
+    idx = h64program_RegisterCFunction(
+        p, "add_dir", &iolib_add_dir,
+        NULL, 0, 3, iolib_add_dir_kw_arg_name,  // fileuri, args
+        "io", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // io.remove:
+    const char *io_remove_kw_arg_name[] = {
+        NULL, "recursive"
+    };
+    idx = h64program_RegisterCFunction(
+        p, "remove", &iolib_remove,
+        NULL, 0, 2, io_remove_kw_arg_name,  // fileuri, args
+        "io", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // io.set_unix_perms:
+    const char *io_set_unix_perms_kw_arg_name[] = {
+        NULL, NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "set_unix_perms", &iolib_set_unix_perms,
+        NULL, 0, 2, io_set_unix_perms_kw_arg_name,  // fileuri, args
+        "io", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // io.set_as_exec:
+    const char *io_set_as_exec_kw_arg_name[] = {
+        NULL, "enabled"
+    };
+    idx = h64program_RegisterCFunction(
+        p, "set_as_exec", &iolib_set_as_exec,
+        NULL, 0, 2, io_set_as_exec_kw_arg_name,  // fileuri, args
+        "io", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
     // io.open:
     const char *io_open_kw_arg_name[] = {
         NULL, "read", "write", "append", "binary",
         "allow_bad_encoding"
     };
-    int64_t idx;
     idx = h64program_RegisterCFunction(
         p, "open", &iolib_open,
         NULL, 0, 6, io_open_kw_arg_name,  // fileuri, args

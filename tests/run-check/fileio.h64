@@ -6,7 +6,7 @@ func main {
     var orig_cwd = path.get_cwd()
 
     # Create a temp folder and go inside:
-    var p = path.create_tmp_dir(prefix="io_h64_check")
+    var p = io.add_tmp_dir(prefix="io_h64_check")
     assert(path.exists(p))
     path.set_cwd(p)
 
@@ -99,7 +99,7 @@ func main {
 
     # Go back to initial cwd, and remove our temp dir again
     path.set_cwd(orig_cwd)
-    path.remove(p, recursive=yes)
+    io.remove(p, recursive=yes)
     assert(not path.exists(p))
 }
 

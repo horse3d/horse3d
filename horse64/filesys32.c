@@ -58,6 +58,7 @@ int _open_osfhandle(intptr_t osfhandle, int flags);
 
 #include "filesys.h"
 #include "filesys32.h"
+#include "nonlocale.h"
 #include "secrandom.h"
 #include "threading.h"
 #include "widechar.h"
@@ -124,6 +125,192 @@ FILE *filesys32_OpenFromPath(
     }
     return f;
     #endif
+}
+
+int filesys32_SetOctalPermissions(
+        const h64wchar *path, int64_t pathlen, int *err,
+        int permission_extra,
+        int permission_user, int permission_group,
+        int permission_any
+        ) {
+    if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
+        *err = FS32_ERR_NOSUCHTARGET;
+        return 0;
+    }
+    #if defined(_WIN32) || defined(_WIN64)
+    *err = FS32_ERR_UNSUPPORTEDPLATFORM;
+    return 0;
+    #else
+    char *pathu8 = AS_U8(path, pathlen);
+    if (!pathu8) {
+        *err = FS32_ERR_OUTOFMEMORY;
+        return 0;
+    }
+    char number[] = "0000";
+    if (permission_extra >= 0 && permission_extra <= 9)
+        number[0] = '0' + permission_extra;
+    if (permission_user >= 0 && permission_user <= 9)
+        number[1] = '0' + permission_user;
+    if (permission_group >= 0 && permission_group <= 9)
+        number[2] = '0' + permission_group;
+    if (permission_any >= 0 && permission_any <= 9)
+        number[3] = '0' + permission_any;
+    int octal_perm = h64strtoll(number, NULL, 8);
+    if (octal_perm > 0) {
+        if (chmod(pathu8, octal_perm) != 0) {
+            free(pathu8);
+            *err = FS32_ERR_OTHERERROR;
+            if (errno == ENOENT || errno == ENOTDIR)
+                *err = FS32_ERR_NOSUCHTARGET;
+            else if (errno == EMFILE || errno == ENFILE)
+                *err = FS32_ERR_OUTOFFDS;
+            else if (errno == EACCES || errno == EPERM)
+                *err = FS32_ERR_NOPERMISSION;
+            else if (errno == ENOMEM)
+                *err = FS32_ERR_OUTOFMEMORY;
+            return 0;
+        }
+    }
+    free(pathu8);
+    return 1;
+    #endif
+}
+
+int filesys32_GetOctalPermissions(
+        const h64wchar *path, int64_t pathlen, int *err,
+        int *permission_extra,
+        int *permission_user, int *permission_group,
+        int *permission_any
+        ) {
+    if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
+        *err = FS32_ERR_NOSUCHTARGET;
+        return 0;
+    }
+    #if defined(_WIN32) || defined(_WIN64)
+    *err = FS32_ERR_UNSUPPORTEDPLATFORM;
+    return 0;
+    #else
+    char *targetpath = AS_U8(path, pathlen);
+    if (!targetpath) {
+        *err = FS32_ERR_OUTOFMEMORY;
+        return 0;
+    }
+    struct stat64 sb = {0};
+    int statresult = (stat64(targetpath, &sb) == 0);
+    free(targetpath);
+    if (!statresult) {
+        *err = FS32_ERR_OTHERERROR;
+        if (errno == EACCES || errno == EPERM)
+            *err = FS32_ERR_NOPERMISSION;
+        if (errno == EMFILE || errno == ENFILE)
+            *err = FS32_ERR_OUTOFFDS;
+        if (errno == ENOMEM)
+            *err = FS32_ERR_OUTOFMEMORY;
+        if (errno == ENOENT || errno == ENOTDIR)
+            *err = FS32_ERR_NOSUCHTARGET;
+        return 1;
+    }
+    int permissions = (
+        sb.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO)
+    );
+    char permissionsoctal[10];
+    h64snprintf(
+        permissionsoctal, sizeof(permissionsoctal) - 1,
+        "%o", (int)permissions
+    );
+    *permission_extra = (
+        (strlen(permissionsoctal) >= 4 &&
+        permissionsoctal[strlen(permissionsoctal) - 4] >= '0' &&
+        permissionsoctal[strlen(permissionsoctal) - 4] <= '9') ?
+        (permissionsoctal[strlen(permissionsoctal) - 4] - '0') : 0
+    );
+    *permission_user = (
+        (strlen(permissionsoctal) >= 3 &&
+        permissionsoctal[strlen(permissionsoctal) - 3] >= '0' &&
+        permissionsoctal[strlen(permissionsoctal) - 3] <= '9') ?
+        (permissionsoctal[strlen(permissionsoctal) - 3] - '0') : 0
+    );
+    *permission_group = (
+        (strlen(permissionsoctal) >= 2 &&
+        permissionsoctal[strlen(permissionsoctal) - 2] >= '0' &&
+        permissionsoctal[strlen(permissionsoctal) - 2] <= '9') ?
+        (permissionsoctal[strlen(permissionsoctal) - 2] - '0') : 0
+    );
+    *permission_any = (
+        (strlen(permissionsoctal) >= 1 &&
+        permissionsoctal[strlen(permissionsoctal) - 1] >= '0' &&
+        permissionsoctal[strlen(permissionsoctal) - 1] <= '9') ?
+        (permissionsoctal[strlen(permissionsoctal) - 1] - '0') : 0
+    );
+    return 1;
+    #endif
+}
+
+int filesys32_SetExecutable(
+        const h64wchar *path, int64_t pathlen, int *err
+        ) {
+    if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
+        *err = FS32_ERR_NOSUCHTARGET;
+        return 0;
+    }
+    #if defined(_WIN32) || defined(_WIN64)
+    int _exists = 0;
+    if (filesys32_TargetExists(
+            path, pathlen, &_exists
+            )) {
+        *err = FS32_ERR_OTHERERROR;
+        return 0;
+    }
+    if (!_exists) {
+        *err = FS32_ERR_NOSUCHTARGET;
+        return 0;
+    }
+    return 1;
+    #else
+    int permission_extra = 0;
+    int permission_user = 0;
+    int permission_group = 0;
+    int permission_any = 0;
+    int _err = 0;
+    int result = filesys32_GetOctalPermissions(
+        path, pathlen, &_err, &permission_extra,
+        &permission_user, &permission_group, &permission_any
+    );
+    if (!result) {
+        *err = _err;
+        return 0;
+    }
+    if (permission_user == 6)
+        permission_user = 7;
+    else if (permission_user == 4)
+        permission_user = 5;
+    else if (permission_user == 2)
+        permission_user = 3;
+    if (permission_group == 6)
+        permission_group = 7;
+    else if (permission_group == 4)
+        permission_group = 5;
+    else if (permission_group == 2)
+        permission_group = 3;
+    if (permission_any == 6)
+        permission_any = 7;
+    else if (permission_any == 4)
+        permission_any = 5;
+    else if (permission_any == 2)
+        permission_any = 3;
+    result = filesys32_SetOctalPermissions(
+        path, pathlen, &_err,
+        permission_extra, permission_user,
+        permission_group, permission_any
+    );
+    if (!result) {
+        *err = _err;
+        return 0;
+    }
+    return 1;
+    #endif
+    *err = FS32_ERR_OTHERERROR;
+    return 0;
 }
 
 int filesys32_IsObviouslyInvalidPath(
@@ -1191,8 +1378,8 @@ int filesys32_TargetExists(
         return 0;
     }
     targetpath[targetpathlen] = '\0';
-    struct stat sb = {0};
-    int statresult = (stat(targetpath, &sb) == 0);
+    struct stat64 sb = {0};
+    int statresult = (stat64(targetpath, &sb) == 0);
     free(targetpath);
     if (!statresult) {
         if (errno == EACCES || errno == EPERM ||
@@ -2458,11 +2645,11 @@ int filesys32_IsDirectory(
     }
 
     #if defined(ANDROID) || defined(__ANDROID__) || defined(__unix__) || defined(__linux__) || defined(__APPLE__) || defined(__OSX__)
-    struct stat sb;
+    struct stat64 sb;
     char *p = AS_U8(pathu32, pathu32len);
     if (!p)
         return 0;
-    int statcheck = stat(p, &sb);
+    int statcheck = stat64(p, &sb);
     if (statcheck != 0) {
         free(p);
         if (errno == ENOENT) {
