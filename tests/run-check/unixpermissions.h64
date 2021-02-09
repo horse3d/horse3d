@@ -25,6 +25,7 @@ func main {
         # Platform without Unix permissions.
     } finally {
         io.remove(p, recursive=yes)
+        path.set_cwd(orig_cwd)
     }
 }
 

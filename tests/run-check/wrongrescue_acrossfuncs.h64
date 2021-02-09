@@ -19,4 +19,5 @@ func main {
     print("fail: " + fail.as_str)
     assert(fail == yes)
 }
-    
+
+# expected return value: 0
