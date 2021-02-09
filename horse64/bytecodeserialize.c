@@ -210,13 +210,13 @@ int h64program_Dump(h64program *p, char **out, int64_t *out_len) {
     pinlen -= itemsize;
 
 
-#define _LOADSIZEALLOC(item, itemsize) \
+#define _LOADSIZEALLOC_EX(item, itemsize, extraalloc) \
     if (pinlen < (int64_t)(itemsize)) {\
         h64program_Free(p);\
         return 0;\
     }\
     assert((item) == NULL);\
-    item = malloc(itemsize);\
+    item = malloc(itemsize + extraalloc);\
     if (!(item)) {\
         h64program_Free(p);\
         return 0;\
@@ -224,6 +224,13 @@ int h64program_Dump(h64program *p, char **out, int64_t *out_len) {
     memcpy((char*)(item), pin, (int64_t)(itemsize));\
     pin += itemsize;\
     pinlen -= itemsize;
+
+#define _LOADSIZEALLOC(item, itemsize)\
+    _LOADSIZEALLOC_EX(item, itemsize, 0);
+
+#define _LOADSIZEALLOC_NULTERMINATED(item, itemsize) \
+    _LOADSIZEALLOC_EX(item, itemsize, 1); \
+    ((char*)item)[itemsize] = '\0';
 
 #define _LOADSIZEALLOCZEROED(item, itemsize) \
     assert((item) == NULL);\
@@ -234,7 +241,7 @@ int h64program_Dump(h64program *p, char **out, int64_t *out_len) {
     }\
     memset((char*)(item), 0, (int64_t)(itemsize));
 
-#define _LOAD(item) _LOADSIZE(&(item), sizeof(item))
+#define _LOAD(item) _LOADSIZE(&(item), sizeof(item));
 
 int h64program_Restore(
         h64program **write_to_ptr, const char *in, int64_t in_len
@@ -330,7 +337,7 @@ int h64program_Restore(
 
             int32_t len = 0;
             _LOAD(len);
-            _LOADSIZEALLOC(
+            _LOADSIZEALLOC_NULTERMINATED(
                 f->cfunclookup, len
             );
 
