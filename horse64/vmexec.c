@@ -678,6 +678,27 @@ static void vmthread_errors_ProceedToFinally(
     ].finally_instruction_offset;
 }
 
+static int _framedoesntcatchtype(
+        h64program *p, h64vmrescueframe *frame, classid_t cid
+        ) {
+    int i = 0;
+    while (i < frame->caught_types_count) {
+        classid_t check_cid = cid;
+        while (check_cid >= 0) {
+            if (i < 5 && frame->caught_types_firstfive[i] ==
+                    check_cid) {
+                return 1;
+            } else if (i >= 5 &&
+                    frame->caught_types_more[i - 5] == check_cid) {
+                return 1;
+            }
+            check_cid = p->classes[check_cid].base_class_global_id;
+        }
+        i++;
+    }
+    return 0;
+}
+
 static int vmthread_errors_Raise(
         h64vmthread *vmthread, int64_t class_id,
         int64_t *current_func_id, ptrdiff_t *current_exec_offset,
@@ -713,8 +734,14 @@ static int vmthread_errors_Raise(
                     ].triggered_catch ||
                     vmthread->errorframe[
                         vmthread->errorframe_count - 1
-                    ].catch_instruction_offset < 0) {
-                // Wait, we ran into 'rescue' already.
+                    ].catch_instruction_offset < 0 ||
+                    !_framedoesntcatchtype(
+                        vmthread->vmexec_owner->program,
+                        &vmthread->errorframe[
+                            vmthread->errorframe_count - 1
+                        ], class_id)) {
+                // Wait, we ran into 'rescue' already - or
+                // this doesn't catch our type.
                 // But what about finally?
                 if (!vmthread->errorframe[
                         vmthread->errorframe_count - 1
@@ -882,13 +909,20 @@ static int vmthread_errors_Raise(
             ].catch_instruction_offset >= 0 &&
             !vmthread->errorframe[
                 vmthread->errorframe_count - 1
-            ].triggered_catch) {
+            ].triggered_catch &&
+            _framedoesntcatchtype(
+                vmthread->vmexec_owner->program,
+                &vmthread->errorframe[
+                    vmthread->errorframe_count - 1
+                ], class_id
+            )) {
         // Go into rescue clause.
         assert(
             !vmthread->errorframe[
                 vmthread->errorframe_count - 1
             ].triggered_catch
         );
+        assert(!jump_to_finally);
         *current_exec_offset = vmthread->errorframe[
             vmthread->errorframe_count - 1
         ].catch_instruction_offset;
