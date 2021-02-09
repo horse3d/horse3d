@@ -114,6 +114,47 @@ int h64program_Dump(h64program *p, char **out, int64_t *out_len) {
                     f->instructions,
                     f->instructions_bytes
                 );
+                // Now, dump instruction extra data like strings:
+                char *pinst = f->instructions;
+                while (pinst < (char *)(f->instructions +
+                        f->instructions_bytes)) {
+                    h64instructionany *inst = (
+                        (h64instructionany *)pinst
+                    );
+                    size_t instsize = (
+                        h64program_PtrToInstructionSize(pinst)
+                    );
+                    if (inst->type == H64INST_SETCONST) {
+                        h64instruction_setconst *iconst = (
+                            (h64instruction_setconst *)inst
+                        );
+                        if (iconst->content.type ==
+                                H64VALTYPE_CONSTPREALLOCSTR) {
+                            int64_t len = (
+                                iconst->content.
+                                constpreallocstr_len
+                            );
+                            _DUMP(len);
+                            _DUMPSIZE(
+                                iconst->content.
+                                    constpreallocstr_value,
+                                len * sizeof(h64wchar)
+                            );
+                        } else if (iconst->content.type ==
+                                H64VALTYPE_CONSTPREALLOCBYTES) {
+                            int64_t len = (
+                                iconst->content.
+                                constpreallocbytes_len
+                            );
+                            _DUMP(len);
+                            _DUMPSIZE(
+                                 iconst->content.
+                                    constpreallocbytes_value, len
+                            );
+                        }
+                    }
+                    pinst += instsize;
+                }
             }
 
             i++;
@@ -342,11 +383,57 @@ int h64program_Restore(
             );
 
             if (!f->iscfunc) {
+                // Load up instructions with a direct copy:
                 _LOAD(f->instructions_bytes);
                 _LOADSIZEALLOC(
                     f->instructions,
                     f->instructions_bytes
                 );
+                // Now, we must also get separately allocated data
+                // for the instructions. Only used for strings and bytes
+                // constants right now.
+                char *pinst = f->instructions;
+                while (pinst < (char *)(f->instructions +
+                        f->instructions_bytes)) {
+                    h64instructionany *inst = (
+                        (h64instructionany *)pinst
+                    );
+                    size_t instsize = (
+                        h64program_PtrToInstructionSize(pinst)
+                    );
+                    if (inst->type == H64INST_SETCONST) {
+                        h64instruction_setconst *iconst = (
+                            (h64instruction_setconst *)inst
+                        );
+                        if (iconst->content.type ==
+                                H64VALTYPE_CONSTPREALLOCSTR) {
+                            int64_t len = 0;
+                            _LOAD(len);
+                            iconst->content.
+                                constpreallocstr_value = NULL;
+                            _LOADSIZEALLOC(
+                                iconst->content.
+                                    constpreallocstr_value,
+                                len * sizeof(h64wchar)
+                            );
+                            iconst->content.
+                                constpreallocstr_len = len;
+                        } else if (iconst->content.type ==
+                                H64VALTYPE_CONSTPREALLOCBYTES) {
+                            int64_t len = 0;
+                            _LOAD(len);
+                            iconst->content.
+                                constpreallocbytes_value = NULL;
+                            _LOADSIZEALLOC(
+                                 iconst->content.
+                                    constpreallocbytes_value, len
+                            );
+                            iconst->content.
+                                constpreallocbytes_len = len;
+                        }
+                    }
+                    pinst += instsize;
+                }
             }
 
             i++;

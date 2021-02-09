@@ -436,7 +436,7 @@ attridx_t h64program_RegisterClassAttributeEx(
 attridx_t h64program_LookupClassAttribute(
         h64program *p, classid_t class_id, int64_t nameid
         ) {
-    assert(p != NULL && p->symbols != NULL);
+    assert(p != NULL);
     int bucketindex = (nameid % (int64_t)H64CLASS_HASH_SIZE);
     h64classattributeinfo *buckets =
         (p->classes[class_id].
