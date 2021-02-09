@@ -1,0 +1,22 @@
+
+
+func must_fail {
+    do {
+        raise new RuntimeError("test")
+    } rescue NotImplementedError {
+        # This shouldn't catch anything.
+    }
+}
+
+func main {
+    var fail = yes
+    do {
+        must_fail()
+        fail = no
+    } rescue RuntimeError {
+        fail = yes
+    }
+    print("fail: " + fail.as_str)
+    assert(fail == yes)
+}
+    
