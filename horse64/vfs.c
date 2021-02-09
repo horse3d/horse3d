@@ -653,11 +653,11 @@ int vfs_SizeEx(
     int64_t absu32len = 0;
     h64wchar *absu32 = NULL;
     if (abspath)
-        AS_U32(abspath, &absu32len);
+        absu32 = AS_U32(abspath, &absu32len);
     int64_t relu32len = 0;
     h64wchar *relu32 = NULL;
     if (relpath)
-        AS_U32(relpath, &relu32len);
+        relu32 = AS_U32(relpath, &relu32len);
     if ((abspath && !absu32) || (relpath && !relu32)) {
         free(absu32);
         free(relu32);

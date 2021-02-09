@@ -246,6 +246,13 @@ int h64program_Restore(
     if (!p)
         return 0;
     memset(p, 0, sizeof(*p));
+    int alwaysfree_writeto = 0;
+    if (!write_to) {
+        write_to = h64program_New();
+        if (!write_to)
+            goto loadfail;
+        alwaysfree_writeto = 1;
+    }
 
     char fileheader[] = "\x01H64BCODE_V1\x01";
     char headercheck[256];
@@ -253,6 +260,8 @@ int h64program_Restore(
     if (memcmp(headercheck, fileheader, strlen(fileheader)) != 0) {
         loadfail:
         h64program_Free(p);
+        if (alwaysfree_writeto && write_to)
+            h64program_Free(write_to);
         return 0;
     }
 
@@ -433,6 +442,7 @@ int h64program_Restore(
                         i2++;
                         continue;
                     }
+                    assert(write_to->func[i2].cfunclookup != NULL);
                     if (strcmp(write_to->func[i2].cfunclookup,
                             p->func[i].cfunclookup) == 0) {
                         p->func[i].cfunc_ptr = (
@@ -460,7 +470,10 @@ int h64program_Restore(
     }
 
     // Free old program and copy over new one:
-    h64program_Free(*write_to_ptr);
+    if (*write_to_ptr)
+        h64program_Free(*write_to_ptr);
+    if (write_to && alwaysfree_writeto)
+        h64program_Free(write_to);
     *write_to_ptr = p;
 
     return 1;
