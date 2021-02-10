@@ -380,5 +380,19 @@ int vmbinarywriter_WriteProgram(
     fclose(f);
     f = NULL;
     free(out);
+
+    // Mark as executable:
+    #if !defined(_WIN32) && !defined(_WIN64)
+    {
+        int err2 = 0;
+        int result2 = filesys32_SetExecutable(
+            targetfile, targetfilelen, &err2
+        );
+        if (!result2) {
+            *error = strdup("failed to set +x on executable");
+            goto abort;
+        }
+    }
+    #endif
     return 1;
 }
