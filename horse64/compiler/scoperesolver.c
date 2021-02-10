@@ -1083,17 +1083,20 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
 
             // See what exact import statement that maps to:
             h64expression *_mapto = NULL;
+            int _best_mapto_ignoredattributes = -1;
+            assert(def->additionaldecl_count >= 0);
             int j = -1;
             while (j < def->additionaldecl_count) {
                 h64expression *val = def->declarationexpr;
                 if (j >= 0)
                     val = def->additionaldecl[j];
                 if (val->type == H64EXPRTYPE_IMPORT_STMT &&
-                        val->importstmt.import_elements_count ==
+                        val->importstmt.import_elements_count <=
                         accessed_elements_count) {
                     int mismatch = 0;
                     int k = 0;
-                    while (k < accessed_elements_count) {
+                    while (k < accessed_elements_count &&
+                            k < val->importstmt.import_elements_count) {
                         if (strcmp(
                                 accessed_elements_str[k],
                                 val->importstmt.import_elements[k]
@@ -1103,9 +1106,40 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                         }
                         k++;
                     }
-                    if (!mismatch) _mapto = val;
+                    int ignored_elements = (
+                        accessed_elements_count -
+                        val->importstmt.import_elements_count
+                    );
+                    assert(ignored_elements >= 0);
+                    if (!mismatch && (
+                            ignored_elements <
+                                _best_mapto_ignoredattributes ||
+                            _best_mapto_ignoredattributes < 0)) {
+                        _mapto = val;
+                        _best_mapto_ignoredattributes = ignored_elements;
+                    }
                 }
                 j++;
+            }
+
+            // If we ignored elements at the end, we need to go back
+            // to the inner pexpr that we actually managed to resolve.
+            // (This is relevant e.g. for: import_module.submodule.item.len,
+            // such that we back out of treating ".len" as import part.)
+            if (_mapto && _best_mapto_ignoredattributes > 0) {
+                int backoutsteps = _best_mapto_ignoredattributes;
+                while (backoutsteps > 0) {
+                    assert(accessed_elements_count >= 0);
+                    assert(pexpr->type == H64EXPRTYPE_BINARYOP &&
+                           pexpr->op.optype ==
+                               H64OP_ATTRIBUTEBYIDENTIFIER);
+                    backoutsteps--;
+                    pexpr = pexpr->op.value1;
+                    free(accessed_elements_str[
+                        accessed_elements_count - 1
+                    ]);
+                    accessed_elements_count--;
+                }
             }
 
             // Put together path for error messages later:
@@ -1145,7 +1179,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             if (_mapto == NULL) {
                 char buf[256];
                 h64snprintf(buf, sizeof(buf) - 1,
-                    "unknown reference to module path \"%s\", "
+                    "unknown reference to module item \"%s\", "
                     "not found among this file's imports",
                     full_imp_path
                 );
