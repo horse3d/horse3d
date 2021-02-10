@@ -92,7 +92,7 @@ remove-main-o:
 
 checkdco:
 	python3 tools/check-dco.py
-test: checkdco wchar_data datapak $(ALL_OBJECTS) $(TEST_BINARIES)
+test: checkdco check-submodules wchar_data datapak $(ALL_OBJECTS) $(TEST_BINARIES)
 	for x in $(TEST_BINARIES); do echo ">>> TEST RUN: $$x"; CK_FORK=no valgrind --track-origins=yes --leak-check=full ./$$x || { exit 1; }; done
 	@echo "All tests were run."
 test_%.bin: test_%.c $(PROGRAM_OBJECTS_NO_MAIN)
