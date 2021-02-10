@@ -253,5 +253,13 @@ int processlib_RegisterFuncsAndModules(h64program *p) {
     if (idx < 0)
         return 0;
 
+    // process.args:
+    idx = h64program_AddGlobalvar(
+        p, "args", 1, NULL, 0, "process", "core.horse64.org"
+    );
+    if (idx < 0)
+        return 0;
+    p->globalvar[idx].content.type = H64VALTYPE_NONE;
+
     return 1;
 }
