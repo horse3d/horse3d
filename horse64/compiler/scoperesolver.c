@@ -1130,7 +1130,7 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 while (k < accessed_elements_count) {
                     if (k > 0) {
                         full_imp_path[strlen(full_imp_path) + 1] = '\0';
-                        full_imp_path[strlen(full_imp_path) + 1] = '.';
+                        full_imp_path[strlen(full_imp_path)] = '.';
                     }
                     memcpy(
                         full_imp_path + strlen(full_imp_path),
