@@ -30,7 +30,8 @@
 
 static int _compileargparse(
         const char *cmd,
-        const char **argv, int argc, int argoffset,
+        const h64wchar **argv, int64_t *argvlen,
+        int argc, int argoffset,
         h64wchar **fileuriorexec, int64_t *fileuriorexeclen,
         h64wchar **out_file, int64_t *out_file_len,
         h64compilewarnconfig *wconfig,
@@ -42,14 +43,15 @@ static int _compileargparse(
     *fileuriorexec = NULL;
     int i = argoffset;
     while (i < argc) {
-        if ((strlen(argv[i]) == 0 || argv[i][0] != '-' ||
+        if ((argvlen[i] == 0 || argv[i][0] != '-' ||
                 doubledashed) && fileuriorexec && !*fileuriorexec) {
             // This is the file or exec line argument.
             if (miscoptions->from_stdin) {
                 goto invalidbothfileargandfromstdin;
             }
             // For exec case, we want to combine all arguments into one:
-            if (i + 1 < argc && strcmp(cmd, "exec") == 0) {
+            if (i + 1 < argc &&
+                    strcmp(cmd, "exec") == 0) {
                 int len = 0;
                 int k = i;
                 int kmax = i;
@@ -58,12 +60,14 @@ static int _compileargparse(
                         break;
                     }
                     kmax = k;
-                    len += (k > i ? 1 : 0) + strlen(argv[k]);
+                    len += (k > i ? 1 : 0) + argvlen[k];
                     k++;
                 }
-                char *fileuriorexec_u8 = malloc(len + 1);
-                if (fileuriorexec_u8) {
-                    char *p = fileuriorexec_u8;
+                *fileuriorexec = malloc(
+                    sizeof(**fileuriorexec) * len
+                );
+                if (*fileuriorexec) {
+                    h64wchar *p = *fileuriorexec;
                     k = i;
                     while (k <= kmax) {
                         if (k > i) {
@@ -72,34 +76,41 @@ static int _compileargparse(
                         }
                         assert(p != NULL);
                         assert(argv[k] != NULL);
-                        memcpy(p, argv[k], strlen(argv[k]));
-                        p += strlen(argv[k]);
+                        memcpy(
+                            p, argv[k], sizeof(*p) * argvlen[k]
+                        );
+                        p += argvlen[k];
                         k++;
                     }
-                    p[0] = '\0';
+                    *fileuriorexeclen = len;
                 } else {
                     h64fprintf(stderr, "horsec: error: "
                         "out of memory parsing arguments\n");
                     goto failquit;
                 }
-                *fileuriorexec = AS_U32(
-                    fileuriorexec_u8, fileuriorexeclen
-                );
-                free(fileuriorexec_u8);
                 i = kmax;
             } else {
-                *fileuriorexec = AS_U32(
-                    argv[i], fileuriorexeclen
+                *fileuriorexec = malloc(
+                    sizeof(*fileuriorexec) * argvlen[i]
                 );
+                if (!*fileuriorexec) {
+                    h64fprintf(stderr, "horsec: error: "
+                        "out of memory parsing arguments\n");
+                    goto failquit;
+                }
+                memcpy(*fileuriorexec, argv[i],
+                    sizeof(*fileuriorexec) * argvlen[i]
+                );
+                *fileuriorexeclen = argvlen[i];
             }
             if (!*fileuriorexec) {
                 h64fprintf(stderr, "horsec: error: "
                     "out of memory parsing arguments\n");
                 goto failquit;
             }
-        } else if (strcmp(argv[i], "--") == 0) {
+        } else if (h64cmp_u32u8(argv[i], argvlen[i], "--") == 0) {
             doubledashed = 1;
-        } else if (strcmp(argv[i], "--help") == 0) {
+        } else if (h64cmp_u32u8(argv[i], argvlen[i], "--help") == 0) {
             h64printf("horsec %s [options] %s\n", cmd,
                 (strcmp(cmd, "exec") != 0 ? "file-path" : "code"));
             if (strcmp(cmd, "exec") != 0) {
@@ -156,16 +167,17 @@ static int _compileargparse(
                 free(*out_file);
             *out_file = NULL;
             return 1;
-        } else if ((strcmp(argv[i], "-o") == 0 ||
-                strcmp(argv[i], "--output") == 0) &&
-                strcmp(cmd, "compile") == 0) {
+        } else if ((h64cmp_u32u8(argv[i], argvlen[i], "-o") == 0 ||
+                h64cmp_u32u8(argv[i], argvlen[i], "--output") == 0) &&
+                h64cmp_u32u8(argv[i], argvlen[i], "compile") == 0) {
             if (*out_file) {
                 h64fprintf(stderr, "horsec: error: %s: "
                     "-o/--output can only be specified "
                     "once\n", cmd);
                 goto failquit;
             }
-            if (i + 1 >= argc || argv[i + 1][0] == '-') {
+            if (i + 1 >= argc || (argvlen[i + 1] > 0 &&
+                    argv[i + 1][0] == '-')) {
                 h64fprintf(stderr, "horsec: error: %s: "
                     "-o/--output need argument\n", cmd);
                 failquit: ;
@@ -177,9 +189,8 @@ static int _compileargparse(
                 *fileuriorexec = NULL;
                 return 0;
             }
-            *out_file = utf8_to_utf32(
-                argv[i + 1], strlen(argv[i + 1]),
-                NULL, NULL, out_file_len
+            *out_file = strdupu32(
+                argv[i], argvlen[i], out_file_len
             );
             if (!*out_file) {
                 h64fprintf(stderr, "horsec: error: "
@@ -189,7 +200,8 @@ static int _compileargparse(
 
             i += 2;
             continue;
-        } else if (strcmp(argv[i], "--from-stdin") == 0 && (
+        } else if (h64cmp_u32u8(argv[i], argvlen[i],
+                    "--from-stdin") == 0 && (
                 strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0 ||
                 strcmp(cmd, "compile") == 0 ||
@@ -206,11 +218,13 @@ static int _compileargparse(
             miscoptions->from_stdin = 1;
         } else if (strcmp(cmd, "get_tokens") != 0 &&
                    strcmp(cmd, "get_ast") != 0 &&
-                   strcmp(argv[i], "--import-debug") == 0) {
+                   h64cmp_u32u8(argv[i], argvlen[i],
+                       "--import-debug") == 0) {
             miscoptions->import_debug = 1;
         } else if ((strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0) &&
-                strcmp(argv[i], "--vmsockets-debug") == 0) {
+                h64cmp_u32u8(argv[i], argvlen[i],
+                    "--vmsockets-debug") == 0) {
             miscoptions->vmsockets_debug = 1;
             #ifdef NDEBUG
             h64fprintf(
@@ -220,7 +234,8 @@ static int _compileargparse(
             #endif
         } else if ((strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0) &&
-                strcmp(argv[i], "--vmasyncjobs-debug") == 0) {
+                h64cmp_u32u8(argv[i], argvlen[i],
+                    "--vmasyncjobs-debug") == 0) {
             miscoptions->vmasyncjobs_debug = 1;
             #ifdef NDEBUG
             h64fprintf(
@@ -230,7 +245,8 @@ static int _compileargparse(
             #endif
         } else if ((strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0) &&
-                strcmp(argv[i], "--vmexec-debug") == 0) {
+                h64cmp_u32u8(argv[i], argvlen[i],
+                    "--vmexec-debug") == 0) {
             miscoptions->vmexec_debug = 1;
             #ifdef NDEBUG
             h64fprintf(
@@ -240,7 +256,8 @@ static int _compileargparse(
             #endif
         } else if ((strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0) &&
-                strcmp(argv[i], "--vmsched-debug") == 0) {
+                h64cmp_u32u8(argv[i], argvlen[i],
+                    "--vmsched-debug") == 0) {
             miscoptions->vmscheduler_debug = 1;
             #ifdef NDEBUG
             h64fprintf(
@@ -250,7 +267,8 @@ static int _compileargparse(
             #endif
         } else if ((strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0) &&
-                strcmp(argv[i], "--vmsched-verbose-debug") == 0) {
+                h64cmp_u32u8(argv[i], argvlen[i],
+                    "--vmsched-verbose-debug") == 0) {
             miscoptions->vmscheduler_debug = 1;
             miscoptions->vmscheduler_verbose_debug = 1;
             #ifdef NDEBUG
@@ -259,12 +277,13 @@ static int _compileargparse(
                 "output for --vmsched-verbose-debug not compiled in\n", cmd
             );
             #endif
-        } else if (strcmp(argv[i], "--compiler-stage-debug") == 0) {
+        } else if (h64cmp_u32u8(argv[i], argvlen[i],
+                "--compiler-stage-debug") == 0) {
             miscoptions->compiler_stage_debug = 1;
         } else if (wconfig && argv[i][0] == '-' &&
                 argv[i][1] == 'W') {
-            if (!warningconfig_CheckOption(
-                    wconfig, argv[i])) {
+            if (!warningconfig_ProcessOptionU32(
+                    wconfig, argv[i], argvlen[i])) {
                 h64fprintf(
                     stderr, "horsec: warning: %s: unrecognized warning "
                     "option: %s\n", cmd, argv[i]
@@ -380,7 +399,8 @@ static void printmsg(
 #define COMPILEEX_MODE_EXEC 5
 
 int compiler_command_CompileEx(
-        int mode, const char **argv, int argc, int argoffset,
+        int mode, const h64wchar **argv, int64_t *argvlen,
+        int argc, int argoffset,
         int *return_int
         ) {
     h64wchar *fileuri = NULL;
@@ -412,7 +432,7 @@ int compiler_command_CompileEx(
     h64wchar *tempfilefolder = NULL;
     int64_t tempfilefolderlen = 0;
     if (!_compileargparse(
-            command, argv, argc, argoffset,
+            command, argv, argvlen, argc, argoffset,
             &fileuriorexec, &fileuriorexeclen,
             &outputfile, &outputfilelen, &wconfig, &moptions
             ))
@@ -684,10 +704,11 @@ int compiler_command_CompileEx(
 }
 
 int compiler_command_Compile(
-        const char **argv, int argc, int argoffset
+        const h64wchar **argv, int64_t *argvlen,
+        int argc, int argoffset
         ) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_COMPILE, argv, argc, argoffset, NULL
+        COMPILEEX_MODE_COMPILE, argv, argvlen, argc, argoffset, NULL
     );
 }
 
@@ -876,7 +897,9 @@ jsonvalue *compiler_TokenizeToJSON(
     return v;
 }
 
-int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
+int compiler_command_GetTokens(
+        const h64wchar **argv, int64_t *argvlen,
+        int argc, int argoffset) {
     h64wchar *fileuri = NULL;
     int64_t fileurilen = 0;
     h64compilewarnconfig wconfig = {0};
@@ -884,7 +907,7 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
     h64wchar *output_file = NULL;
     int64_t output_file_len = 0;
     if (!_compileargparse(
-            "get_tokens", argv, argc, argoffset,
+            "get_tokens", argv, argvlen, argc, argoffset,
             &fileuri, &fileurilen, &output_file, &output_file_len,
             &wconfig, &moptions
             ))
@@ -907,7 +930,9 @@ int compiler_command_GetTokens(const char **argv, int argc, int argoffset) {
     return 1;
 }
 
-int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
+int compiler_command_GetAST(
+        const h64wchar **argv, int64_t *argvlen, int argc, int argoffset
+        ) {
     h64wchar *fileuri = NULL;
     int64_t fileurilen = 0;
     h64compilewarnconfig wconfig = {0};
@@ -915,7 +940,7 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
     h64wchar *output_file = NULL;
     int64_t output_file_len = 0;
     if (!_compileargparse(
-            "get_ast", argv, argc, argoffset,
+            "get_ast", argv, argvlen, argc, argoffset,
             &fileuri, &fileurilen, &output_file, &output_file_len,
             &wconfig, &moptions
             ))
@@ -939,7 +964,8 @@ int compiler_command_GetAST(const char **argv, int argc, int argoffset) {
 }
 
 int compiler_command_GetResolvedAST(
-        const char **argv, int argc, int argoffset
+        const h64wchar **argv, int64_t *argvlen,
+        int argc, int argoffset
         ) {
     h64wchar *fileuri = NULL;
     int64_t fileurilen = 0;
@@ -948,7 +974,7 @@ int compiler_command_GetResolvedAST(
     h64wchar *output_file = NULL;
     int64_t output_file_len = 0;
     if (!_compileargparse(
-            "get_resolved_ast", argv, argc, argoffset,
+            "get_resolved_ast", argv, argvlen, argc, argoffset,
             &fileuri, &fileurilen, &output_file, &output_file_len,
             &wconfig, &moptions
             ))
@@ -1132,29 +1158,39 @@ jsonvalue *compiler_ParseASTToJSON(
 }
 
 int compiler_command_Run(
-        const char **argv, int argc, int argoffset, int *return_int
+        const h64wchar **argv, int64_t *argvlen,
+        int argc, int argoffset, int *return_int
         ) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_RUN, argv, argc, argoffset, return_int
+        COMPILEEX_MODE_RUN, argv, argvlen,
+        argc, argoffset, return_int
     );
 }
 
 int compiler_command_Exec(
-        const char **argv, int argc, int argoffset, int *return_int
+        const h64wchar **argv, int64_t *argvlen,
+        int argc, int argoffset, int *return_int
         ) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_EXEC, argv, argc, argoffset, return_int
+        COMPILEEX_MODE_EXEC, argv, argvlen,
+        argc, argoffset, return_int
     );
 }
 
-int compiler_command_CodeInfo(const char **argv, int argc, int argoffset) {
+int compiler_command_CodeInfo(
+        const h64wchar **argv, int64_t *argvlen,
+        int argc, int argoffset) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_CODEINFO, argv, argc, argoffset, NULL
+        COMPILEEX_MODE_CODEINFO, argv, argvlen,
+        argc, argoffset, NULL
     );
 }
 
-int compiler_command_ToASM(const char **argv, int argc, int argoffset) {
+int compiler_command_ToASM(
+        const h64wchar **argv, int64_t *argvlen,
+        int argc, int argoffset) {
     return compiler_command_CompileEx(
-        COMPILEEX_MODE_TOASM, argv, argc, argoffset, NULL
+        COMPILEEX_MODE_TOASM, argv, argvlen,
+        argc, argoffset, NULL
     );
 }

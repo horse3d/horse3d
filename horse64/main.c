@@ -32,7 +32,7 @@ void _load_unicode_data();  // widechar.c
 
 int main_TryRunAttachedProgram(
         int *wasrun,
-        int argc, const char **argv
+        int argc, const h64wchar **argv, int64_t *argvlen
         ) {
     *wasrun = 0;
     int _progexists = 0;
@@ -97,17 +97,14 @@ int main_TryRunAttachedProgram(
     return resultcode;
 }
 
-#if defined(_WIN32) || defined(_WIN64)
-int _actualmain(int argc, const char **argv) {
-#else
-int main(int argc, const char **argv) {
-#endif
+
+int mainu32(int argc, const h64wchar **argv, int64_t *argvlen) {
     main_PreInit();
 
     // See if we have a program attached to run:
     int wasrun = 0;
     int result = main_TryRunAttachedProgram(
-        &wasrun, argc, argv
+        &wasrun, argc, argv, argvlen
     );
     if (wasrun)
         return result;
@@ -115,20 +112,21 @@ int main(int argc, const char **argv) {
     // Ok, run as standalone horsec instead:
     _windows_ForceTerminalMode();
     int doubledash_seen = 0;
-    const char *action = NULL;
+    int64_t actionlen = 0;
+    const h64wchar *action = NULL;
     int action_offset = -1;
     int i = 1;
     while (i < argc) {
-        if (strcmp(argv[i], "--") == 0) {
+        if (h64cmp_u32u8(argv[i], argvlen[i], "--") == 0) {
             doubledash_seen = 1;
             i++;
             continue;
         }
         if (!doubledash_seen) {
-            if (h64casecmp(argv[i], "-h") == 0 ||
-                    strcmp(argv[i], "--help") == 0 ||
-                    strcmp(argv[i], "-?") == 0 ||
-                    strcmp(argv[i], "/?") == 0) {
+            if (h64cmp_u32u8(argv[i], argvlen[i], "-h") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "--help") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "-?") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "/?") == 0) {
                 h64printf("Usage: horsec [action] "
                           "[...options + arguments...]\n");
                 h64printf("\n");
@@ -155,10 +153,10 @@ int main(int argc, const char **argv) {
                           "run it immediately.\n");
                 return 0;
             }
-            if (strcmp(argv[i], "--version") == 0 ||
-                    strcmp(argv[i], "-V") == 0 ||
-                    strcmp(argv[i], "-version") == 0 ||
-                    strcmp(argv[i], "-v") == 0) {
+            if (h64cmp_u32u8(argv[i], argvlen[i], "--version") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "-V") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "-version") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "-v") == 0) {
                 h64printf(
                     "org.horse64.core horsec/horsevm v%s.\n"
                     "- Corelib version:   %s\n"
@@ -176,15 +174,18 @@ int main(int argc, const char **argv) {
                 );
                 return 0;
             }
-            if (!action && (strcmp(argv[i], "codeinfo") == 0 ||
-                    strcmp(argv[i], "compile") == 0 ||
-                    strcmp(argv[i], "exec") == 0 ||
-                    strcmp(argv[i], "get_asm") == 0 ||
-                    strcmp(argv[i], "get_ast") == 0 ||
-                    strcmp(argv[i], "get_resolved_ast") == 0 ||
-                    strcmp(argv[i], "get_tokens") == 0 ||
-                    strcmp(argv[i], "run") == 0)) {
+            if (!action && (
+                    h64cmp_u32u8(argv[i], argvlen[i], "codeinfo") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "compile") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "exec") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "get_asm") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "get_ast") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i],
+                        "get_resolved_ast") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "get_tokens") == 0 ||
+                    h64cmp_u32u8(argv[i], argvlen[i], "run") == 0)) {
                 action = argv[i];
+                actionlen = argvlen[i];
                 action_offset = i + 1;
                 break;
             } else if (!action && argv[i][0] != '-' &&
@@ -203,37 +204,117 @@ int main(int argc, const char **argv) {
             "like horsec run. See horsec --help\n");
         return -1;
     }
+    char *action_u8_alloc = AS_U8(action, actionlen);
+    if (!action_u8_alloc) {
+        h64fprintf(stderr, "horsec: error: alloc "
+            "fail for action u8 conversion\n");
+        return -1;
+    }
+    char action_u8[64];
+    snprintf(
+        action_u8, sizeof(action_u8),
+        "%s", action_u8_alloc
+    );
+    action_u8[sizeof(action_u8) - 1] = '\0';
+    free(action_u8_alloc);
+    action_u8_alloc = NULL;
 
     int return_value = 0;
-    if (strcmp(action, "codeinfo") == 0) {
-        if (!compiler_command_CodeInfo(argv, argc, action_offset))
+    if (strcmp(action_u8, "codeinfo") == 0) {
+        if (!compiler_command_CodeInfo(
+                argv, argvlen, argc, action_offset
+                ))
             return -1;
-    } else if (strcmp(action, "compile") == 0) {
-        if (!compiler_command_Compile(argv, argc, action_offset))
+    } else if (strcmp(action_u8, "compile") == 0) {
+        if (!compiler_command_Compile(
+                argv, argvlen, argc, action_offset
+                ))
             return -1;
-    } else if (strcmp(action, "get_asm") == 0) {
-        if (!compiler_command_ToASM(argv, argc, action_offset))
+    } else if (strcmp(action_u8, "get_asm") == 0) {
+        if (!compiler_command_ToASM(
+                argv, argvlen, argc, action_offset
+                ))
             return -1;
-    } else if (strcmp(action, "get_ast") == 0) {
-        if (!compiler_command_GetAST(argv, argc, action_offset))
+    } else if (strcmp(action_u8, "get_ast") == 0) {
+        if (!compiler_command_GetAST(
+                argv, argvlen, argc, action_offset
+                ))
             return -1;
-    } else if (strcmp(action, "get_resolved_ast") == 0) {
-        if (!compiler_command_GetResolvedAST(argv, argc, action_offset))
+    } else if (strcmp(action_u8, "get_resolved_ast") == 0) {
+        if (!compiler_command_GetResolvedAST(
+                argv, argvlen, argc, action_offset
+                ))
             return -1;
-    } else if (strcmp(action, "get_tokens") == 0) {
-        if (!compiler_command_GetTokens(argv, argc, action_offset))
+    } else if (strcmp(action_u8, "get_tokens") == 0) {
+        if (!compiler_command_GetTokens(
+                argv, argvlen, argc, action_offset
+                ))
             return -1;
-    } else if (strcmp(action, "exec") == 0) {
-        if (!compiler_command_Exec(argv, argc, action_offset, &return_value))
+    } else if (strcmp(action_u8, "exec") == 0) {
+        if (!compiler_command_Exec(
+                argv, argvlen, argc, action_offset, &return_value
+                ))
             return -1;
-    } else if (strcmp(action, "run") == 0) {
-        if (!compiler_command_Run(argv, argc, action_offset, &return_value))
+    } else if (strcmp(action_u8, "run") == 0) {
+        if (!compiler_command_Run(
+                argv, argvlen, argc, action_offset, &return_value
+                ))
             return -1;
     } else {
         return -1;
     }
     return return_value;
 }
+
+#if !defined(_WIN32) && !defined(_WIN64)
+int main(int argc, const char **argv) {
+    h64wchar **u32args = malloc(sizeof(*u32args) * (
+        argc > 0 ? argc : 1
+    ));
+    if (!u32args) {
+        h64fprintf(stderr, "main.c: error: alloc "
+            "fail for u32 conversion\n");
+        return -1;
+    }
+    int64_t *u32argslen = malloc(sizeof(*u32argslen) * (
+        argc > 0 ? argc : 1
+    ));
+    if (!u32argslen) {
+        free(u32args);
+        h64fprintf(stderr, "main.c: error: alloc "
+            "fail for u32 conversion\n");
+        return -1;
+    }
+    int k = 0;
+    while (k < argc) {
+        u32args[k] = AS_U32(
+            argv[k], &u32argslen[k]
+        );
+        if (!u32args[k]) {
+            int k2 = 0;
+            while (k2 < k)
+                free(u32args[k]);
+            free(u32args);
+            free(u32argslen);
+            h64fprintf(stderr, "main.c: error: alloc "
+                "fail for u32 conversion\n");
+            return -1;
+        }
+        k++;
+    }
+    int result = mainu32(
+        argc, (const h64wchar **)u32args, u32argslen
+    );
+    k = 0;
+    while (k < argc) {
+        free(u32args[k]);
+        k++;
+    }
+    free(u32args);
+    free(u32argslen);
+    return result;
+}
+#endif
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
@@ -254,17 +335,23 @@ int WINAPI WinMain(
         ATTR_UNUSED HINSTANCE hInst, ATTR_UNUSED HINSTANCE hPrev,
         ATTR_UNUSED LPSTR szCmdLine, ATTR_UNUSED int sw
         ) {
-    #if defined(NOBETTERARGPARSE) && NOBETTERARGPARSE != 0
-
-    // Shoddy argument splitting based on GetCommandLineW()
+    // Shoddy argument splitting based on GetCommandLineW(),
+    // since Windows is weird.
 
     int argc = 0;
     LPWSTR *_winSplitList = NULL;
     int _winSplitCount = 0;
-    char **argv = malloc(sizeof(*argv));
-    if (!argv)
-        return 1;
-    argv[0] = NULL;
+    h64wchar **argv = malloc(sizeof(*argv));
+    int64_t *argvlen = malloc(sizeof(*argvlen));
+    if (!argvlen || !argv) {
+        free(argvlen);
+        free(argv);
+        h64fprintf(
+            stderr, "main.c: error: arg alloc or convert "
+            "failure"
+        );
+        return -1;
+    }
 
     _winSplitList = CommandLineToArgvW(
         GetCommandLineW(), &_winSplitCount
@@ -278,14 +365,15 @@ int WINAPI WinMain(
             i++;
         }
         free(argv);
+        free(argvlen);
         h64fprintf(
-            stderr, "horsevm: error: arg alloc or convert "
+            stderr, "main.c: error: arg alloc or convert "
             "failure"
         );
-        return 1;
+        return -1;
     }
     if (_winSplitCount > 0) {
-        char **argv_new = realloc(
+        h64wchar **argv_new = realloc(
             argv, sizeof(*argv) * (_winSplitCount)
         );
         if (!argv_new)
@@ -295,147 +383,34 @@ int WINAPI WinMain(
         argc += _winSplitCount;
         int k = 0;
         while (k < _winSplitCount) {
-            int argbuflen = wcslen(_winSplitList[k]) * 10 + 1;
-            char *argbuf = malloc(argbuflen);
+            assert(sizeof(wchar_t) == sizeof(uint16_t));
+            int64_t argbuflen = 0;
+            h64wchar *argbuf = NULL;
+            int64_t out_len = 0;
+            ATTR_UNUSED int wasoom;
+            argbuf = utf16_to_utf32(
+                _winSplitList[k], wcslen(_winSplitList[k]),
+                &argbuflen, 1, &wasoom
+            );
             if (!argbuf)
                 goto oom;
-            int64_t out_len = 0;
-            if (!utf16_to_utf8(
-                    _winSplitList[k], wcslen(_winSplitList[k]),
-                    argbuf, argbuflen - 1, &out_len, 1
-                   ) || out_len >= argbuflen)
-                goto oom;
-            argbuf[argbuflen - 1] = '\0';
             assert(k < argc);
             argv[k] = argbuf;
+            argvlen[k] = argbuflen;
             k++;
         }
     }
     LocalFree(_winSplitList);
     _winSplitList = NULL;
-    int result = _actualmain(argc, (const char**) argv);
+    int result = mainu32(argc, (const h64wchar **)argv, argvlen);
     int k = 0;
     while (k < argc) {
         free(argv[k]);
         k++;
     }
     free(argv);
+    free(argvlen);
     return result;
-    #else
-
-    // Unix-style arg parsing:
-
-    char **argv = malloc(sizeof(*argv));
-    if (!argv) {
-        oom:
-        h64fprintf(stderr, "horsevm: error: arg alloc or convert "
-            "failure");
-        return 1;
-    }
-    char *execfullpath = filesys_GetOwnExecutable();
-    char *execname = NULL;
-    if (execfullpath) {
-        char *execname = filesys_Basename(execfullpath);
-        free(execfullpath);
-        execfullpath = NULL;
-    }
-    if (execname) {
-        argv[0] = strdup(execname);
-    } else {
-        argv[0] = strdup("horsec.exe");
-    }
-    if (!argv[0])
-        goto oom;
-    char *argline = NULL;
-    {
-        wchar_t *wcharCmdLine = GetCommandLineW();
-        if (!wcharCmdLine)
-            goto oom;
-        {
-            int arglinebytes = wcslen(wcharCmdLine) * 10 + 1;
-            argline = malloc(arglinelen);
-            if (!argline)
-                goto oom;
-            int64_t out_len = 0;
-            if (!utf16_to_utf8(
-                    wcharCmdLine, wcslen(wcharCmdLine),
-                    argline, arglinebytes - 1, &out_len, 1
-                    ) || out_len >= arglinebytes)
-                goto oom;
-            argline[out_len] = '\0';
-        }
-    }
-    char *p = argline;
-    int len = strlen(argline);
-    char in_quote = '\0';
-    int backslash_escaped = 0;
-    int argc = 1;
-    int i = 0;
-    while (i <= len) {
-        if (i >= len || (
-                argline[i] == ' ' && in_quote == '\0' &&
-                !backslash_escaped
-                )) {
-            char **new_argv = realloc(argv, sizeof(*argv) * (argc + 1));
-            if (!new_argv)
-                goto oom;
-            argline[i] = '\0';
-            int added_it = 0;
-            if (strlen(p) > 0 && !str_is_spaces(p)) {
-                added_it = 1;
-                new_argv[argc] = strdup(p);
-                char quote_removed = '\0';
-                if ((new_argv[argc][0] == '"' &&
-                        new_argv[argc][strlen(new_argv[argc]) - 1] == '"') ||
-                        (new_argv[argc][0] == '\'' &&
-                        new_argv[argc][strlen(new_argv[argc]) - 1] == '\'')) {
-                    quote_removed = new_argv[argc][0];
-                    memmove(
-                        new_argv[argc], new_argv[argc] + 1,
-                        strlen(new_argv[argc])
-                    );
-                    new_argv[argc][strlen(new_argv[argc]) - 1] = '\0';
-                }
-                int k = 0;
-                while (k < (int)strlen(new_argv[argc]) - 1) {
-                    if (new_argv[argc][k] == '\\' &&
-                            (new_argv[argc][k + 1] == '\\' ||
-                             (quote_removed != '\0' &&
-                              new_argv[argc][k + 1] == quote_removed))) {
-                        memmove(
-                            new_argv[argc] + k, new_argv[argc] + k + 1,
-                            strlen(new_argv[argc]) - k
-                        );
-                    }
-                    k++;
-                }
-            }
-            argv = new_argv;
-            p = (argline + i + 1);
-            if (added_it)
-                argc++;
-        } else if (backslash_escaped) {
-            backslash_escaped = 0;
-        } else if (in_quote == '\0' && !backslash_escaped && (
-                argline[i] == '"' || argline[i] == '\'')) {
-            in_quote = argline[i];
-        } else if (in_quote != '\0' && in_quote == argline[i]) {
-            in_quote = '\0';
-        } else if (argline[i] == '\\' && in_quote != '\'') {
-            backslash_escaped = 1;
-        }
-        i++;
-    }
-    free(argline);
-    int result = _actualmain(argc, (const char**) argv);
-    int k = 0;
-    while (k < argc) {
-        free(argv[k]);
-        k++;
-    }
-    free(argv);
-    return result;
-    #endif
 }
 #endif
 

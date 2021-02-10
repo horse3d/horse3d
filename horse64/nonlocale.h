@@ -177,4 +177,9 @@ int64_t h64casecmp_u32u8(
     const char *s2
 );
 
+int64_t h64cmp_u32u8(
+    const h64wchar *s1, int64_t s1len,
+    const char *s2
+);
+
 #endif  // HORSE64_NONLOCALE_H_

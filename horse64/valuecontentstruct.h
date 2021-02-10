@@ -5,6 +5,8 @@
 #ifndef HORSE64_VALUECONTENTSTRUCT_H_
 #define HORSE64_VALUECONTENTSTRUCT_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 
 #include "compiler/globallimits.h"

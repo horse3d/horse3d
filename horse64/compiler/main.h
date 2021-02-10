@@ -27,35 +27,39 @@ jsonvalue *compiler_ParseASTToJSON(
 );
 
 int compiler_command_Compile(
-    const char **argc, int argv, int argoffset
+    const h64wchar **argv, int64_t *argvlen, int argc, int argoffset
 );
 
 int compiler_command_GetAST(
-    const char **argc, int argv, int argoffset
+    const h64wchar **argv, int64_t *argvlen, int argc, int argoffset
 );
 
 int compiler_command_GetResolvedAST(
-    const char **argc, int argv, int argoffset
+    const h64wchar **argv, int64_t *argvlen, int argc, int argoffset
 );
 
 int compiler_command_GetTokens(
-    const char **argc, int argv, int argoffset
+    const h64wchar **argv, int64_t *argvlen, int argc, int argoffset
 );
 
 int compiler_command_Run(
-    const char **argc, int argv, int argoffset, int *return_int
+    const h64wchar **argv, int64_t *argvlen, int argc,
+    int argoffset, int *return_int
 );
 
 int compiler_command_CodeInfo(
-    const char **argc, int argv, int argoffset
+    const h64wchar **argv, int64_t *argvlen, int argc,
+    int argoffset
 );
 
 int compiler_command_ToASM(
-    const char **argv, int argc, int argoffset
+    const h64wchar **argv, int64_t *argvlen, int argc,
+    int argoffset
 );
 
 int compiler_command_Exec(
-    const char **argv, int argc, int argoffset, int *return_int
+    const h64wchar **argv, int64_t *argvlen, int argc,
+    int argoffset, int *return_int
 );
 
 typedef struct h64misccompileroptions {

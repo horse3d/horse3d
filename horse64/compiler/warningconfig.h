@@ -5,6 +5,11 @@
 #ifndef HORSE64_COMPILER_WARNINGCONFIG_H_
 #define HORSE64_COMPILER_WARNINGCONFIG_H_
 
+#include "compileconfig.h"
+
+#include <stdint.h>
+
+#include "widechar.h"
 
 typedef struct h64compilewarnconfig {
     int warn_shadowing_direct_locals;
@@ -16,7 +21,12 @@ typedef struct h64compilewarnconfig {
 
 void warningconfig_Init(h64compilewarnconfig *wconfig);
 
-int warningconfig_CheckOption(
+int warningconfig_ProcessOptionU32(
+    h64compilewarnconfig *wconfig, const h64wchar *option,
+    int64_t optionlen
+);
+
+int warningconfig_ProcessOption(
     h64compilewarnconfig *wconfig, const char *option
 );
 

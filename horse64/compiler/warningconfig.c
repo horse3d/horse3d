@@ -2,10 +2,13 @@
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
+#include "compileconfig.h"
+
 #include <stdlib.h>
 #include <string.h>
 
 #include "compiler/warningconfig.h"
+#include "widechar.h"
 
 
 void warningconfig_Init(h64compilewarnconfig *wconfig) {
@@ -16,7 +19,19 @@ void warningconfig_Init(h64compilewarnconfig *wconfig) {
     wconfig->warn_unrecognized_escape_sequences = 1;
 }
 
-int warningconfig_CheckOption(
+int warningconfig_ProcessOptionU32(
+        h64compilewarnconfig *wconfig, const h64wchar *option,
+        int64_t optionlen
+        ) {
+    char *conv = AS_U8(option, optionlen);
+    if (!conv)
+        return 0;
+    int result = warningconfig_ProcessOption(wconfig, conv);
+    free(conv);
+    return result;
+}
+
+int warningconfig_ProcessOption(
         h64compilewarnconfig *wconfig, const char *option
         ) {
     if (!option || strlen(option) < strlen("-W") ||
