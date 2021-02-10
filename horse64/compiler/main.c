@@ -99,7 +99,7 @@ static int _compileargparse(
                     goto failquit;
                 }
                 memcpy(*fileuriorexec, argv[i],
-                    sizeof(*fileuriorexec) * argvlen[i]
+                    sizeof(**fileuriorexec) * argvlen[i]
                 );
                 *fileuriorexeclen = argvlen[i];
             }
