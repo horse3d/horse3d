@@ -1135,9 +1135,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                                H64OP_ATTRIBUTEBYIDENTIFIER);
                     backoutsteps--;
                     pexpr = pexpr->op.value1;
-                    free(accessed_elements_str[
-                        accessed_elements_count - 1
-                    ]);
+                    // Do NOT free accessed_elements_str, it is owned
+                    // by the AST.
                     accessed_elements_count--;
                 }
             }
