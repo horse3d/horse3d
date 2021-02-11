@@ -301,6 +301,8 @@ static int _gbt(uint64_t cp) {
 int64_t utf32_letter_len(
         const h64wchar *sdata, int64_t sdata_len
         ) {
+    // This function returns the amount of code points that make
+    // up the next full letter.
     if (sdata_len <= 0)
         return 0;
     int64_t len = 1;
@@ -311,6 +313,8 @@ int64_t utf32_letter_len(
                 cp1 == '\n') {
             break;
         }
+        // This should follow the grapheme break rules from the Unicode(R)
+        // standard:
         int _gbt1 = _gbt(cp1);
         int _gbt2 = _gbt(cp2);
         if (_gbt1 == GBT_CONTROL || _gbt2 == GBT_CONTROL)
@@ -342,7 +346,7 @@ int64_t utf32_letter_len(
         if (cp1 >= 0x1F1E6LL &&
                 cp1 <= 0x1F1FFLL &&
                 cp2 >= 0x1F1E6LL &&
-                cp2 <= 0x1F1FFLL) {  // even number of region pairs
+                cp2 <= 0x1F1FFLL) {  // A region pair!
             uint64_t cp0 = (
                 len > 1 ? sdata[len - 2] : 0
             );
@@ -351,6 +355,8 @@ int64_t utf32_letter_len(
             );
             if (cp0 < 0x1F1E6LL || cp0 > 0x1F1FFLL ||
                     (cpminus1 >= 0x1F1E6LL && cpminus1 <= 0x1F1FFLL)) {
+                // Can only continue after an uneven number of region pair
+                // items. (Since after one full pair we might want to break.)
                 len++;
                 continue;
             }
