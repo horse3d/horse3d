@@ -28,6 +28,7 @@ uint8_t *_widechartbl_iscombining = NULL;
 uint8_t *_widechartbl_istag = NULL;
 int64_t *_widechartbl_lowercp = NULL;
 int64_t *_widechartbl_uppercp = NULL;
+uint8_t *_widechartbl_graphemebreaktype = NULL;
 
 void _load_unicode_data() {
     int _exists = 0;
@@ -54,6 +55,27 @@ void _load_unicode_data() {
             0, sizeof(*_widechartbl_ismodifier) *
             _widechartbl_arraylen,
             (char *)_widechartbl_ismodifier,
+            VFSFLAG_NO_REALDISK_ACCESS))
+        goto loadfail;
+
+    if (!vfs_ExistsEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_graphemebreaktype.dat",
+            &_exists, VFSFLAG_NO_REALDISK_ACCESS
+            ) || !_exists)
+        goto loadfail;
+    _widechartbl_graphemebreaktype = malloc(
+        sizeof(*_widechartbl_graphemebreaktype) *
+        _widechartbl_arraylen
+    );
+    if (!_widechartbl_graphemebreaktype)
+        goto loadfail;
+    if (!vfs_GetBytesEx(
+            NULL, "horse_modules_builtin/"
+                "unicode_data___widechartbl_graphemebreaktype.dat",
+            0, sizeof(*_widechartbl_graphemebreaktype) *
+            _widechartbl_arraylen,
+            (char *)_widechartbl_graphemebreaktype,
             VFSFLAG_NO_REALDISK_ACCESS))
         goto loadfail;
 
@@ -269,76 +291,73 @@ int64_t utf32_next_letter_byteslen_in_utf8(
     }
 }
 
+static int _gbt(uint64_t cp) {
+    if ((int64_t)cp < _widechartbl_lowest_cp ||
+            (int64_t)cp > _widechartbl_highest_cp)
+        return GBT_NONE;
+    return _widechartbl_graphemebreaktype[cp];
+}
+
 int64_t utf32_letter_len(
         const h64wchar *sdata, int64_t sdata_len
         ) {
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wtype-limits"
     if (sdata_len <= 0)
         return 0;
-    int64_t len = 0;
-    // Count modifiers in front as same letter:
-    while (unlikely(sdata_len > 1 && *sdata > 0 &&
-            *sdata <= _widechartbl_highest_cp &&
-            _widechartbl_ismodifier[*sdata])) {
-        sdata++;
-        len++;
-        sdata_len--;
-    }
-    // If this is a regional flag pair, count it as one thing:
-    if (unlikely(sdata_len >= 2 && sdata[0] >= 0x1F1E6LL &&
-            sdata[0] <= 0x1F1FFLL &&
-            sdata[1] >= 0x1F1E6LL &&
-            sdata[1] <= 0x1F1FFLL)) {
-        // -> two codepoint flag
-        sdata += 2;
-        len += 2;
-        sdata_len -= 2;
-    } else if (likely(sdata_len >= 1)) {
-        // Just a regular char.
-        sdata++;
-        len++;
-        sdata_len--;
-    }
-
-    while (1) {
-        // Count follow-up tags as same letter:
-        if (unlikely(sdata_len > 0 && sdata[0] >= 0 &&
-                sdata[0] <= _widechartbl_highest_cp &&
-                _widechartbl_istag[sdata[0]])) {
-            sdata++;
-            sdata_len--;
-            len++;
-            while (unlikely(sdata_len > 0 &&
-                    *sdata >= 0 &&
-                    *sdata <= _widechartbl_highest_cp &&
-                    _widechartbl_istag[sdata[0]] &&
-                    sdata[0] != 0xE007FLL)) {
-                sdata++;
-                sdata_len--;
-                len++;
-            }
-            if (likely(sdata_len > 0 &&
-                    *sdata == 0xE007FLL)) {  // cancel tag
-                sdata++;
-                sdata_len--;
-                len++;
-            }
-        // Count combining characters into the same letter:
-        } else if (unlikely(sdata_len > 0 &&
-                sdata[0] >= 0 &&
-                sdata[0] <= _widechartbl_highest_cp &&
-                _widechartbl_iscombining[sdata[0]])) {
-            sdata++;
-            sdata_len--;
-            len++;
-        } else {
-            // Nothing else that we recognize? Bail.
+    int64_t len = 1;
+    while (len < sdata_len) {
+        uint64_t cp1 = sdata[len - 1];
+        uint64_t cp2 = sdata[len];
+        if (cp2 == '\r' || (cp2 == '\n' && cp1 != '\r') ||
+                cp1 == '\n') {
             break;
         }
+        int _gbt1 = _gbt(cp1);
+        int _gbt2 = _gbt(cp2);
+        if (_gbt1 == GBT_CONTROL || _gbt2 == GBT_CONTROL)
+            break;
+        if (_gbt1 == GBT_L && (
+                _gbt2 == GBT_L || _gbt2 == GBT_V ||
+                _gbt2 == GBT_LV || _gbt2 == GBT_LVT)) {
+            len++;
+            continue;
+        }
+        if ((_gbt1 == GBT_LV || _gbt1 == GBT_V) && (
+                _gbt2 == GBT_V || _gbt2 == GBT_T)) {
+            len++;
+            continue;
+        }
+        if ((_gbt1 == GBT_LVT || _gbt1 == GBT_T) && (
+                _gbt2 == GBT_T)) {
+            len++;
+            continue;
+        }
+        if (_gbt2 == GBT_EXTEND || _gbt2 == GBT_ZWJ) {
+            len++;
+            continue;
+        }
+        if (_gbt1 == GBT_PREPEND || _gbt2 == GBT_SPACINGMARK) {
+            len++;
+            continue;
+        }
+        if (cp1 >= 0x1F1E6LL &&
+                cp1 <= 0x1F1FFLL &&
+                cp2 >= 0x1F1E6LL &&
+                cp2 <= 0x1F1FFLL) {  // even number of region pairs
+            uint64_t cp0 = (
+                len > 1 ? sdata[len - 2] : 0
+            );
+            uint64_t cpminus1 = (
+                len > 2 ? sdata[len - 2] : 0
+            );
+            if (cp0 < 0x1F1E6LL || cp0 > 0x1F1FFLL ||
+                    (cpminus1 >= 0x1F1E6LL && cpminus1 <= 0x1F1FFLL)) {
+                len++;
+                continue;
+            }
+        }
+        break;
     }
     return len;
-    #pragma GCC diagnostic pop
 }
 
 int write_codepoint_as_utf8(

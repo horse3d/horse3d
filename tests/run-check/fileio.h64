@@ -55,6 +55,11 @@ func main {
         data = f.read(len="test dataX".len)
         assert(data == "test dataö")
         var emoji = f.read(len=1)
+        if emoji.as_bytes != b"\u1F3F4\uE0067"
+                b"\uE0062\uE0065\uE006E\uE0067\uE007F" {
+            print("ERROR: this assert will fail, "
+                "wrong value: " + emoji.as_bytes.as_str)
+        }
         assert(emoji.as_bytes == b"\u1F3F4\uE0067"
             b"\uE0062\uE0065\uE006E\uE0067\uE007F")
         var dot = f.read()

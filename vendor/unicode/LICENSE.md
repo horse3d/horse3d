@@ -1,5 +1,5 @@
 (these texts are copied from the Unicode website, where
-also the UnicodeData.txt file is from)
+also the UnicodeData.txt and GraphemeBreakProperty.txt files are from)
 
 Unicode Licensing
 =================
