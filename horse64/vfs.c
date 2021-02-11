@@ -388,7 +388,8 @@ VFSFILE *vfs_fopen_u32(
     }
     vfile->size = -1;
 
-    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
+            !filesys32_IsObviouslyInvalidPath(path, pathlen)) {
         char *pathu8 = AS_U8(path, pathlen);
         if (!pathu8)
             return 0;
@@ -407,7 +408,7 @@ VFSFILE *vfs_fopen_u32(
             vfile->physfshandle = PHYSFS_openRead(p);
             if (vfile->physfshandle) {
                 {
-                    // HACK: we need this, since physfs has no dup call...
+                    // HACK: workaround since physfs has no dup call...
                     vfile->path = strdup(p);
                     if (!vfile->path) {
                         PHYSFS_close(vfile->physfshandle);
@@ -532,7 +533,8 @@ int vfs_ExistsExU32(
         ) {
     if (!abspath && !relpath)
         return 0;
-    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
+            !filesys32_IsObviouslyInvalidPath(relpath, relpathlen)) {
         char *relpathu8 = AS_U8(
             relpath, relpathlen
         );
@@ -608,7 +610,8 @@ int vfs_IsDirectoryExU32(
         const h64wchar *relpath, int64_t relpathlen,
         int *result, int flags
         ) {
-    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
+            !filesys32_IsObviouslyInvalidPath(relpath, relpathlen)) {
         char *relpathu8 = AS_U8(
             relpath, relpathlen
         );
@@ -685,7 +688,8 @@ int vfs_SizeExU32(
         const h64wchar *relpath, int64_t relpathlen,
         uint64_t *result, int flags
         ) {
-    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
+            !filesys32_IsObviouslyInvalidPath(relpath, relpathlen)) {
         char *relpathu8 = AS_U8(
             relpath, relpathlen
         );
@@ -780,7 +784,8 @@ int vfs_GetBytesExU32(
         uint64_t bytesamount, char *buffer,
         int flags
         ) {
-    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0) {
+    if ((flags & VFSFLAG_NO_VIRTUALPAK_ACCESS) == 0 &&
+            !filesys32_IsObviouslyInvalidPath(relpath, relpathlen)) {
         char *relpathu8 = AS_U8(
             relpath, relpathlen
         );

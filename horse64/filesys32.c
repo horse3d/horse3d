@@ -2519,8 +2519,10 @@ int filesys32_GetSize(
         const h64wchar *pathu32, int64_t pathu32len, uint64_t *size,
         int *err
         ) {
-    if (filesys32_IsObviouslyInvalidPath(pathu32, pathu32len))
+    if (filesys32_IsObviouslyInvalidPath(pathu32, pathu32len)) {
+        *err = FS32_ERR_NOSUCHTARGET;
         return 0;
+    }
 
     #if defined(ANDROID) || defined(__ANDROID__) || defined(__unix__) || defined(__linux__) || defined(__APPLE__) || defined(__OSX__)
     struct stat64 statbuf;
@@ -2864,6 +2866,11 @@ FILE *filesys32_OpenOwnExecutable() {
 int filesys32_IsSymlink(
         h64wchar *pathu32, int64_t pathu32len, int *err, int *result
         ) {
+    if (filesys32_IsObviouslyInvalidPath(pathu32, pathu32len)) {
+        *err = FS32_ERR_NOSUCHTARGET;
+        return 0;
+    }
+
     #if !defined(_WIN32) && !defined(_WIN64)
     struct stat64 statbuf;
 
@@ -2902,6 +2909,10 @@ int filesys32_IsSymlink(
 int filesys32_CreateDirectoryRecursively(
         h64wchar *path, int64_t pathlen, int user_readable_only
         ) {
+    if (filesys32_IsObviouslyInvalidPath(path, pathlen)) {
+        return FS32_ERR_INVALIDNAME;
+    }
+
     // Normalize file paths:
     int64_t cleanpathlen = 0;
     h64wchar *cleanpath = filesys32_Normalize(
