@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 IMAGE_LBL = "horse64-3hg290g"
 CONTAINER_LBL = "horse64-r0y30i4jioog"
@@ -52,19 +53,29 @@ if USE_CACHE:
         "~/.local/share/core.horse64.org-dockerimage/"
     ))
     os.makedirs(img_folder, exist_ok=True)
-    print("Checking image cache folder: " + str(img_folder))
+    print("Checking image cache folder: " + str(img_folder), file=sys.stderr)
     img_path = os.path.join(img_folder, "image.tar")
     restored = False
     if os.path.exists(os.path.join(img_folder, "image.tar")):
         try:
-            print("Attempting image restore...")
+            print("Attempting image restore...", file=sys.stderr)
             subprocess.run(
-                ["docker", "import", img_path, IMAGE_LBL + ":" + IMAGE_LBL],
+                ["docker", "import", img_path, IMAGE_LBL],
                 stderr=subprocess.STDOUT
             ).check_returncode()
             BUILD_IMAGE=False
             restored = True
-            print("Restored image from " + str(img_path) + "!")
+            print("Building properly labelled image clone...")
+            tmpdir = tempfile.mkdtemp()
+            try:
+                with open(os.path.join(tempdir, "Dockerfile"), "w") as f:
+                    f.write("FROM " + IMAGE_LBL)
+                subprocess.run(
+                    ["docker", "build", "-t", IMAGE_LBL, "."]
+                ).check_returncode()
+            finally:
+                shutil.rmtree(tmpdir)
+            print("Restored image from " + str(img_path) + "!", file=sys.stderr)
         except subprocess.CalledProcessError:
             pass
     if not restored:
