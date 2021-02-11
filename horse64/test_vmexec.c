@@ -106,7 +106,7 @@ void runprog(
     printf("test_vmexec.c: running \"%s\"\n", progname);
     fflush(stdout);
     int resultcode = vmschedule_ExecuteProgram(
-        project->program, &moptions
+        project->program, &moptions, NULL, NULL, 0
     );
     fflush(stdout); fflush(stderr);  // flush program output
     compileproject_Free(project);
