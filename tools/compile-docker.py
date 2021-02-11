@@ -28,7 +28,7 @@ print("SETTINGS:", file=sys.stderr, flush=True)
 print("=========", file=sys.stderr, flush=True)
 print(" Run tests: " + str(RUN_TESTS).lower(), file=sys.stderr, flush=True)
 print(" Run bash: " + str(RUN_BASH).lower(), file=sys.stderr, flush=True)
-print(" Cache image: " + str(CACHE_IMAGE).lower(),
+print(" Cache image: " + str(USE_CACHE).lower(),
       file=sys.stderr, flush=True)
 print("", file=sys.stderr, flush=True)
 
