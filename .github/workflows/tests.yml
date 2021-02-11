@@ -12,5 +12,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Cache docker image
+      uses: actions/cache@v2
+      env:
+        cache-name: cache-core-horse64-buildimage
+      with:
+        path: ~/.local/share/core.horse64.org-dockerimage/
+        key: cache-core-horse64-buildimage
+        restore-keys: |
+          cache-core-horse64-buildimage
+
     - name: run docker
-      run: python3 tools/compile-docker.py --run-tests
+      run: python3 tools/compile-docker.py --run-tests --cache-image
