@@ -74,7 +74,7 @@ if USE_CACHE:
                     f.write("FROM " + IMAGE_LBL)
                 subprocess.run(
                     ["docker", "build", "-t", IMAGE_LBL, "."],
-                    cwd=tmpdir, stdout=subprocess.STDOUT,
+                    cwd=tmpdir,
                     stderr=subprocess.STDOUT
                 ).check_returncode()
             finally:
@@ -107,8 +107,7 @@ if BUILD_IMAGE:
         print("Attempting image save...")
         subprocess.run(
             ["docker", "save", "-o", img_path, IMAGE_LBL],
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.STDOUT
+            stderr=subprocess.STDOUT
         ).check_returncode()
         print("Saved image to: " + str(img_path))
 if not os.path.exists("binaries"):
@@ -127,7 +126,6 @@ args = (
 try:
     subprocess.run(
         args,
-        stdout=subprocess.STDOUT,
         stderr=subprocess.STDOUT
     ).check_returncode()
     sys.stdout.flush()
