@@ -68,10 +68,11 @@ if USE_CACHE:
             print("Building properly labelled image clone...")
             tmpdir = tempfile.mkdtemp()
             try:
-                with open(os.path.join(tempdir, "Dockerfile"), "w") as f:
+                with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
                     f.write("FROM " + IMAGE_LBL)
                 subprocess.run(
-                    ["docker", "build", "-t", IMAGE_LBL, "."]
+                    ["docker", "build", "-t", IMAGE_LBL, "."],
+                    cwd=tmpdir
                 ).check_returncode()
             finally:
                 shutil.rmtree(tmpdir)
