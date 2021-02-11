@@ -35,12 +35,14 @@ static int _compileargparse(
         h64wchar **fileuriorexec, int64_t *fileuriorexeclen,
         h64wchar **out_file, int64_t *out_file_len,
         h64compilewarnconfig *wconfig,
-        h64misccompileroptions *miscoptions
+        h64misccompileroptions *miscoptions,
+        int *runargs_start_index
         ) {
     if (wconfig) warningconfig_Init(wconfig);
     int doubledashed = 0;
     *out_file = NULL;
     *fileuriorexec = NULL;
+    if (runargs_start_index) *runargs_start_index = -1;
     int i = argoffset;
     while (i < argc) {
         if ((argvlen[i] == 0 || argv[i][0] != '-' ||
@@ -108,6 +110,14 @@ static int _compileargparse(
                     "out of memory parsing arguments\n");
                 goto failquit;
             }
+            if (strcmp(cmd, "run") == 0) {
+                // Args following from here are args to the
+                // horse64 code we run itself.
+                if (runargs_start_index)
+                    *runargs_start_index = i + 1;
+                i = argc;
+                break;
+            }
         } else if (h64cmp_u32u8(argv[i], argvlen[i], "--") == 0) {
             doubledashed = 1;
         } else if (h64cmp_u32u8(argv[i], argvlen[i], "--help") == 0) {
@@ -169,7 +179,7 @@ static int _compileargparse(
             return 1;
         } else if ((h64cmp_u32u8(argv[i], argvlen[i], "-o") == 0 ||
                 h64cmp_u32u8(argv[i], argvlen[i], "--output") == 0) &&
-                h64cmp_u32u8(argv[i], argvlen[i], "compile") == 0) {
+                strcmp(cmd, "compile") == 0) {
             if (*out_file) {
                 h64fprintf(stderr, "horsec: error: %s: "
                     "-o/--output can only be specified "
@@ -190,7 +200,7 @@ static int _compileargparse(
                 return 0;
             }
             *out_file = strdupu32(
-                argv[i], argvlen[i], out_file_len
+                argv[i + 1], argvlen[i + 1], out_file_len
             );
             if (!*out_file) {
                 h64fprintf(stderr, "horsec: error: "
@@ -431,10 +441,12 @@ int compiler_command_CompileEx(
     int64_t tempfilepathlen = 0;
     h64wchar *tempfilefolder = NULL;
     int64_t tempfilefolderlen = 0;
+    int runc_args_index = -1;
     if (!_compileargparse(
             command, argv, argvlen, argc, argoffset,
             &fileuriorexec, &fileuriorexeclen,
-            &outputfile, &outputfilelen, &wconfig, &moptions
+            &outputfile, &outputfilelen, &wconfig, &moptions,
+            &runc_args_index
             ))
         return 0;
     assert(
@@ -667,9 +679,20 @@ int compiler_command_CompileEx(
     } else if (mode == COMPILEEX_MODE_RUN ||
             mode == COMPILEEX_MODE_EXEC) {
         if (!nosuccess) {
-            int resultcode = vmschedule_ExecuteProgram(
-                project->program, &moptions
-            );
+            int resultcode = -1;
+            if (mode == COMPILEEX_MODE_RUN &&
+                    runc_args_index >= 0) {  // Forward cmd args to script:
+                vmschedule_ExecuteProgram(
+                    project->program, &moptions,
+                    &argv[runc_args_index],
+                    &argvlen[runc_args_index],
+                    argc - runc_args_index
+                );
+            } else {  // No arguments to be passed to script:
+                vmschedule_ExecuteProgram(
+                    project->program, &moptions, NULL, NULL, 0
+                );
+            }
             compileproject_Free(project);
             if (return_int)
                 *return_int = resultcode;
@@ -909,7 +932,7 @@ int compiler_command_GetTokens(
     if (!_compileargparse(
             "get_tokens", argv, argvlen, argc, argoffset,
             &fileuri, &fileurilen, &output_file, &output_file_len,
-            &wconfig, &moptions
+            &wconfig, &moptions, NULL
             ))
         return 0;
     assert(fileuri != NULL && output_file == NULL);
@@ -942,7 +965,7 @@ int compiler_command_GetAST(
     if (!_compileargparse(
             "get_ast", argv, argvlen, argc, argoffset,
             &fileuri, &fileurilen, &output_file, &output_file_len,
-            &wconfig, &moptions
+            &wconfig, &moptions, NULL
             ))
         return 0;
     assert(fileuri != NULL && output_file == NULL);
@@ -976,7 +999,7 @@ int compiler_command_GetResolvedAST(
     if (!_compileargparse(
             "get_resolved_ast", argv, argvlen, argc, argoffset,
             &fileuri, &fileurilen, &output_file, &output_file_len,
-            &wconfig, &moptions
+            &wconfig, &moptions, NULL
             ))
         return 0;
     assert(fileuri != NULL && output_file == NULL);

@@ -94,7 +94,7 @@ int valuecontent_SetPreallocStringU8(
 
 int valuecontent_SetStringU32(
     h64vmthread *vmthread, valuecontent *v,
-    h64wchar *u32, int64_t u32len
+    const h64wchar *u32, int64_t u32len
 );
 
 int valuecontent_SetBytesU8(

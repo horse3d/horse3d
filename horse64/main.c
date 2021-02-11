@@ -91,7 +91,10 @@ int main_TryRunAttachedProgram(
     *wasrun = 1;
     h64misccompileroptions moptions = {0};
     int resultcode = vmschedule_ExecuteProgram(
-        p, &moptions
+        p, &moptions,
+        &argv[(argc <= 0 ? 0 : 1)],
+        &argvlen[(argc <= 0 ? 0 : 1)],
+        argc - (argc <= 0 ? 0 : 1)
     );
     h64program_Free(p);
     return resultcode;

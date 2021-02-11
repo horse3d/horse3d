@@ -5,10 +5,14 @@
 #ifndef HORSE64_VMSCHEDULE_H_
 #define HORSE64_VMSCHEDULE_H_
 
+#include "compileconfig.h"
+
 #include <stdint.h>
 
 #include "compiler/globallimits.h"
 #include "threading.h"
+#include "widechar.h"
+
 
 typedef struct h64vmexec h64vmexec;
 typedef struct h64vmthread h64vmthread;
@@ -88,7 +92,8 @@ int vmschedule_SuspendFunc(
 );
 
 int vmschedule_ExecuteProgram(
-    h64program *pr, h64misccompileroptions *moptions
+    h64program *pr, h64misccompileroptions *moptions,
+    const h64wchar **argv, int64_t *argvlen, int argc
 );
 
 int vmschedule_CanThreadResume_UnguardedCheck(

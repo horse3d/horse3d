@@ -22,11 +22,13 @@
 #include "nonlocale.h"
 #include "osinfo.h"
 #include "pipe.h"
+#include "poolalloc.h"
 #include "sockets.h"
 #include "stack.h"
 #include "threading.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
+#include "vmlist.h"
 #include "vmschedule.h"
 #include "vmsuspendtypeenum.h"
 
@@ -782,7 +784,8 @@ void vmschedule_WorkerSupervisorRun(void *userdata) {
 
 
 int vmschedule_ExecuteProgram(
-        h64program *pr, h64misccompileroptions *moptions
+        h64program *pr, h64misccompileroptions *moptions,
+        const h64wchar **argv, int64_t *argvlen, int argc
         ) {
     #ifndef NDEBUG
     _vmsockets_debug = (moptions->vmsockets_debug != 0);
@@ -1023,11 +1026,65 @@ int vmschedule_ExecuteProgram(
             stderr, "horsevm: error: vmschedule.c: out of memory "
             "spawning supervisor\n"
         );
+        return -1;
     }
 
     // If we had a thread error, then signal to stop early:
     if (threaderror) {
         mainexec->worker_overview->fatalerror = 1;
+    }
+
+    // Set command line arguments to `process.args`:
+    {
+        h64program *p = mainexec->program;
+        int64_t idx = p->_processlib_args_globalvar_idx;
+        p->globalvar[idx].content.type = H64VALTYPE_GCVAL;
+        p->globalvar[idx].content.ptr_value = (
+            poolalloc_malloc(mainthread->heap, 0)
+        );
+        if (!p->globalvar[idx].content.ptr_value) {
+            p->globalvar[idx].content.type = H64VALTYPE_NONE;
+            h64fprintf(
+                stderr, "horsevm: error: vmschedule.c: out of memory "
+                "setting process.args\n"
+            );
+            return -1;
+        }
+        h64gcvalue *gcval = (h64gcvalue *)(
+            p->globalvar[idx].content.ptr_value
+        );
+        gcval->hash = -1;
+        gcval->type = H64GCVALUETYPE_LIST;
+        gcval->list_values = vmlist_New();
+        if (!gcval->list_values) {
+            poolalloc_free(mainthread->heap,
+                p->globalvar[idx].content.ptr_value);
+            p->globalvar[idx].content.ptr_value = NULL;
+            p->globalvar[idx].content.type = H64VALTYPE_NONE;
+            h64fprintf(
+                stderr, "horsevm: error: vmschedule.c: out of memory "
+                "setting process.args\n"
+            );
+            return -1;
+        }
+        int64_t k = 0;
+        while (k < argc) {
+            valuecontent c = {0};
+            valuecontent_SetStringU32(
+                mainthread, &c, (const h64wchar *)argv[k], argvlen[k]
+            );
+            ADDREF_NONHEAP(&c);
+            if (!vmlist_Set(gcval->list_values, k + 1, &c)) {
+                DELREF_NONHEAP(&c);
+                valuecontent_Free(&c);
+                h64fprintf(
+                    stderr, "horsevm: error: vmschedule.c: "
+                    "out of memory setting process.args\n"
+                );
+                return -1;
+            }
+            k++;
+        }
     }
 
     // Run main thread:

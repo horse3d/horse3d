@@ -68,7 +68,7 @@ int valuecontent_SetBytesU8(
 
 int valuecontent_SetStringU32(
         h64vmthread *vmthread, valuecontent *v,
-        h64wchar *s, int64_t slen
+        const h64wchar *s, int64_t slen
         ) {
     valuecontent_Free(v);
     memset(v, 0, sizeof(*v));
