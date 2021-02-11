@@ -24,6 +24,14 @@ if "--cache-image" in sys.argv[1:]:
 tools_dir = os.path.abspath(os.path.dirname(__file__))
 os.chdir(os.path.join(os.path.dirname(__file__), ".."))
 
+print("SETTINGS:", file=sys.stderr, flush=True)
+print("=========", file=sys.stderr, flush=True)
+print(" Run tests: " + str(RUN_TESTS).lower(), file=sys.stderr, flush=True)
+print(" Run bash: " + str(RUN_BASH).lower(), file=sys.stderr, flush=True)
+print(" Cache image: " + str(CACHE_IMAGE).lower(),
+      file=sys.stderr, flush=True)
+print("", file=sys.stderr, flush=True)
+
 subprocess.check_output(["docker", "ps"])  # test docker access
 containers = subprocess.check_output([
     "docker", "ps", "-aq", "-f", "label=" + CONTAINER_LBL
