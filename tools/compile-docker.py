@@ -46,6 +46,7 @@ for container in containers:
         ["docker", "rm", container],
         stderr=subprocess.STDOUT
     )
+sys.stdout.flush()
 BUILD_IMAGE=True
 img_path = None
 if USE_CACHE:
@@ -73,10 +74,11 @@ if USE_CACHE:
                     f.write("FROM " + IMAGE_LBL)
                 subprocess.run(
                     ["docker", "build", "-t", IMAGE_LBL, "."],
-                    cwd=tmpdir, stdout=subprocess.STDERR,
-                    stderr=subprocess.STDERR
+                    cwd=tmpdir, stdout=subprocess.STDOUT,
+                    stderr=subprocess.STDOUT
                 ).check_returncode()
             finally:
+                sys.stdout.flush()
                 shutil.rmtree(tmpdir)
             print("Restored image from " + str(img_path) + "!", file=sys.stderr)
         except subprocess.CalledProcessError:
@@ -97,6 +99,7 @@ if BUILD_IMAGE:
             stderr=subprocess.STDOUT
         ).check_returncode()
     finally:
+        sys.stdout.flush()
         if os.path.exists(".dockerignore"):
             os.remove(".dockerignore")
     if USE_CACHE:
@@ -104,8 +107,8 @@ if BUILD_IMAGE:
         print("Attempting image save...")
         subprocess.run(
             ["docker", "save", "-o", img_path, IMAGE_LBL],
-            stderr=subprocess.STDERR,
-            stdout=subprocess.STDERR
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.STDOUT
         ).check_returncode()
         print("Saved image to: " + str(img_path))
 if not os.path.exists("binaries"):
@@ -124,9 +127,11 @@ args = (
 try:
     subprocess.run(
         args,
-        stdout=subprocess.STDERR,
-        stderr=subprocess.STDERR
+        stdout=subprocess.STDOUT,
+        stderr=subprocess.STDOUT
     ).check_returncode()
+    sys.stdout.flush()
 except subprocess.CalledProcessError as e:
+    sys.stdout.flush()
     print("Shutting down due to error:", file=sys.stderr, flush=True)
     raise e
