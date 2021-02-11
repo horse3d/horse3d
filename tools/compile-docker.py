@@ -61,7 +61,7 @@ if USE_CACHE:
         try:
             print("Attempting image restore...", file=sys.stderr)
             subprocess.run(
-                ["docker", "import", img_path, IMAGE_LBL],
+                ["docker", "import", img_path, IMAGE_LBL + "img"],
                 stderr=subprocess.STDOUT
             ).check_returncode()
             BUILD_IMAGE=False
@@ -71,7 +71,7 @@ if USE_CACHE:
             tmpdir = tempfile.mkdtemp()
             try:
                 with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
-                    f.write("FROM " + IMAGE_LBL)
+                    f.write("FROM " + IMAGE_LBL + "img")
                 subprocess.run(
                     ["docker", "build", "-t", IMAGE_LBL, "."],
                     cwd=tmpdir,
