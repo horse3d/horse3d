@@ -73,8 +73,8 @@ if USE_CACHE:
                     f.write("FROM " + IMAGE_LBL)
                 subprocess.run(
                     ["docker", "build", "-t", IMAGE_LBL, "."],
-                    cwd=tmpdir, stdout=stderr=subprocess.STDERR,
-                    stderr=subprocess.STDERR,
+                    cwd=tmpdir, stdout=subprocess.STDERR,
+                    stderr=subprocess.STDERR
                 ).check_returncode()
             finally:
                 shutil.rmtree(tmpdir)
