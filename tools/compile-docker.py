@@ -65,14 +65,16 @@ if USE_CACHE:
             ).check_returncode()
             BUILD_IMAGE=False
             restored = True
-            print("Building properly labelled image clone...")
+            print("Building properly labelled image clone...",
+                  file=sys.stderr)
             tmpdir = tempfile.mkdtemp()
             try:
                 with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
                     f.write("FROM " + IMAGE_LBL)
                 subprocess.run(
                     ["docker", "build", "-t", IMAGE_LBL, "."],
-                    cwd=tmpdir
+                    cwd=tmpdir, stdout=stderr=subprocess.STDERR,
+                    stderr=subprocess.STDERR,
                 ).check_returncode()
             finally:
                 shutil.rmtree(tmpdir)
@@ -102,7 +104,8 @@ if BUILD_IMAGE:
         print("Attempting image save...")
         subprocess.run(
             ["docker", "save", "-o", img_path, IMAGE_LBL],
-            stderr=subprocess.STDOUT
+            stderr=subprocess.STDERR,
+            stdout=subprocess.STDERR
         ).check_returncode()
         print("Saved image to: " + str(img_path))
 if not os.path.exists("binaries"):
@@ -118,7 +121,12 @@ args = (
     (["/bin/bash"] if RUN_BASH else [])
 )
 
-subprocess.run(
-    args,
-    stderr=subprocess.STDOUT
-).check_returncode()
+try:
+    subprocess.run(
+        args,
+        stdout=subprocess.STDERR,
+        stderr=subprocess.STDERR
+    ).check_returncode()
+except subprocess.CalledProcessError as e:
+    print("Shutting down due to error:", file=sys.stderr, flush=True)
+    raise e
