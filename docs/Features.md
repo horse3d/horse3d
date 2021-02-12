@@ -52,16 +52,26 @@ be for you. The syntax is a mix of Python, Lua, and Go.
 - **Unicode as a first class citizen.** Strings do indexing,
   sub string, and length computations based on glyph boundaries
   rather than code points. Even e.g. complex emojis glyphs
-  are understood as a length of one.
+  are understood as a length of one:
+  ```
+  func main {
+      var flag = "\u1F1FA\u1F1F8'
+      print("A multi code point flag emoji: " + flag)
+      print("String length: " + flag.len.as_str)  # Prints: "String length: 1"
+  }
+  ```
 
 - **AOT bytecode with excellent checks.** Programs are compiled
-  ahead of time, and thoroughly: horsec finds typos, undefined
+  ahead of time (on the developer's machine, not on the user machine),
+  and thoroughly: horsec finds typos, undefined
   variables, many type errors and missing attributes, and more.
 
 - **Self contained tooling.** Even on Windows, all you need is
-  the horsec binary, and e.g. horp if you want to manage packages.
+  the horsec binary, and e.g. horp if you want to manage packages,
+  and any basic text editor.
   No need for C/C++ compilers, a big IDE, or anything else. (Unless
-  you want to!)
+  you want to!) Note: using custom C/C++ extensions may require a
+  C/C++ toolchain, but the common extensions are all available prebuilt.
 
 - **Self contained programs.** All your programs are compiled
   to a single, self-contained binary with only libc dependencies.
