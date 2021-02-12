@@ -76,6 +76,11 @@ be for you. The syntax is a mix of Python, Lua, and Go.
 - **Self contained programs.** All your programs are compiled
   to a single, self-contained binary with only libc dependencies.
   No need for shipping a big runtime, or making the user install one.
+  
+  Once you got horsec, this is all needed to ship your program self-contained:
+  ```bash
+  $ horsec compile -o ./myprogram.exe ./mycode.h64
+  ```
 
 - **First class async networking.** Writing server code that
   handles hundreds of connections easily is trivial. All
