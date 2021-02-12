@@ -22,6 +22,8 @@ be for you. The syntax is a mix of Python, Lua, and Go.
   ```
   Strong typing and AOT checks help with many potential bugs that
   may go unnoticed in other dynamically typed languages.
+  No significant whitespace, so no "indentation bugs" and you
+  can type all your code in one line if you want. (Not recommended.)
 
 - **Strong types with avoidance of error-prone type coercions**,
   e.g. no accidential additions of numbers and strings with
