@@ -17,10 +17,14 @@ func main {
 ```
 
 You found a **simple & versatile programming language** for backends, mobile,
-and desktop programs. *Horse64*'s [design](./docs/Design.md#overview) is
-focused on improving handling in large projects compared to scripting
-languages like Python, while retaining their ease of use. [Try it
-yourself!](https://horse64.org/download)
+and desktop programs.
+
+*Horse64*'s design is focused on improving handling in large projects
+compared to scripting languages like Python, while retaining their
+ease of use. Installation is easy, only a text editor needs to be preinstalled.
+For more info, **[see the feature list](./docs/Features.md)**.
+
+Interested? [Try Horse64 yourself!](https://horse64.org/download)
 
 *Horse64* is, excluding its logo, all free software
 under BSD-2-clause licensing. [Check the license here.](LICENSE.md)
