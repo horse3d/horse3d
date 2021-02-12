@@ -11,97 +11,130 @@ large projects but Go/C#/Java too tedious, then Horse64 might
 be for you. The syntax is a mix of Python, Lua, and Go.
 
 
-## Notable features
+## Features
 
-- **Dynamic types with simplicity** as you know and love it
-  from Python, Lua, etc. with exceptionally clean syntax:
-  ```horse64
-  func main {
-      print("Hello World from Horse64!")
-  }
-  ```
-  Strong typing and compile checks help with many potential bugs that
-  may go unnoticed in other dynamically typed languages.
-  No significant whitespace, so no "indentation bugs" and you
-  can type all your code in one line if you want. (Not recommended.)
+### Simple
 
-- **Strong types with avoidance of error-prone type coercions**,
-  e.g. no accidential additions of numbers and strings with
-  unexpected results, preventing many sneaky typing bugs:
-  ```horse64
-  func main {
-      var v = "my value"
-      v = 352
-      print("This is a  value: " + v.as_str)  # .as_str not optional!
-  }
-  ```
-  The horsec compiler also finds many other runtime errors at
-  compile time, like most typos and wrong references, which
-  would require extra tooling in Python, JS, and alike to catch.
+**Dynamic types with simplicity** as you know and love it
+from Python, Lua, etc. with exceptionally clean syntax:
+```horse64
+func main {
+    print("Hello World from Horse64!")
+}
+```
+Strong typing and compile checks help with many potential bugs that
+may go unnoticed in other dynamically typed languages.
+No significant whitespace, so no "indentation bugs" and you
+can type all your code in one line if you want. (Not recommended.)
 
-- **Flexible numbers data type with well-defined errors,**
-  like a proper overflow error and division by zero errors.
-  No not-a-number value with its problems like NaN poisoning:
-  ```horse64
-  func main {
-      var v = 9000000000000000000
-      v /= 0.0001  # Will trigger an OverflowError.
-  }
-  ```
+### Strong types
 
-- **Unicode as a first class citizen.** Strings do indexing,
-  sub string, and length computations based on glyph boundaries
-  rather than code points. Even e.g. complex emojis glyphs
-  are understood as a length of one:
-  ```
-  func main {
-      var flag = "\u1F1FA\u1F1F8'
-      print("A multi code point flag emoji: " + flag)
-      print("String length: " + flag.len.as_str)  # Prints: "String length: 1"
-  }
-  ```
+**Strong types with avoidance of error-prone type coercions** e.g.
+no accidential additions of numbers and strings with unexpected
+results which prevents many sneaky typing bugs:
+```horse64
+func main {
+    var v = "my value"
+    v = 352
+    print("This is a  value: " + v.as_str)  # .as_str not optional!
+}
+```
+The horsec compiler also finds many other runtime errors at
+compile time, like most typos and wrong references, which
+would require extra tooling in Python, JS, and alike to catch.
 
-- **AOT bytecode with excellent checks.** Programs are compiled
-  ahead of time (on the developer's machine, not on the user machine),
-  and thoroughly: horsec finds typos, undefined
-  variables, many type errors and missing attributes, and more.
+### Flexible, safe numbers
 
-- **Self contained tooling.** Even on Windows, all you need is
-  the horsec binary, and e.g. horp if you want to manage packages,
-  and any basic text editor.
-  No need for C/C++ compilers, a big IDE, or anything else. (Unless
-  you want to!) Note: using custom C/C++ extensions may require a
-  C/C++ toolchain, but the common extensions are all available prebuilt.
+**Flexible numbers data type with well-defined errors,** like a proper
+overflow error and division by zero errors. No not-a-number value with
+its problems like NaN poisoning. Example:
+```horse64
+func main {
+    var v = 9000000000000000000
+    v /= 0.0001  # Will trigger an OverflowError.
+}
+```
 
-- **Self contained programs.** All your programs are compiled
-  to a single, self-contained binary with only libc dependencies.
-  No need for shipping a big runtime, or making the user install one.
+### Unicode
+
+**Unicode as a first class citizen.** Strings do indexing,
+sub string, and length computations based on glyph boundaries
+rather than code points. Even e.g. complex emojis glyphs
+are understood as a length of one:
+```
+func main {
+    var flag = "\u1F1FA\u1F1F8'
+    print("A multi code point flag emoji: " + flag)
+    print("String length: " + flag.len.as_str)  # Prints: "String length: 1"
+}
+```
+
+### Compile checks
+
+**AOT bytecode with excellent checks.** Programs are compiled
+ahead of time (on the developer's machine, not on the user machine),
+and thoroughly: horsec finds typos, undefined
+variables, many type errors and missing attributes, and more.
+
+### Portable tooling
+
+**Self contained tooling with no SDK dependencies.** Even on Windows,
+all you need is the horsec binary, and e.g. horp if you want to
+manage packages, and any basic text editor.
+No need for C/C++ compilers, a big IDE, or anything else. (Unless
+you want to!) Note: using custom C/C++ extensions may require a
+C/C++ toolchain, but the common extensions are all available prebuilt.
+
+### Portable programs
+
+**Self contained programs, even if you use UI, and more.** All
+your programs are compiled to a single, self-contained binary with
+only libc and system library dependencies.
+No need for shipping an extra runtime, or making the user install one.
   
-  Once you got horsec, this is all needed to ship your program self-contained:
-  ```bash
-  $ horsec compile -o ./myprogram.exe ./mycode.h64
-  ```
+Once you got horsec, this is all needed to ship your program self-contained:
+```bash
+$ horsec compile -o ./myprogram.exe ./mycode.h64
+```
 
-- **First class async networking.** Writing server code that
-  handles hundreds of connections easily is trivial. All
-  tools are built-in, even TLS/SSL support with a simple switch.
+### Networking
 
-- **Comprehensive standard library.** JSON, web backend and client
-  tools, HTTP/HTTPS, easy and comprehensive filesystem functions,
-  and more, are all integrated into Horse64 for easy use.
+**First class async networking.** Writing server code that
+handles hundreds of connections easily is trivial, especially
+with async being a deeply integrated first class mechanism. All
+tools are built-in, even TLS/SSL support with a simple switch.
 
-- **Both for advanced coders and beginners.** Horse64 has many
-  small tweaks that don't hurt experts but help beginners, like
-  clear keywords, simple syntax, good error checks, and more.
+### Standard library
 
-- **Large projects are well supported.** The excellent module
-  handling, support for cyclic imports and in-depth static
-  name resolution, a good package manager, and more, make
-  Horse64 ready to handle even sizeable endaveours.
+**Comprehensive standard library.** JSON, web backend and client
+tools, HTTP/HTTPS, easy and comprehensive filesystem functions,
+and more, are all integrated into Horse64 for easy use. (Note:
+still work in progress.)
 
-- **Supports multiple platforms.** Horse64 is available on many
-  [diverse platforms](./Platform%20Support.md), and will likely
-  expand to more in the future.
+### Education suited
+
+**Both for advanced coders and beginners.** Horse64 has many
+small tweaks that don't hurt experts but help beginners, like
+clear keywords, simple syntax, good error checks, and more, while
+preventing sneaky coding mistakes better than other choices like
+Python/Lua. This makes it a good choice for beginner courses,
+as well as experienced coders looking more fun and simple than
+with less of the common caveats.
+
+### Enterprise ready
+
+**Large projects are well supported.** The excellent module
+handling, support for cyclic imports and in-depth static
+name resolution, a capable package manager, and more, make
+Horse64 ready to handle even sizeable endaveours. A built-in
+deprecated keyword, and other tweaks help keep code maintainable.
+
+### Cross-platform
+
+**Supports multiple platforms.** Horse64 is available on many
+[diverse platforms](./Platform%20Support.md) including Linux also
+including ARM64 embedded, Windows, and FreeBSD (Note: WIP).
+It will likely expand to more platforms in the future.
 
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
