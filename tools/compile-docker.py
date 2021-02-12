@@ -118,7 +118,7 @@ if BUILD_IMAGE:
         ).check_returncode()
         print("Saved image to: " + str(img_path),
             file=sys.stderr, flush=True)
-        print("Deleting throwaway export container..."m
+        print("Deleting throwaway export container...",
             file=sys.stderr, flush=True)
         subprocess.run(
             ["docker", "rm", CONTAINER_LBL + "export"],
