@@ -1,0 +1,74 @@
+
+import process from core.horse64.org
+
+class ArgumentInfo {
+    var name = ""
+    var nargs = 0
+    var aliases = []
+    var optional = no
+    var positional = no
+
+    func init(name, aliases=[], nargs="default") {
+        self.name = name + ""
+        for alias in aliases {
+            self.aliases.add(alias + "")
+        }
+        self.positional = (not self.name.starts("-"))
+        if nargs == "default" or nargs == "?" {
+            self.nargs = 1
+            if not self.positional {
+                self.nargs = 0
+                self.optional = yes
+            } elseif nargs == "?" {
+                self.optional = yes
+            }
+        }
+    }
+
+    func names_intersect(names) {
+        if names.contains(self.name) {
+            return yes
+        }
+        for alias in self.aliases {
+            if names.contains(alias) {
+                return yes
+            }
+        }
+        return no
+    }
+}
+
+class Options {
+    var _args = []
+    var min_positional_args protect = 0 
+    var max_positional_args protect = 0 
+
+    func add_arg(name, aliases=[], nargs="default") {
+        for arg in self._args {
+            if arg.names_intersect([name]) or
+                    arg.names_intersect(aliases) {
+                raise new ValueError(
+                    "name conflict with existing options"
+                )
+            }
+        }
+        self._args.add(new ArgumentInfo(
+            name, aliases=aliases, nargs=nargs
+        ))
+        if self._args[self._args.len].positional {
+            self.max_positional_args += 1
+            if not self._args[self._args.len].optional {
+                self.min_positional_args += 1
+            }
+        }
+    }
+}
+
+func parse(options, arg_array=none) {
+    if arg_array == none {
+        arg_array = process.args
+    }
+    for arg in arg_array {
+
+    }
+}
