@@ -9,5 +9,8 @@ class TestCls {
 }
 
 func main {
-    var a = new TestCls()
+    var a = new TestCls("abc")
 }
+
+
+# expected return value: 0
