@@ -13,10 +13,10 @@ be for you. The syntax is a mix of Python, Lua, and Go.
 
 ## Features
 
-### Simple
+### Clean Syntax
 
-**Dynamic types with simplicity** as you know and love it
-from Python, Lua, etc. with exceptionally clean syntax:
+**Dynamic types with elegant simplicity** as you know and love it
+from Python, Lua, etc. offer a readable, clean syntax:
 ```horse64
 func main {
     print("Hello World from Horse64!")
