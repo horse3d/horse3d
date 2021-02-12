@@ -1,0 +1,13 @@
+
+
+class TestCls {
+    var attr_with_no_default
+
+    func init(posarg, kwarg1=[], kwarg2="some string") {
+        self.attr_with_no_default = posarg + ""
+    }
+}
+
+func main {
+    var a = new TestCls()
+}

@@ -117,6 +117,17 @@ START_TEST (test_ast_complex)
 }
 END_TEST
 
+START_TEST (test_ast_invalidprotect)
+{
+    char s[] = (
+        "class TestClass {\n"
+        "    var protect v = 1.5 + 0xA + 0b10\n"
+        "}\n"
+    );
+    _parsetest_do(s, PARSETEST_EXPECTFAIL);
+}
+END_TEST
+
 START_TEST (test_ast_twoprints)
 {
     char s[] = (
@@ -145,4 +156,4 @@ END_TEST
 
 
 TESTS_MAIN (test_ast_simple, test_ast_complex, test_ast_twoprints,
-            test_ast_bracketnesting)
+            test_ast_bracketnesting, test_ast_invalidprotect)
