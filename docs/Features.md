@@ -14,18 +14,38 @@ be for you. The syntax is a mix of Python, Lua, and Go.
 ## Notable features
 
 - **Dynamic types with simplicity** as you know and love it
-  from Python, Lua, etc. with exceptionally clean syntax.
-  Worry not, strong typing and AOT checks offset many potential bugs,
-  see below.
+  from Python, Lua, etc. with exceptionally clean syntax:
+  ```horse64
+  func main {
+      print("Hello World from Horse64!")
+  }
+  ```
+  Strong typing and AOT checks help with many potential bugs that
+  may go unnoticed in other dynamically typed languages.
 
 - **Strong types with avoidance of error-prone type coercions**,
   e.g. no accidential additions of numbers and strings with
-  unexpected results, preventing many sneaky typing bugs. The horsec
-  compiler also finds many runtime errors at compile time.
+  unexpected results, preventing many sneaky typing bugs:
+  ```horse64
+  func main {
+      var v = "my value"
+      v = 352
+      print("This is a  value: " + v.as_str)  # .as_str not optional!
+  }
+  ```
+  The horsec compiler also finds many other runtime errors at
+  compile time, like most typos and wrong references, which
+  would require extra tooling in Python, JS, and alike to catch.
 
 - **Flexible numbers data type with well-defined errors,**
   like a proper overflow error and division by zero errors.
-  No not-a-number value with its problems like NaN poisoning.
+  No not-a-number value with its problems like NaN poisoning:
+  ```horse64
+  func main {
+      var v = 9000000000000000000
+      v /= 0.0001  # Will trigger an OverflowError.
+  }
+  ```
 
 - **Unicode as a first class citizen.** Strings do indexing,
   sub string, and length computations based on glyph boundaries
