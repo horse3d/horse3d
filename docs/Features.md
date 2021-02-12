@@ -92,9 +92,9 @@ your programs are compiled to a single, self-contained binary with
 only libc and system library dependencies.
 No need for shipping an extra runtime, or making the user install one.
   
-Once you got horsec, this is all needed to ship your program self-contained:
+Once you got horsec, this is sufficient to ship your program self-contained:
 ```bash
-$ horsec compile -o ./myprogram.exe ./mycode.h64
+horsec compile -o ./myprogram.exe ./mycode.h64
 ```
 
 ### Networking
