@@ -1,0 +1,20 @@
+
+func main {
+    var l = [1, 2, 3, 4]
+    var i = 0
+    for item in l {
+        i += item
+    }
+    assert(i == 10)
+    var haderror = no
+    do {
+        for item in l {
+            l.add(5)
+        }
+    } rescue ContainerChangedError {
+        haderror = yes
+    }
+    assert(haderror)
+}
+
+# expected result value: 0
