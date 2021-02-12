@@ -528,6 +528,32 @@ int disassembler_PrintInstruction(
         }
         break;
     }
+    case H64INST_NEWITERATOR: {
+        h64instruction_newiterator *inst_newiterator =
+            (h64instruction_newiterator *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                (inst_newiterator->slotiteratorto),
+                (inst_newiterator->slotcontainerfrom))) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_ITERATE: {
+        h64instruction_iterate* inst_iterate =
+            (h64instruction_iterate *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d %s%d",
+                bytecode_InstructionTypeToStr(inst->type),
+                inst_iterate->slotvalueto,
+                inst_iterate->slotiteratorfrom,
+                (inst_iterate->jumponend >= 0 ? "+" : ""),
+                (int)inst_iterate->jumponend)) {
+            return 0;
+        }
+        break;
+    }
     case H64INST_GETATTRIBUTEBYNAME: {
         h64instruction_getattributebyname *inst_getattributebyname =
             (h64instruction_getattributebyname *)inst;

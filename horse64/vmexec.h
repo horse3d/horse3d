@@ -77,7 +77,8 @@ typedef struct h64vmthread {
 
     int64_t call_settop_reverse;
     h64stack *stack;
-    poolalloc *heap, *str_pile, *cfunc_asyncdata_pile;
+    poolalloc *heap, *str_pile, *cfunc_asyncdata_pile,
+        *iteratorstruct_pile;
 
     int funcframe_count, funcframe_alloc;
     h64vmfunctionframe *funcframe;

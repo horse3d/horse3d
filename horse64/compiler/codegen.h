@@ -16,4 +16,8 @@ int codegen_GenerateBytecodeForFile(
     h64ast *resolved_ast
 );
 
+int codegen_FinalBytecodeTransform(
+    h64compileproject *prj
+);
+
 #endif  // HORSE64_COMPILER_CODEGEN_H_

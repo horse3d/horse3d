@@ -1,9 +1,11 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
-#ifndef HORSE64_VMLISTSTRUCT_H_
-#define HORSE64_VMLISTSTRUCT_H_
+#ifndef HORSE64_VMCONTAINERSTRUCT_H_
+#define HORSE64_VMCONTAINERSTRUCT_H_
+
+#include "compileconfig.h"
 
 #include <stdint.h>
 
@@ -41,6 +43,9 @@ typedef struct hashmap hashmap;
 
 typedef struct genericset {
     hashmap *values;
+    int64_t nonhashable_count;
+    valuecontent *nonhashable_value;
+    uint64_t contentrevisionid;
 } genericset;
 
 static const uint8_t GENERICMAP_FLAG_LINEAR = 0x1;
@@ -65,6 +70,7 @@ typedef struct genericmap {
             uint32_t *entry_hash;
         } linear;
     };
+    uint64_t contentrevisionid;
 } genericmap;
 
 typedef struct genericvector {
@@ -73,4 +79,4 @@ typedef struct genericvector {
 } genericvector;
 
 
-#endif  // HORSE64_VMLISTSTRUCT_H_
+#endif  // HORSE64_VMCONTAINERSTRUCT_H_

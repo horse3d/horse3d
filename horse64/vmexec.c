@@ -32,6 +32,7 @@
 #include "stack.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
+#include "vmiteratorstruct.h"
 #include "vmlist.h"
 #include "vmmap.h"
 #include "vmschedule.h"
@@ -197,6 +198,14 @@ h64vmthread *vmthread_New(h64vmexec *owner, int is_on_main_thread) {
         }
     }
 
+    vmthread->iteratorstruct_pile = poolalloc_New(
+        sizeof(h64iteratorstruct)
+    );
+    if (!vmthread->iteratorstruct_pile) {
+        vmthread_Free(vmthread);
+        return NULL;
+    }
+
     vmthread->stack = stack_New();
     if (!vmthread->stack) {
         vmthread_Free(vmthread);
@@ -355,6 +364,8 @@ void vmthread_Free(h64vmthread *vmthread) {
         // Free heap:
         poolalloc_Destroy(vmthread->heap);
     }
+    if (vmthread->iteratorstruct_pile)
+        poolalloc_Destroy(vmthread->iteratorstruct_pile);
     if (vmthread->stack) {
         stack_Free(vmthread->stack);
     }
@@ -2944,12 +2955,193 @@ int _vmthread_RunFunction_NoPopFuncFrames(
         goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_newiterator: {
-        h64fprintf(stderr, "newiterator not implemented\n");
-        return 0;
+        h64instruction_newiterator *inst = (
+            (h64instruction_newiterator *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
+        #endif
+
+        valuecontent *vlist = STACK_ENTRY(stack, inst->slotcontainerfrom);
+        if (unlikely((vlist->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue *)vlist->ptr_value)->type !=
+                H64GCVALUETYPE_LIST) &&
+                (vlist->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue *)vlist->ptr_value)->type !=
+                H64GCVALUETYPE_MAP) &&
+                (vlist->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue *)vlist->ptr_value)->type !=
+                H64GCVALUETYPE_SET) &&
+                vlist->type != H64VALTYPE_VECTOR)) {
+            RAISE_ERROR(H64STDERROR_TYPEERROR,
+                "value iterated must be container");
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+
+        valuecontent *v = STACK_ENTRY(stack, inst->slotiteratorto);
+        DELREF_NONHEAP(v);
+        valuecontent_Free(v);
+        if (likely(vlist->type == H64VALTYPE_GCVAL)) {
+            v->type = H64VALTYPE_ITERATOR;
+            v->iterator = poolalloc_malloc(
+                vmthread->iteratorstruct_pile, 0
+            );
+            if (!v->iterator) {
+                RAISE_ERROR(H64STDERROR_OUTOFMEMORYERROR,
+                    "out of memory creating iterator");
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            memset(v->iterator, 0, sizeof(*v->iterator));
+            v->iterator->iterated_isgcvalue = 1;
+            v->iterator->iterated_gcvalue = (
+                ((h64gcvalue *)vlist->ptr_value)
+            );
+            ((h64gcvalue *)vlist->ptr_value)->heapreferencecount++;
+            if (((h64gcvalue *)vlist->ptr_value)->type ==
+                    H64GCVALUETYPE_LIST) {
+                v->iterator->len = vmlist_Count(
+                    ((h64gcvalue *)vlist->ptr_value)->list_values
+                );
+                v->iterator->iterated_revision = vmlist_Revision(
+                    ((h64gcvalue *)vlist->ptr_value)->list_values
+                );
+            } else if (((h64gcvalue *)vlist->ptr_value)->type ==
+                    H64GCVALUETYPE_MAP) {
+                v->iterator->len = vmmap_Count(
+                    ((h64gcvalue *)vlist->ptr_value)->map_values
+                );
+                v->iterator->iterated_revision = vmmap_Revision(
+                    ((h64gcvalue *)vlist->ptr_value)->map_values
+                );
+            } else {
+                h64fprintf(stderr, "container not implemented\n");
+                return 0;
+            }
+        } else {
+            assert(vlist->type == H64VALTYPE_VECTOR);
+            v->type = H64VALTYPE_ITERATOR;
+            v->iterator = poolalloc_malloc(
+                vmthread->iteratorstruct_pile, 0
+            );
+            if (!v->iterator) {
+                RAISE_ERROR(H64STDERROR_OUTOFMEMORYERROR,
+                    "out of memory creating iterator");
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            memset(v->iterator, 0, sizeof(*v->iterator));
+            v->iterator->iterated_isgcvalue = 0;
+            memcpy(
+                &v->iterator->iterated_vector,
+                vlist, sizeof(*vlist)
+            );
+            ADDREF_NONHEAP(&v->iterator->iterated_vector);
+            v->iterator->len = vlist->vector_len;
+            return 0;
+        }
+
+        p += sizeof(h64instruction_newiterator);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_iterate: {
-        h64fprintf(stderr, "iterate not implemented\n");
-        return 0;
+        h64instruction_iterate *inst = (
+            (h64instruction_iterate *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
+        #endif
+
+        valuecontent *viterated = STACK_ENTRY(
+            stack, inst->slotiteratorfrom
+        );
+        if (unlikely(viterated->type != H64VALTYPE_ITERATOR)) {
+            RAISE_ERROR(H64STDERROR_TYPEERROR,
+                "value in iteration must be an iterator");
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+        h64iteratorstruct *iter = viterated->iterator;
+
+        if (iter->iterated_isgcvalue) {
+            uint64_t need_rev = 0;
+            if (iter->iterated_gcvalue->type ==
+                    H64GCVALUETYPE_LIST) {
+                need_rev = vmlist_Revision(
+                    iter->iterated_gcvalue->list_values
+                );
+            } else if (iter->iterated_gcvalue->type ==
+                    H64GCVALUETYPE_MAP) {
+                need_rev = vmmap_Revision(
+                    iter->iterated_gcvalue->map_values
+                );
+            } else {
+                h64fprintf(stderr, "container not implemented\n");
+                return 0;
+            }
+            if (need_rev != iter->iterated_revision) {
+                RAISE_ERROR(H64STDERROR_CONTAINERCHANGEDERROR,
+                    "iterated container was altered");
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+        }
+
+        iter->idx++;
+        if (iter->idx > iter->len) {
+            p += (
+                (ptrdiff_t)inst->jumponend
+            );
+            assert(p >= pr->func[func_id].instructions &&
+                p < pend);
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+
+        valuecontent *vcresult = STACK_ENTRY(
+            stack, inst->slotvalueto
+        );
+        DELREF_NONHEAP(vcresult);
+        vcresult->type = H64VALTYPE_NONE;
+
+        if (iter->iterated_isgcvalue) {
+            if (iter->iterated_gcvalue->type ==
+                    H64GCVALUETYPE_LIST) {
+                valuecontent *v = vmlist_Get(
+                    iter->iterated_gcvalue->list_values, iter->idx
+                );
+                assert(v != NULL);
+                memcpy(vcresult, v, sizeof(*vcresult));
+                ADDREF_NONHEAP(vcresult);
+            } else if (iter->iterated_gcvalue->type ==
+                    H64GCVALUETYPE_MAP) {
+                int result = vmmap_Get(
+                    iter->iterated_gcvalue->map_values,
+                    vmmap_GetKeyByIdx(
+                        iter->iterated_gcvalue->map_values,
+                        iter->idx
+                    ), vcresult
+                );
+                assert(result != 0);
+                ADDREF_NONHEAP(vcresult);
+            } else {
+                h64fprintf(stderr, "container not implemented\n");
+                return 0;
+            }
+        } else {
+            vectorentry *ve = &(
+                iter->iterated_vector.vector_values[iter->idx]
+            );
+            if (ve->int_value) {
+                vcresult->type = H64VALTYPE_INT64;
+                vcresult->int_value = ve->int_value;
+            } else {
+                vcresult->type = H64VALTYPE_FLOAT64;
+                vcresult->int_value = ve->float_value;
+            }
+        }
+
+        p += sizeof(h64instruction_iterate);
+        goto *jumptable[((h64instructionany *)p)->type];
     }
     inst_pushrescueframe: {
         h64instruction_pushrescueframe *inst = (

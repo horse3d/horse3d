@@ -195,6 +195,7 @@ int _vmmap_RemoveByHash(
                             (m->linear.entry_count - i - 1)
                     );
                 m->linear.entry_count--;
+                m->contentrevisionid++;
                 continue;
             }
             i++;
@@ -220,6 +221,7 @@ int _vmmap_RemoveByHash(
                             (b->entry_count - i - 1)
                     );
                 b->entry_count--;
+                m->contentrevisionid++;
                 continue;
             }
             i++;
@@ -233,6 +235,41 @@ int vmmap_Remove(genericmap *m, valuecontent *key) {
         return 0;
     uint32_t hash = valuecontent_Hash(key);
     return _vmmap_RemoveByHash(m, hash, key);
+}
+
+valuecontent *vmmap_GetKeyByIdx(genericmap *m, int64_t idx) {
+    if (!m)
+        return NULL;
+    int64_t c = vmmap_Count(m);
+    if (idx < 1 || idx > c)
+        return NULL;
+    if ((m->flags & GENERICMAP_FLAG_LINEAR) != 0) {
+        return &m->linear.key[idx];
+    }
+    int64_t cmp_idx = 0;
+    int64_t i = 0;
+    while (i < m->hashed.bucket_count) {
+        genericmapbucket *bucket = &(
+            m->hashed.bucket[i]
+        );
+        if (cmp_idx + bucket->entry_count < idx) {
+            cmp_idx += bucket->entry_count;
+            i++;
+            continue;
+        }
+        int64_t k = 0;
+        while (k < bucket->entry_count) {
+            cmp_idx++;
+            if (cmp_idx == idx)
+                return &bucket->key[k];
+            k++;
+        }
+        i++;
+    }
+    // This should be unreachable since we checked idx boundaries.
+    fprintf(stderr, "vmmap_GetKeyByIdx: corrupt map.");
+    assert(0);
+    return NULL;
 }
 
 int vmmap_Set(
@@ -285,6 +322,7 @@ int vmmap_Set(
             );
             ADDREF_HEAP(&m->linear.entry[m->linear.entry_count]);
             m->linear.entry_count++;
+            m->contentrevisionid++;
             return 1;
         } else {
             m->flags &= ~GENERICMAP_FLAG_LINEAR;
@@ -344,5 +382,6 @@ int vmmap_Set(
             hash, key, value)) {
         return 0;
     }
+    m->contentrevisionid++;
     return 1;
 }

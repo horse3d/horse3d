@@ -87,6 +87,7 @@ int vmlist_Add(
     ADDREF_HEAP(vc);
     l->last_block->entry_count++;
     l->list_total_entry_count++;
+    l->contentrevisionid++;
     return 1;
 }
 
@@ -114,6 +115,7 @@ int vmlist_Remove(genericlist *l, int64_t index) {
         );
     }
     block->entry_count--;
+    l->contentrevisionid++;
     return 1;
 }
 
@@ -137,6 +139,7 @@ int vmlist_Set(genericlist *l, int64_t index, valuecontent *vc) {
         vc, sizeof(*vc)
     );
     ADDREF_HEAP(&block->entry_values[local_index - 1]);
+    l->contentrevisionid++;
     return 1;
 }
 
@@ -191,5 +194,6 @@ int vmlist_Insert(
     ADDREF_HEAP(vc);
     block->entry_count++;
     l->list_total_entry_count++;
+    l->contentrevisionid++;
     return 1;
 }

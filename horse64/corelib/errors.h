@@ -32,6 +32,7 @@ typedef enum stderrorclassnum {
     H64STDERROR_ENCODINGERROR,
     H64STDERROR_ASSERTIONERROR,
     H64STDERROR_NOTIMPLEMENTEDERROR,
+    H64STDERROR_CONTAINERCHANGEDERROR,
     H64STDERROR_TOTAL_COUNT
 } stderrorclassnum;
 
@@ -54,6 +55,7 @@ ATTR_UNUSED static const char *stderrorclassnames[] = {
     "EncodingError",
     "AssertionError",
     "NotImplementedError",
+    "ContainerChangedError",
     NULL
 };
 

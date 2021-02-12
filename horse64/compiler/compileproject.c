@@ -1746,10 +1746,6 @@ int _codegenallcb(
     return 1;
 }
 
-int codegen_FinalBytecodeTransform(
-    h64compileproject *prj
-);
-
 int compileproject_CompileAllToBytecode(
         h64compileproject *project,
         h64misccompileroptions *moptions,

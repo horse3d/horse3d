@@ -15,6 +15,10 @@
 
 genericlist *vmlist_New();
 
+ATTR_UNUSED static inline uint64_t vmlist_Revision(genericlist *l) {
+    return l->contentrevisionid;
+}
+
 ATTR_UNUSED static inline int64_t vmlist_Count(genericlist *l) {
     return l->list_total_entry_count;
 }

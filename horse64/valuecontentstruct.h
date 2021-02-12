@@ -30,6 +30,7 @@ typedef enum valuetype {
     H64VALTYPE_VECTOR,
     H64VALTYPE_UNSPECIFIED_KWARG,
     H64VALTYPE_SUSPENDINFO,
+    H64VALTYPE_ITERATOR,
     H64VALTYPE_TOTAL
 } valuetype;
 
@@ -39,7 +40,7 @@ typedef enum valuetype {
 typedef struct h64errorinfo h64errorinfo;
 typedef struct valuecontent valuecontent;
 typedef struct vectorentry vectorentry;
-
+typedef struct h64iteratorstruct h64iteratorstruct;
 
 typedef struct valuecontent {
     uint8_t type;
@@ -78,6 +79,9 @@ typedef struct valuecontent {
         struct {  // 12 bytes
             int suspend_type;
             int64_t suspend_intarg;
+        };
+        struct {  // 16 bytes
+            h64iteratorstruct *iterator;
         };
     };
 } valuecontent;

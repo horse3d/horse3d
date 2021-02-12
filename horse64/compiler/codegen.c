@@ -886,6 +886,13 @@ int codegen_FinalBytecodeTransform(
                 }
                 break;
             }
+            case H64INST_ITERATE: {
+                h64instruction_iterate *iterate = (
+                    (h64instruction_iterate *)inst
+                );
+                jumpid = iterate->jumponend;
+                break;
+            }
             default: {
                 k += (int64_t)h64program_PtrToInstructionSize((char*)inst);
                 continue;
@@ -953,6 +960,13 @@ int codegen_FinalBytecodeTransform(
                         (h64instruction_pushrescueframe *)inst
                     );
                     catchjump->jumponrescue = offset;
+                    break;
+                }
+                case H64INST_ITERATE: {
+                    h64instruction_iterate *iterate = (
+                        (h64instruction_iterate *)inst
+                    );
+                    iterate->jumponend = offset;
                     break;
                 }
                 default:

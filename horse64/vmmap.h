@@ -21,6 +21,12 @@ ATTR_UNUSED static inline int64_t vmmap_Count(genericmap *m) {
     return m->hashed.entry_count;
 }
 
+ATTR_UNUSED static inline uint64_t vmmap_Revision(genericmap *l) {
+    return l->contentrevisionid;
+}
+
+valuecontent *vmmap_GetKeyByIdx(genericmap *l, int64_t idx);
+
 int vmmap_Set(
     genericmap *m, valuecontent *key, valuecontent *value
 );
