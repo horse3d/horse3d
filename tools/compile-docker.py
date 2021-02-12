@@ -61,25 +61,16 @@ if USE_CACHE:
         try:
             print("Attempting image restore...", file=sys.stderr)
             subprocess.run(
-                ["docker", "import", img_path, IMAGE_LBL + "img"],
+                ["docker", "import", img_path, IMAGE_LBL + ":" + IMAGE_LBL],
                 stderr=subprocess.STDOUT
             ).check_returncode()
             BUILD_IMAGE=False
             restored = True
             print("Building properly labelled image clone...",
                   file=sys.stderr)
-            tmpdir = tempfile.mkdtemp()
-            try:
-                with open(os.path.join(tmpdir, "Dockerfile"), "w") as f:
-                    f.write("FROM " + IMAGE_LBL + "img")
-                subprocess.run(
-                    ["docker", "build", "-t", IMAGE_LBL, "."],
-                    cwd=tmpdir,
-                    stderr=subprocess.STDOUT
-                ).check_returncode()
-            finally:
-                sys.stdout.flush()
-                shutil.rmtree(tmpdir)
+            subprocess.run([
+                "docker", "tag", IMAGE_LBL, IMAGE_LBL + "img"
+            ], stderr=subprocess.STDOUT).check_returncode()
             print("Restored image from " + str(img_path) + "!", file=sys.stderr)
         except subprocess.CalledProcessError:
             pass
@@ -120,7 +111,7 @@ args = (
     "-v",
     os.path.abspath("./binaries/") +
     ":/compile-tree/binaries/:rw,z", IMAGE_LBL] +
-    (["/bin/bash"] if RUN_BASH else [])
+    (["/bin/bash"] if RUN_BASH else ["/do-build"])
 )
 
 try:

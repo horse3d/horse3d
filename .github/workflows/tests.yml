@@ -19,9 +19,9 @@ jobs:
         cache-name: cache-core-horse64-buildimage
       with:
         path: ~/.local/share/core.horse64.org-dockerimage/
-        key: cache-core-horse64-buildimage
+        key: cache-core-horse64-buildimage-v2
         restore-keys: |
-          cache-core-horse64-buildimage
+          cache-core-horse64-buildimage-v2
 
     - name: run docker
       run: python3 tools/compile-docker.py --run-tests --cache-image
