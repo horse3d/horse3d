@@ -302,9 +302,22 @@ rerun of the loop, retriggering inner side effects like embedded calls.
 Container iteration notes:
 
 - A container can be any of: list, set, vector, or map.
-- For the map, the keys will be iterated like a set.
-- If the container is changed during iteration,
-  a `ContainerIterationError` will be raised.
+  Each iteration result, named `item` in the code above,
+  will be the next respective item in the container from
+  first to last.
+- The returned iteration item variable (`item` above)
+  may be reassigned inside the loop without influencing the
+  next iteration step. Its scope is limited to one single
+  iteration of the loop.
+- For the map, the keys will be returned in the iteration,
+  not the values. You can get the corresponding value as
+  usual, e.g. via `map[iterated_key]`.
+- A mutable container like a list, set, or map must not be
+  changed while you are still iterating it.
+  If this happens, a `ContainerChangedError` will be
+  raised. You should not rely on this intentionally,
+  it is considered a programming error caught for your
+  convenience.
 
 
 ### Import statement (import)
