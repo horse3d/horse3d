@@ -1,13 +1,15 @@
 #!/usr/bin/python3
 
 import os
+import random
 import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 
-IMAGE_LBL = "horse64-3hg290g"
-CONTAINER_LBL = "horse64-r0y30i4jioog"
+IMAGE_LBL = "horse64-" + str(uuid.uuid4())[:8]
+CONTAINER_LBL = "horse64-" + str(uuid.uuid4())[:8]
 RUN_TESTS = False
 RUN_BASH = False
 USE_CACHE = False
@@ -59,19 +61,26 @@ if USE_CACHE:
     restored = False
     if os.path.exists(os.path.join(img_folder, "image.tar")):
         try:
-            print("Attempting image restore...", file=sys.stderr)
-            subprocess.run(
+            print("Attempting image restore...", file=sys.stderr, flush=True)
+            def as_str(s):
+                try:
+                    return s.decode("utf-8")
+                except AttributeError:
+                    return str(s)
+            image_id = as_str(subprocess.check_output(
                 ["docker", "import", img_path, IMAGE_LBL + ":" + IMAGE_LBL],
                 stderr=subprocess.STDOUT
-            ).check_returncode()
-            BUILD_IMAGE=False
-            restored = True
-            print("Building properly labelled image clone...",
-                  file=sys.stderr)
-            subprocess.run([
-                "docker", "tag", IMAGE_LBL, IMAGE_LBL + "img"
-            ], stderr=subprocess.STDOUT).check_returncode()
-            print("Restored image from " + str(img_path) + "!", file=sys.stderr)
+            ).strip().lower()).partition("sha256:")[2]
+            if len(image_id) >= 8:
+                BUILD_IMAGE=False
+                restored = True
+                print("Tagging the image: " + image_id + " -> " + IMAGE_LBL,
+                      file=sys.stderr)
+                subprocess.run([
+                    "docker", "tag", image_id, IMAGE_LBL
+                ], stderr=subprocess.STDOUT).check_returncode()
+                sys.stdout.flush()
+                print("Restored image from " + str(img_path) + "!", file=sys.stderr)
         except subprocess.CalledProcessError:
             pass
     if not restored:
@@ -95,18 +104,33 @@ if BUILD_IMAGE:
             os.remove(".dockerignore")
     if USE_CACHE:
         assert(img_path != None)
-        print("Attempting image save...")
+        print("Turning image into container for saving...",
+            file=sys.stderr, flush=True)
         subprocess.run(
-            ["docker", "save", "-o", img_path, IMAGE_LBL],
+            ["docker", "run", "--name", CONTAINER_LBL + "export",
+            IMAGE_LBL, "/bin/bash", "-c", "exit 0"],
             stderr=subprocess.STDOUT
         ).check_returncode()
-        print("Saved image to: " + str(img_path))
+        print("Attempting image save...", file=sys.stderr, flush=True)
+        subprocess.run(
+            ["docker", "export", "-o", img_path, CONTAINER_LBL + "export"],
+            stderr=subprocess.STDOUT
+        ).check_returncode()
+        print("Saved image to: " + str(img_path),
+            file=sys.stderr, flush=True)
+        print("Deleting throwaway export container..."m
+            file=sys.stderr, flush=True)
+        subprocess.run(
+            ["docker", "rm", CONTAINER_LBL + "export"],
+            stderr=subprocess.STDOUT
+        ).check_returncode()
+        sys.stdout.flush()
 if not os.path.exists("binaries"):
     os.mkdir("binaries")
 args = (
     ["docker", "run"] +
     (["-ti"] if RUN_BASH else []) +
-    ["--label", CONTAINER_LBL,
+    ["--name", CONTAINER_LBL,
     "-e", "RUN_TESTS=" + ("yes" if RUN_TESTS else "no"),
     "-v",
     os.path.abspath("./binaries/") +
