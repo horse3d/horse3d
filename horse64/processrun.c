@@ -118,6 +118,10 @@ void processrun_Wait(processrun *pr, int *exit_code) {
     #endif
 }
 
+#if !defined(_WIN32) && !defined(WIN64)
+extern char **environ;
+#endif
+
 processrun *processrun_Launch(
         const h64wchar *path, int64_t path_len,
         int arg_count, const h64wchar **arg_s, const int64_t *arg_len,
@@ -257,16 +261,10 @@ processrun *processrun_Launch(
 
     if (vpid == 0) {
         // vfork() -> child
-        if (search_in_path) {
-            if (execvp(process_converted_path,
-                       process_converted_args) < 0) {
-                _exit(1);
-            }
-        } else {
-            if (execv(process_converted_path,
-                      process_converted_args) < 0) {
-                _exit(1);
-            }
+        if (execve(process_converted_path,
+                   process_converted_args,
+                   environ) < 0) {
+            _exit(1);
         }
         // this is unreachable, child is running other process here
     }
