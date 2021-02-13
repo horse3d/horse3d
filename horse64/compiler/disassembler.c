@@ -562,7 +562,20 @@ int disassembler_PrintInstruction(
                 bytecode_InstructionTypeToStr(inst->type),
                 inst_getattributebyname->slotto,
                 inst_getattributebyname->objslotfrom,
-                inst_getattributebyname->nameidx)) {
+                (int64_t)inst_getattributebyname->nameidx)) {
+            return 0;
+        }
+        break;
+    }
+    case H64INST_GETATTRIBUTEBYIDX: {
+        h64instruction_getattributebyidx *inst_getattributebyidx =
+            (h64instruction_getattributebyidx *)inst;
+        if (!disassembler_Write(di,
+                "    %s t%d t%d a%" PRId64,
+                bytecode_InstructionTypeToStr(inst->type),
+                inst_getattributebyidx->slotto,
+                inst_getattributebyidx->objslotfrom,
+                (int64_t)inst_getattributebyidx->varattrfrom)) {
             return 0;
         }
         break;

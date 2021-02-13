@@ -1,0 +1,17 @@
+
+class TestCls {
+    var test
+
+    func do_test {
+        self.test = 2
+        self.test += 5
+        return self.test
+    }
+}
+
+func main {
+    var obj = new TestCls()
+    assert(7 == obj.do_test())
+}
+
+# expected result value: 0

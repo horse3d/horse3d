@@ -1917,6 +1917,26 @@ int _codegencallback_DoCodegen_visit_out(
                         rinfo->hadoutofmemory = 1;
                         return 0;
                     }
+                } else if (str->type == H64STORETYPE_VARATTRSLOT) {
+                    oldvaluetemp = new1linetemp(func, expr, 0);
+                    if (oldvaluetemp < 0) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
+                    assert(surroundingclass(expr, 1) != NULL);
+                    assert(func->funcdef._storageinfo->closure_with_self != 0);
+                    h64instruction_getattributebyidx inst = {0};
+                    inst.type = H64INST_GETATTRIBUTEBYIDX;
+                    // 'self' is always on top of all "regular" args:
+                    inst.objslotfrom = (
+                        func->funcdef.arguments.arg_count
+                    );
+                    inst.varattrfrom = (attridx_t)str->id;
+                    inst.slotto = oldvaluetemp;
+                    if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
+                        rinfo->hadoutofmemory = 1;
+                        return 0;
+                    }
                 } else if (!iscomplexassign) {
                     if (str->type != H64STORETYPE_STACKSLOT) {
                         errorinvalidassign:
@@ -1997,8 +2017,9 @@ int _codegencallback_DoCodegen_visit_out(
                             snprintf(
                                 buf, sizeof(buf) - 1,
                                 "unexpected assign to unassignable item, "
-                                "can not assign to storage type %d",
-                                (int)str->type
+                                "can not assign to storage type %d (=%s)",
+                                (int)str->type,
+                                storage_StorageTypeToStr(str->type)
                             );
                             if (!result_AddMessage(
                                     &rinfo->ast->resultmsg,

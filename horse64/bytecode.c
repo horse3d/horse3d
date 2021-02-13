@@ -51,6 +51,7 @@ static char _name_itype_addrescuetype[] = "addrescuetype";
 static char _name_itype_poprescueframe[] = "poprescueframe";
 static char _name_itype_jumptofinally[] = "jumptofinally";
 static char _name_itype_getattributebyname[] = "getattributebyname";
+static char _name_itype_getattributebyidx[] = "getattributebyidx";
 static char _name_itype_newlist[] = "newlist";
 static char _name_itype_newset[] = "newset";
 static char _name_itype_newvector[] = "newvector";
@@ -124,6 +125,8 @@ const char *bytecode_InstructionTypeToStr(instructiontype itype) {
         return _name_itype_jumptofinally;
     case H64INST_GETATTRIBUTEBYNAME:
         return _name_itype_getattributebyname;
+    case H64INST_GETATTRIBUTEBYIDX:
+        return _name_itype_getattributebyidx;
     case H64INST_NEWLIST:
         return _name_itype_newlist;
     case H64INST_NEWSET:
@@ -632,6 +635,8 @@ size_t h64program_PtrToInstructionSize(char *ptr) {
         return sizeof(h64instruction_jumptofinally);
     case H64INST_GETATTRIBUTEBYNAME:
         return sizeof(h64instruction_getattributebyname);
+    case H64INST_GETATTRIBUTEBYIDX:
+        return sizeof(h64instruction_getattributebyidx);
     case H64INST_NEWLIST:
         return sizeof(h64instruction_newlist);
     case H64INST_NEWSET:
@@ -1311,4 +1316,38 @@ attridx_t h64program_RegisterClassVariable(
     return h64program_RegisterClassAttributeEx(
         p, class_id, name, -1, tmp_expr_ptr
     );
+}
+
+static char _h64storetypename_invalid[] =
+    "H64STORETYPE_INVALID";
+static char _h64storetypename_stackslot[] =
+    "H64STORETYPE_STACKSLOT";
+static char _h64storetypename_globalfuncslot[] =
+    "H64STORETYPE_GLOBALFUNCSLOT";
+static char _h64storetypename_globalclassslot[] =
+    "H64STORETYPE_GLOBALCLASSSLOT";
+static char _h64storetypename_globalvarslot[] =
+    "H64STORETYPE_GLOBALVARSLOT";
+static char _h64storetypename_varattrslot[] =
+    "H64STORETYPE_VARATTRSLOT";
+static char _h64storetypename_unknown[] = "unknown";
+
+
+const char *storage_StorageTypeToStr(storagetype stype) {
+    switch (stype) {
+        case H64STORETYPE_INVALID:
+            return _h64storetypename_invalid;
+        case H64STORETYPE_STACKSLOT:
+            return _h64storetypename_stackslot;
+        case H64STORETYPE_GLOBALFUNCSLOT:
+            return _h64storetypename_globalfuncslot;
+        case H64STORETYPE_GLOBALCLASSSLOT:
+            return _h64storetypename_globalclassslot;
+        case H64STORETYPE_GLOBALVARSLOT:
+            return _h64storetypename_globalvarslot;
+        case H64STORETYPE_VARATTRSLOT:
+            return _h64storetypename_varattrslot;
+        default:
+            return _h64storetypename_unknown;
+    }
 }

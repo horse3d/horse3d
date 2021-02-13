@@ -3289,6 +3289,122 @@ int _vmthread_RunFunction_NoPopFuncFrames(
 
         goto *jumptable[((h64instructionany *)p)->type];
     }
+    inst_getattributebyidx: {
+        h64instruction_getattributebyidx *inst = (
+            (h64instruction_getattributebyidx *)p
+        );
+        #ifndef NDEBUG
+        if (vmthread->vmexec_owner->moptions.vmexec_debug &&
+                !vmthread_PrintExec(vmthread, func_id, (void*)inst))
+            goto triggeroom;
+        #endif
+
+        // Prepare target:
+        valuecontent _tmpbuf;
+        assert(
+            stack != NULL && inst->slotto >= 0 &&
+            (int64_t)inst->slotto < stack->entry_count -
+            stack->current_func_floor &&
+            stack->alloc_count >= stack->entry_count
+        );
+        valuecontent *target = (
+            STACK_ENTRY(stack, inst->slotto)
+        );
+        int copyatend = 0;
+        if (inst->slotto == inst->objslotfrom) {
+            target = &_tmpbuf;
+            memset(target, 0, sizeof(*target));
+            copyatend = 1;
+        } else {
+            DELREF_NONHEAP(target);
+            valuecontent_Free(target);
+            memset(target, 0, sizeof(*target));
+        }
+
+        valuecontent *vobj = STACK_ENTRY(stack, inst->objslotfrom);
+        if (vobj->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue *)vobj->ptr_value)->type !=
+                    H64GCVALUETYPE_OBJINSTANCE) {
+            RAISE_ERROR(H64STDERROR_TYPEERROR,
+                        "can only get attribute from object instance");
+            goto *jumptable[((h64instructionany *)p)->type];
+        }
+
+        attridx_t attr_index = inst->varattrfrom;
+        h64gcvalue *vobjgc = ((h64gcvalue *)vobj->ptr_value);
+        classid_t cls = vobjgc->class_id;
+        if (attr_index < H64CLASS_METHOD_OFFSET) {
+            if (attr_index < 0 ||
+                    attr_index >= pr->classes[cls].varattr_count) {
+                RAISE_ERROR(H64STDERROR_ATTRIBUTEERROR,
+                    "invalid attribute index on object instance");
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            memcpy(
+                target, &vobjgc->varattr[attr_index],
+                sizeof(*target)
+            );
+            ADDREF_NONHEAP(target);  // since it'll be on the stack now
+        } else {
+            attridx_t methodidx = attr_index - H64CLASS_METHOD_OFFSET;
+            if (methodidx < 0 ||
+                    methodidx >= pr->classes[cls].funcattr_count) {
+                RAISE_ERROR(H64STDERROR_ATTRIBUTEERROR,
+                    "invalid attribute index on object instance");
+                goto *jumptable[((h64instructionany *)p)->type];
+            }
+            target->type = H64VALTYPE_GCVAL;
+            target->ptr_value = poolalloc_malloc(
+                vmthread->heap, 0
+            );
+            if (!target->ptr_value) {
+                goto triggeroom;
+            }
+            h64gcvalue *gcval = (h64gcvalue *)target->ptr_value;
+            gcval->hash = 0;
+            gcval->type = H64GCVALUETYPE_FUNCREF_CLOSURE;
+            gcval->heapreferencecount = 0;
+            gcval->externalreferencecount = 1;
+            gcval->closure_info = (
+                malloc(sizeof(*gcval->closure_info))
+            );
+            if (!gcval->closure_info) {
+                poolalloc_free(heap, gcval);
+                target->ptr_value = NULL;
+                goto triggeroom;
+            }
+            memset(gcval->closure_info, 0,
+                    sizeof(*gcval->closure_info));
+            gcval->closure_info->closure_func_id = (
+                vmexec->program->is_a_func_index
+            );
+            gcval->closure_info->closure_bound_values_count = 1;
+            gcval->closure_info->closure_bound_values = malloc(
+                sizeof(*gcval->closure_info->closure_bound_values) * 1
+            );
+            if (!gcval->closure_info->closure_bound_values) {
+                free(gcval->closure_info);
+                poolalloc_free(heap, gcval);
+                target->ptr_value = NULL;
+                goto triggeroom;
+            }
+            memcpy(
+                &gcval->closure_info->closure_bound_values[0],
+                vobj, sizeof(*vobj)
+            );
+            ADDREF_HEAP(vobj);  // for ref by closure
+            ADDREF_NONHEAP(target);   // it'll be on the stack now
+        }
+        if (copyatend) {
+            valuecontent *copytarget = STACK_ENTRY(stack, inst->slotto);
+            DELREF_NONHEAP(copytarget);
+            valuecontent_Free(copytarget);
+            memcpy(copytarget, target, sizeof(*target));
+            // ADDREF_ was already done above.
+        }
+        p += sizeof(*inst);
+        goto *jumptable[((h64instructionany *)p)->type];
+    }
     inst_getattributebyname: {
         h64instruction_getattributebyname *inst = (
             (h64instruction_getattributebyname *)p
@@ -4311,6 +4427,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
     jumptable[H64INST_ADDRESCUETYPE] = &&inst_addrescuetype;
     jumptable[H64INST_POPRESCUEFRAME] = &&inst_poprescueframe;
     jumptable[H64INST_GETATTRIBUTEBYNAME] = &&inst_getattributebyname;
+    jumptable[H64INST_GETATTRIBUTEBYIDX] = &&inst_getattributebyidx;
     jumptable[H64INST_JUMPTOFINALLY] = &&inst_jumptofinally;
     jumptable[H64INST_NEWLIST] = &&inst_newlist;
     jumptable[H64INST_NEWSET] = &&inst_newset;

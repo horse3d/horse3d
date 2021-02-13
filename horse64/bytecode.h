@@ -60,6 +60,7 @@ typedef enum instructiontype {
     H64INST_ADDRESCUETYPE,
     H64INST_POPRESCUEFRAME,
     H64INST_GETATTRIBUTEBYNAME,
+    H64INST_GETATTRIBUTEBYIDX,
     H64INST_JUMPTOFINALLY,
     H64INST_NEWLIST,
     H64INST_NEWSET,
@@ -87,6 +88,8 @@ typedef enum storagetype {
     H64STORETYPE_VARATTRSLOT,
     H64STORETYPE_TOTAL_COUNT
 } storagetype;
+
+const char *storage_StorageTypeToStr(storagetype sytpe);
 
 typedef struct storageref {
     uint8_t type;
@@ -288,6 +291,13 @@ typedef struct h64instruction_getattributebyname {
     int16_t objslotfrom;
     int64_t nameidx;
 } _INSTPACKATTR h64instruction_getattributebyname;
+
+typedef struct h64instruction_getattributebyidx {
+    uint8_t type;
+    int16_t slotto;
+    int16_t objslotfrom;
+    attridx_t varattrfrom;
+} _INSTPACKATTR h64instruction_getattributebyidx;
 
 typedef struct h64instruction_newlist {
     uint8_t type;
