@@ -808,29 +808,23 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 return 1;
             }
             h64expression *func = surroundingfunc(expr);
-            int directly_in_class_func = (
-                surroundingclass(func, 0) != NULL
-            );
-            if (!directly_in_class_func) {
-                // This has to be a closure (nested inside other func).
-                // Any 'self' usage must have led to closure var storage:
-                assert(func != NULL);
-                #ifndef NDEBUG
-                if (func->funcdef._storageinfo == NULL) {
-                    char *s = ast_ExpressionToJSONStr(
-                        func, NULL, 0
-                    );
-                    h64fprintf(
-                        stderr, "horsec: error: internal error: "
-                        "invalid missing storage info on "
-                        "closure: %s\n", s
-                    );
-                    free(s);
+            // Any 'self' usage must have led to closure var storage:
+            assert(func != NULL);
+            #ifndef NDEBUG
+            if (func->funcdef._storageinfo == NULL) {
+                h64funcstorageextrainfo *einfo = (
+                    malloc(sizeof(*einfo))
+                );
+                if (!einfo) {
+                    atinfo->hadoutofmemory = 1;
+                    return 0;
                 }
-                #endif
-                assert(func->funcdef._storageinfo != NULL);
-                func->funcdef._storageinfo->closure_with_self = 1;
+                memset(einfo, 0, sizeof(*einfo));
+                func->funcdef._storageinfo = einfo;
             }
+            #endif
+            assert(func->funcdef._storageinfo != NULL);
+            func->funcdef._storageinfo->closure_with_self = 1;
             return 1;
         }
         h64scopedef *def = scope_QueryItem(

@@ -5,9 +5,14 @@
 #ifndef HORSE64_COMPILER_VARSTORAGE_H_
 #define HORSE64_COMPILER_VARSTORAGE_H_
 
+#include "compileconfig.h"
+
+#include <stdint.h>
+
 typedef struct h64compileproject h64compileproject;
 typedef struct h64ast h64ast;
 typedef struct jsonvalue jsonvalue;
+typedef struct h64scopedef h64scopedef;
 
 int varstorage_AssignLocalStorage(
     h64compileproject *pr, h64ast *ast

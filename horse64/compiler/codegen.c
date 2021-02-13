@@ -666,6 +666,8 @@ static int _codegen_call_to(
                 inst_vc.slotfrom = (
                     callexpr->inlinecall.arguments.arg_value[i]->
                         storage.eval_temp_id);
+                assert(inst_vc.slotto >= 0);
+                assert(inst_vc.slotfrom >= 0);
                 _argtemp++;
                 _settop_inst(rinfo, func, callsettop_offset)->topto++;
                 if (!appendinst(
@@ -687,6 +689,8 @@ static int _codegen_call_to(
             inst_vc.slotfrom = (
                 callexpr->inlinecall.arguments.arg_value[i]->
                     storage.eval_temp_id);
+            assert(inst_vc.slotto >= 0);
+            assert(inst_vc.slotfrom >= 0);
             _argtemp++;
             _settop_inst(rinfo, func, callsettop_offset)->topto++;
             if (!appendinst(
@@ -1078,6 +1082,20 @@ int _codegencallback_DoCodegen_visit_out(
     asttransforminfo *rinfo = (asttransforminfo *)ud;
     codegen_CalculateFinalFuncStack(rinfo->pr->program, expr);
 
+    // FIRST, before anything else: ignore "none" literals entirely that
+    // do nothing (= that are used for class var attr assigns)
+    if (expr->type == H64EXPRTYPE_LITERAL &&
+            expr->literal.type == H64TK_CONSTANT_NONE &&
+            parent != NULL &&
+            parent->type == H64EXPRTYPE_VARDEF_STMT &&
+            surroundingclass(parent, 0) != NULL &&
+            parent->vardef.value == expr) {
+        // Must ignore this entirely and bail out NOW,
+        // or it will fail to get the "func" scope right below.
+        return 1;
+    }
+
+    // Determine func scope:
     h64expression *func = surroundingfunc(expr);
     if (!func) {
         h64expression *sclass = surroundingclass(expr, 0);
@@ -1093,6 +1111,14 @@ int _codegencallback_DoCodegen_visit_out(
                 // we have no var attributes anyway.
                 // Since this means no $$clsinit func, don't attempt
                 // to get it.
+                func = NULL;
+            } else if (expr->type == H64EXPRTYPE_VARDEF_STMT &&
+                    (expr->vardef.value == NULL ||
+                     (expr->vardef.value->type == H64EXPRTYPE_LITERAL &&
+                      expr->vardef.value->literal.type ==
+                          H64TK_CONSTANT_NONE))) {
+                // While it is a vardef, it has no initialization code.
+                // So codegen shouldn't yield anything.
                 func = NULL;
             } else {
                 func = _fakeclassinitfunc(rinfo, sclass);
@@ -1527,9 +1553,13 @@ int _codegencallback_DoCodegen_visit_out(
         // unless it doesn't need to be handled anyway:
         if (expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER) {
             if (expr->storage.set &&
-                    expr->storage.eval_temp_id < 0) {
+                    expr->storage.eval_temp_id < 0 &&
+                    (!expr->op.value1->storage.set ||
+                     expr->op.value1->storage.ref.type !=
+                         H64STORETYPE_STACKSLOT) &&
+                    expr->op.value2->storage.eval_temp_id >= 0) {
                 // Might be a pre-resolved global module access,
-                // in which case operand 2 should have been processed.
+                // given operand 2 apparently has been processed.
                 assert(expr->op.value2->storage.eval_temp_id >= 0);
                 expr->storage.eval_temp_id = (
                     expr->op.value2->storage.eval_temp_id
@@ -1547,9 +1577,9 @@ int _codegencallback_DoCodegen_visit_out(
         }
         if (expr->op.optype == H64OP_INDEXBYEXPR) {
             if (expr->parent != NULL &&
-                expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
-                expr->parent->assignstmt.lvalue == expr) {
-                return 1;  // similar to getbymember this is
+                    expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+                    expr->parent->assignstmt.lvalue == expr) {
+                return 1;  // Similarly to getbymember, this is
                            // handled by parent assign statement
             }
         }
@@ -1636,13 +1666,13 @@ int _codegencallback_DoCodegen_visit_out(
             }
             if (expr->parent != NULL && (
                     (expr->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
-                    expr->parent->assignstmt.lvalue == expr) ||
+                     expr->parent->assignstmt.lvalue == expr) ||
                     (expr->parent->type == H64EXPRTYPE_BINARYOP &&
-                    expr->parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
-                    expr->parent->op.value2 == expr &&
-                    !expr->storage.set &&
-                    expr->parent->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
-                    expr->parent == expr->parent->parent->assignstmt.lvalue)
+                     expr->parent->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER &&
+                     expr->parent->op.value2 == expr &&
+                     !expr->storage.set &&
+                     expr->parent->parent->type == H64EXPRTYPE_ASSIGN_STMT &&
+                     expr->parent == expr->parent->parent->assignstmt.lvalue)
                     )) {
                 // This identifier is assigned to, will be handled elsewhere
                 return 1;
@@ -1759,8 +1789,13 @@ int _codegencallback_DoCodegen_visit_out(
             }
         }
     } else if (expr->type == H64EXPRTYPE_VARDEF_STMT &&
-               expr->vardef.value == NULL) {
-        // Empty variable definition, nothing to do
+               (expr->vardef.value == NULL ||
+                (func == NULL && surroundingclass(expr, 0) != NULL &&
+                 expr->vardef.value->type == H64EXPRTYPE_LITERAL &&
+                 expr->vardef.value->literal.type ==
+                     H64TK_CONSTANT_NONE))) {
+        // Empty variable definition or none definition for
+        // class attr, so nothing to do.
         return 1;
     } else if (expr->type == H64EXPRTYPE_RETURN_STMT) {
         int returntemp = -1;
@@ -1794,24 +1829,7 @@ int _codegencallback_DoCodegen_visit_out(
             return 0;
         }
     } else if (expr->type == H64EXPRTYPE_VARDEF_STMT ||
-            (expr->type == H64EXPRTYPE_ASSIGN_STMT && (
-             expr->assignstmt.lvalue->type ==
-                H64EXPRTYPE_IDENTIFIERREF ||
-             (expr->assignstmt.lvalue->type ==
-                  H64EXPRTYPE_BINARYOP &&
-              expr->assignstmt.lvalue->op.optype ==
-                  H64OP_ATTRIBUTEBYIDENTIFIER &&
-              expr->assignstmt.lvalue->op.value2->type ==
-                  H64EXPRTYPE_IDENTIFIERREF &&
-              expr->assignstmt.lvalue->op.value2->storage.set) ||
-             (expr->assignstmt.lvalue->type ==
-                  H64EXPRTYPE_BINARYOP &&
-              expr->assignstmt.lvalue->op.optype ==
-                  H64OP_INDEXBYEXPR &&
-              expr->assignstmt.lvalue->op.value1->
-                  storage.eval_temp_id >= 0 &&
-              expr->assignstmt.lvalue->op.value2->
-                  storage.eval_temp_id >= 0)))) {
+            expr->type == H64EXPRTYPE_ASSIGN_STMT) {
         // Assigning directly to a variable (rather than a member,
         // map value, or the like)
         int assignfromtemporary = -1;
@@ -2091,7 +2109,10 @@ int _codegencallback_DoCodegen_visit_out(
             assert(func->funcdef._storageinfo->closure_with_self != 0);
             h64instruction_setbyattributeidx inst = {0};
             inst.type = H64INST_SETBYATTRIBUTEIDX;
-            inst.slotobjto = 0;  // 0 must always be 'self'
+            // 'self' is always on top of all "regular" args:
+            inst.slotobjto = (
+                func->funcdef.arguments.arg_count
+            );
             inst.varattrto = (attridx_t)str->id;
             inst.slotvaluefrom = assignfromtemporary;
             if (!appendinst(rinfo->pr->program, func, expr, &inst)) {
@@ -2191,8 +2212,9 @@ int _codegencallback_DoCodegen_visit_out(
     } else {
         char buf[256];
         snprintf(buf, sizeof(buf) - 1,
-            "internal error: unhandled expr type %d",
-            (int)expr->type
+            "internal error: unhandled expr type %d (=%s)",
+            (int)expr->type,
+            ast_ExpressionTypeToStr(expr->type)
         );
         if (!result_AddMessage(
                 &rinfo->ast->resultmsg,
@@ -2783,9 +2805,9 @@ int _codegencallback_DoCodegen_visit_in(
 
         // Visit all arguments of constructor call:
         int i = 0;
-        while (i < expr->op.value1->funcdef.arguments.arg_count) {
+        while (i < expr->op.value1->inlinecall.arguments.arg_count) {
             if (!ast_VisitExpression(
-                    expr->op.value1->funcdef.arguments.arg_value[i],
+                    expr->op.value1->inlinecall.arguments.arg_value[i],
                     expr,
                     &_codegencallback_DoCodegen_visit_in,
                     &_codegencallback_DoCodegen_visit_out,
