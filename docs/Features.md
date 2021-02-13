@@ -114,15 +114,15 @@ tools, HTTP/HTTPS, easy and comprehensive filesystem functions,
 and more, are all integrated into Horse64 for easy use. (Note:
 still work in progress.)
 
-### Education suited
+### Education suitable
 
-**Both for advanced coders and beginners.** Horse64 has many
+**Designed for both advanced coders and beginners.** Horse64 has many
 small tweaks that don't hurt experts but help beginners, like
 clear keywords, simple syntax, good error checks, and more, while
 preventing sneaky coding mistakes better than other choices like
-Python/Lua. This makes it a good choice for beginner courses,
-as well as experienced coders looking more fun and simple than
-with less of the common caveats.
+Python/Lua. This makes Horse64 a good choice for beginner courses,
+as well as experienced coders looking for a simpler option while
+avoiding the common caveats of scripting languages.
 
 ### Enterprise ready
 
@@ -138,6 +138,33 @@ deprecated keyword, and other tweaks help keep code maintainable.
 [diverse platforms](./Platform%20Support.md) including Linux also
 including ARM64 embedded, Windows, and FreeBSD (Note: WIP).
 It will likely expand to more platforms in the future.
+
+### What it doesn't do
+
+**Please keep in mind Horse64 is not suitable for everything.**
+Most notably, it is bad at the following things:
+
+1. Horse64 can't compete with low-level languages like C/C++, Zig,
+   Rust, ... on peformance, it is bytecode interpreted without use of
+   JIT (to allow for better & safer maintenance),
+
+2. You'll have a worse time with entirely undocumented code due to
+   no inherent annotations as e.g. C# and Java have (but shouldn't
+   you document your public interfaces anyway?),
+   
+3. No tiny output binaries: Horse64 strives for simple deployment
+   and painless portability, but this means all programs bring the
+   entire VM, a full crypto and networking library, and more. If
+   you need your binaries to be tiny, you may want to look elsewhere,
+
+4. No limitless dynamic built-in overriding fun as possible in Python,
+   Ruby, and more. Not everything is an object and reflection isn't
+   one of Horse64's strengths, so it may often require a more
+   conservative solution for better or for worse. (The designers think
+   this is often for the better.)
+
+Also see [design overview for things that are, and are NOT supported.)](
+Design.md#overview).
 
 ---
 *This documentation is CC-BY-SA-4.0 licensed.
