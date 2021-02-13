@@ -94,7 +94,11 @@ checkdco:
 	python3 tools/check-dco.py
 test: checkdco check-submodules wchar_data datapak $(ALL_OBJECTS) $(TEST_BINARIES)
 	for x in $(TEST_BINARIES); do echo ">>> TEST RUN: $$x"; CK_FORK=no valgrind --track-origins=yes --leak-check=full ./$$x || { exit 1; }; done
-	@echo "All tests were run."
+	@echo "All tests were run. Running a simple ./$(BINNAME)$(BINEXT) run test:"
+	echo "import process from core.horse64.org  func main {print(process.args)}" | ./$(BINNAME)$(BINEXT) run --from-stdin blabhalbh lol || { echo "Simple run test failed."; exit 1; }
+	@echo "Running a simple ./$(BINNAME)$(BINEXT) compile test:"
+	echo "func main {print('Hello World!')}" | ./$(BINNAME)$(BINEXT) compile --from-stdin -o ./HelloWorld$(BINEXT) && ./HelloWorld$(BINEXT) || { echo "Simple compile test failed."; exit 1; }
+	@echo "Done with testing."
 test_%.bin: test_%.c $(PROGRAM_OBJECTS_NO_MAIN)
 	$(CXX) $(CFLAGS) $(CXXFLAGS) -pthread -o ./$(basename $@).bin $(basename $<).o $(PROGRAM_OBJECTS_NO_MAIN) -lcheck -lrt -lsubunit $(LDFLAGS)
 	python3 tools/append-datapak.py ./"$(basename $@).bin" ./coreapi.h64pak

@@ -48,8 +48,13 @@ static int _compileargparse(
         if ((argvlen[i] == 0 || argv[i][0] != '-' ||
                 doubledashed) && fileuriorexec && !*fileuriorexec) {
             // This is the file or exec line argument.
+            // Check we're not parsing this in addition to --from-stdin:
             if (miscoptions->from_stdin) {
-                goto invalidbothfileargandfromstdin;
+                // Oops, this must be considered program args, not ours.
+                if (runargs_start_index)
+                    *runargs_start_index = i;
+                i = argc;
+                break;
             }
             // For exec case, we want to combine all arguments into one:
             if (i + 1 < argc &&
@@ -219,7 +224,6 @@ static int _compileargparse(
                 strcmp(cmd, "codeinfo") == 0
                 )) {
             if (*fileuriorexec != NULL) {
-                invalidbothfileargandfromstdin:
                 h64fprintf(stderr, "horsec: error: %s: "
                     "cannot specify file argument but also "
                     "--from-stdin\n", cmd);
@@ -682,14 +686,14 @@ int compiler_command_CompileEx(
             int resultcode = -1;
             if (mode == COMPILEEX_MODE_RUN &&
                     runc_args_index >= 0) {  // Forward cmd args to script:
-                vmschedule_ExecuteProgram(
+                resultcode = vmschedule_ExecuteProgram(
                     project->program, &moptions,
                     &argv[runc_args_index],
                     &argvlen[runc_args_index],
                     argc - runc_args_index
                 );
             } else {  // No arguments to be passed to script:
-                vmschedule_ExecuteProgram(
+                resultcode = vmschedule_ExecuteProgram(
                     project->program, &moptions, NULL, NULL, 0
                 );
             }
