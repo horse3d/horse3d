@@ -146,24 +146,38 @@ Most notably, it is bad at the following things:
 
 1. Horse64 can't compete with low-level languages like C/C++, Zig,
    Rust, ... on peformance, it is bytecode interpreted without use of
-   JIT (to allow for better & safer maintenance),
+   JIT (to allow for better & safer maintenance). Please note it is
+   however due to its async use often very scalable, more so
+   than traditional scripting languages usually inherently would be,
 
 2. You'll have a worse time with entirely undocumented code due to
    no inherent annotations as e.g. C# and Java have (but shouldn't
-   you document your public interfaces anyway?),
+   you document your public interfaces with doc comments anyway?),
+
+3. No advanced type constraints: as many scripting or scripting-like
+   languages, Horse64 has an intentionally simple type system.
+   If you like detailed elaborate interface declarations that only
+   match certain very specific arguments, advanced type constraints,
+   and so on, then you should probably use something else,
    
-3. No tiny output binaries: Horse64 strives for simple deployment
+4. No tiny output binaries: Horse64 strives for simple deployment
    and painless portability, but this means all programs bring the
    entire VM, a full crypto and networking library, and more. If
    you need your binaries to be tiny, you may want to look elsewhere,
 
-4. No limitless dynamic built-in overriding fun as possible in Python,
-   Ruby, and more. Not everything is an object and reflection isn't
-   one of Horse64's strengths, so it may often require a more
-   conservative solution for better or for worse. (The designers think
-   this is often for the better.)
+5. Not much access to unsafe operations: like many other higher level
+   languages, Horse64 isn't suited for messing with raw pointers,
+   manual memory management, and so on. If you need this you may
+   want a different choice,
 
-Also see [design overview for things that are, and are NOT supported.)](
+6. No limitless dynamic overriding: Horse64 is in some ways more static
+   than Python, Ruby, and others, often to the benefit of better AOT
+   checks and enforcing simpler code. Not everything is an object, and
+   reflection isn't one of Horse64's strengths so it may often require a
+   more conservative solution for better or for worse. (The designers
+   think this is often for the better, but surely some will disagree.)
+
+Also see [design overview for things that are, and are NOT supported.](
 Design.md#overview).
 
 ---

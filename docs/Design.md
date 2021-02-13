@@ -134,6 +134,7 @@ they disagree. Sometimes compromises might work even if suggestions
 seem outlandish compared to what was done so far. It's worth
 hearing people out, in hopefully a welcoming manner.
 
+Also see [what Horse64 *doesn't* do.](Features.md#what-it-doesnt-do)
 
 ### Future design changes
 
