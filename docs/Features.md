@@ -152,17 +152,23 @@ Most notably, it is bad at the following things:
 2. You'll have a worse time with entirely undocumented code due to
    no inherent annotations as e.g. C# and Java have (but shouldn't
    you document your public interfaces anyway?),
+
+3. No advanced detailed typing: as many scripting or scripting-like
+   languags, Horse64 has an intentionally simple typing system.
+   If you want to have very detailed exactly matched interfaces,
+   advanced type constraints, and so on, then you should probably
+   use something else,
    
-3. No tiny output binaries: Horse64 strives for simple deployment
+4. No tiny output binaries: Horse64 strives for simple deployment
    and painless portability, but this means all programs bring the
    entire VM, a full crypto and networking library, and more. If
    you need your binaries to be tiny, you may want to look elsewhere,
 
-4. No limitless dynamic built-in overriding fun as possible in Python,
+5. No limitless dynamic built-in overriding fun as possible in Python,
    Ruby, and more. Not everything is an object and reflection isn't
    one of Horse64's strengths, so it may often require a more
    conservative solution for better or for worse. (The designers think
-   this is often for the better.)
+   this is often for the better, but many will disagree.)
 
 Also see [design overview for things that are, and are NOT supported.)](
 Design.md#overview).
