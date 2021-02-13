@@ -54,6 +54,9 @@ func main {
     v /= 0.0001  # Will trigger an OverflowError.
 }
 ```
+Numbers internally will be either integer or floats allowing a
+larger precision for higher range integers than in languages that use
+64bit floats only like JavaScript/NodeJS.
 
 ### Unicode
 
