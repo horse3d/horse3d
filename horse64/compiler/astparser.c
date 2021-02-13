@@ -3039,10 +3039,7 @@ int ast_ParseCodeBlock(
                         &_buf, parsethis,
                         &tokens[i], max_tokens_touse - i
                     ),
-                    (statementmode != STATEMENTMODE_INCLASS &&
-                     statementmode != STATEMENTMODE_INCLASSFUNC ?
-                     STATEMENTMODE_INFUNC :
-                     STATEMENTMODE_INCLASSFUNC),
+                    statementmode,
                     &_innerparsefail,
                     &_inneroutofmemory, &innerexpr,
                     &tlen, nestingdepth
@@ -3081,6 +3078,8 @@ int ast_ParseCodeBlock(
                 (*stmt_ptr)[
                     *stmt_count_ptr
                 ] = innerexpr;
+                assert(statementmode != STATEMENTMODE_INCLASS ||
+                    innerexpr->type != H64EXPRTYPE_ASSIGN_STMT);
                 (*stmt_count_ptr)++;
                 i += tlen;
                 continue;
@@ -3955,7 +3954,10 @@ int ast_ParseExprStmt(
                     &expr->funcdef.scope,
                     tokens + i, max_tokens_touse - i
                 ),
-                statementmode,
+                (statementmode != STATEMENTMODE_INCLASS &&
+                 statementmode != STATEMENTMODE_INCLASSFUNC ?
+                 STATEMENTMODE_INFUNC :
+                 STATEMENTMODE_INCLASSFUNC),
                 &expr->funcdef.stmt, &expr->funcdef.stmt_count,
                 &innerparsefail, &inneroom, &tlen, nestingdepth
                 )) {

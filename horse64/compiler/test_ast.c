@@ -122,6 +122,7 @@ START_TEST (test_ast_invalidprotect)
     char s[] = (
         "class TestClass {\n"
         "    var protect v = 1.5 + 0xA + 0b10\n"
+        "    # ^ invalid pos for a protect keyword\n"
         "}\n"
     );
     _parsetest_do(s, PARSETEST_EXPECTFAIL);
