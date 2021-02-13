@@ -170,7 +170,7 @@ Most notably, it is bad at the following things:
    conservative solution for better or for worse. (The designers think
    this is often for the better, but many will disagree.)
 
-Also see [design overview for things that are, and are NOT supported.)](
+Also see [design overview for things that are, and are NOT supported.](
 Design.md#overview).
 
 ---
