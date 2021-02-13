@@ -171,11 +171,11 @@ Most notably, it is bad at the following things:
    want a different choice,
 
 6. No limitless dynamic overriding: Horse64 is in some ways more static
-   than Python, Ruby, and others, often to the benefit of performance
-   and enforcing simpler code. Not everything is an object, and reflection
-   isn't one of Horse64's strengths so it may often require a more
-   conservative solution for better or for worse. (The designers think
-   this is often for the better, but surely some will disagree.)
+   than Python, Ruby, and others, often to the benefit of better AOT
+   checks and enforcing simpler code. Not everything is an object, and
+   reflection isn't one of Horse64's strengths so it may often require a
+   more conservative solution for better or for worse. (The designers
+   think this is often for the better, but surely some will disagree.)
 
 Also see [design overview for things that are, and are NOT supported.](
 Design.md#overview).
