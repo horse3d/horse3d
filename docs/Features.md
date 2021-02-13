@@ -152,10 +152,10 @@ Most notably, it is bad at the following things:
 
 2. You'll have a worse time with entirely undocumented code due to
    no inherent annotations as e.g. C# and Java have (but shouldn't
-   you document your public interfaces anyway?),
+   you document your public interfaces with doc comments anyway?),
 
-3. No advanced typing constraints: as many scripting or scripting-like
-   languages, Horse64 has an intentionally simple typing system.
+3. No advanced type constraints: as many scripting or scripting-like
+   languages, Horse64 has an intentionally simple type system.
    If you like detailed elaborate interface declarations that only
    match certain very specific arguments, advanced type constraints,
    and so on, then you should probably use something else,
