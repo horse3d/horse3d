@@ -147,8 +147,8 @@ Most notably, it is bad at the following things:
 1. Horse64 can't compete with low-level languages like C/C++, Zig,
    Rust, ... on peformance, it is bytecode interpreted without use of
    JIT (to allow for better & safer maintenance). Please note it is
-   however due to its async use often still very scalable, more so
-   than traditional scripting languages usually inherently would be be,
+   however due to its async use often very scalable, more so
+   than traditional scripting languages usually inherently would be,
 
 2. You'll have a worse time with entirely undocumented code due to
    no inherent annotations as e.g. C# and Java have (but shouldn't
