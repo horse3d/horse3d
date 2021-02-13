@@ -64,7 +64,7 @@ STRIPTOOL:=$(CROSSCOMPILEHOST)-strip
 endif
 endif
 
-.PHONY: test remove-main-o check-submodules datapak release debug wchar_data openssl
+.PHONY: test remove-main-o check-submodules datapak release debug wchar_data openssl final-program
 
 debug: all
 showvariables:
@@ -75,7 +75,8 @@ showvariables:
 	@echo "Test objects: $(TEST_OBJECTS)"
 	@echo "Program objects: $(PROGRAM_OBJECTS)"
 	@echo "Cross-compile host: $(CROSSCOMPILEHOST)"
-all: wchar_data remove-main-o check-submodules datapak $(PROGRAM_OBJECTS)
+all: wchar_data remove-main-o check-submodules datapak $(PROGRAM_OBJECTS) final-program
+final-program:
 	$(CC) $(CFLAGS) -o ./"$(BINNAME)$(BINEXT)" $(PROGRAM_OBJECTS) $(LDFLAGS)
 ifneq ($(DEBUGGABLE),true)
 	$(STRIPTOOL) ./"$(BINNAME)$(BINEXT)"
@@ -92,7 +93,7 @@ remove-main-o:
 
 checkdco:
 	python3 tools/check-dco.py
-test: checkdco check-submodules wchar_data datapak $(ALL_OBJECTS) $(TEST_BINARIES)
+test: checkdco check-submodules wchar_data datapak $(ALL_OBJECTS) $(TEST_BINARIES) final-program
 	for x in $(TEST_BINARIES); do echo ">>> TEST RUN: $$x"; CK_FORK=no valgrind --track-origins=yes --leak-check=full ./$$x || { exit 1; }; done
 	@echo "All tests were run. Running a simple ./$(BINNAME)$(BINEXT) run test:"
 	echo "import process from core.horse64.org  func main {print(process.args)}" | ./$(BINNAME)$(BINEXT) run --from-stdin blabhalbh lol || { echo "Simple run test failed."; exit 1; }
