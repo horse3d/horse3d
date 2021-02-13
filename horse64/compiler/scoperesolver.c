@@ -810,7 +810,8 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
             h64expression *func = surroundingfunc(expr);
             // Any 'self' usage must have led to closure var storage:
             assert(func != NULL);
-            #ifndef NDEBUG
+            assert(func->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                   func->type == H64EXPRTYPE_INLINEFUNCDEF);
             if (func->funcdef._storageinfo == NULL) {
                 h64funcstorageextrainfo *einfo = (
                     malloc(sizeof(*einfo))
@@ -822,7 +823,6 @@ int _resolvercallback_ResolveIdentifiers_visit_out(
                 memset(einfo, 0, sizeof(*einfo));
                 func->funcdef._storageinfo = einfo;
             }
-            #endif
             assert(func->funcdef._storageinfo != NULL);
             func->funcdef._storageinfo->closure_with_self = 1;
             return 1;
