@@ -154,7 +154,7 @@ Most notably, it is bad at the following things:
    you document your public interfaces anyway?),
 
 3. No advanced detailed typing: as many scripting or scripting-like
-   languags, Horse64 has an intentionally simple typing system.
+   languages, Horse64 has an intentionally simple typing system.
    If you want to have very detailed exactly matched interfaces,
    advanced type constraints, and so on, then you should probably
    use something else,
