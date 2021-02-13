@@ -164,11 +164,17 @@ Most notably, it is bad at the following things:
    entire VM, a full crypto and networking library, and more. If
    you need your binaries to be tiny, you may want to look elsewhere,
 
-5. No limitless dynamic overriding: Horse64 is much more static
-   than Python, Ruby, and more. Not everything is an object, and reflection
+5. Not much access to unsafe operations: like many other higher level
+   languages, Horse64 isn't suited for messing with raw pointers,
+   manual memory management, and so on. If you need this you may
+   want a different choice,
+
+6. No limitless dynamic overriding: Horse64 is in some ways more static
+   than Python, Ruby, and others, often to the benefit of performance
+   and enforcing simpler code. Not everything is an object, and reflection
    isn't one of Horse64's strengths so it may often require a more
    conservative solution for better or for worse. (The designers think
-   this is often for the better, but many will disagree.)
+   this is often for the better, but surely some will disagree.)
 
 Also see [design overview for things that are, and are NOT supported.](
 Design.md#overview).
