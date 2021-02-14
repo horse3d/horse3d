@@ -1,0 +1,16 @@
+
+import path from core.horse64.org
+import system from core.horse64.org
+
+func main {
+    var fpath = "/home/test/Develop/"
+        "horp.horse64.org/../core.horse64.org/"
+        "tests/codetest-ok/bracketsattrbyid.h64"
+    if system.platform() == "windows" {
+        fpath = "C:/" + fpath
+    }
+    var normalized = path.normalize(fpath)
+    assert(normalized.ends(".h64"))
+}
+
+# expected return value

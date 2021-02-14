@@ -1572,7 +1572,7 @@ h64wchar *filesys32_NormalizeEx(
                 result + (i + movelen),
                 sizeof(*result) * (resultlen - (i + movelen))
             );
-            resultlen -= movelen;
+            resultlen -= ((i + movelen) - (last_component_start + 1));
             // Start over from beginning:
             i = 0;
             last_component_start = 0;
