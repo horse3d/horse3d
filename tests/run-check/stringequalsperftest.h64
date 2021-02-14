@@ -1,0 +1,97 @@
+
+import io from core.horse64.org
+import path from core.horse64.org
+
+func main {
+    var s_abc
+    var s_abc2
+    var s_a_slightly_longer_string
+    var s_a_slightly_longer_string2
+    var s_a_significantly_longer_string_but_still_not_overwhelmingly_long_string
+    var s_a_significantly_longer_string_but_still_not_overwhelmingly_long_string2
+    var s_empty
+    var s_abcd
+    var s_changed_one_character
+    var s_changed_exclne_character
+    var s_a_slightly_longer_string_exclamation
+    var s_a_slightly_longer_strinh
+    var s_another
+
+    # Note: we're writing & rereading from a file here, to prevent
+    # any compiler optimizations and assumptions on what
+    # the strings contain (to prevent an unfair advantage):
+    var tmp_dir = io.add_tmp_dir()
+    do {
+        # First, write all strings we use later to a file:
+        with io.open(path.join([tmp_dir, "strings.txt"]), write=yes) as f {
+            f.write("abc\n")
+            f.write("a slightly longer string\n")
+            f.write("a significantly longer string but still not "
+                    "overwhelmingly long string\n")
+            f.write("\n")
+            f.write("abcd\n")
+            f.write("s_changed_one_character\n")
+            f.write("s_changed_!ne_character\n")
+            f.write("a slightly longer string!\n")
+            f.write("a slightly longer strinh\n")
+            f.write("another")
+        }
+
+        # Read the s_* constants WITHOUT a 2 at the end:
+        var constant_list = io.open(
+            path.join([tmp_dir, "strings.txt"])
+        ).read().splitlines()
+        s_abc = constant_list[1]
+        s_a_slightly_longer_string = constant_list[2]
+        s_a_significantly_longer_string_but_still_not_overwhelmingly_long_string = (
+            constant_list[3]
+        )
+        s_empty = constant_list[4]
+        s_abcd = constant_list[5]
+        s_changed_one_character = constant_list[6]
+        s_changed_exclne_character = constant_list[7]
+        s_a_slightly_longer_string_exclamation = (
+            constant_list[8]
+        )
+        s_a_slightly_longer_strinh = constant_list[9]
+        s_another = constant_list[10]
+
+        # Re-read s_*2 constants (so compiler doesn't guess they're equal):
+        constant_list = io.open(
+            path.join([tmp_dir, "strings.txt"])
+        ).read().splitlines()
+        s_abc2 = constant_list[1]
+        s_a_slightly_longer_string2 = constant_list[2]
+        s_a_significantly_longer_string_but_still_not_overwhelmingly_long_string2 = (
+            constant_list[3]
+        )
+    } finally {
+        io.remove(tmp_dir, recursive=yes)
+    }
+
+    var count = 0
+    var i = 0
+    while (i < 1000) {
+        if (s_abc == s_abc2) {count += 1}
+        if (s_a_slightly_longer_string ==
+                s_a_slightly_longer_string2) {count += 1}
+        if (s_a_significantly_longer_string_but_still_not_overwhelmingly_long_string ==
+                s_a_significantly_longer_string_but_still_not_overwhelmingly_long_string2) {
+            count += 1
+        }
+        if (s_empty == s_abc) {count += 1}
+        if (s_abc == s_abcd) {count += 1}
+        if (s_changed_one_character == s_changed_exclne_character) {count += 1}
+        if (s_a_slightly_longer_string ==
+                s_a_slightly_longer_string_exclamation) {count += 1}
+        if (s_a_slightly_longer_string ==
+                s_a_slightly_longer_strinh) {count += 1}
+        if (s_a_significantly_longer_string_but_still_not_overwhelmingly_long_string ==
+                s_another) {count += 1}
+        i += 1
+    }
+    print("Count: " + count.as_str)
+    return count
+}
+
+# expected return value: 3000
