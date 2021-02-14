@@ -26,7 +26,7 @@ typedef int h64filehandle;
 #define H64_NOFILE ((int)0)
 #endif
 
-h64wchar *filesys32_GetOwnExecutable(int64_t *out_len);
+h64wchar *filesys32_GetOwnExecutable(int64_t *out_len, int *oom);
 
 int filesys32_IsObviouslyInvalidPath(const h64wchar *p, int64_t plen);
 

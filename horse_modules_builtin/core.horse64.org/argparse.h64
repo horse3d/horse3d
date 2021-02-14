@@ -1,5 +1,8 @@
 
+import path from core.horse64.org
 import process from core.horse64.org
+import system from core.horse64.org
+
 
 class ArgumentInfo {
     var name = ""
@@ -38,17 +41,25 @@ class ArgumentInfo {
     }
 }
 
-class Options {
+class Arguments {
     var _args = []
-    var min_positional_args protect = 0 
-    var max_positional_args protect = 0 
+    var min_positional_args protect = 0
+    var max_positional_args protect = 0
+    var program_name = "unknown"
 
     func init(program_name=none) {
+        # Sanitize and guess the program name for this arguments set:
         if program_name != none {
             # Make sure this can be used as a string:
             program_name = program_name + ""
         }
-
+        if program_name == none {
+            program_name = path.basename(system.vm_exec_path())
+            if program_name == "none" {
+                program_name = "unknown"
+            }
+        }
+        self.program_name = program_name
     }
 
     func add_arg(name, aliases=[], nargs="default") {

@@ -2699,25 +2699,39 @@ int filesys32_IsDirectory(
     #endif
 }
 
-h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
+h64wchar *filesys32_GetOwnExecutable(int64_t *out_len, int *oom) {
     #if defined(_WIN32) || defined(_WIN64)
     int fplen = 1024;
     wchar_t *fp = malloc(1024 * sizeof(*fp));
-    if (!fp)
+    if (!fp) {
+        if (oom) *oom = 1;
         return NULL;
+    }
     while (1) {
         SetLastError(0);
         size_t written = (
             GetModuleFileNameW(NULL, fp, MAX_PATH + 1)
         );
-        if (written >= (uint64_t)fplen - 1 ||
-                GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        if (written >= (uint64_t)fplen - 1 || (written == 0 &&
+                GetLastError() == ERROR_INSUFFICIENT_BUFFER)) {
             fplen *= 2;
             free(fp);
             fp = malloc(fplen * sizeof(*fp));
-            if (!fp)
+            if (!fp) {
+                if (oom) *oom = 1;
                 return NULL;
+            }
             continue;
+        } else if (written == 0) {
+            // Other error, likely disk I/O and not oom.
+            if (oom) *oom = 0;
+            if (GetLastError() == ERROR_NOT_ENOUGH_MEMORY ||
+                    GetLastError() == ERROR_OUTOFMEMORY) {
+                // Ok, it's oom.
+                if (oom) *oom = 1;
+            }
+            free(fp);
+            return NULL;
         }
         fp[written] = '\0';
         break;
@@ -2728,6 +2742,10 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
         fp, wcslen(fp), &result_u32len, 1, &_wasoom
     );
     free(fp);
+    if (!result_u32) {
+        if (oom) *oom = 1;
+        return NULL;
+    }
     *out_len = result_u32len;
     return result_u32;
     #elif defined(__FREEBSD__) || defined(__FreeBSD__)
@@ -2735,32 +2753,57 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
     int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
     size_t len = sizeof(result) - 1;
     if (sysctl(mib, 4, result, &len, NULL, 0) != 0) {
+        if (oom) *oom = 0;
+        if (errno == ENOMEM) {
+            if (oom) *oom = 1;
+        }
         return NULL;
     }
     result[sizeof(result) - 1] = '\0';
     int result_u32len = 0;
     h64wchar *result_u32 = AS_U32(result, result_u32len);
-    if (!result_u32)
+    if (!result_u32) {
+        if (oom) *oom = 1;
         return NULL;
+    }
     *out_len = result_u32len;
     return result_u32;
     #else
     int alloc = 16;
     char *fpath = malloc(alloc);
-    if (!fpath)
+    if (!fpath) {
+        if (oom) *oom = 1;
         return NULL;
+    }
     while (1) {
         fpath[0] = '\0';
         #if defined(APPLE) || defined(__APPLE__)
         int i = alloc;
         if (_NSGetExecutablePath(fpath, &i) != 0) {
             free(fpath);
+            if (i <= 0) {
+                if (oom) *oom = 0;
+                return NULL;
+            }
             fpath = malloc(i + 1);
+            if (!fpath) {
+                if (oom) *oom = 1;
+                return NULL;
+            }
             if (_NSGetExecutablePath(fpath, &i) != 0) {
+                if (oom) *oom = 0;
                 free(fpath);
                 return NULL;
             }
-            return fpath;
+            int64_t result_u32len = 0;
+            h64wchar *result_u32 = AS_U32(fpath, result_u32len);
+            free(fpath);
+            if (!result_u32) {
+                if (oom) *oom = 1;
+                return NULL;
+            }
+            *out_len = result_u32len;
+            return result_u32;
         }
         #else
         const char *checkpath = NULL;
@@ -2774,6 +2817,7 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
         } else if (filesys_FileExists("/proc/curproc/exe")) {
             checkpath = _path3;
         } else {
+            if (oom) *oom = 0;
             free(fpath);
             return NULL;
         }
@@ -2782,10 +2826,16 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
             alloc *= 2;
             free(fpath);
             fpath = malloc(alloc);
-            if (!fpath)
+            if (!fpath) {
+                if (oom) *oom = 1;
                 return NULL;
+            }
             continue;
         } else if (written <= 0) {
+            if (oom) *oom = 0;
+            if (errno == ENOMEM) {
+                if (oom) *oom = 1;
+            }
             free(fpath);
             return NULL;
         }
@@ -2793,6 +2843,10 @@ h64wchar *filesys32_GetOwnExecutable(int64_t *out_len) {
         int64_t result_u32len = 0;
         h64wchar *result_u32 = AS_U32(fpath, &result_u32len);
         free(fpath);
+        if (!result_u32) {
+            if (oom) *oom = 1;
+            return NULL;
+        }
         *out_len = result_u32len;
         return result_u32;
         #endif
@@ -2804,22 +2858,25 @@ FILE *filesys32_OpenOwnExecutable_Uncached() {
     #if defined(APPLE) || defined(__APPLE__) || \
             defined(_WIN32) || defined(_WIN64)
     h64wchar *path;
+    int oom = 0;
     int64_t pathlen;
-    path = filesys32_GetOwnExecutable(&pathlen);
+    path = filesys32_GetOwnExecutable(&pathlen, &oom);
     if (!path)
         return NULL;
     #else
-    // This should be race-condition free against moving around:
+    // This should be race-condition free against moving around
+    // for /proc/self/exe (Linux) at least:
     int64_t pathlen = 0;
     h64wchar *path = NULL;
-    if (filesys_FileExists("/proc/self/exe")) {
+    if (filesys_FileExists("/proc/self/exe")) {  // linux
         path = AS_U32("/proc/self/exe", &pathlen);
-    } else if (filesys_FileExists("/proc/curproc/file")) {
+    } else if (filesys_FileExists("/proc/curproc/file")) {  // freebsd
         path = AS_U32("/proc/curproc/file", &pathlen);
-    } else if (filesys_FileExists("/proc/curproc/exe")) {
+    } else if (filesys_FileExists("/proc/curproc/exe")) {  // netbsd
         path = AS_U32("/proc/curproc/exe", &pathlen);
-    } else {
-        path = filesys32_GetOwnExecutable(&pathlen);
+    } else {  // fallback (which is subject to races):
+        int oom = 0;
+        path = filesys32_GetOwnExecutable(&pathlen, &oom);
     }
     if (!path)
         return NULL;
