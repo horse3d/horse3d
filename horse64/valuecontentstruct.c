@@ -327,14 +327,14 @@ int valuecontent_CheckEquality(
             v1->type != H64VALTYPE_FLOAT64) ||
             (v2->type != H64VALTYPE_INT64 &&
             v2->type != H64VALTYPE_FLOAT64))) {
-        if (v1->type == H64VALTYPE_GCVAL &&
+        if (unlikely(v1->type == H64VALTYPE_GCVAL &&
                 ((h64gcvalue*)v1->ptr_value)->type ==
                 H64GCVALUETYPE_OBJINSTANCE && (
                 v2->type != H64VALTYPE_GCVAL ||
                 ((h64gcvalue*)v2->ptr_value)->type ==
                 H64GCVALUETYPE_OBJINSTANCE ||
                 ((h64gcvalue*)v1->ptr_value)->class_id !=
-                ((h64gcvalue*)v2->ptr_value)->class_id)) {
+                ((h64gcvalue*)v2->ptr_value)->class_id))) {
             // Special case: quick fail, don't do an expensive
             // in-depth .equals() when these aren't even both
             // object instances of same class.
@@ -345,11 +345,11 @@ int valuecontent_CheckEquality(
                 v1->type == H64VALTYPE_SHORTSTR ||
                 v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
             // Strings!
-            if ((v2->type == H64VALTYPE_GCVAL &&
+            if (likely((v2->type == H64VALTYPE_GCVAL &&
                     ((h64gcvalue*)v2->ptr_value)->type ==
                     H64GCVALUETYPE_STRING) ||
                     v2->type == H64VALTYPE_SHORTSTR ||
-                    v2->type == H64VALTYPE_CONSTPREALLOCSTR) {
+                    v2->type == H64VALTYPE_CONSTPREALLOCSTR)) {
                 return vmstrings_Equality(v1, v2);
             } else {
                 return 0;
@@ -361,11 +361,11 @@ int valuecontent_CheckEquality(
                 v1->type == H64VALTYPE_SHORTBYTES ||
                 v1->type == H64VALTYPE_CONSTPREALLOCBYTES) {
             // Bytes!
-            if ((v2->type == H64VALTYPE_GCVAL &&
+            if (likely((v2->type == H64VALTYPE_GCVAL &&
                     ((h64gcvalue*)v1->ptr_value)->type ==
                     H64GCVALUETYPE_BYTES) ||
                     v2->type == H64VALTYPE_SHORTBYTES ||
-                    v2->type == H64VALTYPE_CONSTPREALLOCBYTES) {
+                    v2->type == H64VALTYPE_CONSTPREALLOCBYTES)) {
                 return vmbytes_Equality(v1, v2);
             } else {
                 return 0;
