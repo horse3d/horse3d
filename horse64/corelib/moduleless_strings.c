@@ -13,9 +13,11 @@
 #include "debugsymbols.h"
 #include "gcvalue.h"
 #include "nonlocale.h"
+#include "poolalloc.h"
 #include "stack.h"
 #include "valuecontentstruct.h"
 #include "vmexec.h"
+#include "vmlist.h"
 #include "vmstrings.h"
 #include "widechar.h"
 
@@ -326,7 +328,7 @@ int corelib_stringsplitlines(  // $$builtin.$$string_splitlines
         ) {
     assert(STACK_TOP(vmthread->stack) >= 1);
 
-    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
     assert(
         (vc->type == H64VALTYPE_GCVAL &&
          ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_STRING) ||
@@ -352,10 +354,10 @@ int corelib_stringsplitlines(  // $$builtin.$$string_splitlines
             slen = vc->shortstr_len;
         }
 
+        // Compute split result as h64wchar * string array:
         int64_t lines_count = 0;
         h64wchar **lines_s = NULL;
         int64_t *lines_slen = NULL;
-
         int64_t current_line_start = 0;
         int64_t i = 0;
         while (i <= slen) {
@@ -379,6 +381,9 @@ int corelib_stringsplitlines(  // $$builtin.$$string_splitlines
                         "out of memory computing split result"
                     );
                 }
+                if (linelen > 0)
+                    memcpy(line, &s[current_line_start],
+                        sizeof(*s) * linelen);
                 h64wchar **newlines_s = realloc(
                     lines_s, sizeof(*newlines_s) * (lines_count + 1)
                 );
@@ -393,6 +398,7 @@ int corelib_stringsplitlines(  // $$builtin.$$string_splitlines
                 lines_slen = newlines_slen;
                 newlines_s[lines_count] = line;
                 newlines_slen[lines_count] = linelen;
+                line = NULL;
                 lines_count++;
                 if (i >= slen) {
                     break;
@@ -407,10 +413,65 @@ int corelib_stringsplitlines(  // $$builtin.$$string_splitlines
             }
             i++;
         }
+
+        // Create an actual list type to return:
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
         valuecontent_Free(vcresult);
-        vcresult->type = H64VALTYPE_NONE;
+        vcresult->type = H64VALTYPE_GCVAL;
+        vcresult->ptr_value = poolalloc_malloc(
+            vmthread->heap, 0
+        );
+        if (!vcresult->ptr_value) {
+            oomstrfinalresult: ;
+            int64_t k = 0;
+            while (k < lines_count) {
+                free(lines_s[k]);
+                k++;
+            }
+            free(lines_s);
+            free(lines_slen);
+            return vmexec_ReturnFuncError(
+                vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                "out of memory computing split result"
+            );
+        }
+        h64gcvalue *gcval = ((h64gcvalue *)vcresult->ptr_value);
+        memset(gcval, 0, sizeof(*gcval));
+        gcval->type = H64GCVALUETYPE_LIST;
+        gcval->list_values = vmlist_New();
+        if (!gcval->list_values) {
+            goto oomstrfinalresult;
+        }
+        // Add all our manual h64wchar * entries to the list:
+        genericlist *l = gcval->list_values;
+        int64_t k = 0;
+        while (k < lines_count) {
+            valuecontent vstring = {0};
+            if (!valuecontent_SetStringU32(
+                    vmthread, &vstring, lines_s[k], lines_slen[k]
+                    )) {
+                goto oomstrfinalresult;
+            }
+            ADDREF_NONHEAP(&vstring);
+            if (!vmlist_Set(l, k + 1, &vstring)) {
+                DELREF_NONHEAP(&vstring);
+                valuecontent_Free(&vstring);
+                goto oomstrfinalresult;
+            }
+            DELREF_NONHEAP(&vstring);
+            valuecontent_Free(&vstring);
+            k++;
+        }
+        // Free our manual list we no longer need:
+        k = 0;
+        while (k < lines_count) {
+            free(lines_s[k]);
+            k++;
+        }
+        free(lines_s);
+        free(lines_slen);
+        // Return result:
         return 1;
     } else {
         char *s = NULL;

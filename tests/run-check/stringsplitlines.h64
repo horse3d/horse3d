@@ -1,0 +1,8 @@
+
+func main {
+    var l = "abc\ndef\n eireajr oeairj \n".splitlines()
+    assert(l.len == 4)
+    assert(l[3] == " eireajr oeairj ")
+}
+
+# expected result value: 0
