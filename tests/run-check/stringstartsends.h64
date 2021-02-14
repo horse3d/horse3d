@@ -1,0 +1,7 @@
+
+func main {
+    assert("abcde".ends("de"))
+    assert(not "abcde".ends("bcd"))
+    assert("abcde".starts("ab"))
+    assert(not "abcde".starts("z"))
+}

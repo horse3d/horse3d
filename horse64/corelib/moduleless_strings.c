@@ -901,9 +901,9 @@ int corelib_stringtrim(  // $$builtin.$$string_trim
 int corelib_stringstarts(  // $$builtin.$$string_starts
         h64vmthread *vmthread
         ) {
-    assert(STACK_TOP(vmthread->stack) == 1);
+    assert(STACK_TOP(vmthread->stack) >= 2);
 
-    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);
     assert(
         (vc->type == H64VALTYPE_GCVAL &&
          ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_STRING) ||
@@ -1025,9 +1025,9 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
 int corelib_stringends(  // $$builtin.$$string_ends
         h64vmthread *vmthread
         ) {
-    assert(STACK_TOP(vmthread->stack) == 1);
+    assert(STACK_TOP(vmthread->stack) >= 2);
 
-    valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
+    valuecontent *vc = STACK_ENTRY(vmthread->stack, 1);
     assert(
         (vc->type == H64VALTYPE_GCVAL &&
          ((h64gcvalue *)vc->ptr_value)->type == H64GCVALUETYPE_STRING) ||
@@ -1058,7 +1058,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
             );
         }
 
-        // Get what we chack .starts() on:
+        // Get what we chack .ends() on:
         char *s = NULL;
         int64_t slen = 0;
         if (vc->type == H64VALTYPE_GCVAL &&
@@ -1081,7 +1081,10 @@ int corelib_stringends(  // $$builtin.$$string_ends
             return 1;
         }
         int result = (
-            memcmp(s, params + (slen - paramlen), sizeof(*params) * paramlen)
+            memcmp(
+                params, s + (slen - paramlen),
+                sizeof(*params) * paramlen
+            )
         );
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
@@ -1110,7 +1113,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
             );
         }
 
-        // Get what we chack .starts() on:
+        // Get what we chack .ends() on:
         h64wchar *s = NULL;
         int64_t slen = 0;
         if (vc->type == H64VALTYPE_GCVAL &&
@@ -1133,7 +1136,10 @@ int corelib_stringends(  // $$builtin.$$string_ends
             return 1;
         }
         int result = (
-            memcmp(s, params + (slen - paramlen), sizeof(*params) * paramlen)
+            memcmp(
+                params, s + (slen - paramlen),
+                sizeof(*params) * paramlen
+            )
         );
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
