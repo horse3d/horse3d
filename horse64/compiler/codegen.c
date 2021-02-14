@@ -2674,10 +2674,7 @@ int _codegencallback_DoCodegen_visit_in(
         funcid_t func_id = expr->funcdef.bytecode_func_id;
 
         // Handling of keyword arguments:
-        int argtmp = (
-            rinfo->pr->program->func[func_id].associated_class_index > 0 ?
-            1 : 0
-        );
+        int argtmp = 0;
         int i = 0;
         while (i < expr->funcdef.arguments.arg_count) {
             if (expr->funcdef.arguments.arg_value[i] != NULL) {
