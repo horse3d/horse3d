@@ -1,0 +1,12 @@
+
+import path from core.horse64.org
+
+func main {
+    assert(path.basename("abc") == "abc")
+    assert(path.basename("a/b/c/") == "c")
+    assert(path.basename("./bla") == "bla")
+    assert(path.basename("C:/test/") == "test")
+    assert(path.basename("/////hello////") == "hello")
+}
+
+# expected return value: 0

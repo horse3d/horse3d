@@ -3240,6 +3240,45 @@ h64wchar *filesys32_TurnIntoPathRelativeTo(
     return differingend;
 }
 
+h64wchar *filesys32_Basename(
+        const h64wchar *path, int64_t pathlen, int64_t *out_len
+        ) {
+    h64wchar *result = malloc(sizeof(*path) * (pathlen > 0 ? pathlen : 1));
+    if (!result)
+        return NULL;
+    memcpy(
+        result, path, sizeof(*path) * pathlen
+    );
+    int64_t resultlen = pathlen;
+    while (resultlen > 0 && (result[resultlen - 1] == '/'
+            #if defined(_WIN32) || defined(_WIN64)
+            || result[resultlen - 1] == '\\'
+            #endif
+            )) {
+        resultlen--;
+    }
+    int64_t lastsep = -1;
+    int64_t i = 0;
+    while (i < resultlen) {
+        if (result[i] == '/'
+                #if defined(_WIN32) || defined(_WIN64)
+                || result[i] == '\\'
+                #endif
+                ) {
+            lastsep = i;
+        }
+        i++;
+    }
+    if (lastsep >= 0) {
+        memmove(
+            result, result + lastsep + 1,
+            sizeof(*result) * (resultlen - lastsep - 1)
+        );
+        resultlen -= (lastsep + 1);
+    }
+    *out_len = resultlen;
+    return result;
+}
 
 int filesys32_FolderContainsPath(
         const h64wchar *folder_path, int64_t folder_path_len,

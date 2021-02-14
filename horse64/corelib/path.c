@@ -404,6 +404,69 @@ int pathlib_normalize(
     return 1;
 }
 
+int pathlib_basename(
+        h64vmthread *vmthread
+        ) {
+    /**
+     * This returns the last component in the path isolated from any
+     * separators, for example for a/b/c/ this returns "c". No disk
+     * access is done, so it doesn't matter if the path points to an
+     * existing file or not.
+     *
+     * @func basename
+     * @param path the path as a @see{string} of which to return the base name
+     * @returns the @see{string} representing the extracte base name
+     */
+    assert(STACK_TOP(vmthread->stack) >= 1);
+
+    h64wchar *pathstr = NULL;
+    int64_t pathlen = 0;
+    valuecontent *vcpath = STACK_ENTRY(vmthread->stack, 0);
+    if (vcpath->type == H64VALTYPE_GCVAL &&
+            ((h64gcvalue*)(vcpath->ptr_value))->type ==
+                H64GCVALUETYPE_STRING) {
+        pathstr = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.s
+        );
+        pathlen = (
+            ((h64gcvalue*)(vcpath->ptr_value))->str_val.len
+        );
+    } else if (vcpath->type == H64VALTYPE_SHORTSTR) {
+        pathstr = vcpath->shortstr_value;
+        pathlen = vcpath->shortstr_len;
+    } else {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "path argument must be a string"
+        );
+    }
+
+    h64wchar *resultstr = NULL;
+    int64_t resultstrlen = 0;
+    resultstr = filesys32_Basename(
+        pathstr, pathlen, &resultstrlen
+    );
+    if (!resultstr) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory transforming to base name"
+        );
+    }
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    memset(vcresult, 0, sizeof(*vcresult));
+    if (!valuecontent_SetStringU32(vmthread, vcresult,
+            resultstr, resultstrlen)) {
+        free(resultstr);
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory transforming to base name"
+        );
+    }
+    free(resultstr);
+    return 1;
+}
 
 int pathlib_to_abs(
         h64vmthread *vmthread
@@ -799,6 +862,19 @@ int pathlib_RegisterFuncsAndModules(h64program *p) {
     );
     if (idx < 0)
         return 0;
+
+    // path.basename:
+    const char *path_basename_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "basename", &pathlib_basename,
+        NULL, 0, 1, path_basename_kw_arg_name,  // fileuri, args
+        "path", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
 
     // path.is_symlink:
     const char *path_is_symlink_kw_arg_name[] = {
