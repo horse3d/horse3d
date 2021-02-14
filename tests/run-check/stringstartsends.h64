@@ -5,3 +5,5 @@ func main {
     assert("abcde".starts("ab"))
     assert(not "abcde".starts("z"))
 }
+
+# expected result value: 0

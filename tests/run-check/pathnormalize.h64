@@ -13,4 +13,4 @@ func main {
     assert(normalized.ends(".h64"))
 }
 
-# expected return value
+# expected return value: 0
