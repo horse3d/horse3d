@@ -1,0 +1,17 @@
+
+class MyTest {
+    var result
+    func init(abc=none) {
+        if abc != none {
+            abc = abc + ""
+        }
+        self.result = abc
+    }
+}
+
+func main {
+    var v = new MyTest()
+    print(v.result)
+}
+
+# expected return value: 0
