@@ -6,7 +6,7 @@ func main {
     var fpath = "/home/test/Develop/"
         "horp.horse64.org/../core.horse64.org/"
         "tests/codetest-ok/bracketsattrbyid.h64"
-    if system.platform() == "windows" {
+    if system.platform() == "Windows" {
         fpath = "C:/" + fpath
     }
     var normalized = path.normalize(fpath)
