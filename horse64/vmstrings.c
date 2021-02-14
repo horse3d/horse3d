@@ -46,8 +46,11 @@ int vmstrings_Equality(
         s2v = ((h64gcvalue*)v2->ptr_value)->str_val.s;
         s2l = ((h64gcvalue*)v2->ptr_value)->str_val.len;
     }
-    if (!s1v || !s2v || s1l != s2l)
+    if (likely(s1l != s2l))
         return 0;
+    if (unlikely(s1l == 0 && s2l == 0))
+        return 1;
+    assert(s1v != NULL && s2v != NULL);
     return (memcmp(s1v, s2v, s1l * sizeof(*s1v)) == 0);
 }
 
