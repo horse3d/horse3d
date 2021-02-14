@@ -1,0 +1,72 @@
+
+class Toggle {
+    var state protect = no
+
+    func init(start_state=no) {
+        self.state = (start_state == yes)
+    }
+
+    func activate {
+        self.state = not self.state
+    }
+}
+
+class NthToggle {
+    var num_state protect = 0
+    var max_value = 0
+    var toggle = new Toggle()
+    var state protect = no
+    var counter = 0
+
+    func init(max_value, start_state=no) {
+        self.max_value = (0 + max_value)
+        self.state = no
+        if start_state {
+            self.state = yes
+            self.toggle.activate()
+        }
+    }
+
+    func activate {
+        self.counter += 1
+        if self.counter >= self.max_value {
+            self.toggle.activate()
+            self.state = self.toggle.state
+            self.counter = 0
+        }
+    }
+}
+
+func main {
+    var N = 100
+
+    var val = yes
+    var toggle = new Toggle(start_state=val)
+    var i = 1
+    while i <= N {
+        var i2 = 1
+        while i2 <= 10 {
+            toggle.activate()
+            val = toggle.state
+            i2 += 1
+        }
+        i += 1
+    }
+    print(val)
+
+    val = yes
+    var ntoggle = new NthToggle(2, start_state=val)
+    i = 1
+    while i <= N {
+        var i2 = 1
+        while i2 <= 10 {
+            ntoggle.activate()
+            val = ntoggle.state
+            i2 += 1
+        }
+        i += 1
+    }
+    print(val)
+}
+
+# expected return value: 0

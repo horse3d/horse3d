@@ -127,6 +127,7 @@ int newmultilinetemp(h64expression *func) {
 }
 
 void free1linetemps(h64expression *func) {
+    assert(func != NULL);
     int i = 0;
     while (i < func->funcdef._storageinfo->codegen.extra_temps_count) {
         if (func->funcdef._storageinfo->codegen.extra_temps_used[i] &&
@@ -1832,6 +1833,7 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_ASSIGN_STMT) {
         // Assigning directly to a variable (rather than a member,
         // map value, or the like)
+        assert(func != NULL);
         int assignfromtemporary = -1;
         storageref *str = NULL;
         int complexsetter_tmp = -1;
@@ -2070,8 +2072,78 @@ int _codegencallback_DoCodegen_visit_out(
                                 return 0;
                             }
                         } else {
-                            // FIXME: hardcode attribute error
-                            assert(0);
+                            if (!guarded_by_is_a_or_has_attr(expr)) {
+                                char buf[256];
+                                snprintf(buf, sizeof(buf) - 1,
+                                    "unknown attribute \"%s\" "
+                                    "will cause AttributeError, put it "
+                                    "in if statement with "
+                                    "has_attr() or .is_a() if "
+                                    "intended for API compat",
+                                    expr->assignstmt.lvalue->op.value2->
+                                        identifierref.value
+                                );
+                                if (!result_AddMessage(
+                                        &rinfo->ast->resultmsg,
+                                        H64MSG_WARNING, buf,
+                                        rinfo->ast->fileuri,
+                                        rinfo->ast->fileurilen,
+                                        expr->assignstmt.lvalue->
+                                            op.value2->line,
+                                        expr->assignstmt.lvalue->
+                                            op.value2->column
+                                        )) {
+                                    rinfo->hadoutofmemory = 1;
+                                    return 0;
+                                }
+                            }
+                            // Unknown attribute, so hardcode an error:
+                            const char errmsg[] = (
+                                "given attribute not present on this value"
+                            );
+                            h64wchar *msg = NULL;
+                            int64_t msglen = 0;
+                            msg = utf8_to_utf32(
+                                errmsg, strlen(errmsg), NULL, NULL, &msglen
+                            );
+                            if (!msg) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                            int temp2 = new1linetemp(
+                                func, expr->assignstmt.lvalue, 0
+                            );
+                            h64instruction_setconst inst_str = {0};
+                            inst_str.type = H64INST_SETCONST;
+                            inst_str.slot = temp2;
+                            inst_str.content.type = (
+                                H64VALTYPE_CONSTPREALLOCSTR
+                            );
+                            inst_str.content.constpreallocstr_len = msglen;
+                            inst_str.content.constpreallocstr_value = msg;
+                            if (!appendinst(
+                                    rinfo->pr->program, func,
+                                    expr->assignstmt.lvalue,
+                                    &inst_str
+                                    )) {
+                                rinfo->hadoutofmemory = 1;
+                                free(msg);
+                                return 0;
+                            }
+                            h64instruction_raise inst_raise = {0};
+                            inst_raise.type = H64INST_RAISE;
+                            inst_raise.error_class_id = (
+                                H64STDERROR_ATTRIBUTEERROR
+                            );
+                            inst_raise.sloterrormsgobj = temp2;
+                            if (!appendinst(
+                                    rinfo->pr->program, func,
+                                    expr->assignstmt.lvalue,
+                                    &inst_raise
+                                    )) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
                         }
                     } else {
                         assert(expr->assignstmt.lvalue->op.optype ==
@@ -2179,8 +2251,78 @@ int _codegencallback_DoCodegen_visit_out(
                         )
                     );
                     if (nameidx < 0) {
-                        // FIXME: hardcode AttributeError raise
-                        assert(0);
+                        if (!guarded_by_is_a_or_has_attr(expr)) {
+                            char buf[256];
+                            snprintf(buf, sizeof(buf) - 1,
+                                "unknown attribute \"%s\" "
+                                "will cause AttributeError, put it "
+                                "in if statement with "
+                                "has_attr() or .is_a() if "
+                                "intended for API compat",
+                                expr->assignstmt.lvalue->op.value2->
+                                    identifierref.value
+                            );
+                            if (!result_AddMessage(
+                                    &rinfo->ast->resultmsg,
+                                    H64MSG_WARNING, buf,
+                                    rinfo->ast->fileuri,
+                                    rinfo->ast->fileurilen,
+                                    expr->assignstmt.lvalue->
+                                        op.value2->line,
+                                    expr->assignstmt.lvalue->
+                                        op.value2->column
+                                    )) {
+                                rinfo->hadoutofmemory = 1;
+                                return 0;
+                            }
+                        }
+                        // Unknown attribute, so hardcode an error:
+                        const char errmsg[] = (
+                            "given attribute not present on this value"
+                        );
+                        h64wchar *msg = NULL;
+                        int64_t msglen = 0;
+                        msg = utf8_to_utf32(
+                            errmsg, strlen(errmsg), NULL, NULL, &msglen
+                        );
+                        if (!msg) {
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
+                        int temp2 = new1linetemp(
+                            func, expr->assignstmt.lvalue, 0
+                        );
+                        h64instruction_setconst inst_str = {0};
+                        inst_str.type = H64INST_SETCONST;
+                        inst_str.slot = temp2;
+                        inst_str.content.type = (
+                            H64VALTYPE_CONSTPREALLOCSTR
+                        );
+                        inst_str.content.constpreallocstr_len = msglen;
+                        inst_str.content.constpreallocstr_value = msg;
+                        if (!appendinst(
+                                rinfo->pr->program, func,
+                                expr->assignstmt.lvalue,
+                                &inst_str
+                                )) {
+                            rinfo->hadoutofmemory = 1;
+                            free(msg);
+                            return 0;
+                        }
+                        h64instruction_raise inst_raise = {0};
+                        inst_raise.type = H64INST_RAISE;
+                        inst_raise.error_class_id = (
+                            H64STDERROR_ATTRIBUTEERROR
+                        );
+                        inst_raise.sloterrormsgobj = temp2;
+                        if (!appendinst(
+                                rinfo->pr->program, func,
+                                expr->assignstmt.lvalue,
+                                &inst_raise
+                                )) {
+                            rinfo->hadoutofmemory = 1;
+                            return 0;
+                        }
                     } else {
                         inst.nameidx = nameidx;
                         inst.slotvaluefrom = assignfromtemporary;
@@ -2285,16 +2427,25 @@ int _codegencallback_DoCodegen_visit_in(
     if (!func) {
         h64expression *sclass = surroundingclass(expr, 0);
         if (sclass != NULL && expr->type != H64EXPRTYPE_FUNCDEF_STMT) {
-            return 1;
-        }
-        func = _fakeglobalinitfunc(rinfo);
-        if (!func && expr->type != H64EXPRTYPE_FUNCDEF_STMT) {
-            rinfo->hadoutofmemory = 1;
-            return 0;
+            if (!isvardefstmtassignvalue(expr) ||
+                    (expr->type == H64EXPRTYPE_LITERAL &&
+                     expr->literal.type == H64TK_CONSTANT_NONE))
+                return 1;  // ignore this for now
+            func = _fakeclassinitfunc(rinfo, sclass);
+            if (!func) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        } else if (sclass == NULL && expr->type != H64EXPRTYPE_FUNCDEF_STMT) {
+            func = _fakeglobalinitfunc(rinfo);
+            if (!func && expr->type != H64EXPRTYPE_FUNCDEF_STMT) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
         }
     }
 
-    if (IS_STMT(expr->type))
+    if (IS_STMT(expr->type) && func)
         free1linetemps(func);
 
     if (expr->type == H64EXPRTYPE_WHILE_STMT) {
@@ -2740,7 +2891,7 @@ int _codegencallback_DoCodegen_visit_in(
                     return 0;
                 }
 
-                free1linetemps(func);
+                free1linetemps(expr);  // expr as func.
 
                 rinfo->dont_descend_visitation = 0;
                 int result = ast_VisitExpression(
@@ -2775,7 +2926,7 @@ int _codegencallback_DoCodegen_visit_in(
                     }
                 }
 
-                free1linetemps(func);
+                free1linetemps(expr);  // expr as func.
                 h64instruction_jumptarget jumpt = {0};
                 jumpt.type = H64INST_JUMPTARGET;
                 jumpt.jumpid = jump_past_id;
@@ -2792,7 +2943,7 @@ int _codegencallback_DoCodegen_visit_in(
             argtmp++;
             i++;
         }
-        free1linetemps(func);
+        free1linetemps(expr);  // expr as func.
 
         i = 0;
         while (i < expr->funcdef.stmt_count) {
@@ -2807,11 +2958,11 @@ int _codegencallback_DoCodegen_visit_in(
             rinfo->dont_descend_visitation = 1;
             if (!result)
                 return 0;
-            free1linetemps(func);
+            free1linetemps(expr);  // expr as func.
             i++;
         }
 
-        free1linetemps(func);
+        free1linetemps(expr);  // expr as func.
         rinfo->dont_descend_visitation = 1;
         return 1;
     } else if (expr->type == H64EXPRTYPE_UNARYOP &&
@@ -2845,7 +2996,8 @@ int _codegencallback_DoCodegen_visit_in(
             // Not mapping to a class type we can obviously identify
             // at compile time. -> must obtain this at runtime.
 
-            // Visit called object (= constructed type) to get temporary:
+            // Visit called object (= constructed type) to get
+            // temporary:
             rinfo->dont_descend_visitation = 0;
             int result = ast_VisitExpression(
                 expr->op.value1->inlinecall.value, expr,

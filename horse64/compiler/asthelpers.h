@@ -9,6 +9,7 @@
 
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
+#include "compiler/scope.h"
 
 
 ATTR_UNUSED static h64expression *surroundingfunc(h64expression *expr) {
@@ -45,6 +46,21 @@ ATTR_UNUSED static h64expression *surroundingclass(
             return expr;
     }
     return NULL;
+}
+
+ATTR_UNUSED static int isvardefstmtassignvalue(h64expression *expr) {
+    h64expression *child = expr;
+    while (expr->parent) {
+        expr = expr->parent;
+        if (expr->type == H64EXPRTYPE_VARDEF_STMT) {
+            return (expr->vardef.value == child);
+        }
+        if (IS_STMT(expr->type)) {
+            return 0;
+        }
+        child = expr;
+    }
+    return 0;
 }
 
 ATTR_UNUSED static int isinsideanyfunction(h64expression *expr) {
