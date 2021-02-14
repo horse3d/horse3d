@@ -156,6 +156,20 @@ int mainu32(int argc, const h64wchar **argv, int64_t *argvlen) {
                           "run it immediately.\n");
                 return 0;
             }
+            if (h64cmp_u32u8(argv[i], argvlen[i], "--short-version") == 0) {
+                int isdev = (
+                    (strstr(CORELIB_VERSION, "dev") != 0) ||
+                    (strstr(CORELIB_VERSION, "alpha") != 0) ||
+                    (strstr(CORELIB_VERSION, "beta") != 0) ||
+                    (strstr(CORELIB_VERSION, "DEV") != 0)
+                );
+                h64printf("%s%s%s\n",
+                    CORELIB_VERSION,
+                    (isdev ? "-" : ""),
+                    (isdev ? BUILD_TIME : "")
+                );
+                return 0;
+            }
             if (h64cmp_u32u8(argv[i], argvlen[i], "--version") == 0 ||
                     h64cmp_u32u8(argv[i], argvlen[i], "-V") == 0 ||
                     h64cmp_u32u8(argv[i], argvlen[i], "-version") == 0 ||
