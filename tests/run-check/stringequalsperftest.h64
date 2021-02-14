@@ -71,7 +71,7 @@ func main {
 
     var count = 0
     var i = 0
-    while (i < 1000) {
+    while (i < 100) {
         if (s_abc == s_abc2) {count += 1}
         if (s_a_slightly_longer_string ==
                 s_a_slightly_longer_string2) {count += 1}

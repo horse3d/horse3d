@@ -55,7 +55,7 @@ func main {
     print(val)
 
     val = yes
-    var ntoggle = new NthToggle(2, start_state=val)
+    var ntoggle = new NthToggle(3, start_state=val)
     i = 1
     while i <= N {
         var i2 = 1
