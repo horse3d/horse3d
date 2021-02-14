@@ -94,4 +94,4 @@ func main {
     return count
 }
 
-# expected return value: 3000
+# expected return value: 300
