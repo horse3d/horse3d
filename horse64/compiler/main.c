@@ -397,7 +397,7 @@ static void printmsg(
                 h64fprintf(output_fd, ":%" PRId64, msg->column);
         }
         h64fprintf(output_fd, ": ");
-    } else {
+    } else if (msg->line >= 0) {
         h64fprintf(output_fd, "<URI error>: ");
     }
     h64fprintf(output_fd, "%s\n", msg->message);
