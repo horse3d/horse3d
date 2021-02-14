@@ -346,7 +346,7 @@ int valuecontent_CheckEquality(
                 v1->type == H64VALTYPE_CONSTPREALLOCSTR) {
             // Strings!
             if ((v2->type == H64VALTYPE_GCVAL &&
-                    ((h64gcvalue*)v1->ptr_value)->type ==
+                    ((h64gcvalue*)v2->ptr_value)->type ==
                     H64GCVALUETYPE_STRING) ||
                     v2->type == H64VALTYPE_SHORTSTR ||
                     v2->type == H64VALTYPE_CONSTPREALLOCSTR) {
