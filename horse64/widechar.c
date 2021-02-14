@@ -303,58 +303,58 @@ int64_t utf32_letter_len(
         ) {
     // This function returns the amount of code points that make
     // up the next full letter.
-    if (sdata_len <= 0)
+    if (unlikely(sdata_len <= 0))
         return 0;
     int64_t len = 1;
-    while (len < sdata_len) {
+    while (likely(len < sdata_len)) {
         uint64_t cp1 = sdata[len - 1];
         uint64_t cp2 = sdata[len];
-        if (cp2 == '\r' || (cp2 == '\n' && cp1 != '\r') ||
-                cp1 == '\n') {
+        if (unlikely(cp2 == '\r' || (cp2 == '\n' && cp1 != '\r') ||
+                cp1 == '\n')) {
             break;
         }
         // This should follow the grapheme break rules from the Unicode(R)
         // standard:
         int _gbt1 = _gbt(cp1);
         int _gbt2 = _gbt(cp2);
-        if (_gbt1 == GBT_CONTROL || _gbt2 == GBT_CONTROL)
+        if (unlikely(_gbt1 == GBT_CONTROL || _gbt2 == GBT_CONTROL))
             break;
-        if (_gbt1 == GBT_L && (
+        if (unlikely(_gbt1 == GBT_L && (
                 _gbt2 == GBT_L || _gbt2 == GBT_V ||
-                _gbt2 == GBT_LV || _gbt2 == GBT_LVT)) {
+                _gbt2 == GBT_LV || _gbt2 == GBT_LVT))) {
             len++;
             continue;
         }
-        if ((_gbt1 == GBT_LV || _gbt1 == GBT_V) && (
-                _gbt2 == GBT_V || _gbt2 == GBT_T)) {
+        if (unlikely((_gbt1 == GBT_LV || _gbt1 == GBT_V) && (
+                _gbt2 == GBT_V || _gbt2 == GBT_T))) {
             len++;
             continue;
         }
-        if ((_gbt1 == GBT_LVT || _gbt1 == GBT_T) && (
-                _gbt2 == GBT_T)) {
+        if (unlikely((_gbt1 == GBT_LVT || _gbt1 == GBT_T) && (
+                _gbt2 == GBT_T))) {
             len++;
             continue;
         }
-        if (_gbt2 == GBT_EXTEND || _gbt2 == GBT_ZWJ) {
+        if (unlikely(_gbt2 == GBT_EXTEND || _gbt2 == GBT_ZWJ)) {
             len++;
             continue;
         }
-        if (_gbt1 == GBT_PREPEND || _gbt2 == GBT_SPACINGMARK) {
+        if (unlikely(_gbt1 == GBT_PREPEND || _gbt2 == GBT_SPACINGMARK)) {
             len++;
             continue;
         }
-        if (cp1 >= 0x1F1E6LL &&
+        if (unlikely(cp1 >= 0x1F1E6LL &&
                 cp1 <= 0x1F1FFLL &&
                 cp2 >= 0x1F1E6LL &&
-                cp2 <= 0x1F1FFLL) {  // A region pair!
+                cp2 <= 0x1F1FFLL)) {  // A region pair!
             uint64_t cp0 = (
                 len > 1 ? sdata[len - 2] : 0
             );
             uint64_t cpminus1 = (
                 len > 2 ? sdata[len - 2] : 0
             );
-            if (cp0 < 0x1F1E6LL || cp0 > 0x1F1FFLL ||
-                    (cpminus1 >= 0x1F1E6LL && cpminus1 <= 0x1F1FFLL)) {
+            if (likely(cp0 < 0x1F1E6LL || cp0 > 0x1F1FFLL ||
+                    (cpminus1 >= 0x1F1E6LL && cpminus1 <= 0x1F1FFLL))) {
                 // Can only continue after an uneven number of region pair
                 // items. (Since after one full pair we might want to break.)
                 len++;
