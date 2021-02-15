@@ -1,0 +1,19 @@
+
+func main {
+    var l = [1, 2, 3, 4, 5, 6]
+    var sum = 0
+    var i = 0
+    for item in l {
+        i += 1
+        if i == 2 {
+            continue
+        }
+        if i == 5 {
+            break
+        }
+        sum += item
+    }
+    return sum
+}
+
+# expected return value: 8

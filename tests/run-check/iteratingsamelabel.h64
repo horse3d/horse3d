@@ -1,0 +1,14 @@
+
+func main {
+    var l = [1, 2, 3]
+    var result = 0
+    for item in l {
+        result += item
+    }
+    for item in l {
+        result -= item * 2
+    }
+    return result
+}
+
+# expected result value: -6

@@ -27,6 +27,12 @@
 #include "widechar.h"
 
 
+typedef struct asttransformcodegenextra {
+    int loop_nesting_depth, loop_nesting_alloc;
+    int64_t *loop_start_jumpid;
+    int64_t *loop_end_jumpid;
+} asttransformcodegenextra;
+
 //#define DEBUG_CODEGEN_INSTADD
 
 static void get_assign_lvalue_storage(
@@ -1081,6 +1087,7 @@ int _codegencallback_DoCodegen_visit_out(
         h64expression *expr, ATTR_UNUSED h64expression *parent, void *ud
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud;
+    ATTR_UNUSED asttransformcodegenextra *extra = rinfo->userdata;
     codegen_CalculateFinalFuncStack(rinfo->pr->program, expr);
 
     // FIRST, before anything else: ignore "none" literals entirely that
@@ -1471,6 +1478,8 @@ int _codegencallback_DoCodegen_visit_out(
             expr->type == H64EXPRTYPE_FOR_STMT ||
             expr->type == H64EXPRTYPE_WITH_STMT ||
             expr->type == H64EXPRTYPE_RAISE_STMT ||
+            expr->type == H64EXPRTYPE_BREAK_STMT ||
+            expr->type == H64EXPRTYPE_CONTINUE_STMT ||
             expr->type == H64EXPRTYPE_GIVEN ||
             (expr->type == H64EXPRTYPE_UNARYOP &&
              expr->op.optype == H64OP_NEW)) {
@@ -2422,6 +2431,7 @@ int _codegencallback_DoCodegen_visit_in(
         h64expression *expr, ATTR_UNUSED h64expression *parent, void *ud
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud;
+    ATTR_UNUSED asttransformcodegenextra *extra = rinfo->userdata;
 
     h64expression *func = surroundingfunc(expr);
     if (!func) {
@@ -2459,6 +2469,44 @@ int _codegencallback_DoCodegen_visit_in(
         );
         func->funcdef._storageinfo->jump_targets_used++;
 
+        // Make sure inner visited stuff has the loop
+        // information, for break/continue etc.
+        if (extra->loop_nesting_depth + 1 >
+                extra->loop_nesting_alloc) {
+            int new_alloc = (
+                extra->loop_nesting_depth + 16
+            );
+            if (new_alloc < extra->loop_nesting_alloc * 2)
+                new_alloc = extra->loop_nesting_alloc * 2;
+            int64_t *new_start_ids = realloc(
+                extra->loop_start_jumpid,
+                sizeof(*extra->loop_start_jumpid) * new_alloc
+            );
+            if (!new_start_ids) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            extra->loop_start_jumpid = new_start_ids;
+            int64_t *new_end_ids = realloc(
+                extra->loop_end_jumpid,
+                sizeof(*extra->loop_end_jumpid) * new_alloc
+            );
+            if (!new_end_ids) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            extra->loop_end_jumpid = new_end_ids;
+            extra->loop_nesting_alloc = new_alloc;
+        }
+        extra->loop_start_jumpid[
+            extra->loop_nesting_depth
+        ] = jumpid_start;
+        extra->loop_end_jumpid[
+            extra->loop_nesting_depth
+        ] = jumpid_end;
+        extra->loop_nesting_depth++;
+
+        // Ok, now start codegen for loop and its contents:
         h64instruction_jumptarget inst_jumptarget = {0};
         inst_jumptarget.type = H64INST_JUMPTARGET;
         inst_jumptarget.jumpid = jumpid_start;
@@ -2531,6 +2579,36 @@ int _codegencallback_DoCodegen_visit_in(
             return 0;
         }
         rinfo->dont_descend_visitation = 1;
+        extra->loop_nesting_depth--;  // leaving the loop.
+        assert(extra->loop_nesting_depth >= 0);
+        return 1;
+    } else if (expr->type == H64EXPRTYPE_BREAK_STMT) {
+        assert(extra->loop_nesting_depth > 0);
+        h64instruction_jump inst_jump = {0};
+        inst_jump.type = H64INST_JUMP;
+        inst_jump.jumpbytesoffset = (
+            extra->loop_end_jumpid[extra->loop_nesting_depth - 1]
+        );
+        if (!appendinst(
+                rinfo->pr->program, func, expr, &inst_jump
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+        return 1;
+    } else if (expr->type == H64EXPRTYPE_CONTINUE_STMT) {
+        assert(extra->loop_nesting_depth > 0);
+        h64instruction_jump inst_jump = {0};
+        inst_jump.type = H64INST_JUMP;
+        inst_jump.jumpbytesoffset = (
+            extra->loop_start_jumpid[extra->loop_nesting_depth - 1]
+        );
+        if (!appendinst(
+                rinfo->pr->program, func, expr, &inst_jump
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
         return 1;
     } else if (expr->type == H64EXPRTYPE_BINARYOP &&
             (expr->op.optype == H64OP_BOOLCOND_AND ||
@@ -3940,6 +4018,43 @@ int _codegencallback_DoCodegen_visit_in(
         );
         func->funcdef._storageinfo->jump_targets_used++;
 
+        // Make sure inner visited stuff has the loop
+        // information, for break/continue etc.
+        if (extra->loop_nesting_depth + 1 >
+                extra->loop_nesting_alloc) {
+            int new_alloc = (
+                extra->loop_nesting_depth + 16
+            );
+            if (new_alloc < extra->loop_nesting_alloc * 2)
+                new_alloc = extra->loop_nesting_alloc * 2;
+            int64_t *new_start_ids = realloc(
+                extra->loop_start_jumpid,
+                sizeof(*extra->loop_start_jumpid) * new_alloc
+            );
+            if (!new_start_ids) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            extra->loop_start_jumpid = new_start_ids;
+            int64_t *new_end_ids = realloc(
+                extra->loop_end_jumpid,
+                sizeof(*extra->loop_end_jumpid) * new_alloc
+            );
+            if (!new_end_ids) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            extra->loop_end_jumpid = new_end_ids;
+            extra->loop_nesting_alloc = new_alloc;
+        }
+        extra->loop_start_jumpid[
+            extra->loop_nesting_depth
+        ] = jumpid_start;
+        extra->loop_end_jumpid[
+            extra->loop_nesting_depth
+        ] = jumpid_end;
+        extra->loop_nesting_depth++;
+
         int itertemp = newmultilinetemp(func);
         if (itertemp < 0) {
             rinfo->hadoutofmemory = 1;
@@ -4046,6 +4161,8 @@ int _codegencallback_DoCodegen_visit_in(
 
         freemultilinetemp(func, itertemp);
         rinfo->dont_descend_visitation = 1;
+        extra->loop_nesting_depth--;  // leaving the loop
+        assert(extra->loop_nesting_depth >= 0);
         return 1;
     } else if (expr->type == H64EXPRTYPE_GIVEN) {
         rinfo->dont_descend_visitation = 1;
@@ -4317,12 +4434,18 @@ int codegen_GenerateBytecodeForFile(
     }
 
     // Do actual codegen step:
+    asttransformcodegenextra extra = {0};
     int transformresult = asttransform_Apply(
         project, resolved_ast,
         &_codegencallback_DoCodegen_visit_in,
         &_codegencallback_DoCodegen_visit_out,
-        NULL
+        &extra
     );
+    free(extra.loop_start_jumpid);
+    extra.loop_start_jumpid = 0;
+    free(extra.loop_end_jumpid);
+    extra.loop_end_jumpid = 0;
+    extra.loop_nesting_alloc = 0;
     if (!transformresult)
         return 0;
     // Ensure final stack is calculated for "made-up" func expressions:
@@ -4330,6 +4453,7 @@ int codegen_GenerateBytecodeForFile(
         asttransforminfo rinfo = {0};
         rinfo.pr = project;
         rinfo.ast = resolved_ast;
+        rinfo.userdata = &extra;
         if (project->_tempglobalfakeinitfunc) {
             codegen_CalculateFinalFuncStack(
                 project->program, project->_tempglobalfakeinitfunc
@@ -4341,6 +4465,11 @@ int codegen_GenerateBytecodeForFile(
                 &_codegen_calc_tempclassfakeinitfuncstack_cb,
                 &rinfo
             );
+            free(extra.loop_start_jumpid);
+            extra.loop_start_jumpid = 0;
+            free(extra.loop_end_jumpid);
+            extra.loop_end_jumpid = 0;
+            extra.loop_nesting_alloc = 0;
             if (!iterresult || rinfo.hadoutofmemory ||
                     rinfo.hadunexpectederror) {
                 if (!result_AddMessage(
