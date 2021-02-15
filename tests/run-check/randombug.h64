@@ -1,73 +1,20 @@
 
-import path from core.horse64.org
-import process from core.horse64.org
-import system from core.horse64.org
 
-
-class ArgumentDefs {
-    var args protect = []
-    var min_positional_args protect = 0
-    var max_positional_args protect = 0
-    var program_name = "unknown"
+class TestClass {
+    var v1 protect = []
+    var v2 protect = 0
+    var v3 protect = 0
+    var v4 = "unknown"
 
     func init(program_name=none) {
-        # Sanitize and guess the program name for this arguments set:
-        if program_name != none {
-            # Make sure this can be used as a string:
-            program_name = program_name + ""
-        }
-        if program_name == none {
-            program_name = path.basename(system.vm_exec_path())
-            if program_name == "none" {
-                program_name = "unknown"
-            }
-        }
-        self.program_name = program_name
-    }
-
-    func get_nth_posarg(index) {
-        for arg in self.args {
-            if arg.positional {
-                if index > 1 {
-                    index -= 1
-                } else {
-                    return arg
-                }
-            }
-        }
-        return none
-    }
-
-    func get_namedarg(name) {
-        if not name.starts("-") {
-            return none
-        }
-        for arg in self.args {
-            if arg.name == name or arg.aliases.contains(name) {
-                return arg
-            }
-        }
-        return none
-    }
-
-    func add_arg(name, aliases=[], takes_str="default") {
-        for arg in self.args {
-            if arg.names_intersect([name]) or
-                    arg.names_intersect(aliases) {
-                raise new ValueError(
-                    "name conflict with existing options"
-                )
-            }
-        }
-        if self.args[self.args.len].positional {
-            self.max_positional_args += 1
-            if not self.args[self.args.len].optional {
-                self.min_positional_args += 1
-            }
-        }
+        # In some old horsec versions, this class breaks
+        # when instantiated due to a bug with $$varinit
+        # that crashes setting above default values.
     }
 }
 
 func main {
-    var defs = new ArgumentDefs()
+    var defs = new TestClass()
 }
+
+# expected return value: 0
