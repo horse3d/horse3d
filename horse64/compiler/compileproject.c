@@ -1770,6 +1770,25 @@ int compileproject_CompileAllToBytecode(
         if (!hash_StringMapIterate(
                 project->astfilemap, &_resolveallcb,
                 &cinfo)) {
+            // See if we had an error:
+            if (!cinfo.pr->resultmsg->success) {
+                int haderrormsg = 0;
+                int i = 0;
+                while (i < cinfo.pr->resultmsg->message_count) {
+                    if (cinfo.pr->resultmsg->message[i].type ==
+                            H64MSG_ERROR) {
+                        haderrormsg = 1;
+                        break;
+                    }
+                    i++;
+                }
+                if (haderrormsg) {
+                    // We had an error. Just terminate normally,
+                    // so it is returned.
+                    return 1;
+                }
+            }
+            // No error. Internal error, or out of memory!
             if (error)
                 *error = strdup(
                     "unexpected resolve callback failure, "
