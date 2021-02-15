@@ -162,6 +162,8 @@ int ast_VisitExpression(
     switch (expr->type) {
     case H64EXPRTYPE_INVALID:
     case H64EXPRTYPE_IDENTIFIERREF:
+    case H64EXPRTYPE_CONTINUE_STMT:
+    case H64EXPRTYPE_BREAK_STMT:
     case H64EXPRTYPE_LITERAL:
         break;
     case H64EXPRTYPE_VARDEF_STMT:
@@ -680,6 +682,12 @@ void ast_FreeExprNonpoolMembers(
     case H64EXPRTYPE_ASSIGN_STMT: {
         break;
     }
+    case H64EXPRTYPE_BREAK_STMT: {
+        break;
+    }
+    case H64EXPRTYPE_CONTINUE_STMT: {
+        break;
+    }
     case H64EXPRTYPE_LITERAL: {
         if (expr->literal.type == H64TK_CONSTANT_STRING) {
             free(expr->literal.str_value);
@@ -831,6 +839,8 @@ static char _h64exprname_raise_stmt[] = "H64EXPRTYPE_RAISE_STMT";
 static char _h64exprname_return_stmt[] = "H64EXPRTYPE_RETURN_STMT";
 static char _h64exprname_do_stmt[] = "H64EXPRTYPE_DO_STMT";
 static char _h64exprname_with_stmt[] = "H64EXPRTYPE_WITH_STMT";
+static char _h64exprname_break_stmt[] = "H64EXPRTYPE_BREAK_STMT";
+static char _h64exprname_continue_stmt[] = "H64EXPRTYPE_CONTINUE_STMT";
 static char _h64exprname_await_stmt[] = "H64EXPRTYPE_AWAIT_STMT";
 static char _h64exprname_assign_stmt[] = "H64EXPRTYPE_ASSIGN_STMT";
 static char _h64exprname_literal[] = "H64EXPRTYPE_LITERAL";
@@ -874,6 +884,10 @@ const char *ast_ExpressionTypeToStr(h64expressiontype type) {
         return _h64exprname_do_stmt;
     case H64EXPRTYPE_WITH_STMT:
         return _h64exprname_with_stmt;
+    case H64EXPRTYPE_BREAK_STMT:
+        return _h64exprname_break_stmt;
+    case H64EXPRTYPE_CONTINUE_STMT:
+        return _h64exprname_continue_stmt;
     case H64EXPRTYPE_AWAIT_STMT:
         return _h64exprname_await_stmt;
     case H64EXPRTYPE_ASSIGN_STMT:
@@ -1531,6 +1545,9 @@ jsonvalue *ast_ExpressionToJSON(
             fail = 1;
             json_Free(statements);
         }
+    } else if (e->type == H64EXPRTYPE_CONTINUE_STMT ||
+            e->type == H64EXPRTYPE_BREAK_STMT) {
+        // No extra info to set.
     } else if (e->type == H64EXPRTYPE_LITERAL) {
         if (e->literal.type == H64TK_CONSTANT_INT) {
             if (!json_SetDictInt(v, "value", e->literal.int_value))

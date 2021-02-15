@@ -4888,6 +4888,43 @@ int ast_ParseExprStmt(
         return 1;
     }
 
+    // continue and break statements:
+    if (tokens[0].type == H64TK_KEYWORD && (
+            strcmp(tokens[0].str_value, "break") == 0 ||
+            strcmp(tokens[0].str_value, "continue") == 0)) {
+        int isbreak = (strcmp(tokens[0].str_value, "break") == 0);
+        int i = 0;
+        if (statementmode != STATEMENTMODE_INFUNC &&
+                statementmode != STATEMENTMODE_INCLASSFUNC) {
+            char buf[256];
+            snprintf(buf, sizeof(buf) - 1,
+                "unexpected \"%s\" statement, "
+                "this is not valid outside of functions",
+                (isbreak ? "break" : "continue")
+            );
+            if (!result_AddMessage(
+                    context->resultmsg,
+                    H64MSG_ERROR, buf, fileuri, fileurilen,
+                    _refline(context->tokenstreaminfo, tokens, i),
+                    _refcol(context->tokenstreaminfo, tokens, i)
+                    ))
+                if (outofmemory) *outofmemory = 1;
+            if (parsefail) *parsefail = 1;
+            ast_MarkExprDestroyed(expr);
+            return 0;
+        }
+        expr->type = (
+            isbreak ? H64EXPRTYPE_BREAK_STMT :
+            H64EXPRTYPE_CONTINUE_STMT
+        );
+        i += 1;  // past break/continue
+        *out_expr = expr;
+        if (outofmemory) *outofmemory = 0;
+        if (parsefail) *parsefail = 0;
+        if (out_tokenlen) *out_tokenlen = i;
+        return 1;
+    }
+
     // await and async statements:
     if (tokens[0].type == H64TK_KEYWORD &&
             (strcmp(tokens[0].str_value, "await") == 0 ||
