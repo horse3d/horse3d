@@ -6,25 +6,42 @@ import system from core.horse64.org
 
 class ArgumentInfo {
     var name = ""
-    var nargs = 0
+    var takes_str = no
     var aliases = []
     var optional = no
     var positional = no
 
-    func init(name, aliases=[], nargs="default") {
+    func init(name, aliases=[], takes_str="default") {
         self.name = name + ""
         for alias in aliases {
             self.aliases.add(alias + "")
         }
         self.positional = (not self.name.starts("-"))
-        if nargs == "default" or nargs == "?" {
-            self.nargs = 1
-            if not self.positional {
-                self.nargs = 0
-                self.optional = yes
-            } elseif nargs == "?" {
-                self.optional = yes
+        if takes_str == "default" {
+            if self.positional {
+                self.takes_str = yes
+            } else {
+                self.takes_str = no
             }
+        } elseif takes_str == "optional" {
+            if not self.positional {
+                raise new ValueError("only positional arguments "
+                    "may take a string parameter optionally")
+            }
+            self.optional = yes
+        } else {
+            if type(takes_str) != "boolean" {
+                raise new ValueError("unsupported value for "
+                    "takes_str")
+            }
+            if not takes_str and self.positional {
+                raise new ValueError(
+                    "positonal arguments must take a "
+                    "string parameter, at least optionally"
+                )
+            }
+            self.takes_str = takes_str
+            self.optional = no
         }
     }
 
@@ -41,8 +58,8 @@ class ArgumentInfo {
     }
 }
 
-class Arguments {
-    var _args = []
+class ArgumentDefs {
+    var args protect = []
     var min_positional_args protect = 0
     var max_positional_args protect = 0
     var program_name = "unknown"
@@ -62,8 +79,33 @@ class Arguments {
         self.program_name = program_name
     }
 
-    func add_arg(name, aliases=[], nargs="default") {
-        for arg in self._args {
+    func get_nth_posarg(index) {
+        for arg in self.args {
+            if arg.positional {
+                if index > 1 {
+                    index -= 1
+                } else {
+                    return arg
+                }
+            }
+        }
+        return none
+    }
+
+    func get_namedarg(name) {
+        if not name.starts("-") {
+            return none
+        }
+        for arg in self.args {
+            if arg.name == name or arg.aliases.contains(name) {
+                return arg
+            }
+        }
+        return none
+    }
+
+    func add_arg(name, aliases=[], takes_str="default") {
+        for arg in self.args {
             if arg.names_intersect([name]) or
                     arg.names_intersect(aliases) {
                 raise new ValueError(
@@ -71,33 +113,141 @@ class Arguments {
                 )
             }
         }
-        self._args.add(new ArgumentInfo(
-            name, aliases=aliases, nargs=nargs
+        self.args.add(new ArgumentInfo(
+            name, aliases=aliases, takes_str=takes_str
         ))
-        if self._args[self._args.len].positional {
+        if self.args[self.args.len].positional {
             self.max_positional_args += 1
-            if not self._args[self._args.len].optional {
+            if not self.args[self.args.len].optional {
                 self.min_positional_args += 1
             }
         }
     }
 }
 
-func parse(options, arg_array=none) {
-    if not has_attr(options, "max_positional_args") {
+class ParseResult {
+    var output = ""
+    var output_exit_code = 0
+    var success = no
+    var args
+}
+
+func get_usage_text(options) {
+    var output = ""
+    output += "Usage: " +
+        options.program_name + " [..Options..]"
+    for arg in options.args {
+        if not arg.positional {
+            continue
+        }
+        output += " [" + arg.name + (
+            given arg.optional then ("<optional>" else "")
+        ) + "]"
+    }
+    output += "\n"
+    print("Available Options:")
+    var unsorted_names = []
+    for arg in options.args {
+        if not arg.name.starts("-") {
+            continue
+        }
+        unsorted_names.add(arg.name)
+    }
+    if not unsorted_names.contains("--help") {
+        unsorted_names.add("--help")
+    }
+    var sorted_names = unsorted_names  # FIXME...
+
+
+    return output
+}
+
+func parse(argument_defs, arg_array=none) {
+    if not has_attr(argument_defs, "max_positional_args") {
         raise new TypeError(
-            "options must have the argparse.Options attributes"
+            "argument_defs must have the "
+            "argparse.ArgumentDefs attributes"
         )
     }
     if arg_array == none {
         arg_array = process.args
     }
+    var result = new ParseResult()
+    var args = {->}
     var posargs_seen = 0
-    for arg in arg_array {
-        if not arg.starts("-") {
-            if posargs_seen + 1 > options.max_positional_args {
 
+    # Extract all arguments:
+    var i = 0
+    while i < arg_array.len {
+        var argstr = arg_array[i]
+        if not argstr.starts("-") {
+            # Positional argument. See if we reached maximum:
+            if posargs_seen + 1 > argument_defs.max_positional_args {
+                result.output += argument_defs.program_name + ": error: "
+                    "excessive positional argument: " + argstr + "\n"
+                result.output += (
+                    "Use " + argument_defs.program_name +
+                    " --help to show usage.\n"
+                )
+                result.output_exit_code = -1
+                return result
+            }
+
+            # Check what exactly this maps to:
+            var target_arg = (
+                argument_defs.get_nth_posarg(posargs_seen + 1)
+            )
+            assert(target_arg != none)
+            args[target_arg.name] = argstr
+        } else {
+            # Special handling for --help:
+            if argstr == "--help" {
+                result.output = get_usage_text(argument_defs)
+                result.output_exit_code = 0
+                return result
+            }
+            # See if we can find out the arg this matches:
+            var target_arg = argument_defs.get_namedarg(argstr)
+            if target_arg == none {
+                result.output += argument_defs.program_name + ": error: "
+                    "unknown option: " + argstr + "\n"
+                result.output += (
+                    "Use " + argument_defs.program_name +
+                    " --help to show usage.\n"
+                )
+                result.output_exit_code = -1
+                return result
+            }
+            # If this named arg takes a parameter, check that it's
+            # following:
+            if target_arg.takes_str {
+                if i + 1 > arg_array.len or
+                        arg_array[i + 1].starts("-") {
+                    result.output += argument_defs.program_name + ": error: "
+                        "option is missing argument: " + argstr + "\n"
+                    result.output += (
+                        "Use " + argument_defs.program_name +
+                        " --help to show usage.\n"
+                    )
+                    result.output_exit_code = -1
+                    return result
+                }
+            }
+            args[target_arg.name] = argstr
+        }
+        i += 1
+    }
+    # Fill in empty spots in result dictionary:
+    for arg in argument_defs.args {
+        if not result.args.contains(arg) {
+            if result.args.takes_str {
+                args[arg] = none
+            } else {
+                args[arg] = no
             }
         }
     }
+    result.args = args
+    result.success = yes
+    return result
 }
