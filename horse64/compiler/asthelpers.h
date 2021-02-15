@@ -48,6 +48,22 @@ ATTR_UNUSED static h64expression *surroundingclass(
     return NULL;
 }
 
+ATTR_UNUSED static int isinvalidcontinuebreak(h64expression *expr) {
+    if (!expr || (expr->type != H64EXPRTYPE_CONTINUE_STMT &&
+            expr->type != H64EXPRTYPE_BREAK_STMT))
+        return 0;
+    while (expr->parent) {
+        expr = expr->parent;
+        if (expr->type == H64EXPRTYPE_FUNCDEF_STMT ||
+                expr->type == H64EXPRTYPE_CLASSDEF_STMT)
+            return 1;
+        if (expr->type == H64EXPRTYPE_FOR_STMT ||
+                expr->type == H64EXPRTYPE_WHILE_STMT)
+            return 0;
+    }
+    return 1;
+}
+
 ATTR_UNUSED static int isvardefstmtassignvalue(h64expression *expr) {
     h64expression *child = expr;
     while (expr->parent) {

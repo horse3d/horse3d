@@ -50,6 +50,26 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
         ) {
     asttransforminfo *rinfo = (asttransforminfo *)ud; 
 
+    // Check for "continue" and "break" statements in wrong positions:
+    if (isinvalidcontinuebreak(expr)) {
+        char buf[512];
+        h64snprintf(
+            buf, sizeof(buf) - 1,
+            "unexpected %s statement outside of any loop",
+            (expr->type == H64EXPRTYPE_BREAK_STMT ?
+             "break" : "continue")
+        );
+        if (!result_AddMessage(
+                &rinfo->ast->resultmsg,
+                H64MSG_ERROR, buf,
+                rinfo->ast->fileuri, rinfo->ast->fileurilen,
+                expr->line,
+                expr->column
+                )) {
+            rinfo->hadoutofmemory = 1;
+            return 0;
+        }
+    }
     // Check for invalid calls to class types without "new":
     if (expr->type == H64EXPRTYPE_CALL &&
             (parent == NULL ||
