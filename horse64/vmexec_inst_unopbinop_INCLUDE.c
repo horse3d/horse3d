@@ -121,14 +121,18 @@ inst_binop: {
             goto binop_done;
         }
         binop_add: {
+            if (likely(v1->type == H64VALTYPE_INT64 &&
+                    v2->type == H64VALTYPE_INT64)) {
+                goto fasttrack_intadd;
+            }
             if (likely((v1->type == H64VALTYPE_INT64 ||
                     v1->type == H64VALTYPE_FLOAT64) &&
                     (v2->type == H64VALTYPE_INT64 ||
                     v2->type == H64VALTYPE_FLOAT64))) {
                 // Number addition:
-                invalidtypes = 0;
                 if (likely(v1->type == H64VALTYPE_INT64 &&
                         v2->type == H64VALTYPE_INT64)) {
+                    fasttrack_intadd:
                     if (unlikely((v2->int_value >= 0 &&
                             v1->int_value > INT64_MAX - v2->int_value) ||
                             (v2->int_value < 0 &&
@@ -143,6 +147,7 @@ inst_binop: {
                     tmpresult->int_value = (
                         v1->int_value + v2->int_value
                     );
+                    goto binopdone_success;
                 } else {
                     int mixed = (v1->type != v2->type);
                     double v1no = 1;
@@ -214,6 +219,7 @@ inst_binop: {
                             tmpresult->int_value = intval;
                         }
                     }
+                    goto binopdone_success;
                 }
             } else {
                 // Not numbers.
@@ -226,7 +232,6 @@ inst_binop: {
                          ((h64gcvalue *)v2->ptr_value)->type ==
                             H64GCVALUETYPE_STRING) ||
                          v2->type == H64VALTYPE_SHORTSTR))) { // string concat
-                    invalidtypes = 0;
                     int64_t len1 = -1;
                     char *ptr1 = NULL;
                     if (v1->type == H64VALTYPE_SHORTSTR) {
@@ -310,6 +315,7 @@ inst_binop: {
                             );
                         }
                     }
+                    goto binopdone_success;
                 } else {
                     // Invalid, leave invalidtypes=1 set.
                 }
@@ -851,6 +857,7 @@ inst_binop: {
             );
             goto *jumptable[((h64instructionany *)p)->type];
         }
+        binopdone_success:
         if (copyatend) {
             valuecontent *target = STACK_ENTRY(stack, inst->slotto);
             DELREF_NONHEAP(target);
