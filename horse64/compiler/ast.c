@@ -599,12 +599,13 @@ void ast_FreeExprNonpoolMembers(
             scope_FreeData(&current_clause->scope);
             free(current_clause->stmt);
             current_clause->stmt = NULL;
-            if (isfirst)
-                isfirst = 0;
-            else
-                free(current_clause);
             current_clause->followup_clause = NULL;
             current_clause->stmt_count = 0;
+            if (isfirst) {
+                isfirst = 0;
+            } else {
+                free(current_clause);
+            }
             current_clause = next_clause;
         }
         break;

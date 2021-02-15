@@ -1242,7 +1242,7 @@ h64tokenizedfile lexer_ParseFromFile(
         if (c == '+' || c == '%' || c == '|' || c == '&' ||
                 c == '^' || c == '.' ||
                 (c == '!' && i + 1 < (int)size && buffer[i + 1] == '=') ||
-                c == '/' || c == '\\' || c == '<' || c == '>' || c == '*' ||
+                c == '/' || c == '<' || c == '>' || c == '*' ||
                 (c == '-' && (i + 1 >= (int)size ||
                  buffer[i + 1] != '>')) ||
                 (c == '=' && (i + 1 >= (int)size ||

@@ -4276,7 +4276,7 @@ int ast_ParseExprStmt(
             while (k < stmt_count) {
                 if (stmt[k] &&
                         stmt[k]->type == H64EXPRTYPE_VARDEF_STMT) {
-                    expr->classdef.vardef[k] = stmt[k];
+                    expr->classdef.vardef[j] = stmt[k];
                     stmt[k] = NULL;
                     j++;
                 }
