@@ -12,7 +12,8 @@
 #include "compiler/globallimits.h"
 #include "valuecontentstruct.h"
 
-#define LISTBLOCK_SIZE 64
+#define LISTBLOCK_SIZE (4096)
+#define LISTBLOCK_MINSIZE 16
 
 typedef struct listblock listblock;
 
@@ -24,9 +25,15 @@ typedef struct vectorentry {
 
 typedef struct listblock {
     int entry_count;
-    valuecontent entry_values[LISTBLOCK_SIZE];
     listblock *next_block;
+    valuecontent entry_values[LISTBLOCK_SIZE];
 } listblock;
+
+typedef struct _listblock_minisize {
+    int entry_count;
+    listblock *next_block;
+    valuecontent entry_values[LISTBLOCK_MINSIZE];
+} _listblock_minisize;
 
 typedef struct genericlist {
     int64_t last_accessed_block_offset;
@@ -37,6 +44,7 @@ typedef struct genericlist {
     int64_t list_total_entry_count;
     int64_t list_block_count;
     listblock *first_block, *last_block;
+    int first_block_shrunk_size;
 } genericlist;
 
 typedef struct hashmap hashmap;

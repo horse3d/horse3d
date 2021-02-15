@@ -34,12 +34,26 @@ ATTR_UNUSED static inline void vmlist_GetEntryBlock(
     }
 
     if (l->last_accessed_block_offset < entry_no &&
-            l->last_accessed_block != NULL &&
-            l->last_accessed_block->entry_count +
-            l->last_accessed_block_offset >= entry_no) {
-        *out_block = l->last_accessed_block;
-        *out_block_offset = l->last_accessed_block_offset;
-        return;
+            l->last_accessed_block != NULL) {
+        if (l->last_accessed_block->entry_count +
+                l->last_accessed_block_offset >= entry_no) {
+            *out_block = l->last_accessed_block;
+            *out_block_offset = l->last_accessed_block_offset;
+            return;
+        } else {
+            listblock *next = l->last_accessed_block->next_block;
+            if (next && next->entry_count +
+                    l->last_accessed_block->entry_count +
+                    l->last_accessed_block_offset >= entry_no) {
+                l->last_accessed_block_offset += (
+                    l->last_accessed_block->entry_count
+                );
+                l->last_accessed_block = next;
+                *out_block = next;
+                *out_block_offset = l->last_accessed_block_offset;
+                return;
+            }
+        }
     }
 
     int64_t offset = 0;

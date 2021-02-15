@@ -19,7 +19,7 @@ genericlist *vmlist_New() {
         return NULL;
     memset(l, 0, sizeof(*l));
 
-    l->first_block = malloc(sizeof(*l->first_block));
+    l->first_block = malloc(sizeof(_listblock_minisize));
     if (!l->first_block) {
         free(l);
         return NULL;
@@ -27,6 +27,8 @@ genericlist *vmlist_New() {
     l->first_block->next_block = NULL;
     l->first_block->entry_count = 0;
     l->last_block = l->first_block;
+    l->list_block_count = 1;
+    l->first_block_shrunk_size = LISTBLOCK_MINSIZE;
     return l;
 }
 
@@ -63,13 +65,64 @@ int vmlist_Contains(genericlist *l, valuecontent *v) {
     return 0;
 }
 
+static int _grow_shrunk_first_block(
+        genericlist *l, int64_t required_space
+        ) {
+    if (unlikely(l->list_block_count == 1 &&
+            l->first_block_shrunk_size < LISTBLOCK_SIZE &&
+            required_space > l->first_block_shrunk_size)) {
+        listblock *oldblock = l->first_block;
+        int64_t new_size = l->first_block_shrunk_size * 2;
+        if (unlikely(new_size < oldblock->entry_count + 1))
+            new_size = oldblock->entry_count + 1;
+        if (unlikely(new_size > LISTBLOCK_SIZE))
+            new_size = LISTBLOCK_SIZE;
+        listblock *resized_block = malloc(
+            sizeof(_listblock_minisize) + (
+                sizeof(valuecontent) * (new_size - LISTBLOCK_MINSIZE)
+            )
+        );
+        if (!resized_block) {
+            return 0;
+        }
+        assert(l->first_block_shrunk_size >= LISTBLOCK_MINSIZE);
+        memcpy(
+            resized_block, oldblock,
+            sizeof(_listblock_minisize) + (
+                sizeof(valuecontent) * (
+                    l->first_block_shrunk_size - LISTBLOCK_MINSIZE
+                )
+            )
+        );
+        l->first_block = resized_block;
+        l->last_block = resized_block;
+        free(oldblock);
+        l->first_block_shrunk_size = new_size;
+        return 1;
+    }
+    return 0;
+}
+
 int vmlist_Add(
         genericlist *l, valuecontent *vc
         ) {
     assert(l != NULL);
     assert(vc != NULL);
+
+    // If this is the first block, it might be shrunk (to save space for
+    // mini lists):
+    int first_grown = _grow_shrunk_first_block(
+        l, l->list_total_entry_count + 1
+    );
+    if (first_grown < 0)
+        return -1;  // oom
+
+    // Append entry:
     assert(l->last_block != NULL);
     if (l->last_block->entry_count >= LISTBLOCK_SIZE) {
+        assert(
+            l->first_block_shrunk_size >= LISTBLOCK_SIZE
+        );
         listblock *newblock = malloc(sizeof(*newblock));
         if (!newblock)
             return 0;
@@ -80,6 +133,11 @@ int vmlist_Add(
     }
     assert(l->last_block->next_block == NULL &&
            l->last_block->entry_count < LISTBLOCK_SIZE);
+    assert(
+        l->first_block_shrunk_size >= LISTBLOCK_SIZE ||
+        (l->list_block_count == 1 &&
+         l->first_block_shrunk_size >= l->last_block->entry_count + 1)
+    );
     memcpy(
         &l->last_block->entry_values[l->last_block->entry_count],
         vc, sizeof(*vc)
@@ -87,6 +145,7 @@ int vmlist_Add(
     ADDREF_HEAP(vc);
     l->last_block->entry_count++;
     l->list_total_entry_count++;
+    assert(l->list_total_entry_count >= l->last_block->entry_count);
     l->contentrevisionid++;
     return 1;
 }
@@ -150,6 +209,8 @@ int vmlist_Insert(
         return 0;
     if (index == l->list_total_entry_count + 1)
         return (vmlist_Add(l, vc) ? 1 : -1);
+
+    // Get the block into which to insert:
     int64_t blockoffset = -1;
     listblock *block = NULL;
     vmlist_GetEntryBlock(
@@ -159,6 +220,16 @@ int vmlist_Insert(
     int local_index = (int64_t)(index - blockoffset);
     assert(local_index >= 1 && local_index <= LISTBLOCK_SIZE &&
            local_index <= block->entry_count);
+
+    // If this is the first block, it might be shrunk (to save space for
+    // mini lists):
+    int first_grown = _grow_shrunk_first_block(l, block->entry_count + 1);
+    if (first_grown < 0)
+        return -1;  // oom
+    else if (first_grown > 0)
+        block = l->first_block;  // need to update pointer.
+    
+    // Regular block list growth if we fill up this block:
     if (block->entry_count >= LISTBLOCK_SIZE) {
         listblock *newblock = malloc(sizeof(*newblock));
         if (!newblock)
@@ -195,5 +266,7 @@ int vmlist_Insert(
     block->entry_count++;
     l->list_total_entry_count++;
     l->contentrevisionid++;
+    l->last_accessed_block = NULL;
+    l->last_accessed_block_offset = -1;
     return 1;
 }
