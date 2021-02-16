@@ -6,7 +6,7 @@
 import builtininternals from core.horse64.org
 
 func sort(container, descend=no, key_func=none) {
-    if key_func is none {
+    if key_func == none {
         return builtininternals.sort(container, descend)
     }
     if type(container) != "list" and type(container) != "set" {

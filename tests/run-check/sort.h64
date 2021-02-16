@@ -1,0 +1,15 @@
+
+import math from core.horse64.org
+
+func main {
+    var l1 = [1, 2]
+    var l2 = [1]
+    l2.add(2)
+    assert(l1 == l2)
+    var v = [2, 4, 3, 3, 1]
+    var vsorted = math.sort(v)
+    assert(v.len == v.sorted)
+    assert(vsorted = [1, 2, 3, 3, 4])
+}
+
+# expected return value: 0
