@@ -22,6 +22,7 @@
 #include "compiler/varstorage.h"
 #include "corelib/errors.h"
 #include "hash.h"
+#include "itemsort.h"
 #include "nonlocale.h"
 #include "valuecontentstruct.h"
 #include "widechar.h"
@@ -534,6 +535,21 @@ static h64instruction_callsettop *_settop_inst(
     );
 }
 
+typedef struct kwargsortinfo {
+    int64_t kwnameindex;
+    int callargno;
+} kwargsortinfo;
+
+static int _compare_kw_args(void *item1, void *item2) {
+    kwargsortinfo *kwinfo1 = item1;
+    kwargsortinfo *kwinfo2 = item2;
+    if (kwinfo1->kwnameindex < kwinfo2->kwnameindex)
+        return -1;
+    else if (kwinfo1->kwnameindex > kwinfo2->kwnameindex)
+        return 1;
+    return 0;
+}
+
 static int _codegen_call_to(
         asttransforminfo *rinfo, h64expression *func,
         h64expression *callexpr,
@@ -561,134 +577,190 @@ static int _codegen_call_to(
         ].instructions_bytes -
         sizeof(h64instruction_callsettop)
     );
-    int i = 0;
-    while (i < callexpr->inlinecall.arguments.arg_count) {
-        assert(callexpr->inlinecall.arguments.arg_name != NULL);
-        if (callexpr->inlinecall.arguments.arg_name[i])
-            _reachedkwargs = 1;
-        #ifndef NDEBUG
-        if (callexpr->inlinecall.arguments.arg_value == NULL) {
-            h64printf(
-                "horsec: error: internal error: "
-                "invalid call expression with arg count > 0, "
-                "but arg_value array is NULL\n"
+    // Pre-iteration: collect kw arg indexes, and sort them:
+    kwargsortinfo _arg_indexes_buf[32];
+    kwargsortinfo *arg_kwsortinfo = _arg_indexes_buf;
+    int alloc_heap = 0;
+    {
+        int alloc_size = 32;
+        if (callexpr->inlinecall.arguments.arg_count > alloc_size) {
+            arg_kwsortinfo = malloc(
+                sizeof(*arg_kwsortinfo) * (
+                    callexpr->inlinecall.arguments.arg_count
+                )
             );
-            char *s = ast_ExpressionToJSONStr(callexpr, NULL, 0);
-            h64printf(
-                "horsec: error: internal error: "
-                "expr is: %s\n", s
-            );
-            free(s);
+            if (!arg_kwsortinfo) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+            alloc_heap = 1;
         }
-        #endif
-        assert(callexpr->inlinecall.arguments.arg_value != NULL);
-        assert(callexpr->inlinecall.arguments.arg_value[i] != NULL);
-        int ismultiarg = 0;
-        if (_reachedkwargs) {
-            kwargcount++;
-            assert(callexpr->inlinecall.arguments.arg_name[i] != NULL);
-            int64_t kwnameidx = (
+        int kwargs_start_slot = -1;
+        int i = 0;
+        while (i < callexpr->inlinecall.arguments.arg_count) {
+            assert(callexpr->inlinecall.arguments.arg_name != NULL);
+            #ifndef NDEBUG
+            if (callexpr->inlinecall.arguments.arg_value == NULL) {
+                h64printf(
+                    "horsec: error: internal error: "
+                    "invalid call expression with arg count > 0, "
+                    "but arg_value array is NULL\n"
+                );
+                char *s = ast_ExpressionToJSONStr(callexpr, NULL, 0);
+                h64printf(
+                    "horsec: error: internal error: "
+                    "expr is: %s\n", s
+                );
+                free(s);
+            }
+            #endif
+            arg_kwsortinfo[i].callargno = i;
+            if (!callexpr->inlinecall.arguments.arg_name[i]) {
+                arg_kwsortinfo[i].kwnameindex = -1;
+            } else {
+                kwargs_start_slot = i;
+                int64_t kwnameidx = (
                 h64debugsymbols_AttributeNameToAttributeNameId(
                     rinfo->pr->program->symbols,
                     callexpr->inlinecall.arguments.arg_name[i],
                     0, 0
                 ));
-            if (kwnameidx < 0) {
-                char buf[256];
-                snprintf(buf, sizeof(buf) - 1,
-                    "unknown keyword argument \"%s\" "
-                    "will cause runtime error with this function",
-                    callexpr->inlinecall.arguments.arg_name[i]
-                );
-                if (!result_AddMessage(
-                        &rinfo->ast->resultmsg,
-                        H64MSG_WARNING, buf,
-                        rinfo->ast->fileuri, rinfo->ast->fileurilen,
-                        callexpr->line, callexpr->column
-                        )) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
+                if (kwnameidx < 0) {
+                    char buf[256];
+                    snprintf(buf, sizeof(buf) - 1,
+                        "unknown keyword argument \"%s\" "
+                        "will cause runtime error with this function",
+                        callexpr->inlinecall.arguments.arg_name[i]
+                    );
+                    if (!result_AddMessage(
+                            &rinfo->ast->resultmsg,
+                            H64MSG_WARNING, buf,
+                            rinfo->ast->fileuri, rinfo->ast->fileurilen,
+                            callexpr->line, callexpr->column
+                            )) {
+                        rinfo->hadoutofmemory = 1;
+                        if (alloc_heap)
+                            free(arg_kwsortinfo);
+                        return 0;
+                    }
+                    // Unknown keyword arg, so hardcode an error:
+                    const char errmsg[] = (
+                        "called func does not recognize all passed "
+                        "keyword arguments"
+                    );
+                    h64wchar *msg = NULL;
+                    int64_t msglen = 0;
+                    msg = utf8_to_utf32(
+                        errmsg, strlen(errmsg), NULL, NULL, &msglen
+                    );
+                    if (!msg) {
+                        rinfo->hadoutofmemory = 1;
+                        if (alloc_heap)
+                            free(arg_kwsortinfo);
+                        return 0;
+                    }
+                    int temp2 = new1linetemp(
+                        func, callexpr, 0
+                    );
+                    h64instruction_setconst inst_str = {0};
+                    inst_str.type = H64INST_SETCONST;
+                    inst_str.slot = temp2;
+                    inst_str.content.type = H64VALTYPE_CONSTPREALLOCSTR;
+                    inst_str.content.constpreallocstr_len = msglen;
+                    inst_str.content.constpreallocstr_value = msg;
+                    if (!appendinst(
+                            rinfo->pr->program, func,
+                            callexpr->inlinecall.arguments.arg_value[i],
+                            &inst_str
+                            )) {
+                        rinfo->hadoutofmemory = 1;
+                        free(msg);
+                        if (alloc_heap)
+                            free(arg_kwsortinfo);
+                        return 0;
+                    }
+                    h64instruction_raise inst_raise = {0};
+                    inst_raise.type = H64INST_RAISE;
+                    inst_raise.error_class_id = H64STDERROR_ARGUMENTERROR;
+                    inst_raise.sloterrormsgobj = temp2;
+                    if (!appendinst(
+                            rinfo->pr->program, func,
+                            callexpr->inlinecall.arguments.arg_value[i],
+                            &inst_raise
+                            )) {
+                        rinfo->hadoutofmemory = 1;
+                        if (alloc_heap)
+                            free(arg_kwsortinfo);
+                        return 0;
+                    }
+                    return 1;
                 }
-                // Unknown keyword arg, so hardcode an error:
-                const char errmsg[] = (
-                    "called func does not recognize all passed "
-                    "keyword arguments"
-                );
-                h64wchar *msg = NULL;
-                int64_t msglen = 0;
-                msg = utf8_to_utf32(
-                    errmsg, strlen(errmsg), NULL, NULL, &msglen
-                );
-                if (!msg) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-                int temp2 = new1linetemp(
-                    func, callexpr, 0
-                );
-                h64instruction_setconst inst_str = {0};
-                inst_str.type = H64INST_SETCONST;
-                inst_str.slot = temp2;
-                inst_str.content.type = H64VALTYPE_CONSTPREALLOCSTR;
-                inst_str.content.constpreallocstr_len = msglen;
-                inst_str.content.constpreallocstr_value = msg;
-                if (!appendinst(
-                        rinfo->pr->program, func,
-                        callexpr->inlinecall.arguments.arg_value[i],
-                        &inst_str
-                        )) {
-                    rinfo->hadoutofmemory = 1;
-                    free(msg);
-                    return 0;
-                }
-                h64instruction_raise inst_raise = {0};
-                inst_raise.type = H64INST_RAISE;
-                inst_raise.error_class_id = H64STDERROR_ARGUMENTERROR;
-                inst_raise.sloterrormsgobj = temp2;
-                if (!appendinst(
-                        rinfo->pr->program, func,
-                        callexpr->inlinecall.arguments.arg_value[i],
-                        &inst_raise
-                        )) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-            } else {
-                h64instruction_setconst inst_setconst = {0};
-                inst_setconst.type = H64INST_SETCONST;
-                inst_setconst.slot = _argtemp;
-                inst_setconst.content.type = H64VALTYPE_INT64;
-                inst_setconst.content.int_value = kwnameidx;
-                if (!appendinst(
-                        rinfo->pr->program, func, callexpr,
-                        &inst_setconst)) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
-                _argtemp++;
-                _settop_inst(rinfo, func, callsettop_offset)->topto++;
-                h64instruction_valuecopy inst_vc = {0};
-                inst_vc.type = H64INST_VALUECOPY;
-                inst_vc.slotto = _argtemp;
-                inst_vc.slotfrom = (
-                    callexpr->inlinecall.arguments.arg_value[i]->
-                        storage.eval_temp_id);
-                assert(inst_vc.slotto >= 0);
-                assert(inst_vc.slotfrom >= 0);
-                _argtemp++;
-                _settop_inst(rinfo, func, callsettop_offset)->topto++;
-                if (!appendinst(
-                        rinfo->pr->program, func, callexpr,
-                        &inst_vc)) {
-                    rinfo->hadoutofmemory = 1;
-                    return 0;
-                }
+                arg_kwsortinfo[i].kwnameindex = kwnameidx;
             }
-        } else if (i + 1 < callexpr->inlinecall.arguments.arg_count &&
-                callexpr->inlinecall.arguments.arg_name[i]) {
-            ismultiarg = 1;
+            i++;
         }
-        if (!_reachedkwargs) {
+        // Ok we collected it all, now sort it;
+        if (kwargs_start_slot >= 0) {
+            int kwargs_count = (
+                callexpr->inlinecall.arguments.arg_count -
+                kwargs_start_slot
+            );
+            assert(kwargs_count > 0);
+            int sortresult = itemsort_Do(
+                &arg_kwsortinfo[kwargs_start_slot],
+                kwargs_count * sizeof(
+                    arg_kwsortinfo[kwargs_start_slot]
+                ), sizeof(
+                    arg_kwsortinfo[kwargs_start_slot]
+                ), &_compare_kw_args
+            );
+            assert(sortresult != 0);
+        }
+    }
+    // Now that kw args are sorted, emit in-order arguments:
+    int i = 0;
+    while (i < callexpr->inlinecall.arguments.arg_count) {
+        if (arg_kwsortinfo[i].kwnameindex >= 0)
+            _reachedkwargs = 1;
+        if (_reachedkwargs) {
+            kwargcount++;
+            int64_t kwnameidx = arg_kwsortinfo[i].kwnameindex;
+            assert(kwnameidx >= 0);
+            h64instruction_setconst inst_setconst = {0};
+            inst_setconst.type = H64INST_SETCONST;
+            inst_setconst.slot = _argtemp;
+            inst_setconst.content.type = H64VALTYPE_INT64;
+            inst_setconst.content.int_value = kwnameidx;
+            if (!appendinst(
+                    rinfo->pr->program, func, callexpr,
+                    &inst_setconst)) {
+                rinfo->hadoutofmemory = 1;
+                if (alloc_heap)
+                    free(arg_kwsortinfo);
+                return 0;
+            }
+            _argtemp++;
+            _settop_inst(rinfo, func, callsettop_offset)->topto++;
+            h64instruction_valuecopy inst_vc = {0};
+            inst_vc.type = H64INST_VALUECOPY;
+            inst_vc.slotto = _argtemp;
+            inst_vc.slotfrom = (
+                callexpr->inlinecall.arguments.arg_value[
+                    arg_kwsortinfo[i].callargno
+                ]->storage.eval_temp_id);
+            assert(inst_vc.slotto >= 0);
+            assert(inst_vc.slotfrom >= 0);
+            _argtemp++;
+            _settop_inst(rinfo, func, callsettop_offset)->topto++;
+            if (!appendinst(
+                    rinfo->pr->program, func, callexpr,
+                    &inst_vc)) {
+                rinfo->hadoutofmemory = 1;
+                if (alloc_heap)
+                    free(arg_kwsortinfo);
+                return 0;
+            }
+        } else {
             posargcount++;
             h64instruction_valuecopy inst_vc = {0};
             inst_vc.type = H64INST_VALUECOPY;
@@ -704,6 +776,8 @@ static int _codegen_call_to(
                     rinfo->pr->program, func, callexpr,
                     &inst_vc)) {
                 rinfo->hadoutofmemory = 1;
+                if (alloc_heap)
+                    free(arg_kwsortinfo);
                 return 0;
             }
             if (callexpr->inlinecall.expand_last_posarg) {
@@ -712,6 +786,10 @@ static int _codegen_call_to(
         }
         i++;
     }
+    if (alloc_heap)
+        free(arg_kwsortinfo);
+    arg_kwsortinfo = NULL;
+    // Ok, now we got arguments done so do actual call:
     int maxslotsused = _argtemp - (
         func->funcdef._storageinfo->lowest_guaranteed_free_temp
     );

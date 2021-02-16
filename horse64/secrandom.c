@@ -1,9 +1,10 @@
-// Copyright (c) 2020, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
+// Copyright (c) 2020-2021, ellie/@ell1e & Horse64 Team (see AUTHORS.md),
 // also see LICENSE.md file.
 // SPDX-License-Identifier: BSD-2-Clause
 
 #include "compileconfig.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -140,4 +141,35 @@ int secrandom_GetBytes(char *ptr, size_t amount) {
     memset(ptr, 0, amount);
     return (CryptGenRandom(hProvider, amount, (uint8_t *)ptr) != FALSE);
     #endif
+}
+
+int64_t secrandom_RandIntRange(int64_t min, int64_t max) {
+    int64_t range = max - min;
+    assert(range >= 0);
+    if (range == 0)
+        return min;
+    int64_t safe_modulo_range = (
+        ((int64_t)(INT64_MAX / range)) * range
+    );
+    if (safe_modulo_range <= 0) {
+        assert(range > (INT64_MAX / 3));
+        safe_modulo_range = range;
+    }
+    int64_t i = 0;
+    while (1) {
+        while (!secrandom_GetBytes((char *)&i, sizeof(i))) {
+            // repeat until we get a value.
+        }
+        if (i < safe_modulo_range)
+            break;
+    }
+    return min + (i % range);
+}
+
+int64_t secrandom_RandInt() {
+    int64_t i = 0;
+    while (!secrandom_GetBytes((char *)&i, sizeof(i))) {
+        // repeat until we get a value.
+    }
+    return i;
 }

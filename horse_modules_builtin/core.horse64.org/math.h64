@@ -18,3 +18,7 @@ func sort(container, descend=no, key_func=none) {
     }
     return builtininternals.sort(keys, descend)
 }
+
+func sqrt(value) {
+    return builtininternals.sqrt(value)
+}
