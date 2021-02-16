@@ -3307,7 +3307,8 @@ int ast_CanAddNameToScopeCheck(
                 parsethis->scope->classandfuncnestinglevel &&
                 funcdef_has_parameter_with_name(
                 shadoweduse->declarationexpr,
-                expr->funcdef.name)) {
+                exprname
+                )) {
             forbidden = 1;
             char buf[256];
             char describebuf[64];
