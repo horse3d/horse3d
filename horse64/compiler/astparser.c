@@ -235,15 +235,25 @@ void ast_ParseRecover_FindNextStatement(
         tsinfo *tokenstreaminfo, h64token *tokens,
         int max_tokens_touse, int *k, int flags
         ) {
+    /// This function attemps to find the next statement when
+    /// we got lost (during error recovery). It will return the
+    /// next index that for sure looks like the beginning of
+    /// a statement even after malformed tokens, if in doubt it
+    /// will skip further ahead until it is certain.
+
     ptrdiff_t offset = (tokens - tokenstreaminfo->token);
     assert(offset >= 0);
     int offseti = ((int64_t)offset) / (int64_t)sizeof(*tokens);
     int brackets_depth = 0;
     int i = *k;
     int initiali = i;
+    // Look through all the next tokens to see where a statement starts:
     while (i < max_tokens_touse &&
             i < tokenstreaminfo->token_count - offseti) {
         if (tokens[i].type == H64TK_BRACKET) {
+            // Count bracket depth, so that unless we're 100% sure
+            // something cannot be inside brackets (like "while")
+            // we won't falsely detect a statement start in brackets.
             char c = tokens[i].char_value;
             if (c == '{' || c == '[' || c == '(') {
                 brackets_depth++;
@@ -298,6 +308,9 @@ void ast_ParseRecover_FindNextStatement(
                 tokens[i].type == H64TK_CONSTANT_BOOL ||
                 tokens[i].type == H64TK_CONSTANT_NONE ||
                 tokens[i].type == H64TK_IDENTIFIER) && brackets_depth == 0) {
+            // If this is followed by an identifier, then it can't be
+            // a valid continuation of an inline expression so it's
+            // the next statement.
             int i2 = i + 1;
             if (i2 < tokenstreaminfo->token_count - offseti - 1 &&
                     i2 < max_tokens_touse &&
