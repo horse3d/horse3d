@@ -83,7 +83,8 @@ variables, many type errors and missing attributes, and more.
 
 ### Portable tooling
 
-**Self contained tooling with no SDK dependencies.** Even on Windows,
+**Self contained tooling with no SDK dependencies.** On all [
+supported platforms](./Platform%20Support.md),
 all you need is the horsec binary, and e.g. horp if you want to
 manage packages, and any basic text editor.
 No need for C/C++ compilers, a big IDE, or anything else. (Unless
@@ -140,6 +141,9 @@ deprecated keyword, and other tweaks help keep code maintainable.
 [diverse platforms](./Platform%20Support.md) including Linux also
 including ARM64 embedded, Windows, and FreeBSD (Note: WIP).
 It will likely expand to more platforms in the future.
+
+*Note: some of these names are trademarked. Names belong to
+their respective owners.*
 
 ### What it doesn't do
 

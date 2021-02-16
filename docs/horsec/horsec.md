@@ -18,6 +18,9 @@ platforms](../Platform%20Support.md).
 
 ### Manual build
 
+*Any trademarks mentioned belong to their respective owners, and
+are used under fair use. No affiliation implied.*
+
 You can also fetch the source code and compile `horsec` yourself
 if you prefer your own binaries.
 

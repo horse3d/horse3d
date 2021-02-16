@@ -17,6 +17,8 @@ following platform support in mind:
 |Android ARM64                  |  Tier 4              |
 |iOS ARM64                      |  Tier 4              |
 
+*Note: some of these names are trademarked. All names belong to
+their respective owners. No affiliation implied.*
 
 ## Tiers
 
