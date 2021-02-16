@@ -48,6 +48,7 @@ typedef struct _itemsort_quicksortjob {
         memset(&jobs[jobs_count], 0, sizeof(*jobs));\
         jobs[jobs_count].start = start_idx;\
         jobs[jobs_count].end = end_idx;\
+        jobs_count++;\
     }\
 
 #define SORT_GETITEM(idx) \
