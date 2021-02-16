@@ -1,0 +1,19 @@
+
+func f1(kw1=none, kw2=none) {
+    print(kw1)
+    print(kw2)
+}
+
+func f2(kw2=none, kw1=none) {
+    print(kw1)
+    print(kw2)
+}
+
+func main {
+    f1(kw1=1, kw2=2)
+    f1(kw2=1, kw1=2)
+    f2(kw1=1, kw2=2)
+    f2(kw2=1, kw1=2)
+}
+
+# expected return value: 0
