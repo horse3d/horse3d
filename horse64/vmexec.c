@@ -4108,7 +4108,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     p - pr->func[func_id].instructions
                 ) + skipbytes;
                 if (!pushfuncframe(vmthread, varinit_func_id,
-                        new_func_floor - 1, func_id, offset,
+                        -1, func_id, offset,
                         new_func_floor
                         )) {
                     goto triggeroom;
