@@ -415,13 +415,20 @@ int corelib_containercontains(  // $$builtin.$$container_contains
     assert(vc->type == H64VALTYPE_GCVAL);
     h64gcvalue *gcvalue = (h64gcvalue *)vc->ptr_value;
     int result = 0;
+    int inneroom = 0;
     if (gcvalue->type == H64GCVALUETYPE_LIST) {
         result = vmlist_Contains(gcvalue->list_values,
-            STACK_ENTRY(vmthread->stack, 0)
+            STACK_ENTRY(vmthread->stack, 0), &inneroom
         );
     } else if (gcvalue->type == H64GCVALUETYPE_MAP) {
         result = vmmap_Contains(gcvalue->map_values,
-            STACK_ENTRY(vmthread->stack, 0)
+            STACK_ENTRY(vmthread->stack, 0), &inneroom
+        );
+    }
+    if (!result && inneroom) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OUTOFMEMORYERROR,
+            "out of memory while checking contains"
         );
     }
 

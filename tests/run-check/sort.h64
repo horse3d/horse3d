@@ -2,10 +2,14 @@
 import math from core.horse64.org
 
 func main {
+    # Verify list comparisons work:
     var l1 = [1, 2]
     var l2 = [1]
+    assert(l1 != l2)
     l2.add(2)
     assert(l1 == l2)
+
+    # Test sorting:
     var v = [2, 4, 3, 3, 1]
     var vsorted = math.sort(v)
     assert(v.len == v.sorted)

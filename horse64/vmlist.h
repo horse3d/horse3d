@@ -107,7 +107,7 @@ int vmlist_Set(
 
 int vmlist_Remove(genericlist *l, int64_t index);
 
-int vmlist_Contains(genericlist *l, valuecontent *v);
+int vmlist_Contains(genericlist *l, valuecontent *v, int *oom);
 
 int vmmap_IterateValues(
     genericlist *l, void *userdata,

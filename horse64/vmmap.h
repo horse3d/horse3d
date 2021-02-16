@@ -31,12 +31,13 @@ int vmmap_Set(
     genericmap *m, valuecontent *key, valuecontent *value
 );
 
-int vmmap_Remove(genericmap *m, valuecontent *key);
+int vmmap_Remove(genericmap *m, valuecontent *key, int *oom);
 
-int vmmap_Contains(genericmap *m, valuecontent *key);
+int vmmap_Contains(genericmap *m, valuecontent *key, int *oom);
 
 int vmmap_Get(
-    genericmap *m, valuecontent *key, valuecontent *value
+    genericmap *m, valuecontent *key, valuecontent *value,
+    int *oom
 );
 
 valuecontent *vmmap_GetPair(

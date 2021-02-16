@@ -764,10 +764,18 @@ inst_binop: {
                     H64GCVALUETYPE_MAP
                     )) {
                 valuecontent v = {0};
+                int inneroom = 0;
                 if (!vmmap_Get(
                         ((h64gcvalue *)v1->ptr_value)->map_values,
-                        v2, &v
+                        v2, &v, &inneroom
                         )) {
+                    if (inneroom) {
+                        RAISE_ERROR(
+                            H64STDERROR_INDEXERROR,
+                            "out of memory while indexing map"
+                        );
+                        goto *jumptable[((h64instructionany *)p)->type];
+                    }
                     RAISE_ERROR(
                         H64STDERROR_INDEXERROR,
                         "key not found in map"

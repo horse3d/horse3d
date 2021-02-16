@@ -171,7 +171,10 @@ int vmexec_ValueEqualityCheck(
         ATTR_UNUSED h64vmthread *vt, valuecontent *v1,
         valuecontent *v2, int *result
         ) {
-    *result = valuecontent_CheckEquality(v1, v2);
+    int oom = 0;
+    *result = valuecontent_CheckEquality(v1, v2, &oom);
+    if (!*result && oom)
+        return 0;
     return 1;
 }
 
@@ -3116,13 +3119,20 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 ADDREF_NONHEAP(vcresult);
             } else if (iter->iterated_gcvalue->type ==
                     H64GCVALUETYPE_MAP) {
+                int inneroom = 0;
                 int result = vmmap_Get(
                     iter->iterated_gcvalue->map_values,
                     vmmap_GetKeyByIdx(
                         iter->iterated_gcvalue->map_values,
                         iter->idx
-                    ), vcresult
+                    ), vcresult, &inneroom
                 );
+                if (!result) {
+                    assert(inneroom != 0);
+                    RAISE_ERROR(H64STDERROR_OUTOFMEMORYERROR,
+                        "out of memory while iterating map");
+                    goto *jumptable[((h64instructionany *)p)->type];
+                }
                 assert(result != 0);
                 ADDREF_NONHEAP(vcresult);
             } else {

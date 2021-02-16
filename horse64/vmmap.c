@@ -103,9 +103,9 @@ void _vmmap_ClearBuckets(genericmap *map) {
 }
 
 int vmmap_Contains(
-        genericmap *m, valuecontent *key
+        genericmap *m, valuecontent *key, int *oom
         ) {
-    return vmmap_Get(m, key, NULL);
+    return vmmap_Get(m, key, NULL, oom);
 }
 
 int vmmap_IteratePairs(
@@ -141,18 +141,24 @@ int vmmap_IteratePairs(
 }
 
 int vmmap_Get(
-        genericmap *m, valuecontent *key, valuecontent *value
+        genericmap *m, valuecontent *key, valuecontent *value,
+        int *oom
         ) {
     uint32_t hash = valuecontent_Hash(key);
     if ((m->flags & GENERICMAP_FLAG_LINEAR) != 0) {
         int i = 0;
         while (i < m->linear.entry_count) {
-            if (m->linear.entry_hash[i] == hash &&
-                    valuecontent_CheckEquality(
-                    key, &m->linear.key[i])) {
+            int inneroom = 0;
+            if (unlikely(m->linear.entry_hash[i] == hash) &&
+                    likely(valuecontent_CheckEquality(
+                    key, &m->linear.key[i], &inneroom))) {
                 if (value)
                     memcpy(value, &m->linear.entry[i], sizeof(*value));
                 return 1;
+            }
+            if (unlikely(inneroom)) {
+                *oom = 1;
+                return 0;
             }
             i++;
         }
@@ -163,27 +169,36 @@ int vmmap_Get(
         genericmapbucket *b = &m->hashed.bucket[bucket];
         int i = 0;
         while (i < b->entry_count) {
-            if (b->entry_hash[i] == hash &&
+            int inneroom = 0;
+            if (likely(b->entry_hash[i] == hash &&
                     valuecontent_CheckEquality(
-                    key, &b->key[i])) {
+                    key, &b->key[i], &inneroom))) {
                 return 1;
+            }
+            if (unlikely(inneroom)) {
+                *oom = 1;
+                return 0;
             }
             i++;
         }
     }
+    *oom = 0;
     return 0;
 }
 
 int _vmmap_RemoveByHash(
-        genericmap *m, uint32_t hash, valuecontent *key
+        genericmap *m, uint32_t hash, valuecontent *key,
+        int *oom
         ) {
     int found = 0;
     if ((m->flags & GENERICMAP_FLAG_LINEAR) != 0) {
         int i = 0;
         while (i < m->linear.entry_count) {
+            int inneroom = 0;
             if (m->linear.entry_hash[i] == hash &&
                     valuecontent_CheckEquality(
-                    key, &m->linear.key[i])) {
+                    key, &m->linear.key[i],
+                    &inneroom)) {
                 found = 1;
                 DELREF_HEAP(&m->linear.entry[i]);
                 valuecontent_Free(&m->linear.entry[i]);
@@ -198,6 +213,10 @@ int _vmmap_RemoveByHash(
                 m->contentrevisionid++;
                 continue;
             }
+            if (unlikely(inneroom)) {
+                *oom = 1;
+                return 0;
+            }
             i++;
         }
     } else {
@@ -207,9 +226,10 @@ int _vmmap_RemoveByHash(
         genericmapbucket *b = &m->hashed.bucket[bucket];
         int i = 0;
         while (i < b->entry_count) {
+            int inneroom = 0;
             if (b->entry_hash[i] == hash &&
                     valuecontent_CheckEquality(
-                    key, &b->key[i])) {
+                    key, &b->key[i], &inneroom)) {
                 found = 1;
                 DELREF_HEAP(&b->entry[i]);
                 valuecontent_Free(&b->entry[i]);
@@ -224,17 +244,24 @@ int _vmmap_RemoveByHash(
                 m->contentrevisionid++;
                 continue;
             }
+            if (unlikely(inneroom)) {
+                *oom = 1;
+                return 0;
+            }
             i++;
         }
     }
+    *oom = 0;
     return found;
 }
 
-int vmmap_Remove(genericmap *m, valuecontent *key) {
-    if (!m)
+int vmmap_Remove(genericmap *m, valuecontent *key, int *oom) {
+    if (!m) {
+        *oom = 0;
         return 0;
+    }
     uint32_t hash = valuecontent_Hash(key);
-    return _vmmap_RemoveByHash(m, hash, key);
+    return _vmmap_RemoveByHash(m, hash, key, oom);
 }
 
 valuecontent *vmmap_GetKeyByIdx(genericmap *m, int64_t idx) {
@@ -278,7 +305,12 @@ int vmmap_Set(
     if (!m)
         return 0;
     uint32_t hash = valuecontent_Hash(key);
-    vmmap_Remove(m, key);
+    int inneroom = 0;
+    if (!vmmap_Remove(m, key, &inneroom)) {
+        if (unlikely(inneroom)) {
+            return 0;
+        }
+    }
     if ((m->flags & GENERICMAP_FLAG_LINEAR) != 0) {
         int64_t c = vmmap_Count(m);
         if (c + 1 < GENERICMAP_MIGRATE_HASHED) {

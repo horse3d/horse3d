@@ -11,6 +11,7 @@
 
 #include "bytecode.h"
 #include "gcvalue.h"
+#include "hash.h"
 #include "nonlocale.h"
 #include "poolalloc.h"
 #include "valuecontentstruct.h"
@@ -319,10 +320,24 @@ uint32_t valuecontent_Hash(
     return _valuecontent_Hash_Do(v, 0);
 }
 
+int valuecontent_CheckContainerEquality(
+        valuecontent *v1, valuecontent *v2, int *oom
+        ) {
+    if (oom) *oom = 0;
+    hashmap *seen = hash_NewBytesMap(128);
+    if (!seen) {
+        if (oom) *oom = 1;
+        return 0;
+    }
+
+    // FIXME.
+    return 0;
+}
 
 int valuecontent_CheckEquality(
-        valuecontent *v1, valuecontent *v2
+        valuecontent *v1, valuecontent *v2, int *oom
         ) {
+    if (oom) *oom = 0;
     if (likely((v1->type != H64VALTYPE_INT64 &&
             v1->type != H64VALTYPE_FLOAT64) ||
             (v2->type != H64VALTYPE_INT64 &&
@@ -373,7 +388,10 @@ int valuecontent_CheckEquality(
             return 1;
         } else {
             // Remaining cases:
-            if (v1->type != v2->type) {
+            if (v1->type != v2->type || (
+                    v1->type == H64VALTYPE_GCVAL &&
+                    ((h64gcvalue *)v1->ptr_value)->type !=
+                    ((h64gcvalue *)v2->ptr_value)->type)) {
                 return 0;
             } else if (v1->type == H64VALTYPE_BOOL) {
                 return (
@@ -383,6 +401,16 @@ int valuecontent_CheckEquality(
                 return 1;
             } else if (v1->type == H64VALTYPE_UNSPECIFIED_KWARG) {
                 return (v2->type == H64VALTYPE_UNSPECIFIED_KWARG);
+            } else if (v1->type == H64VALTYPE_GCVAL && (
+                    ((h64gcvalue *)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_LIST ||
+                    ((h64gcvalue *)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_MAP ||
+                    ((h64gcvalue *)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_OBJINSTANCE)) {
+                h64fprintf(stderr, "FIXME: do this\n");
+                _exit(1);
+                return 0;
             } else {
                 // Shouldn't be hit, at least once we're done
                 // FIXME: will still be hit for now

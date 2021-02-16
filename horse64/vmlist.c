@@ -49,15 +49,21 @@ int vmmap_IterateValues(
     return 1;
 }
 
-int vmlist_Contains(genericlist *l, valuecontent *v) {
+int vmlist_Contains(genericlist *l, valuecontent *v, int *oom) {
+    *oom = 0;
     listblock *block = l->first_block;
     while (block) {
         int i = 0;
         while (i < block->entry_count) {
+            int inneroom = 0;
             if (valuecontent_CheckEquality(
-                    v, &block->entry_values[i]
+                    v, &block->entry_values[i], &inneroom
                     ))
                 return 1;
+            if (inneroom) {
+                *oom = 1;
+                return 0;
+            }
             i++;
         }
         block = block->next_block;
