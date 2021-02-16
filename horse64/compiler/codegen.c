@@ -618,7 +618,8 @@ static int _codegen_call_to(
             if (!callexpr->inlinecall.arguments.arg_name[i]) {
                 arg_kwsortinfo[i].kwnameindex = -1;
             } else {
-                kwargs_start_slot = i;
+                if (kwargs_start_slot < 0)
+                    kwargs_start_slot = i;
                 int64_t kwnameidx = (
                 h64debugsymbols_AttributeNameToAttributeNameId(
                     rinfo->pr->program->symbols,
