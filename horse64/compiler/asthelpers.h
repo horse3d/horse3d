@@ -7,6 +7,8 @@
 
 #include "compileconfig.h"
 
+#include <assert.h>
+
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 #include "compiler/scope.h"
@@ -108,6 +110,8 @@ ATTR_UNUSED static int isexprchildof(
 
 ATTR_UNUSED static int funcdef_has_parameter_with_name(
         h64expression *expr, const char *name) {
+    assert(expr != NULL);
+    assert(name != NULL);
     if (expr->type == H64EXPRTYPE_FUNCDEF_STMT
             || expr->type == H64EXPRTYPE_INLINEFUNCDEF) {
         int i = 0;

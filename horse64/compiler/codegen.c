@@ -720,11 +720,7 @@ static int _codegen_call_to(
         func->funcdef._storageinfo->codegen.max_extra_stack = (
             maxslotsused
         );
-    int temp = resulttemp;
-    if (temp < 0) {
-        rinfo->hadoutofmemory = 1;
-        return 0;
-    }
+    int temp = resulttemp;  // may be -1
     if (ignoreifnone) {
         h64instruction_callignoreifnone inst_call = {0};
         inst_call.type = H64INST_CALLIGNOREIFNONE;
@@ -758,7 +754,7 @@ static int _codegen_call_to(
             return 0;
         }
     }
-    callexpr->storage.eval_temp_id = temp;
+    callexpr->storage.eval_temp_id = temp;  // allowed to be -1!
     return 1;
 }
 
