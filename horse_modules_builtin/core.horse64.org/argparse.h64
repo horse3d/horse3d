@@ -162,24 +162,24 @@ func get_usage_text(options) {
     return output
 }
 
-func parse(argument_defs, arg_array=none) {
+func parse(argument_defs, args=none) {
     if not has_attr(argument_defs, "max_positional_args") {
         raise new TypeError(
             "argument_defs must have the "
             "argparse.ArgumentDefs attributes"
         )
     }
-    if arg_array == none {
-        arg_array = process.args
+    if args == none {
+        args = process.args
     }
     var result = new ParseResult()
-    var args = {->}
+    var result_args = {->}
     var posargs_seen = 0
 
     # Extract all arguments:
     var i = 0
-    while i < arg_array.len {
-        var argstr = arg_array[i]
+    while i < args.len {
+        var argstr = args[i]
         if not argstr.starts("-") {
             # Positional argument. See if we reached maximum:
             if posargs_seen + 1 > argument_defs.max_positional_args {
@@ -198,7 +198,7 @@ func parse(argument_defs, arg_array=none) {
                 argument_defs.get_nth_posarg(posargs_seen + 1)
             )
             assert(target_arg != none)
-            args[target_arg.name] = argstr
+            result_args[target_arg.name] = argstr
         } else {
             # Special handling for --help:
             if argstr == "--help" {
@@ -206,7 +206,7 @@ func parse(argument_defs, arg_array=none) {
                 result.output_exit_code = 0
                 return result
             }
-            # See if we can find out the arg this matches:
+            # See if we can find out the arg def this matches:
             var target_arg = argument_defs.get_namedarg(argstr)
             if target_arg == none {
                 result.output += argument_defs.program_name + ": error: "
@@ -221,8 +221,8 @@ func parse(argument_defs, arg_array=none) {
             # If this named arg takes a parameter, check that it's
             # following:
             if target_arg.takes_str {
-                if i + 1 > arg_array.len or
-                        arg_array[i + 1].starts("-") {
+                if i + 1 > args.len or
+                        args[i + 1].starts("-") {
                     result.output += argument_defs.program_name + ": error: "
                         "option is missing argument: " + argstr + "\n"
                     result.output += (
@@ -232,8 +232,11 @@ func parse(argument_defs, arg_array=none) {
                     result.output_exit_code = -1
                     return result
                 }
+                result_args[target_arg.name] = args[i + 1]
+                i += 2
+                continue
             }
-            args[target_arg.name] = argstr
+            result_args[target_arg.name] = yes
         }
         i += 1
     }
@@ -241,13 +244,13 @@ func parse(argument_defs, arg_array=none) {
     for arg in argument_defs.args {
         if not result.args.contains(arg) {
             if result.args.takes_str {
-                args[arg] = none
+                result_args[arg] = none
             } else {
-                args[arg] = no
+                result_args[arg] = no
             }
         }
     }
-    result.args = args
+    result.args = result_args
     result.success = yes
     return result
 }
