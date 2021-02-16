@@ -58,9 +58,9 @@ Numbers internally will be either integer or floats allowing a
 larger precision for higher range integers than in languages that use
 64bit floats only like JavaScript/NodeJS.
 
-### Unicode
+### Unicode Encodings
 
-**Unicode as a first class citizen.** Strings do indexing,
+**Unicode encodings as a first class citizen.** Strings do indexing,
 sub string, and length computations based on glyph boundaries
 rather than code points. Even e.g. complex emojis glyphs
 are understood as a length of one:
@@ -71,6 +71,8 @@ func main {
     print("String length: " + flag.len.as_str)  # Prints: "String length: 1"
 }
 ```
+
+*Note: Unicode(R) is a registered trademark. No affiliation implied.*
 
 ### Compile checks
 
