@@ -188,6 +188,85 @@ int builtininternals_sort(h64vmthread *vmthread) {
     return 1;
 }
 
+int builtininternals_pow(h64vmthread *vmthread) {
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    valuecontent *input = STACK_ENTRY(vmthread->stack, 0);
+    if (input->type != H64VALTYPE_INT64 &&
+            input->type != H64VALTYPE_FLOAT64) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "base must be number"
+        );
+    }
+    valuecontent *input2 = STACK_ENTRY(vmthread->stack, 0);
+    if (input2->type != H64VALTYPE_INT64 &&
+            input2->type != H64VALTYPE_FLOAT64) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "exponent must be number"
+        );
+    }
+    if (input->type == H64VALTYPE_INT64 &&
+            input2->type == H64VALTYPE_INT64 &&
+            input2->int_value >= 1) {
+        // Special manual int64_t path:
+        int64_t base = input->int_value;
+        int64_t result = base;
+        int64_t i = 1;
+        while (i < input2->int_value) {
+            int64_t new = result * base;
+            if (new / base != result) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_OVERFLOWERROR,
+                    "number range overflow"
+                );
+            }
+            result = new;
+            i++;
+        }
+        valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+        DELREF_NONHEAP(vcresult);
+        valuecontent_Free(vcresult);
+        vcresult->type = H64VALTYPE_INT64;
+        vcresult->int_value = result;
+    }
+    double vbase = (
+        input->type == H64VALTYPE_INT64 ?
+        ((double)input->int_value) : input->float_value
+    );
+    double vexp = (
+        input->type == H64VALTYPE_INT64 ?
+        ((double)input->int_value) : input->float_value
+    );
+    double result = pow(vbase, vexp);
+    if (unlikely(isnan(result))) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_MATHERROR,
+            "result cannot be represented"
+        );
+    }
+    if (isinf(result) ||
+            result >= (double)INT64_MAX ||
+            // ^ reminder: double rounds to INT64_MAX + 1
+            result < (double)INT64_MIN) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_OVERFLOWERROR,
+            "number range overflow"
+        );
+    }
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vcresult);
+    vcresult->type = H64VALTYPE_FLOAT64;
+    vcresult->float_value = result;
+    if (round(result) == result) {
+        vcresult->type = H64VALTYPE_INT64;
+        vcresult->int_value = round(result);
+    }
+    return 1;
+}
+
 int builtininternals_sqrt(h64vmthread *vmthread) {
     assert(STACK_TOP(vmthread->stack) >= 1);
 
@@ -219,7 +298,7 @@ int builtininternals_sqrt(h64vmthread *vmthread) {
             result < (double)INT64_MIN) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OVERFLOWERROR,
-            "result exceeds numeric range"
+            "number range overflow"
         );
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
@@ -227,6 +306,10 @@ int builtininternals_sqrt(h64vmthread *vmthread) {
     valuecontent_Free(vcresult);
     vcresult->type = H64VALTYPE_FLOAT64;
     vcresult->float_value = result;
+    if (round(result) == result) {
+        vcresult->type = H64VALTYPE_INT64;
+        vcresult->int_value = round(result);
+    }
     return 1;
 }
 
@@ -252,6 +335,18 @@ int builtininternalslib_RegisterFuncsAndModules(h64program *p) {
     idx = h64program_RegisterCFunction(
         p, "sqrt", &builtininternals_sqrt,
         NULL, 0, 1, builtininternals_sqrt_kw_arg_name,  // fileuri, args
+        "builtininternals", "core.horse64.org", 1, -1
+    );
+    if (idx < 0)
+        return 0;
+
+    // builtininternals.pow:
+    const char *builtininternals_pow_kw_arg_name[] = {
+        NULL
+    };
+    idx = h64program_RegisterCFunction(
+        p, "pow", &builtininternals_sqrt,
+        NULL, 0, 2, builtininternals_pow_kw_arg_name,  // fileuri, args
         "builtininternals", "core.horse64.org", 1, -1
     );
     if (idx < 0)
