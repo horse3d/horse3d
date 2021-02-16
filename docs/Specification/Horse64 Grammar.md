@@ -71,7 +71,7 @@ stmt ::= toplevelstmt | callstmt | assignstmt |
          ifstmt | whilestmt | forstmt | withstmt |
          dorescuefinallystmt | vardefstmt | asyncstmt |
          awaitstmt
-vardefprops ::= "protect"? "deprecated"?
+vardefprops ::= "protect"? "equals"? "deprecated"?
 vardefstmt ::= "var" identifier vardefprops? |
                "var" identifier vardefprops? '=' "async"? expr |
                "const" identifier vardefprops? |
