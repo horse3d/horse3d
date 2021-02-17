@@ -1685,6 +1685,8 @@ int _codegencallback_DoCodegen_visit_out(
         inst_binop.slotto = temp;
         inst_binop.arg1slotfrom = expr->op.value1->storage.eval_temp_id;
         inst_binop.arg2slotfrom = expr->op.value2->storage.eval_temp_id;
+        assert(inst_binop.arg1slotfrom >= 0);
+        assert(inst_binop.arg2slotfrom >= 0);
         if (!appendinst(
                 rinfo->pr->program, func, expr, &inst_binop
                 )) {
