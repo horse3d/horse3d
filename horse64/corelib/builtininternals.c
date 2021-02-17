@@ -238,8 +238,8 @@ int builtininternals_pow(h64vmthread *vmthread) {
         ((double)input->int_value) : input->float_value
     );
     double vexp = (
-        input->type == H64VALTYPE_INT64 ?
-        ((double)input->int_value) : input->float_value
+        input2->type == H64VALTYPE_INT64 ?
+        ((double)input2->int_value) : input2->float_value
     );
     double result = pow(vbase, vexp);
     if (unlikely(isnan(result))) {
