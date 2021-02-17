@@ -12,6 +12,7 @@
 #include "compiler/ast.h"
 #include "compiler/astparser.h"
 #include "compiler/compileproject.h"
+#include "compiler/main.h"
 #include "mainpreinit.h"
 #include "filesys32.h"
 #include "vfs.h"
@@ -24,6 +25,7 @@
 void _parsetest_do(const char *testcode, int expectOK) {
     main_PreInit();
 
+    h64misccompileroptions moptions = {0};
     h64compilewarnconfig wconfig;
     memset(&wconfig, 0, sizeof(wconfig));
     warningconfig_Init(&wconfig);
@@ -32,7 +34,7 @@ void _parsetest_do(const char *testcode, int expectOK) {
     h64wchar *cwd = filesys32_GetCurrentDirectory(&cwdlen);
     assert(cwd != NULL);
     h64compileproject *project = compileproject_New(
-        cwd, cwdlen
+        cwd, cwdlen, &moptions
     );
     free(cwd);
     assert(project != NULL);
@@ -53,7 +55,7 @@ void _parsetest_do(const char *testcode, int expectOK) {
     h64ast *ast = NULL;
     ck_assert(compileproject_GetAST(
         project, _testdata_txt_name, _testdata_txt_name_len,
-        &ast, &error
+        &moptions, &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     if (expectOK) {

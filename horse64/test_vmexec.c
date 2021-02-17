@@ -42,6 +42,8 @@ void runprog(
     assert(written == (ssize_t)strlen(prog));
     fclose(tempfile);
 
+    h64misccompileroptions moptions = {0};
+
     // Parse file uri:
     h64wchar *fileuri = NULL;
     int64_t fileurilen = 0;
@@ -58,18 +60,20 @@ void runprog(
     int64_t project_folder_uri_len = 0;
     h64wchar *project_folder_uri = NULL;
     project_folder_uri = compileproject_FolderGuess(
-        fileuri, fileurilen, 1, &project_folder_uri_len, &error
+        fileuri, fileurilen, 1, &moptions,
+        &project_folder_uri_len, &error
     );
     assert(project_folder_uri);
     h64compileproject *project = compileproject_New(
-        project_folder_uri, project_folder_uri_len
+        project_folder_uri, project_folder_uri_len, &moptions
     );
     free(project_folder_uri);
     project_folder_uri = NULL;
     assert(project != NULL);
     h64ast *ast = NULL;
     if (!compileproject_GetAST(
-            project, fileuri, fileurilen, &ast, &error
+            project, fileuri, fileurilen, &moptions,
+            &ast, &error
             )) {
         fprintf(stderr, "UNEXPECTED TEST FAIL: %s\n", error);
         free(error);
@@ -77,7 +81,6 @@ void runprog(
         compileproject_Free(project);
         assert(0 && "require ast parse to work");
     }
-    h64misccompileroptions moptions = {0};
     if (!compileproject_CompileAllToBytecode(
             project, &moptions, fileuri, fileurilen, &error
             )) {

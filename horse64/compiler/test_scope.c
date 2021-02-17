@@ -88,7 +88,7 @@ START_TEST (test_scope_import_complex)
     testfolder2_path = NULL;
 
     h64compileproject *project = compileproject_New(
-        testfolder_path, testfolder_pathlen
+        testfolder_path, testfolder_pathlen, &moptions
     );
     assert(project != NULL);
 
@@ -146,7 +146,8 @@ START_TEST (test_scope_import_complex)
     char *error = NULL;
     h64ast *ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, codefile_u32, codefile_u32len, &ast, &error
+        project, codefile_u32, codefile_u32len,
+        &moptions, &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     result = scoperesolver_ResolveAST(
@@ -193,12 +194,13 @@ START_TEST (test_scope_import_complex)
         fclose(f);
     }
     project = compileproject_New(
-        testfolder_path, testfolder_pathlen
+        testfolder_path, testfolder_pathlen, &moptions
     );
     error = NULL;
     ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, codefile_u32, codefile_u32len, &ast, &error
+        project, codefile_u32, codefile_u32len, &moptions,
+        &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(scoperesolver_ResolveAST(
@@ -240,12 +242,13 @@ START_TEST (test_scope_import_complex)
         fclose(f);
     }
     project = compileproject_New(
-        testfolder_path, testfolder_pathlen
+        testfolder_path, testfolder_pathlen, &moptions
     );
     error = NULL;
     ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, codefile_u32, codefile_u32len, &ast, &error
+        project, codefile_u32, codefile_u32len, &moptions,
+        &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(scoperesolver_ResolveAST(
@@ -279,12 +282,13 @@ START_TEST (test_scope_import_complex)
         fclose(f);
     }
     project = compileproject_New(
-        testfolder_path, testfolder_pathlen
+        testfolder_path, testfolder_pathlen, &moptions
     );
     error = NULL;
     ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, codefile_u32, codefile_u32len, &ast, &error
+        project, codefile_u32, codefile_u32len, &moptions,
+        &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(scoperesolver_ResolveAST(
@@ -325,12 +329,13 @@ START_TEST (test_scope_import_complex)
         fclose(f);
     }
     project = compileproject_New(
-        testfolder_path, testfolder_pathlen
+        testfolder_path, testfolder_pathlen, &moptions
     );
     error = NULL;
     ast = NULL;
     ck_assert(compileproject_GetAST(
-        project, codefile_u32, codefile_u32len, &ast, &error
+        project, codefile_u32, codefile_u32len, &moptions,
+        &ast, &error
     ) != 0);
     ck_assert(error == NULL);
     ck_assert(ast->fileuri != NULL);
