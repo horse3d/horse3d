@@ -13,6 +13,7 @@ typedef struct h64compileproject h64compileproject;
 typedef struct h64ast h64ast;
 typedef struct jsonvalue jsonvalue;
 typedef struct h64scopedef h64scopedef;
+typedef struct h64expression h64expression;
 
 int varstorage_AssignLocalStorage(
     h64compileproject *pr, h64ast *ast
