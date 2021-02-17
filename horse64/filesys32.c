@@ -1189,18 +1189,18 @@ h64wchar *filesys32_ParentdirOfItem(
     #if defined(_WIN32) || defined(_WIN64)
     while (plen > 0 && (
             p[plen - 1] == '/' ||
-            p[plen - 1] == '\\'))
+            p[plen - 1] == '\\'))  // trailing slash be gone.
         plen--;
     while (plen > 0 &&
             p[plen - 1] != '/' &&
-            p[plen - 1] != '\\')
+            p[plen - 1] != '\\')  // removes last component.
         plen--;
     #else
     while (plen > 0 &&
-            p[plen - 1] == '/')
+            p[plen - 1] == '/')  // trailing slash be gone.
         plen--;
-    while (plen> 0 &&
-            p[plen - 1] != '/')
+    while (plen > 0 &&
+            p[plen - 1] != '/')  // removes last component
         plen--;
     #endif
     *out_len = plen;

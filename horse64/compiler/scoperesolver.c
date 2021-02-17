@@ -1806,7 +1806,7 @@ int scoperesolver_BuildASTGlobalStorage(
         assert(expr->importstmt.referenced_ast == NULL);
         char *error = NULL;
         if (!compileproject_GetAST(
-                pr, file_path, file_path_len,
+                pr, file_path, file_path_len, miscoptions,
                 &expr->importstmt.referenced_ast, &error
                 )) {
             expr->poisoned = 1;

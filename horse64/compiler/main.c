@@ -144,6 +144,8 @@ static int _compileargparse(
             }
             h64printf(    "  --compiler-stage-debug:  "
                 "Print compiler stages info\n");
+            h64printf(    "  --compile-project-debug:  "
+                "Print compile project info\n");
             if (strcmp(cmd, "run") == 0 || strcmp(cmd, "exec") == 0) {
                 h64printf(
                     "  --vmasyncjobs-debug:     Print async job "
@@ -235,6 +237,11 @@ static int _compileargparse(
                    h64cmp_u32u8(argv[i], argvlen[i],
                        "--import-debug") == 0) {
             miscoptions->import_debug = 1;
+        } else if (strcmp(cmd, "get_tokens") != 0 &&
+                   strcmp(cmd, "get_ast") != 0 &&
+                   h64cmp_u32u8(argv[i], argvlen[i],
+                       "--compile-project-debug") == 0) {
+            miscoptions->compile_project_debug = 1;
         } else if ((strcmp(cmd, "run") == 0 ||
                 strcmp(cmd, "exec") == 0) &&
                 h64cmp_u32u8(argv[i], argvlen[i],
@@ -306,10 +313,12 @@ static int _compileargparse(
             i++;
             continue;
         } else {
+            char *u8argv = AS_U8(argv[i], argvlen[i]);
             h64fprintf(
                 stderr, "horsec: error: %s: unrecognized option: %s\n",
-                cmd, argv[i]
+                cmd, u8argv
             );
+            free(u8argv);
             goto failquit;
         }
         i++;
@@ -579,7 +588,7 @@ int compiler_command_CompileEx(
     h64wchar *project_folder_uri = NULL;
     if (mode != COMPILEEX_MODE_EXEC && !moptions.from_stdin) {
         project_folder_uri = compileproject_FolderGuess(
-            fileuri, fileurilen, 1,
+            fileuri, fileurilen, 1, &moptions,
             &project_folder_uri_len, &error
         );
     } else {
@@ -593,7 +602,7 @@ int compiler_command_CompileEx(
         goto freeanderrorquit;
     }
     h64compileproject *project = compileproject_New(
-        project_folder_uri, project_folder_uri_len
+        project_folder_uri, project_folder_uri_len, &moptions
     );
     free(project_folder_uri);
     project_folder_uri = NULL;
@@ -604,7 +613,7 @@ int compiler_command_CompileEx(
     }
     h64ast *ast = NULL;
     if (!compileproject_GetAST(
-            project, fileuri, fileurilen, &ast, &error
+            project, fileuri, fileurilen, &moptions, &ast, &error
             )) {
         h64fprintf(stderr, "horsec: error: %s: %s\n",
                    command, error);
@@ -1034,7 +1043,8 @@ jsonvalue *compiler_ParseASTToJSON(
 
     int64_t project_folder_uri_len = 0;
     h64wchar *project_folder_uri = compileproject_FolderGuess(
-        fileuri, fileurilen, 1, &project_folder_uri_len, &error
+        fileuri, fileurilen, 1, moptions,
+        &project_folder_uri_len, &error
     );
     if (!project_folder_uri) {
         failedproject: ;
@@ -1070,7 +1080,7 @@ jsonvalue *compiler_ParseASTToJSON(
         return v;
     }
     h64compileproject *project = compileproject_New(
-        project_folder_uri, project_folder_uri_len
+        project_folder_uri, project_folder_uri_len, moptions
     );
     free(project_folder_uri);
     project_folder_uri = NULL;
@@ -1080,7 +1090,7 @@ jsonvalue *compiler_ParseASTToJSON(
         memcpy(&project->warnconfig, wconfig, sizeof(*wconfig));
     h64ast *tast = NULL;
     if (!compileproject_GetAST(
-            project, fileuri, fileurilen, &tast, &error
+            project, fileuri, fileurilen, moptions, &tast, &error
             )) {
         compileproject_Free(project);
         project = NULL;

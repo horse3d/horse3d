@@ -29,10 +29,10 @@
 #include "vfs.h"
 #include "widechar.h"
 
-// #define DEBUG_COMPILEPROJECT
 
 h64compileproject *compileproject_New(
-        const h64wchar *basefolderuri, int64_t basefolderurilen
+        const h64wchar *basefolderuri, int64_t basefolderurilen,
+        h64misccompileroptions *moptions
         ) {
     if (!basefolderuri)
         return NULL;
@@ -53,6 +53,21 @@ h64compileproject *compileproject_New(
         uri32_Free(uinfo);
         free(pr);
         return NULL;
+    }
+    if (moptions->compile_project_debug) {
+        int64_t u32urilen = 0;
+        h64wchar *u32uri = uri32_Dump(
+            uinfo, &u32urilen
+        );
+        char *u8uri = (
+            u32uri ? AS_U8(u32uri, u32urilen) : NULL
+        );
+        fprintf(stderr,
+            "horsec: debug: compileproject_New URI -> %s\n",
+            u8uri
+        );
+        free(u8uri);
+        free(u32uri);
     }
 
     int64_t slen = 0;
@@ -93,9 +108,11 @@ h64compileproject *compileproject_New(
         return NULL;
     }
 
-    #ifdef DEBUG_COMPILEPROJECT
-    h64printf("horsec: debug: compileproject_New -> %p\n", pr);
-    #endif
+    if (moptions->compile_project_debug) {
+        h64printf("horsec: debug: compileproject_New -> "
+            "returning result: "
+            "%p\n", pr);
+    }
 
     return pr;
 }
@@ -300,6 +317,7 @@ uri32info *compileproject_ToProjectRelPathURI(
 int compileproject_GetAST(
         h64compileproject *pr,
         const h64wchar *fileuri, int64_t fileurilen,
+        h64misccompileroptions *moptions,
         h64ast **out_ast, char **error
         ) {
     int relfileoom = 0;
@@ -381,12 +399,16 @@ int compileproject_GetAST(
         relfileuri->pathlen = trueabspathlen;
     }
 
-    #ifdef DEBUG_COMPILEPROJECT
-    h64printf(
-        "horsec: debug: compileproject_GetAST -> parsing %s\n",
-        relfileuri->path
-    );
-    #endif
+    if (moptions->compile_project_debug) {
+        char *relfileuripath_u8 = AS_U8(
+            relfileuri->path, relfileuri->pathlen
+        );
+        h64printf(
+            "horsec: debug: compileproject_GetAST -> parsing %s\n",
+            relfileuripath_u8
+        );
+        free(relfileuripath_u8);
+    }
 
     h64ast *result = codemodule_GetASTUncached(
         pr, relfileuri, &pr->warnconfig
@@ -1480,6 +1502,7 @@ h64wchar *compileproject_ResolveImportToFile(
 h64wchar *compileproject_FolderGuess(
         const h64wchar *fileuri, int64_t fileurilen,
         int cwd_fallback_if_appropriate,
+        h64misccompileroptions *moptions,
         int64_t *out_len, char **error
         ) {
     assert(fileuri != NULL);
@@ -1495,11 +1518,36 @@ h64wchar *compileproject_FolderGuess(
             "or not file protocol");
         return NULL;
     }
+    if (moptions->compile_project_debug) {
+        int64_t u32urilen = 0;
+        h64wchar *u32uri = uri32_Dump(
+            uinfo, &u32urilen
+        );
+        char *u8uri = (
+            u32uri ? AS_U8(u32uri, u32urilen) : NULL
+        );
+        fprintf(stderr,
+            "horsec: debug: compileproject_FolderGuess URI to "
+            "guess from -> %s\n",
+            u8uri
+        );
+        free(u8uri);
+        free(u32uri);
+    }
     int64_t full_path_len = 0;
     h64wchar *full_path = filesys32_ToAbsolutePath(
         uinfo->path, uinfo->pathlen, &full_path_len
     );
     uri32_Free(uinfo); uinfo = NULL;
+    if (full_path) {
+        int64_t normalizedlen = 0;
+        h64wchar *normalized = filesys32_Normalize(
+            full_path, full_path_len, &normalizedlen
+        );
+        free(full_path);
+        full_path = normalized;
+        full_path_len = normalizedlen;
+    }
     int64_t slen = 0;
     h64wchar *s = NULL;
     if (full_path)
@@ -1507,6 +1555,17 @@ h64wchar *compileproject_FolderGuess(
     if (!full_path || !s) {
         *error = strdup("allocation failure, out of memory?");
         return NULL;
+    }
+    if (moptions->compile_project_debug) {
+        char *u8uri = (
+            full_path ? AS_U8(full_path, full_path_len) : NULL
+        );
+        fprintf(stderr,
+            "horsec: debug: compileproject_FolderGuess absolute "
+            "guess path -> %s\n",
+            u8uri
+        );
+        free(u8uri);
     }
 
     {
@@ -1531,6 +1590,17 @@ h64wchar *compileproject_FolderGuess(
     while (1) {
         // Go up one folder:
         {
+            if (moptions->compile_project_debug) {
+                char *u8uri = (
+                    full_path ? AS_U8(s, slen) : NULL
+                );
+                fprintf(stderr,
+                    "horsec: debug: compileproject_FolderGuess "
+                    "going one up from... %s\n",
+                    u8uri
+                );
+                free(u8uri);
+            }
             int64_t snewlen = 0;
             h64wchar *snew = filesys32_ParentdirOfItem(
                 s, slen, &snewlen
@@ -1545,6 +1615,13 @@ h64wchar *compileproject_FolderGuess(
                     #if defined(_WIN32) || defined(_WIN64)
                     || snew[snewlen - 1] == '\\'
                     #endif
+                    &&
+                    // Only trim if this sep isn't vital for absolute path:
+                    #if defined(_WIN32) || defined(_WIN64)
+                    (snewlen - 1 != 2 || snew[snewlen - 2] != ':')
+                    #else
+                    (snewlen - 1 != 0)
+                    #endif
                     ))
                 snewlen--;
             if (slen == snewlen &&
@@ -1556,6 +1633,17 @@ h64wchar *compileproject_FolderGuess(
             free(s);
             s = snew;
             slen = snewlen;
+            if (moptions->compile_project_debug) {
+                char *u8uri = (
+                    full_path ? AS_U8(s, slen) : NULL
+                );
+                fprintf(stderr,
+                    "horsec: debug: compileproject_FolderGuess "
+                    "now looking at -> %s\n",
+                    u8uri
+                );
+                free(u8uri);
+            }
         }
 
         // Check for .git:
@@ -1587,6 +1675,17 @@ h64wchar *compileproject_FolderGuess(
             if (_exists) {
                 free(check_path);
                 free(full_path);
+                if (moptions->compile_project_debug) {
+                    char *u8uri = (
+                        full_path ? AS_U8(s, slen) : NULL
+                    );
+                    fprintf(stderr,
+                        "horsec: debug: compileproject_FolderGuess found "
+                        "result via .git -> %s\n",
+                        u8uri
+                    );
+                    free(u8uri);
+                }
                 *out_len = slen;
                 return s;
             }
@@ -1623,6 +1722,17 @@ h64wchar *compileproject_FolderGuess(
             if (_exists) {
                 free(check_path);
                 free(full_path);
+                if (moptions->compile_project_debug) {
+                    char *u8uri = (
+                        full_path ? AS_U8(s, slen) : NULL
+                    );
+                    fprintf(stderr,
+                        "horsec: debug: compileproject_FolderGuess found "
+                        "result via horse_modules -> %s\n",
+                        u8uri
+                    );
+                    free(u8uri);
+                }
                 return s;
             }
             free(check_path);
@@ -1666,6 +1776,17 @@ h64wchar *compileproject_FolderGuess(
             free(cwd);
             if (!result)
                 *error = strdup("alloc failure");
+            if (moptions->compile_project_debug) {
+                char *u8uri = (
+                    full_path ? AS_U8(result, resultlen) : NULL
+                );
+                fprintf(stderr,
+                    "horsec: debug: compileproject_FolderGuess found "
+                    "result via cwd fallback -> %s\n",
+                    u8uri
+                );
+                free(u8uri);
+            }
             *out_len = resultlen;
             return result;
         }

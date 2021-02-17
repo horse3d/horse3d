@@ -43,7 +43,8 @@ typedef struct uri32info uri32info;
 typedef struct h64ast h64ast;
 
 h64compileproject *compileproject_New(
-    const h64wchar *basefolderuri, int64_t basefolderurilen
+    const h64wchar *basefolderuri, int64_t basefolderurilen,
+    h64misccompileroptions *moptions
 );
 
 uri32info *compileproject_URIRelPathToBase(
@@ -60,6 +61,7 @@ char *compileproject_ToProjectRelPath(
 int compileproject_GetAST(
     h64compileproject *pr,
     const h64wchar *fileuri, int64_t fileurilen,
+    h64misccompileroptions *moptions,
     h64ast **out_ast, char **error
 );
 
@@ -68,6 +70,7 @@ void compileproject_Free(h64compileproject *pr);
 h64wchar *compileproject_FolderGuess(
     const h64wchar *fileuri, int64_t fileurilen,
     int cwd_fallback_if_appropriate,
+    h64misccompileroptions *moptions,
     int64_t *output_len, char **error
 );
 
