@@ -344,7 +344,7 @@ int builtininternalslib_RegisterFuncsAndModules(h64program *p) {
 
     // builtininternals.pow:
     const char *builtininternals_pow_kw_arg_name[] = {
-        NULL
+        NULL, NULL
     };
     idx = h64program_RegisterCFunction(
         p, "pow", &builtininternals_pow,
