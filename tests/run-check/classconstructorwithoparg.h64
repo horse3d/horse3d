@@ -1,0 +1,14 @@
+
+class Bla {
+    var v
+    func init(v) {
+        self.v = v
+    }
+}
+
+func main {
+    var item = new Bla(1 + 5)
+    return item.v
+}
+
+# expected return value: 6
