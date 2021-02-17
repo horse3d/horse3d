@@ -1,0 +1,16 @@
+
+
+class Bla {
+    func num {
+        return 5
+    }
+}
+
+func main {
+    print(
+        "Nested constructor with .as_str check: " +
+        ((new Bla()).num()).as_str
+    )
+}
+
+# expected return value: 0
