@@ -3130,6 +3130,7 @@ int _codegencallback_DoCodegen_visit_in(
         // Visit all arguments of constructor call:
         int i = 0;
         while (i < expr->op.value1->inlinecall.arguments.arg_count) {
+            rinfo->dont_descend_visitation = 0;
             if (!ast_VisitExpression(
                     expr->op.value1->inlinecall.arguments.arg_value[i],
                     expr,
@@ -3137,8 +3138,11 @@ int _codegencallback_DoCodegen_visit_in(
                     &_codegencallback_DoCodegen_visit_out,
                     _asttransform_cancel_visit_descend_callback,
                     rinfo
-                    ))
+                    )) {
+                rinfo->dont_descend_visitation = 1;
                 return 0;
+            }
+            rinfo->dont_descend_visitation = 1;
             i++;
         }
 
