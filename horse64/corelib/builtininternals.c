@@ -196,15 +196,15 @@ int builtininternals_pow(h64vmthread *vmthread) {
             input->type != H64VALTYPE_FLOAT64) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
-            "base must be number"
+            "num must be number"
         );
     }
-    valuecontent *input2 = STACK_ENTRY(vmthread->stack, 0);
+    valuecontent *input2 = STACK_ENTRY(vmthread->stack, 1);
     if (input2->type != H64VALTYPE_INT64 &&
             input2->type != H64VALTYPE_FLOAT64) {
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_TYPEERROR,
-            "exponent must be number"
+            "exp must be number"
         );
     }
     if (input->type == H64VALTYPE_INT64 &&
@@ -212,9 +212,10 @@ int builtininternals_pow(h64vmthread *vmthread) {
             input2->int_value >= 1) {
         // Special manual int64_t path:
         int64_t base = input->int_value;
+        int64_t exp = input2->int_value;
         int64_t result = base;
         int64_t i = 1;
-        while (i < input2->int_value) {
+        while (i < exp) {
             int64_t new = result * base;
             if (new / base != result) {
                 return vmexec_ReturnFuncError(
@@ -230,6 +231,7 @@ int builtininternals_pow(h64vmthread *vmthread) {
         valuecontent_Free(vcresult);
         vcresult->type = H64VALTYPE_INT64;
         vcresult->int_value = result;
+        return 1;
     }
     double vbase = (
         input->type == H64VALTYPE_INT64 ?
@@ -345,7 +347,7 @@ int builtininternalslib_RegisterFuncsAndModules(h64program *p) {
         NULL
     };
     idx = h64program_RegisterCFunction(
-        p, "pow", &builtininternals_sqrt,
+        p, "pow", &builtininternals_pow,
         NULL, 0, 2, builtininternals_pow_kw_arg_name,  // fileuri, args
         "builtininternals", "core.horse64.org", 1, -1
     );

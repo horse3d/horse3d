@@ -23,6 +23,6 @@ func sqrt(value) {
     return builtininternals.sqrt(value)
 }
 
-func pow(value) {
-    return builtininternals.pow(value)
+func pow(num, exp) {
+    return builtininternals.pow(num, exp)
 }
