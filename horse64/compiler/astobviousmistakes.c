@@ -70,6 +70,29 @@ int _astobviousmistakes_cb_CheckObviousErrors_visit_out(
             return 0;
         }
     }
+    // Check for attribute by identifier (.) done with wrong pairs:
+    if (expr->type == H64EXPRTYPE_BINARYOP &&
+            expr->op.optype == H64OP_ATTRIBUTEBYIDENTIFIER) {
+        if (!expr->op.value2 ||
+                expr->op.value2->type != H64EXPRTYPE_IDENTIFIERREF) {
+            char buf[512];
+            h64snprintf(
+                buf, sizeof(buf) - 1,
+                "cannot use access by identifier '.' followed by "
+                "something else than identifier"
+            );
+            if (!result_AddMessage(
+                    &rinfo->ast->resultmsg,
+                    H64MSG_ERROR, buf,
+                    rinfo->ast->fileuri, rinfo->ast->fileurilen,
+                    (expr->op.value2 ? expr->op.value2->line : expr->line),
+                    (expr->op.value2 ? expr->op.value2->column : expr->column)
+                    )) {
+                rinfo->hadoutofmemory = 1;
+                return 0;
+            }
+        }
+    }
     // Check for invalid calls to class types without "new":
     if (expr->type == H64EXPRTYPE_CALL &&
             (parent == NULL ||
