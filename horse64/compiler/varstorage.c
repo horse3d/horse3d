@@ -74,11 +74,6 @@ int _resolver_EnsureParamStoreAssign(
                 einfo->lstoreassign[einfo->lstoreassign_count].
                     valuetemporaryid = freetemp;
                 einfo->lstoreassign[einfo->lstoreassign_count].
-                    valueboxtemporaryid = i + (
-                    (owningclassexpr != NULL ||
-                     einfo->closure_with_self) ? 1 : 0
-                    ) + expr->funcdef.arguments.arg_count;
-                einfo->lstoreassign[einfo->lstoreassign_count].
                     vardef = einfo->closureboundvars[i];
                 einfo->lstoreassign[einfo->lstoreassign_count].
                     ever_used_closure = 1;
@@ -181,13 +176,8 @@ int _resolver_EnsureLocalDefStorage(
         // Determine temporary slot to be used:
         h64funcstorageextrainfo *einfo = func->funcdef._storageinfo;
         int besttemp = -1;
-        int valueboxid = -1;
         besttemp = einfo->lowest_guaranteed_free_temp;
         einfo->lowest_guaranteed_free_temp++;
-        if (scopedef->closurebound) {
-            valueboxid = einfo->lowest_guaranteed_free_temp;
-            einfo->lowest_guaranteed_free_temp++;
-        }
 
         // Insert actual temporary assignment:
         h64localstorageassign *newlstoreassign = realloc(
@@ -207,10 +197,8 @@ int _resolver_EnsureLocalDefStorage(
         einfo->lstoreassign[einfo->lstoreassign_count].
             valuetemporaryid = besttemp;
         einfo->lstoreassign[einfo->lstoreassign_count].
-            valueboxtemporaryid = valueboxid;
-        einfo->lstoreassign[einfo->lstoreassign_count].
             vardef = scopedef;
-        if (valueboxid >= 0) {
+        if (scopedef->closurebound) {
             einfo->lstoreassign[einfo->lstoreassign_count].
                 ever_used_closure = 1;
         } else {
@@ -518,12 +506,6 @@ jsonvalue *varstorage_ExtraInfoToJSON(
             }
             if (!json_SetDictInt(item, "value-temporary-id",
                     einfo->lstoreassign[k].valuetemporaryid)) {
-                fail = 1;
-                json_Free(item);
-                break;
-            }
-            if (!json_SetDictInt(item, "valuebox-temporary-id",
-                    einfo->lstoreassign[k].valueboxtemporaryid)) {
                 fail = 1;
                 json_Free(item);
                 break;

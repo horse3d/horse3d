@@ -134,7 +134,10 @@ int newmultilinetemp(h64expression *func) {
 }
 
 void free1linetemps(h64expression *func) {
-    assert(func != NULL);
+    assert(func != NULL && (
+        func->type == H64EXPRTYPE_FUNCDEF_STMT ||
+        func->type == H64EXPRTYPE_INLINEFUNCDEF)
+    );
     int i = 0;
     while (i < func->funcdef._storageinfo->codegen.extra_temps_count) {
         if (func->funcdef._storageinfo->codegen.extra_temps_used[i] &&
@@ -3276,7 +3279,6 @@ int _codegencallback_DoCodegen_visit_in(
             }
         }
 
-        free1linetemps(func);
         rinfo->dont_descend_visitation = 1;
         expr->storage.eval_temp_id = resulttemp;
         return 1;
@@ -4244,6 +4246,7 @@ int _codegencallback_DoCodegen_visit_in(
         rinfo->dont_descend_visitation = 1;
         extra->loop_nesting_depth--;  // leaving the loop
         assert(extra->loop_nesting_depth >= 0);
+        free1linetemps(func);
         return 1;
     } else if (expr->type == H64EXPRTYPE_GIVEN) {
         rinfo->dont_descend_visitation = 1;
@@ -4472,6 +4475,7 @@ int _codegencallback_DoCodegen_visit_in(
             current_clause = current_clause->followup_clause;
         }
         rinfo->dont_descend_visitation = 1;
+        free1linetemps(func);
         return 1;
     }
 
