@@ -15,6 +15,13 @@ func main {
         haderror = yes
     }
     assert(haderror)
+
+    # Just replacing list items should be allowed:
+    i = 0
+    for item in l {
+        i += 1
+        l[i] *= 2
+    }
 }
 
 # expected result value: 0

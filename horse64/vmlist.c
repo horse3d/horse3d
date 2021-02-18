@@ -204,7 +204,8 @@ int vmlist_Set(genericlist *l, int64_t index, valuecontent *vc) {
         vc, sizeof(*vc)
     );
     ADDREF_HEAP(&block->entry_values[local_index - 1]);
-    l->contentrevisionid++;
+    // Do NOT increase l->contentrevisionid, since this doesn't change
+    // container length. So this is allowed while iterating a list.
     return 1;
 }
 
