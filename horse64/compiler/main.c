@@ -37,11 +37,12 @@ static int _compileargparse(
         h64wchar **out_file, int64_t *out_file_len,
         h64compilewarnconfig *wconfig,
         h64misccompileroptions *miscoptions,
-        int *runargs_start_index
+        int *runargs_start_index, int *positive_abort
         ) {
     if (wconfig) warningconfig_Init(wconfig);
     int doubledashed = 0;
     *out_file = NULL;
+    *positive_abort = 0;
     *fileuriorexec = NULL;
     if (runargs_start_index) *runargs_start_index = -1;
     int i = argoffset;
@@ -126,10 +127,30 @@ static int _compileargparse(
             }
         } else if (h64cmp_u32u8(argv[i], argvlen[i], "--") == 0) {
             doubledashed = 1;
-        } else if (h64cmp_u32u8(argv[i], argvlen[i], "--short-version") == 0) {
+        } else if (h64cmp_u32u8(argv[i],
+                argvlen[i], "--short-version") == 0) {
             main_OutputVersionShort();
-        } else if (h64cmp_u32u8(argv[i], argvlen[i], "--version") == 0) {
+            if (*fileuriorexec)
+                free(*fileuriorexec);
+            *fileuriorexec = NULL;
+            if (*out_file)
+                free(*out_file);
+            *out_file = NULL;
+            *positive_abort = 1;
+            return 1;
+        } else if (h64cmp_u32u8(argv[i], argvlen[i], "--version") == 0 ||
+                h64cmp_u32u8(argv[i], argvlen[i], "-V") == 0 ||
+                h64cmp_u32u8(argv[i], argvlen[i], "-version") == 0 ||
+                h64cmp_u32u8(argv[i], argvlen[i], "-v") == 0) {
             main_OutputVersionLong();
+            if (*fileuriorexec)
+                free(*fileuriorexec);
+            *fileuriorexec = NULL;
+            if (*out_file)
+                free(*out_file);
+            *out_file = NULL;
+            *positive_abort = 1;
+            return 1;
         } else if (h64cmp_u32u8(argv[i], argvlen[i], "--help") == 0) {
             h64printf("horsec %s [options] %s\n", cmd,
                 (strcmp(cmd, "exec") != 0 ? "file-path" : "code"));
@@ -188,6 +209,7 @@ static int _compileargparse(
             if (*out_file)
                 free(*out_file);
             *out_file = NULL;
+            *positive_abort = 1;
             return 1;
         } else if ((h64cmp_u32u8(argv[i], argvlen[i], "-o") == 0 ||
                 h64cmp_u32u8(argv[i], argvlen[i], "--output") == 0) &&
@@ -460,13 +482,16 @@ int compiler_command_CompileEx(
     h64wchar *tempfilefolder = NULL;
     int64_t tempfilefolderlen = 0;
     int runc_args_index = -1;
+    int positive_abort = 0;
     if (!_compileargparse(
             command, argv, argvlen, argc, argoffset,
             &fileuriorexec, &fileuriorexeclen,
             &outputfile, &outputfilelen, &wconfig, &moptions,
-            &runc_args_index
+            &runc_args_index, &positive_abort
             ))
         return 0;
+    if (positive_abort)
+        return 1;
     assert(
         (outputfile == NULL && mode != COMPILEEX_MODE_COMPILE) ||
         (outputfile != NULL && mode == COMPILEEX_MODE_COMPILE)
@@ -947,12 +972,15 @@ int compiler_command_GetTokens(
     h64misccompileroptions moptions = {0};
     h64wchar *output_file = NULL;
     int64_t output_file_len = 0;
+    int positive_abort = 0;
     if (!_compileargparse(
             "get_tokens", argv, argvlen, argc, argoffset,
             &fileuri, &fileurilen, &output_file, &output_file_len,
-            &wconfig, &moptions, NULL
+            &wconfig, &moptions, NULL, &positive_abort
             ))
         return 0;
+    if (positive_abort)
+        return 1;
     assert(fileuri != NULL && output_file == NULL);
 
     jsonvalue *v = compiler_TokenizeToJSON(
@@ -980,12 +1008,15 @@ int compiler_command_GetAST(
     h64misccompileroptions moptions = {0};
     h64wchar *output_file = NULL;
     int64_t output_file_len = 0;
+    int positive_abort = 0;
     if (!_compileargparse(
             "get_ast", argv, argvlen, argc, argoffset,
             &fileuri, &fileurilen, &output_file, &output_file_len,
-            &wconfig, &moptions, NULL
+            &wconfig, &moptions, NULL, &positive_abort
             ))
         return 0;
+    if (positive_abort)
+        return 1;
     assert(fileuri != NULL && output_file == NULL);
 
     jsonvalue *v = compiler_ParseASTToJSON(
@@ -1014,12 +1045,15 @@ int compiler_command_GetResolvedAST(
     h64misccompileroptions moptions = {0};
     h64wchar *output_file = NULL;
     int64_t output_file_len = 0;
+    int positive_abort = 0;
     if (!_compileargparse(
             "get_resolved_ast", argv, argvlen, argc, argoffset,
             &fileuri, &fileurilen, &output_file, &output_file_len,
-            &wconfig, &moptions, NULL
+            &wconfig, &moptions, NULL, &positive_abort
             ))
         return 0;
+    if (positive_abort)
+        return 1;
     assert(fileuri != NULL && output_file == NULL);
 
     jsonvalue *v = compiler_ParseASTToJSON(
