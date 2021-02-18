@@ -22,6 +22,7 @@
 #include "filesys.h"
 #include "filesys32.h"
 #include "json.h"
+#include "horse64/main.h"
 #include "nonlocale.h"
 #include "uri32.h"
 #include "vmbinarywriter.h"
@@ -125,6 +126,10 @@ static int _compileargparse(
             }
         } else if (h64cmp_u32u8(argv[i], argvlen[i], "--") == 0) {
             doubledashed = 1;
+        } else if (h64cmp_u32u8(argv[i], argvlen[i], "--short-version") == 0) {
+            main_OutputVersionShort();
+        } else if (h64cmp_u32u8(argv[i], argvlen[i], "--version") == 0) {
+            main_OutputVersionLong();
         } else if (h64cmp_u32u8(argv[i], argvlen[i], "--help") == 0) {
             h64printf("horsec %s [options] %s\n", cmd,
                 (strcmp(cmd, "exec") != 0 ? "file-path" : "code"));
