@@ -11,16 +11,21 @@ compiler for horse64, are as follows:
 - Stage 3: Scope Resolution (`horse64/compiler/scoperesolver.c`)
   
   This stage also applies storage (`horse64/compiler/varstorage.c`)
-  to assign memory storage, and collects info for the final graph
-  checks (`horse64/compiler/threadablechecker.c`).
+  to assign memory storage, runs `horse64/compiler/astobviousmistakes.c`
+  checks (file local), and collects info for the final async graph
+  checks later.
 
-- Stage 4: Code Generation (`horse64/compiler/codegen.c`)
-  which spits out [hasm bytecode](../Specification/hasm.md).
+- Stage 4: Code Generation (`horse64/compiler/codegen.c`),
+  which will first run the non-local AST checks for the async
+  graph from `horse64/compiler/threadablechecker.c` (project global)
+  and then internally generate
+  [hasm bytecode](../Specification/hasm.md).
 
-  Will also apply the final graph checks, which e.g. check
-  `parallel` properties. (`horse64/compiler/threadablechecker.c`)
+- Stage 5: Bytecode Optimizer (`horse64/compiler/optimizer.c`) does
+  a liveness and code flow analysis, and may simplify bytecode as
+  it sees fit. May emit additional errors and warnings.
 
-- Stage 5: Assemble into a binary
+- Stage 6: Assemble into a binary
 
 
 These stages are applied on a per file basis, initially on the file
