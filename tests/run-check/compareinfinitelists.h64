@@ -1,0 +1,18 @@
+
+func main {
+    # Two infinite lists that contain themselves, with same values & cycles:
+    var l1 = [1]  l1.add(l1)  var l2 = [1, 2]  l2[2] = l2
+    assert(l1 == l2)
+
+    # Now let's change the cycle structure (l3 has one more indirect loop),
+    # so this should be no longer equal:
+    l1 = [1]  l1.add(l1)  l2 = [1, 2]  var l3 = [1, l2]
+    l2[2] = l3
+    assert(l1 != l3)
+
+    # Try same cycle structure but this time one value differs:
+    l1 = [1]  l1.add(l1)  l2 = [2, 2]  l2[2] = l2
+    assert(l1 != l2)
+}
+
+# expected result value: 0
