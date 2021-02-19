@@ -5,12 +5,15 @@
 #include "compileconfig.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "itemsort.h"
 #include "secrandom.h"
+#include "valuecontentstruct.h"
 
 
 typedef struct _itemsort_quicksortjob {
@@ -128,13 +131,35 @@ int itemsort_Do(
             if ((cmp_1to2 == 1 && z < pivot) ||
                     (cmp_1to2 == -1 && z > pivot)) {
                 // Need to switch.
-                memcpy(switchbuf, SORT_GETITEM(z),
-                       itemsize);
-                memcpy(SORT_GETITEM(z),
-                       SORT_GETITEM(pivot), itemsize);
-                memcpy(SORT_GETITEM(pivot),
-                       SORT_GETITEM(z), itemsize);
-                pivot = z;
+                if (z <= pivot + 1) {
+                    // Direct swap is enough.
+                    memcpy(switchbuf, SORT_GETITEM(z),
+                        itemsize);
+                    memcpy(SORT_GETITEM(z),
+                        SORT_GETITEM(pivot), itemsize);
+                    memcpy(SORT_GETITEM(pivot),
+                        switchbuf, itemsize);
+                    pivot = z;
+                } else {
+                    // Swap pivot with neighbor in right direction,
+                    // then swap wrong element with that neighbor.
+                    int64_t dir = (z - pivot);
+                    assert(dir > 0);
+                    assert(pivot + 1 < curr_end);
+                    memcpy(switchbuf, SORT_GETITEM(pivot + 1),
+                        itemsize);
+                    memcpy(SORT_GETITEM(pivot + 1),
+                        SORT_GETITEM(pivot), itemsize);
+                    memcpy(SORT_GETITEM(pivot),
+                        switchbuf, itemsize);
+                    pivot += 1;
+                    memcpy(switchbuf, SORT_GETITEM(pivot - 1),
+                        itemsize);
+                    memcpy(SORT_GETITEM(pivot - 1),
+                        SORT_GETITEM(z), itemsize);
+                    memcpy(SORT_GETITEM(z),
+                        switchbuf, itemsize);
+                }
             }
             z++;
         }

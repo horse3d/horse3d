@@ -54,6 +54,7 @@ int h64program_Dump(h64program *p, char **out, int64_t *out_len) {
             _DUMP(c->is_error);
             _DUMP(c->is_threadable);
             _DUMP(c->user_set_parallel);
+            _DUMP(c->has_equals_attr);
 
             _DUMP(c->funcattr_count);
             _DUMPSIZE(
@@ -326,6 +327,7 @@ int h64program_Restore(
             _LOAD(c->is_error);
             _LOAD(c->is_threadable);
             _LOAD(c->user_set_parallel);
+            _LOAD(c->has_equals_attr);
 
             _LOAD(c->funcattr_count);
             _LOADSIZEALLOC(

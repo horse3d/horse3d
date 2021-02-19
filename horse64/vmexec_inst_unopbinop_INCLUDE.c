@@ -766,6 +766,7 @@ inst_binop: {
                 valuecontent v = {0};
                 int inneroom = 0;
                 if (!vmmap_Get(
+                        vmthread,
                         ((h64gcvalue *)v1->ptr_value)->map_values,
                         v2, &v, &inneroom
                         )) {

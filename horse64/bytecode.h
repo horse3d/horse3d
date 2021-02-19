@@ -376,7 +376,8 @@ typedef struct h64classattributeinfo {
 
 typedef struct h64class {
     classid_t base_class_global_id;
-    int is_error, is_threadable, user_set_parallel;
+    uint8_t is_error, is_threadable,
+            user_set_parallel, has_equals_attr;
 
     attridx_t funcattr_count;
     int64_t *funcattr_global_name_idx;

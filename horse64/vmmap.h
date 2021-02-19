@@ -28,14 +28,20 @@ ATTR_UNUSED static inline uint64_t vmmap_Revision(genericmap *l) {
 valuecontent *vmmap_GetKeyByIdx(genericmap *l, int64_t idx);
 
 int vmmap_Set(
+    h64vmthread *vt,
     genericmap *m, valuecontent *key, valuecontent *value
 );
 
-int vmmap_Remove(genericmap *m, valuecontent *key, int *oom);
+int vmmap_Remove(
+    h64vmthread *vt, genericmap *m, valuecontent *key, int *oom
+);
 
-int vmmap_Contains(genericmap *m, valuecontent *key, int *oom);
+int vmmap_Contains(
+    h64vmthread *vt, genericmap *m, valuecontent *key, int *oom
+);
 
 int vmmap_Get(
+    h64vmthread *vt,
     genericmap *m, valuecontent *key, valuecontent *value,
     int *oom
 );

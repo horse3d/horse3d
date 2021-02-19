@@ -114,6 +114,7 @@ uint32_t valuecontent_Hash(
 int valuecontent_IsMutable(valuecontent *v);
 
 int valuecontent_CheckEquality(
+    h64vmthread *vmthread,
     valuecontent *v1, valuecontent *v2, int *oom
 );
 

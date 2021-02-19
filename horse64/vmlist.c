@@ -49,7 +49,8 @@ int vmmap_IterateValues(
     return 1;
 }
 
-int vmlist_Contains(genericlist *l, valuecontent *v, int *oom) {
+int vmlist_Contains(h64vmthread *vt,
+        genericlist *l, valuecontent *v, int *oom) {
     *oom = 0;
     listblock *block = l->first_block;
     while (block) {
@@ -57,7 +58,7 @@ int vmlist_Contains(genericlist *l, valuecontent *v, int *oom) {
         while (i < block->entry_count) {
             int inneroom = 0;
             if (valuecontent_CheckEquality(
-                    v, &block->entry_values[i], &inneroom
+                    vt, v, &block->entry_values[i], &inneroom
                     ))
                 return 1;
             if (inneroom) {

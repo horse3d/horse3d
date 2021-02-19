@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <math.h>
 
 #include "bytecode.h"
@@ -57,7 +58,16 @@ static int _cmp_valuecontent(void *a, void *b) {
 }
 
 int builtininternals_sort(h64vmthread *vmthread) {
-    assert(STACK_TOP(vmthread->stack) >= 1);
+    assert(STACK_TOP(vmthread->stack) >= 2);
+
+    valuecontent *vdescend = STACK_ENTRY(vmthread->stack, 1);
+    if (vdescend->type != H64VALTYPE_BOOL) {
+        return vmexec_ReturnFuncError(
+            vmthread, H64STDERROR_TYPEERROR,
+            "descend must be boolean"
+        );
+    }
+    int ascend = (vdescend->int_value == 0);
 
     valuecontent _stackbuf[128];
     valuecontent *to_be_sorted = _stackbuf;
@@ -176,14 +186,26 @@ int builtininternals_sort(h64vmthread *vmthread) {
         goto oom;
     }
     genericlist *lresult = gcval->list_values;
-    int64_t i = 0;
-    while (i < to_be_sorted_count) {
-        if (!vmlist_Add(lresult, &to_be_sorted[i]))
-            goto oom;
-        DELREF_NONHEAP(&to_be_sorted[i]);
-        valuecontent_Free(&to_be_sorted[i]);
-        to_be_sorted[i].type = H64VALTYPE_NONE;
-        i++;
+    if (ascend) {
+        int64_t i = 0;
+        while (i < to_be_sorted_count) {
+            if (!vmlist_Add(lresult, &to_be_sorted[i]))
+                goto oom;
+            DELREF_NONHEAP(&to_be_sorted[i]);
+            valuecontent_Free(&to_be_sorted[i]);
+            to_be_sorted[i].type = H64VALTYPE_NONE;
+            i++;
+        }
+    } else {
+        int64_t i = to_be_sorted_count - 1;
+        while (i >= 0) {
+            if (!vmlist_Add(lresult, &to_be_sorted[i]))
+                goto oom;
+            DELREF_NONHEAP(&to_be_sorted[i]);
+            valuecontent_Free(&to_be_sorted[i]);
+            to_be_sorted[i].type = H64VALTYPE_NONE;
+            i--;
+        }
     }
     return 1;
 }
@@ -320,11 +342,11 @@ int builtininternalslib_RegisterFuncsAndModules(h64program *p) {
 
     // builtininternals.sort:
     const char *builtininternals_sort_kw_arg_name[] = {
-        NULL
+        NULL, NULL
     };
     idx = h64program_RegisterCFunction(
         p, "sort", &builtininternals_sort,
-        NULL, 0, 1, builtininternals_sort_kw_arg_name,  // fileuri, args
+        NULL, 0, 2, builtininternals_sort_kw_arg_name,  // fileuri, args
         "builtininternals", "core.horse64.org", 1, -1
     );
     if (idx < 0)

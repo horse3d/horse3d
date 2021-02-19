@@ -2374,7 +2374,8 @@ int ast_ParseExprInline(
                     (tokens[1].type == H64TK_IDENTIFIER &&
                      strcmp(tokens[1].str_value, "x") == 0) ||
                     (tokens[1].type == H64TK_CONSTANT_INT &&
-                     tokens[1].int_value == 0))) {
+                     tokens[1].int_value == 1)) &&
+                    tokens[2].type == H64TK_COLON) {
                 if (tokens[1].type == H64TK_IDENTIFIER)
                     vectorusesletters = 1;
                 itemname = _nm_vec;

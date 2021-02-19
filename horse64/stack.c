@@ -151,11 +151,12 @@ int stack_ToSize(
         stack_Shrink(st, total_entries);
         return 1;
     }
-    assert(st->alloc_count > total_entries);
-    int64_t k = st->entry_count;
-    while (k < total_entries) {
-        memset(&st->entry[k], 0, sizeof(st->entry[k]));
-        k++;
+    assert(st->alloc_count >= total_entries);
+    if (likely(st->entry_count < total_entries)) {
+        memset(&st->entry[st->entry_count], 0,
+            sizeof(st->entry[st->entry_count]) * (
+                total_entries - st->entry_count
+            ));
     }
     st->entry_count = total_entries;
     return 1;

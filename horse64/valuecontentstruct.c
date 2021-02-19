@@ -321,77 +321,74 @@ uint32_t valuecontent_Hash(
     return _valuecontent_Hash_Do(v, 0);
 }
 
-int _valuecontent_CheckContainerEquality_Do(
-        valuecontent *v1, valuecontent *v2,
-        hashmap *seen, uint64_t *seennum, int *oom
-        ) {
-    if (oom) *oom = 0;
+struct _valuecontent_checkequality_job {
+    h64gcvalue *g1;
+    h64gcvalue *g2;
+};
 
-    if (unlikely(v1->type != H64VALTYPE_GCVAL ||
-            v2->type != H64VALTYPE_GCVAL ||
-            ((h64gcvalue *)v1->ptr_value)->type !=
-                ((h64gcvalue *)v2->ptr_value)->type))
-        return 0;
-    h64gcvalue *g1 = (h64gcvalue *)v1->ptr_value;
-    h64gcvalue *g2 = (h64gcvalue *)v2->ptr_value;
-    if (g1 == g2)
-        return 1;
+#define _VALUECONTENTEQ_ADDJOB(g1v, g2v) \
+    if (jobs_count + 1 > jobs_alloc) {\
+        int64_t new_alloc = jobs_alloc * 2;\
+        if (new_alloc < jobs_count + 1)\
+            new_alloc = jobs_count + 1;\
+        struct _valuecontent_checkequality_job *newjobs = NULL;\
+        if (jobs_onheap) {\
+            newjobs = realloc(jobs,\
+                sizeof(*jobs) * new_alloc);\
+        } else {\
+            newjobs = malloc(sizeof(*jobs) * new_alloc);\
+            if (newjobs && jobs_count > 0)\
+                memcpy(newjobs, jobs,\
+                    sizeof(*jobs) * jobs_count);\
+        }\
+        if (!newjobs) {\
+            if (oom) *oom = 1;\
+            if (jobs_onheap) free(jobs);\
+            hash_FreeMap(seen);\
+        }\
+        jobs_onheap = 1;\
+        jobs_alloc = new_alloc;\
+    }\
+    jobs[jobs_count].g1 = (h64gcvalue *)(g1v);\
+    jobs[jobs_count].g2 = (h64gcvalue *)(g2v);\
+    jobs_count++;
 
-    // If this container pair was already seen, then it needs to have
-    // the same id (= was registered as seen for both v1 + v2 at the
-    // same time, which ensures cycle graph equivalency):
-    uintptr_t g1_seenid = 0;
-    if (unlikely(hash_BytesMapGet(
-            seen, (const char *)&g1, sizeof(g1), (uint64_t *)&g1_seenid
-            ))) {
-        uintptr_t g2_seenid = 0;
-        if (!hash_BytesMapGet(
-                seen, (const char *)&g2, sizeof(g2),
-                (uint64_t *)&g2_seenid
-                ) || g1_seenid != g2_seenid) {
-            // Different cycle, or only cycle on one side.
-            return 0;
-        }
-        // Same cycle.
-        return 1;
+#define _VALUECONTENTEQ_CMP(v1, v2) \
+    assert(v1 != NULL);\
+    assert(v2 != NULL);\
+    if (likely(v1->type != H64VALTYPE_GCVAL || (\
+            ((h64gcvalue *)v1->ptr_value)->type !=\
+                H64GCVALUETYPE_OBJINSTANCE &&\
+            ((h64gcvalue *)v1->ptr_value)->type !=\
+                H64GCVALUETYPE_MAP &&\
+            ((h64gcvalue *)v1->ptr_value)->type !=\
+                H64GCVALUETYPE_LIST &&\
+            ((h64gcvalue *)v1->ptr_value)->type !=\
+                H64GCVALUETYPE_SET\
+            ))) {\
+        int inneroom = 0;\
+        int result = valuecontent_CheckEquality(\
+            vmthread, v1, v2, &inneroom\
+        );\
+        if (!result) {\
+            if (inneroom) {\
+                if (oom) *oom = 1;\
+                if (jobs_onheap) free(jobs);\
+                hash_FreeMap(seen);\
+            }\
+            goto notequal;\
+        }\
+    } else {\
+        if (v2->type != H64VALTYPE_GCVAL)\
+            goto notequal;\
+        _VALUECONTENTEQ_ADDJOB(\
+            v1->ptr_value, v2->ptr_value\
+        );\
     }
-    if (*seennum + 1 >= UINT64_MAX) {
-        // We can't reasonably compare something of this graph size.
-        if (oom) *oom = 1;
-        return 0;
-    }
-    (*seennum)++;
-    uint64_t newseennum = *seennum;
-    if (!hash_BytesMapSet(seen, (const char *)&g1,
-            sizeof(g1), (uint64_t)newseennum
-            ) || !hash_BytesMapSet(seen, (const char *)&g2,
-            sizeof(g2), (uint64_t)newseennum
-            )) {
-        if (oom) *oom = 1;
-        return 0;
-    }
-
-    // Now compare contents by value:
-    if (g1->type == H64GCVALUETYPE_LIST) {
-        assert(g2->type == H64GCVALUETYPE_LIST);
-        if (vmlist_Count(g1->list_values) != vmlist_Count(g2->list_values))
-            return 0;
-        assert(0);  // fixme. finish
-    } else if (g1->type == H64GCVALUETYPE_MAP) {
-        assert(g2->type == H64GCVALUETYPE_MAP);
-        if (vmmap_Count(g1->map_values) != vmmap_Count(g2->map_values))
-            return 0;
-        assert(0);  // fixme. finish.
-    } else {
-        fprintf(stderr, "valuecontentstruct.c: container comparison "
-            "not implemented");
-    }
-    return 0;
-}
 
 int valuecontent_CheckContainerEquality(
-        valuecontent *v1, valuecontent *v2,
-        int *oom
+        h64vmthread *vmthread, valuecontent *v1,
+        valuecontent *v2, int *oom
         ) {
     if (oom) *oom = 0;
     hashmap *seen = hash_NewBytesMap(128);
@@ -400,14 +397,190 @@ int valuecontent_CheckContainerEquality(
         return 0;
     }
     uint64_t seennum = 0;
-    int result = _valuecontent_CheckContainerEquality_Do(
-        v1, v2, seen, &seennum, oom
+    struct _valuecontent_checkequality_job _jobsbuf[32];
+    struct _valuecontent_checkequality_job *jobs = _jobsbuf;
+    int64_t jobs_count = 0;
+    int64_t jobs_alloc = 32;
+    int jobs_onheap = 0;
+    h64program *pr = vmthread->vmexec_owner->program;
+
+    if (unlikely(v1->type != H64VALTYPE_GCVAL ||
+            v2->type != H64VALTYPE_GCVAL ||
+            ((h64gcvalue *)v1->ptr_value)->type !=
+                ((h64gcvalue *)v2->ptr_value)->type))
+        return 0;
+
+    _VALUECONTENTEQ_ADDJOB(
+        v1->ptr_value, v2->ptr_value
     );
+
+    int64_t i = 0;
+    while (i < jobs_count) {
+        h64gcvalue *g1 = jobs[i].g1;
+        h64gcvalue *g2 = jobs[i].g2;
+        if (g1 == g2) {
+            i++;
+            continue;
+        }
+
+        // If this container pair was already seen, then it needs to have
+        // the same id (= was registered as seen for both v1 + v2 at the
+        // same time, which ensures cycle graph equivalency):
+        uintptr_t g1_seenid = 0;
+        if (unlikely(hash_BytesMapGet(
+                seen, (const char *)&g1, sizeof(g1),
+                (uint64_t *)&g1_seenid
+                ))) {
+            uintptr_t g2_seenid = 0;
+            if (!hash_BytesMapGet(
+                    seen, (const char *)&g2, sizeof(g2),
+                    (uint64_t *)&g2_seenid
+                    ) || g1_seenid != g2_seenid) {
+                // Different cycle, or only cycle on one side.
+                return 0;
+            }
+            // Same cycle.
+            return 1;
+        }
+        if (seennum + 1 >= UINT64_MAX) {
+            // We can't reasonably compare something of this graph size.
+            if (oom) *oom = 1;
+            return 0;
+        }
+        seennum++;
+        uint64_t newseennum = seennum;
+        if (!hash_BytesMapSet(seen, (const char *)&g1,
+                sizeof(g1), (uint64_t)newseennum
+                ) || !hash_BytesMapSet(seen, (const char *)&g2,
+                sizeof(g2), (uint64_t)newseennum
+                )) {
+            if (oom) *oom = 1;
+            return 0;
+        }
+
+        // Now compare contents by value:
+        if (g1->type == H64GCVALUETYPE_LIST) {
+            if (g2->type != H64GCVALUETYPE_LIST)
+                goto notequal;
+            int64_t len = vmlist_Count(g1->list_values);
+            if (len != vmlist_Count(g2->list_values)) {
+                notequal:
+                if (oom) *oom = 0;
+                if (jobs_onheap) free(jobs);
+                hash_FreeMap(seen);
+                return 0;
+            }
+            int64_t k = 1;
+            while (k <= len) {
+                valuecontent *v1 = vmlist_Get(g1->list_values, k);
+                valuecontent *v2 = vmlist_Get(g2->list_values, k);
+                _VALUECONTENTEQ_CMP(v1, v2);
+                k++;
+            }
+        } else if (g1->type == H64GCVALUETYPE_OBJINSTANCE) {
+            if (g2->type != H64GCVALUETYPE_OBJINSTANCE ||
+                    g2->class_id != g1->class_id)
+                goto notequal;
+            h64class *clsinfo = &pr->classes[g1->class_id];
+            if (!clsinfo->has_equals_attr) {
+                goto notequal;
+            }
+            int64_t k = 0;
+            while (k < clsinfo->varattr_count) {
+                if ((clsinfo->varattr_flags[k] &
+                        VARATTR_FLAGS_EQUALS) != 0) {
+                    valuecontent *v1 = &(
+                        g1->varattr[k]
+                    );
+                    valuecontent *v2 = &(
+                        g2->varattr[k]
+                    );
+                    _VALUECONTENTEQ_CMP(v1, v2);
+                }
+                k++;
+            }
+        } else if (g1->type == H64GCVALUETYPE_MAP) {
+            if (g2->type != H64GCVALUETYPE_MAP)
+                goto notequal;
+            int64_t len = vmmap_Count(g1->map_values);
+            if (len != vmmap_Count(g2->map_values))
+                goto notequal;
+            genericmap *m = g1->map_values;
+            genericmap *m2 = g2->map_values;
+            if ((m->flags & GENERICMAP_FLAG_LINEAR) != 0) {
+                int64_t k = 0;
+                while (k < m->linear.entry_count) {
+                    valuecontent *v1 = &(
+                        m->linear.entry[k]
+                    );
+                    valuecontent v2s = {0};
+                    int inneroom = 0;
+                    int result = vmmap_Get(
+                        vmthread, m2, &m->linear.key[k],
+                        &v2s, &inneroom
+                    );
+                    if (!result) {
+                        if (!inneroom) {
+                            if (oom) *oom = 1;
+                        if (jobs_onheap) free(jobs);
+                        hash_FreeMap(seen);
+                        }
+                        goto notequal;
+                    }
+                    valuecontent *v2 = &v2s;
+                    _VALUECONTENTEQ_CMP(v1, v2);
+                    k++;
+                }
+            } else {
+                int64_t k = 0;
+                while (k < m->hashed.bucket_count) {
+                    genericmapbucket *bucket = &(
+                        m->hashed.bucket[k]
+                    );
+                    int64_t k2 = 0;
+                    while (k2 < bucket->entry_count) {
+                        valuecontent *v1 = &(
+                            bucket->entry[i]
+                        );
+                        valuecontent v2s = {0};
+                        int inneroom = 0;
+                        int result = vmmap_Get(
+                            vmthread, m2, &bucket->key[k2],
+                            &v2s, &inneroom
+                        );
+                        if (!result) {
+                            if (!inneroom) {
+                                if (oom) *oom = 1;
+                            if (jobs_onheap) free(jobs);
+                            hash_FreeMap(seen);
+                            }
+                            goto notequal;
+                        }
+                        valuecontent *v2 = &v2s;
+                        _VALUECONTENTEQ_CMP(v1, v2);
+                        k2++;
+                    }
+                    k++;
+                }
+            }
+        } else if (g1->type == H64GCVALUETYPE_SET) {
+            fprintf(
+                stderr, "valuecontentstruct.c: "
+                "container comparison "
+                "not implemented"
+            );
+        } else {
+            goto notequal;
+        }
+        i++;
+    }
+    if (jobs_onheap) free(jobs);
     hash_FreeMap(seen);
-    return result;
+    return 1;
 }
 
 int valuecontent_CheckEquality(
+        h64vmthread *vmthread,
         valuecontent *v1, valuecontent *v2, int *oom
         ) {
     if (oom) *oom = 0;
@@ -483,9 +656,13 @@ int valuecontent_CheckEquality(
                     H64GCVALUETYPE_SET ||
                     ((h64gcvalue *)v1->ptr_value)->type ==
                     H64GCVALUETYPE_OBJINSTANCE)) {
+                if (!vmthread) {
+                    if (oom) *oom = 1;
+                    return 0;
+                }
                 int inneroom = 0;
                 int result = valuecontent_CheckContainerEquality(
-                    v1, v2, &inneroom
+                    vmthread, v1, v2, &inneroom
                 );
                 if (!result && inneroom) {
                     if (oom) *oom = 1;

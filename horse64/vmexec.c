@@ -172,7 +172,7 @@ int vmexec_ValueEqualityCheck(
         valuecontent *v2, int *result
         ) {
     int oom = 0;
-    *result = valuecontent_CheckEquality(v1, v2, &oom);
+    *result = valuecontent_CheckEquality(vt, v1, v2, &oom);
     if (!*result && oom)
         return 0;
     return 1;
@@ -1632,7 +1632,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                 );
                 goto *jumptable[((h64instructionany *)p)->type];
             }
-            if (!vmmap_Set(
+            if (!vmmap_Set(vmthread,
                     gcval->map_values,
                     vcindex, vcset))
                 goto triggeroom;
@@ -3121,6 +3121,7 @@ int _vmthread_RunFunction_NoPopFuncFrames(
                     H64GCVALUETYPE_MAP) {
                 int inneroom = 0;
                 int result = vmmap_Get(
+                    vmthread,
                     iter->iterated_gcvalue->map_values,
                     vmmap_GetKeyByIdx(
                         iter->iterated_gcvalue->map_values,

@@ -417,11 +417,11 @@ int corelib_containercontains(  // $$builtin.$$container_contains
     int result = 0;
     int inneroom = 0;
     if (gcvalue->type == H64GCVALUETYPE_LIST) {
-        result = vmlist_Contains(gcvalue->list_values,
+        result = vmlist_Contains(vmthread, gcvalue->list_values,
             STACK_ENTRY(vmthread->stack, 0), &inneroom
         );
     } else if (gcvalue->type == H64GCVALUETYPE_MAP) {
-        result = vmmap_Contains(gcvalue->map_values,
+        result = vmmap_Contains(vmthread, gcvalue->map_values,
             STACK_ENTRY(vmthread->stack, 0), &inneroom
         );
     }
