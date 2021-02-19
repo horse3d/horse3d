@@ -7,4 +7,8 @@
 
 void main_PreInit();
 
+void main_OutputVersionLong();
+
+void main_OutputVersionShort();
+
 #endif  // HORSE64_MAINPREINIT_H_

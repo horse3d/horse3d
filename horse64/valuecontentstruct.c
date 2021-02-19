@@ -17,6 +17,7 @@
 #include "valuecontentstruct.h"
 #include "vmexec.h"
 #include "vmlist.h"
+#include "vmmap.h"
 #include "vmstrings.h"
 #include "widechar.h"
 
@@ -320,8 +321,77 @@ uint32_t valuecontent_Hash(
     return _valuecontent_Hash_Do(v, 0);
 }
 
+int _valuecontent_CheckContainerEquality_Do(
+        valuecontent *v1, valuecontent *v2,
+        hashmap *seen, uint64_t *seennum, int *oom
+        ) {
+    if (oom) *oom = 0;
+
+    if (unlikely(v1->type != H64VALTYPE_GCVAL ||
+            v2->type != H64VALTYPE_GCVAL ||
+            ((h64gcvalue *)v1->ptr_value)->type !=
+                ((h64gcvalue *)v2->ptr_value)->type))
+        return 0;
+    h64gcvalue *g1 = (h64gcvalue *)v1->ptr_value;
+    h64gcvalue *g2 = (h64gcvalue *)v2->ptr_value;
+    if (g1 == g2)
+        return 1;
+
+    // If this container pair was already seen, then it needs to have
+    // the same id (= was registered as seen for both v1 + v2 at the
+    // same time, which ensures cycle graph equivalency):
+    uintptr_t g1_seenid = 0;
+    if (unlikely(hash_BytesMapGet(
+            seen, (const char *)&g1, sizeof(g1), (uint64_t *)&g1_seenid
+            ))) {
+        uintptr_t g2_seenid = 0;
+        if (!hash_BytesMapGet(
+                seen, (const char *)&g2, sizeof(g2),
+                (uint64_t *)&g2_seenid
+                ) || g1_seenid != g2_seenid) {
+            // Different cycle, or only cycle on one side.
+            return 0;
+        }
+        // Same cycle.
+        return 1;
+    }
+    if (*seennum + 1 >= UINT64_MAX) {
+        // We can't reasonably compare something of this graph size.
+        if (oom) *oom = 1;
+        return 0;
+    }
+    (*seennum)++;
+    uint64_t newseennum = *seennum;
+    if (!hash_BytesMapSet(seen, (const char *)&g1,
+            sizeof(g1), (uint64_t)newseennum
+            ) || !hash_BytesMapSet(seen, (const char *)&g2,
+            sizeof(g2), (uint64_t)newseennum
+            )) {
+        if (oom) *oom = 1;
+        return 0;
+    }
+
+    // Now compare contents by value:
+    if (g1->type == H64GCVALUETYPE_LIST) {
+        assert(g2->type == H64GCVALUETYPE_LIST);
+        if (vmlist_Count(g1->list_values) != vmlist_Count(g2->list_values))
+            return 0;
+        assert(0);  // fixme. finish
+    } else if (g1->type == H64GCVALUETYPE_MAP) {
+        assert(g2->type == H64GCVALUETYPE_MAP);
+        if (vmmap_Count(g1->map_values) != vmmap_Count(g2->map_values))
+            return 0;
+        assert(0);  // fixme. finish.
+    } else {
+        fprintf(stderr, "valuecontentstruct.c: container comparison "
+            "not implemented");
+    }
+    return 0;
+}
+
 int valuecontent_CheckContainerEquality(
-        valuecontent *v1, valuecontent *v2, int *oom
+        valuecontent *v1, valuecontent *v2,
+        int *oom
         ) {
     if (oom) *oom = 0;
     hashmap *seen = hash_NewBytesMap(128);
@@ -329,9 +399,12 @@ int valuecontent_CheckContainerEquality(
         if (oom) *oom = 1;
         return 0;
     }
-
-    // FIXME.
-    return 0;
+    uint64_t seennum = 0;
+    int result = _valuecontent_CheckContainerEquality_Do(
+        v1, v2, seen, &seennum, oom
+    );
+    hash_FreeMap(seen);
+    return result;
 }
 
 int valuecontent_CheckEquality(
@@ -407,10 +480,17 @@ int valuecontent_CheckEquality(
                     ((h64gcvalue *)v1->ptr_value)->type ==
                     H64GCVALUETYPE_MAP ||
                     ((h64gcvalue *)v1->ptr_value)->type ==
+                    H64GCVALUETYPE_SET ||
+                    ((h64gcvalue *)v1->ptr_value)->type ==
                     H64GCVALUETYPE_OBJINSTANCE)) {
-                h64fprintf(stderr, "FIXME: do this\n");
-                _exit(1);
-                return 0;
+                int inneroom = 0;
+                int result = valuecontent_CheckContainerEquality(
+                    v1, v2, &inneroom
+                );
+                if (!result && inneroom) {
+                    if (oom) *oom = 1;
+                }
+                return result;
             } else {
                 // Shouldn't be hit, at least once we're done
                 // FIXME: will still be hit for now

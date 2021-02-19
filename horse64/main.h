@@ -5,8 +5,5 @@
 #ifndef HORSE64_MAIN_H_
 #define HORSE64_MAIN_H_
 
-void main_OutputVersionLong();
-
-void main_OutputVersionShort();
 
 #endif  // HORSE64_MAIN_H_

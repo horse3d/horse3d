@@ -22,7 +22,7 @@
 #include "filesys.h"
 #include "filesys32.h"
 #include "json.h"
-#include "horse64/main.h"
+#include "mainpreinit.h"
 #include "nonlocale.h"
 #include "uri32.h"
 #include "vmbinarywriter.h"

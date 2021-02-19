@@ -17,7 +17,9 @@
 #endif
 
 #include "filesys.h"
+#include "nonlocale.h"
 #include "mainpreinit.h"
+#include "packageversion.h"
 #include "vfs.h"
 
 void _load_unicode_data();  // widechar.c
@@ -39,4 +41,36 @@ void main_PreInit() {
 
     // Load up unicode tables for widechar.c:
     _load_unicode_data();
+}
+
+void main_OutputVersionLong() {
+    h64printf(
+        "org.horse64.core horsec/horsevm v%s.\n"
+        "- Corelib version:   %s\n"
+        "- Build time:        %s\n"
+        "- Compiler version:  %s%s\n",
+        CORELIB_VERSION,
+        CORELIB_VERSION, BUILD_TIME,
+        #if defined(__clang__)
+        "clang-", __clang_version__
+        #elif defined(__GNUC__) && !defined(__clang__)
+        "gcc-", __VERSION__
+        #else
+        "unknown-", "unknown"
+        #endif
+    );
+}
+
+void main_OutputVersionShort() {
+    int isdev = (
+        (strstr(CORELIB_VERSION, "dev") != 0) ||
+        (strstr(CORELIB_VERSION, "alpha") != 0) ||
+        (strstr(CORELIB_VERSION, "beta") != 0) ||
+        (strstr(CORELIB_VERSION, "DEV") != 0)
+    );
+    h64printf("%s%s%s\n",
+        CORELIB_VERSION,
+        (isdev ? "-" : ""),
+        (isdev ? BUILD_TIME : "")
+    );
 }
