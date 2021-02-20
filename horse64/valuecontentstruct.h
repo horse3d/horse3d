@@ -113,12 +113,12 @@ uint32_t valuecontent_Hash(
 
 int valuecontent_IsMutable(valuecontent *v);
 
-int valuecontent_CheckEquality(
+HOTSPOT int valuecontent_CheckEquality(
     h64vmthread *vmthread,
     valuecontent *v1, valuecontent *v2, int *oom
 );
 
-int valuecontent_CompareValues(
+HOTSPOT int valuecontent_CompareValues(
     valuecontent *v1, valuecontent *v2,
     int *result, int *typesnotcomparable
 );

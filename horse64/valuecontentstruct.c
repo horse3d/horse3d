@@ -579,7 +579,7 @@ int valuecontent_CheckContainerEquality(
     return 1;
 }
 
-int valuecontent_CheckEquality(
+HOTSPOT int valuecontent_CheckEquality(
         h64vmthread *vmthread,
         valuecontent *v1, valuecontent *v2, int *oom
         ) {
@@ -701,7 +701,7 @@ int valuecontent_CheckEquality(
     }
 }
 
-int valuecontent_CompareValues(
+HOTSPOT int valuecontent_CompareValues(
         valuecontent *v1, valuecontent *v2,
         int *result, int *typesnotcomparable
         ) {
