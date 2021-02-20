@@ -1,0 +1,19 @@
+
+import math from core.horse64.org
+
+func main {
+    # Verify that comparing complex nested lists by value works:
+    assert([1, 2, 3, [4, 5]] == [1, 2, 3, [4, 5]])
+    assert([1, 2, 3, [4, 5]] != [1, 2, 3, [4, 6]])
+
+    # This should raise an error since [] is not sortable:
+    var had_valerror = no
+    do {
+        assert(math.sort([3, [], 1]) == [1, [], 3])
+    } rescue ValueError {
+        had_valerror = yes
+    }
+    assert(had_valerror)
+}
+
+# expected return value: 0

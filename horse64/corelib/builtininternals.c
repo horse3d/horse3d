@@ -46,9 +46,9 @@ static int _cmp_valuecontent(void *a, void *b) {
             vca, vcb, &result, &notcomparable
             ))) {
         if (notcomparable)
-            return 0;  // just treat as same weight
+            return CMP_ERR_UNSORTABLE;
         // If we get here, must be other error. OOM?
-        return -2;
+        return CMP_ERR_OOM;
     }
     if (unlikely(result == 0))
         return 0;
@@ -142,10 +142,12 @@ int builtininternals_sort(h64vmthread *vmthread) {
 
     if (likely(to_be_sorted_count >= 2)) {
         // Ok, apply quick sort.
+        int oom = 0; int unsortable = 0;
         int result = itemsort_Do(
             to_be_sorted, sizeof(*to_be_sorted) * to_be_sorted_count,
             sizeof(*to_be_sorted),
-            _cmp_valuecontent
+            _cmp_valuecontent,
+            &oom, &unsortable
         );
         if (!result) {
             int64_t i = 0;
@@ -156,10 +158,18 @@ int builtininternals_sort(h64vmthread *vmthread) {
             }
             if (to_be_sorted_onheap)
                 free(to_be_sorted);
-            return vmexec_ReturnFuncError(
-                vmthread, H64STDERROR_OUTOFMEMORYERROR,
-                "out of memory sorting list"
-            );
+            if (oom) {
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_OUTOFMEMORYERROR,
+                    "out of memory sorting list"
+                );
+            } else {
+                assert(unsortable);
+                return vmexec_ReturnFuncError(
+                    vmthread, H64STDERROR_VALUEERROR,
+                    "container has unsortable value"
+                );
+            }
         }
     } else {
         // One or zero elements, no need to sort.

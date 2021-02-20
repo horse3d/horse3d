@@ -710,14 +710,21 @@ static int _codegen_call_to(
                 kwargs_start_slot
             );
             assert(kwargs_count > 0);
+            int oom = 0; int unsortable = 0;
             int sortresult = itemsort_Do(
                 &arg_kwsortinfo[kwargs_start_slot],
                 kwargs_count * sizeof(
                     arg_kwsortinfo[kwargs_start_slot]
                 ), sizeof(
                     arg_kwsortinfo[kwargs_start_slot]
-                ), &_compare_kw_args
+                ), &_compare_kw_args, &oom, &unsortable
             );
+            if (!sortresult) {
+                rinfo->hadoutofmemory = 1;
+                if (alloc_heap)
+                    free(arg_kwsortinfo);
+                return 0;
+            }
             assert(sortresult != 0);
         }
     }

@@ -61,8 +61,11 @@ typedef struct _itemsort_quicksortjob {
 
 int itemsort_Do(
         void *sortdata, int64_t sortdatabytes, int64_t itemsize,
-        int (*compareFunc)(void *item1, void *item2)
+        int (*compareFunc)(void *item1, void *item2),
+        int *oom, int *unsortable
         ) {
+    if (oom) *oom = 0;
+    if (unsortable) *unsortable = 0;
     if (sortdatabytes <= itemsize)
         return 1;
     int64_t itemcount = (sortdatabytes / itemsize);
@@ -73,8 +76,10 @@ int itemsort_Do(
     int64_t jobs_count = 0;
 
     char switchbuf[64];
-    if (itemsize > (int64_t)sizeof(switchbuf))
+    if (itemsize > (int64_t)sizeof(switchbuf)) {
+        if (oom) *oom = 1;
         return 0;
+    }
 
     SORT_PUSHJOB(0, itemcount);
     assert(jobs_count > 0);
@@ -93,6 +98,14 @@ int itemsort_Do(
                 SORT_GETITEM(curr_start + 1)
             );
             if (cmp_1to2 < -1) {
+                if (cmp_1to2 == CMP_ERR_UNSORTABLE) {
+                    if (unsortable) *unsortable = 1;
+                    if (jobs_heap)
+                        free(jobs);
+                    return 0;
+                }
+                assert(cmp_1to2 == CMP_ERR_OOM);
+                if (oom) *oom = 1;
                 if (jobs_heap)
                     free(jobs);
                 return 0;
@@ -124,6 +137,14 @@ int itemsort_Do(
                 SORT_GETITEM(pivot)
             );
             if (cmp_1to2 < -1) {
+                if (cmp_1to2 == CMP_ERR_UNSORTABLE) {
+                    if (unsortable) *unsortable = 1;
+                    if (jobs_heap)
+                        free(jobs);
+                    return 0;
+                }
+                assert(cmp_1to2 == CMP_ERR_OOM);
+                if (oom) *oom = 1;
                 if (jobs_heap)
                     free(jobs);
                 return 0;

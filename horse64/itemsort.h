@@ -9,9 +9,13 @@
 
 #include <stdint.h>
 
+#define CMP_ERR_UNSORTABLE -3
+#define CMP_ERR_OOM -2
+
 int itemsort_Do(
     void *sortdata, int64_t sortdatabytes, int64_t itemsize,
-    int (*compareFunc)(void *item1, void *item2)
+    int (*compareFunc)(void *item1, void *item2),
+    int *oom, int *unsortable
 );
 
 
