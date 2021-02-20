@@ -138,7 +138,7 @@ static int _contains_or_find(
             if (found_at >= 0) {
                 valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
                 DELREF_NONHEAP(vcresult);
-                valuecontent_Free(vcresult);
+                valuecontent_Free(vmthread, vcresult);
                 memset(vcresult, 0, sizeof(*vcresult));
                 if (iscontains) {
                     vcresult->type = H64VALTYPE_BOOL;
@@ -152,7 +152,7 @@ static int _contains_or_find(
         }
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         memset(vcresult, 0, sizeof(*vcresult));
         if (iscontains) {
             vcresult->type = H64VALTYPE_BOOL;
@@ -211,7 +211,7 @@ static int _contains_or_find(
             if (found_at >= 0) {
                 valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
                 DELREF_NONHEAP(vcresult);
-                valuecontent_Free(vcresult);
+                valuecontent_Free(vmthread, vcresult);
                 memset(vcresult, 0, sizeof(*vcresult));
                 if (iscontains) {
                     vcresult->type = H64VALTYPE_BOOL;
@@ -225,7 +225,7 @@ static int _contains_or_find(
         }
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         memset(vcresult, 0, sizeof(*vcresult));
         if (iscontains) {
             vcresult->type = H64VALTYPE_BOOL;
@@ -303,7 +303,7 @@ int corelib_stringdecode(  // $$builtin.$$string_decode
         }
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_NONE;
         if (!valuecontent_SetStringU32(
                 vmthread, vcresult, result_s, result_slen)) {
@@ -417,7 +417,7 @@ int corelib_stringsplitlines(  // $$builtin.$$string_splitlines
         // Create an actual list type to return:
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_GCVAL;
         vcresult->ptr_value = poolalloc_malloc(
             vmthread->heap, 0
@@ -456,11 +456,11 @@ int corelib_stringsplitlines(  // $$builtin.$$string_splitlines
             ADDREF_NONHEAP(&vstring);
             if (!vmlist_Set(l, k + 1, &vstring)) {
                 DELREF_NONHEAP(&vstring);
-                valuecontent_Free(&vstring);
+                valuecontent_Free(vmthread, &vstring);
                 goto oomstrfinalresult;
             }
             DELREF_NONHEAP(&vstring);
-            valuecontent_Free(&vstring);
+            valuecontent_Free(vmthread, &vstring);
             k++;
         }
         // Free our manual list we no longer need:
@@ -552,7 +552,7 @@ int corelib_stringsub(  // $$builtin.$$string_sub
 
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_NONE;
         if (startindex < 1) {
             startindex = 1;
@@ -641,7 +641,7 @@ int corelib_stringsub(  // $$builtin.$$string_sub
 
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_NONE;
         if (startindex < 1) {
             startindex = 1;
@@ -758,7 +758,7 @@ int corelib_stringlower(  // $$builtin.$$string_lower
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(
             vmthread, vcresult, results, slen)) {
@@ -809,7 +809,7 @@ int corelib_stringupper(  // $$builtin.$$string_upper
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(
             vmthread, vcresult, results, slen)) {
@@ -886,7 +886,7 @@ int corelib_stringtrim(  // $$builtin.$$string_trim
             ));
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         memset(vcresult, 0, sizeof(*vcresult));
         if (!valuecontent_SetBytesU8(
                 vmthread, vcresult, (uint8_t *)trimmed, trimmedlen)) {
@@ -944,7 +944,7 @@ int corelib_stringtrim(  // $$builtin.$$string_trim
             ));
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         memset(vcresult, 0, sizeof(*vcresult));
         if (!valuecontent_SetStringU32(
                 vmthread, vcresult, trimmed, trimmedlen)) {
@@ -1011,7 +1011,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
         if (slen < paramlen || paramlen == 0) {
             valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
             DELREF_NONHEAP(vcresult);
-            valuecontent_Free(vcresult);
+            valuecontent_Free(vmthread, vcresult);
             memset(vcresult, 0, sizeof(*vcresult));
             vcresult->type = H64VALTYPE_BOOL;
             vcresult->int_value = !(slen < paramlen);
@@ -1022,7 +1022,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
         );
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         memset(vcresult, 0, sizeof(*vcresult));
         vcresult->type = H64VALTYPE_BOOL;
         vcresult->int_value = (result == 0);
@@ -1064,7 +1064,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
         if (slen < paramlen || paramlen == 0) {
             valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
             DELREF_NONHEAP(vcresult);
-            valuecontent_Free(vcresult);
+            valuecontent_Free(vmthread, vcresult);
             memset(vcresult, 0, sizeof(*vcresult));
             vcresult->type = H64VALTYPE_BOOL;
             vcresult->int_value = !(slen < paramlen);
@@ -1075,7 +1075,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
         );
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         memset(vcresult, 0, sizeof(*vcresult));
         vcresult->type = H64VALTYPE_BOOL;
         vcresult->int_value = (result == 0);
@@ -1135,7 +1135,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
         if (slen < paramlen || paramlen == 0) {
             valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
             DELREF_NONHEAP(vcresult);
-            valuecontent_Free(vcresult);
+            valuecontent_Free(vmthread, vcresult);
             memset(vcresult, 0, sizeof(*vcresult));
             vcresult->type = H64VALTYPE_BOOL;
             vcresult->int_value = !(slen < paramlen);
@@ -1149,7 +1149,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
         );
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         memset(vcresult, 0, sizeof(*vcresult));
         vcresult->type = H64VALTYPE_BOOL;
         vcresult->int_value = (result == 0);
@@ -1190,7 +1190,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
         if (slen < paramlen || paramlen == 0) {
             valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
             DELREF_NONHEAP(vcresult);
-            valuecontent_Free(vcresult);
+            valuecontent_Free(vmthread, vcresult);
             memset(vcresult, 0, sizeof(*vcresult));
             vcresult->type = H64VALTYPE_BOOL;
             vcresult->int_value = !(slen < paramlen);
@@ -1204,7 +1204,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
         );
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         memset(vcresult, 0, sizeof(*vcresult));
         vcresult->type = H64VALTYPE_BOOL;
         vcresult->int_value = (result == 0);

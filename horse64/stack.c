@@ -26,28 +26,33 @@ h64stack *stack_New() {
     return st;
 }
 
-static inline void stack_FreeEntry(h64stack *st, int slot) {
+HOTSPOT static inline void stack_FreeEntry(
+        h64stack *st, h64vmthread *vmthread,
+        int slot
+        ) {
     assert(st->entry[slot].type != H64VALTYPE_CONSTPREALLOCSTR);
     DELREF_NONHEAP(&st->entry[slot]);
-    valuecontent_Free(&st->entry[slot]);
+    valuecontent_Free(vmthread, &st->entry[slot]);
 }
 
-void stack_Free(h64stack *st) {
+void stack_Free(h64stack *st, h64vmthread *vmthread) {
     if (!st)
         return;
     int64_t k = 0;
     while (k < st->entry_count) {
-        stack_FreeEntry(st, k);
+        stack_FreeEntry(st, vmthread, k);
         k++;
     }
     free(st->entry);
     free(st);
 }
 
-void stack_Shrink(h64stack *st, int64_t total_entries) {
+void stack_Shrink(
+        h64stack *st, h64vmthread *vmthread, int64_t total_entries
+        ) {
     int64_t i = st->entry_count;
     while (i > total_entries) {
-        stack_FreeEntry(st, i - 1);
+        stack_FreeEntry(st, vmthread, i - 1);
         i--;
     }
     st->entry_count = i;
@@ -120,7 +125,7 @@ void stack_PrintDebug(h64stack *st) {
 }
 
 HOTSPOT int stack_ToSize(
-        h64stack *st,
+        h64stack *st, h64vmthread *vmthread,
         int64_t total_entries,
         int can_use_emergency_margin
         ) {
@@ -148,7 +153,7 @@ HOTSPOT int stack_ToSize(
     }
     if (total_entries < st->entry_count) {
         // Shrink or be done:
-        stack_Shrink(st, total_entries);
+        stack_Shrink(st, vmthread, total_entries);
         return 1;
     }
     assert(st->alloc_count >= total_entries);

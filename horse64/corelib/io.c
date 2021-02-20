@@ -571,7 +571,7 @@ int iolib_open(
     assert(STACK_TOP(vmthread->stack) >= 1);
     valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vc);
-    valuecontent_Free(vc);
+    valuecontent_Free(vmthread, vc);
     memset(vc, 0, sizeof(*vc));
     vc->type = H64VALTYPE_GCVAL;
     vc->ptr_value = fileobj;
@@ -722,7 +722,7 @@ int iolib_filewrite(
     if (writebyteslen == 0) {
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_INT64;
         vcresult->int_value = 0;
         return 1;
@@ -772,7 +772,7 @@ int iolib_filewrite(
             cdata->flags |= (FILEOBJ_FLAGS_CACHEDUNSENTERROR);
             valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
             DELREF_NONHEAP(vcresult);
-            valuecontent_Free(vcresult);
+            valuecontent_Free(vmthread, vcresult);
             vcresult->type = H64VALTYPE_INT64;
             vcresult->int_value = writelenresult;
             return 1;
@@ -784,7 +784,7 @@ int iolib_filewrite(
     } else {
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_INT64;
         vcresult->int_value = writelenresult;
         return 1;
@@ -945,7 +945,7 @@ int iolib_fileread(
     if (amount == 0 || feof(f)) {
         valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vc);
-        valuecontent_Free(vc);
+        valuecontent_Free(vmthread, vc);
         memset(vc, 0, sizeof(*vc));
         if (readbinary) {
             vc->type = H64VALTYPE_SHORTBYTES;
@@ -1282,7 +1282,7 @@ int iolib_fileread(
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);
-    valuecontent_Free(vresult);
+    valuecontent_Free(vmthread, vresult);
     memset(vresult, 0, sizeof(*vresult));
 
     if (!readbinary && readbuffill == 0) {
@@ -1493,7 +1493,7 @@ int iolib_fileseek(
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);
-    valuecontent_Free(vresult);
+    valuecontent_Free(vmthread, vresult);
     memset(vresult, 0, sizeof(*vresult));
     vresult->type = H64VALTYPE_NONE;
     return 1;
@@ -1551,7 +1551,7 @@ int iolib_fileoffset(
     }
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);
-    valuecontent_Free(vresult);
+    valuecontent_Free(vmthread, vresult);
     memset(vresult, 0, sizeof(*vresult));
     vresult->type = H64VALTYPE_INT64;
     vresult->int_value = result;
@@ -1680,7 +1680,7 @@ int iolib_get_unix_perms(
     s[3] = '0' + permany;
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_NONE;
     if (!valuecontent_SetStringU32(
             vmthread, vcresult, s, slen)) {
@@ -1825,7 +1825,7 @@ int iolib_set_unix_perms(
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_NONE;
     return 1;
 }
@@ -1919,7 +1919,7 @@ int iolib_set_as_exec(
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_NONE;
     return 1;
 }
@@ -2075,7 +2075,7 @@ int iolib_remove(
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_NONE;
     return 1;
 }
@@ -2145,7 +2145,7 @@ int iolib_add_tmp_dir(
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(
             vmthread, vcresult, folder_path, folder_path_len)) {
@@ -2286,7 +2286,7 @@ int iolib_add_dir(
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     return 1;
 }

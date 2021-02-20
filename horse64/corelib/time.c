@@ -96,7 +96,8 @@ int timelib_ticks(
 
     if (STACK_TOP(vmthread->stack) == 0) {
         int result = stack_ToSize(
-            vmthread->stack, vmthread->stack->entry_count + 1, 0
+            vmthread->stack, vmthread,
+            vmthread->stack->entry_count + 1, 0
         );
         if (!result)
             return vmexec_ReturnFuncError(vmthread,
@@ -111,7 +112,7 @@ int timelib_ticks(
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);
-    valuecontent_Free(vresult);
+    valuecontent_Free(vmthread, vresult);
     memset(vresult, 0, sizeof(*vresult));
     vresult->type = H64VALTYPE_FLOAT64;
     vresult->float_value = seconds + fraction;

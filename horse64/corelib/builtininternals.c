@@ -102,7 +102,9 @@ int builtininternals_sort(h64vmthread *vmthread) {
                     i = 0;
                     while (i < to_be_sorted_count) {
                         DELREF_NONHEAP(&to_be_sorted[i]);
-                        valuecontent_Free(&to_be_sorted[i]);
+                        valuecontent_Free(
+                            vmthread, &to_be_sorted[i]
+                        );
                         i++;
                     }
                     if (to_be_sorted_onheap)
@@ -153,7 +155,7 @@ int builtininternals_sort(h64vmthread *vmthread) {
             int64_t i = 0;
             while (i < to_be_sorted_count) {
                 DELREF_NONHEAP(&to_be_sorted[i]);
-                valuecontent_Free(&to_be_sorted[i]);
+                valuecontent_Free(vmthread, &to_be_sorted[i]);
                 i++;
             }
             if (to_be_sorted_onheap)
@@ -178,7 +180,7 @@ int builtininternals_sort(h64vmthread *vmthread) {
     // Assemble result list and copy in the sorted values:
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     vcresult->type = H64VALTYPE_GCVAL;
     vcresult->ptr_value = poolalloc_malloc(
@@ -202,7 +204,7 @@ int builtininternals_sort(h64vmthread *vmthread) {
             if (!vmlist_Add(lresult, &to_be_sorted[i]))
                 goto oom;
             DELREF_NONHEAP(&to_be_sorted[i]);
-            valuecontent_Free(&to_be_sorted[i]);
+            valuecontent_Free(vmthread, &to_be_sorted[i]);
             to_be_sorted[i].type = H64VALTYPE_NONE;
             i++;
         }
@@ -212,7 +214,7 @@ int builtininternals_sort(h64vmthread *vmthread) {
             if (!vmlist_Add(lresult, &to_be_sorted[i]))
                 goto oom;
             DELREF_NONHEAP(&to_be_sorted[i]);
-            valuecontent_Free(&to_be_sorted[i]);
+            valuecontent_Free(vmthread, &to_be_sorted[i]);
             to_be_sorted[i].type = H64VALTYPE_NONE;
             i--;
         }
@@ -260,7 +262,7 @@ int builtininternals_pow(h64vmthread *vmthread) {
         }
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_INT64;
         vcresult->int_value = result;
         return 1;
@@ -291,7 +293,7 @@ int builtininternals_pow(h64vmthread *vmthread) {
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_FLOAT64;
     vcresult->float_value = result;
     if (round(result) == result) {
@@ -337,7 +339,7 @@ int builtininternals_sqrt(h64vmthread *vmthread) {
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_FLOAT64;
     vcresult->float_value = result;
     if (round(result) == result) {

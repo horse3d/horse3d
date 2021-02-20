@@ -72,7 +72,7 @@ int pathlib_exists(
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     vcresult->type = H64VALTYPE_BOOL;
     vcresult->int_value = (result != 0);
@@ -152,7 +152,7 @@ int pathlib_is_symlink(
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     vcresult->int_value = result;
     return 1;
@@ -177,7 +177,8 @@ int pathlib_get_cwd(
     if (STACK_TOP(vmthread->stack) < 1) {
         // Ensure space for return value
         if (!stack_ToSize(
-                vmthread->stack, vmthread->stack->entry_count + 1, 0
+                vmthread->stack, vmthread,
+                vmthread->stack->entry_count + 1, 0
                 )) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
@@ -199,7 +200,7 @@ int pathlib_get_cwd(
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(
             vmthread, vcresult, result, resultlen)) {
@@ -282,7 +283,7 @@ int pathlib_set_cwd(
 
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     return 1;
 }
@@ -329,7 +330,7 @@ int pathlib_is_abs(
     );
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     vcresult->type = H64VALTYPE_BOOL;
     vcresult->int_value = (result != 0);
@@ -390,7 +391,7 @@ int pathlib_normalize(
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(vmthread, vcresult,
             resultstr, resultstrlen)) {
@@ -454,7 +455,7 @@ int pathlib_basename(
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(vmthread, vcresult,
             resultstr, resultstrlen)) {
@@ -519,7 +520,7 @@ int pathlib_to_abs(
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(vmthread, vcresult,
             resultstr, resultstrlen)) {
@@ -627,7 +628,7 @@ int pathlib_list(
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     vcresult->type = H64VALTYPE_GCVAL;
     h64gcvalue *gcval = poolalloc_malloc(
@@ -660,7 +661,7 @@ int pathlib_list(
         ADDREF_NONHEAP(&s);
         int result = vmlist_Set(gcval->list_values, i + 1, &s);
         DELREF_NONHEAP(&s);
-        valuecontent_Free(&s);
+        valuecontent_Free(vmthread, &s);
         if (!result)
             goto oomfinallist;
         i++;
@@ -763,7 +764,7 @@ int pathlib_join(
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(
             vmthread, vcresult, result, resultlen

@@ -26,7 +26,7 @@ int valuecontent_SetBytesU8(
         h64vmthread *vmthread, valuecontent *v,
         uint8_t *bytes, int64_t byteslen
         ) {
-    valuecontent_Free(v);
+    valuecontent_Free(vmthread, v);
     memset(v, 0, sizeof(*v));
 
     if (byteslen < VALUECONTENT_SHORTBYTESLEN) {
@@ -72,7 +72,7 @@ int valuecontent_SetStringU32(
         h64vmthread *vmthread, valuecontent *v,
         const h64wchar *s, int64_t slen
         ) {
-    valuecontent_Free(v);
+    valuecontent_Free(vmthread, v);
     memset(v, 0, sizeof(*v));
 
     if (slen < VALUECONTENT_SHORTSTRLEN) {
@@ -153,7 +153,7 @@ int valuecontent_SetPreallocStringU8(
     );
     if (!u32)
         return 0;
-    valuecontent_Free(v);
+    valuecontent_Free(NULL, v);
     memset(v, 0, sizeof(*v));
 
     v->constpreallocstr_value = malloc(u32len * sizeof(h64wchar));

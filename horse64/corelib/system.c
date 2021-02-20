@@ -35,7 +35,8 @@ int systemlib_platform(
      */
     if (STACK_TOP(vmthread->stack) == 0) {
         int result = stack_ToSize(
-            vmthread->stack, vmthread->stack->entry_count + 1, 0
+            vmthread->stack, vmthread,
+            vmthread->stack->entry_count + 1, 0
         );
         if (!result) {
             returnvaloom:
@@ -49,7 +50,7 @@ int systemlib_platform(
     const char *platname = osinfo_PlatformName();
     valuecontent *retval = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(retval);
-    valuecontent_Free(retval);
+    valuecontent_Free(vmthread, retval);
     memset(retval, 0, sizeof(*retval));
     if (platname != NULL && strlen(platname) > 0) {
         int64_t platname_u32len = 0;
@@ -122,7 +123,7 @@ int systemlib_cores(
 
     valuecontent *retval = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(retval);
-    valuecontent_Free(retval);
+    valuecontent_Free(vmthread, retval);
     memset(retval, 0, sizeof(*retval));
     retval->type = H64VALTYPE_INT64;
     retval->int_value = (
@@ -150,7 +151,7 @@ int systemlib_vm_exec_path(
     assert(STACK_TOP(vmthread->stack) >= 0);
     if (STACK_TOP(vmthread->stack) < 1) {
         if (!stack_ToSize(
-                vmthread->stack,
+                vmthread->stack, vmthread,
                 vmthread->stack->entry_count + 1, 0)) {
             return vmexec_ReturnFuncError(
                 vmthread, H64STDERROR_OUTOFMEMORYERROR,
@@ -173,7 +174,7 @@ int systemlib_vm_exec_path(
         }
         valuecontent *retval = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(retval);
-        valuecontent_Free(retval);
+        valuecontent_Free(vmthread, retval);
         memset(retval, 0, sizeof(*retval));
         retval->type = H64VALTYPE_NONE;
         return 1;
@@ -181,7 +182,7 @@ int systemlib_vm_exec_path(
 
     valuecontent *retval = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(retval);
-    valuecontent_Free(retval);
+    valuecontent_Free(vmthread, retval);
     memset(retval, 0, sizeof(*retval));
     if (!valuecontent_SetStringU32(
             vmthread, retval, execpath, execpathlen

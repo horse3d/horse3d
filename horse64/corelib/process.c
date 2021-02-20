@@ -227,7 +227,7 @@ int processlib_run(
         assert(asprogress->run_job->done);
         valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
         DELREF_NONHEAP(vcresult);
-        valuecontent_Free(vcresult);
+        valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_NONE;
         return 1;
     }

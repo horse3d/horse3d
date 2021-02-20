@@ -12,6 +12,7 @@
 #include "bytecode.h"
 
 typedef struct valuecontent valuecontent;
+typedef struct h64vmthread h64vmthread;
 
 #define ALLOC_OVERSHOOT 32
 #define ALLOC_MAXOVERSHOOT 4096
@@ -27,11 +28,11 @@ typedef struct h64stack {
 h64stack *stack_New();
 
 HOTSPOT int stack_ToSize(
-    h64stack *st, int64_t total_entries,
+    h64stack *st, h64vmthread *vmthread, int64_t total_entries,
     int can_use_emergency_margin
 );
 
-void stack_Free(h64stack *st);
+void stack_Free(h64stack *st, h64vmthread *vmthread);
 
 void stack_PrintDebug(h64stack *st);
 

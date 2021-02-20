@@ -106,7 +106,7 @@ int netlib_isip(h64vmthread *vmthread) {
 
     valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vc);
-    valuecontent_Free(vc);
+    valuecontent_Free(vmthread, vc);
     memset(vc, 0, sizeof(*vc));
     vc->type = H64VALTYPE_BOOL;
     vc->int_value = (
@@ -581,7 +581,7 @@ int netlib_connect(h64vmthread *vmthread) {
             // Return connection:
             valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
             DELREF_NONHEAP(vc);
-            valuecontent_Free(vc);
+            valuecontent_Free(vmthread, vc);
             memset(vc, 0, sizeof(*vc));
             vc->type = H64VALTYPE_GCVAL;
             vc->ptr_value = (

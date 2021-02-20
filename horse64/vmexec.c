@@ -357,7 +357,7 @@ void vmthread_Free(h64vmthread *vmthread) {
     int i = 0;
     while (i < vmthread->arg_reorder_space_count) {
         DELREF_NONHEAP(&vmthread->arg_reorder_space[i]);
-        valuecontent_Free(&vmthread->arg_reorder_space[i]);
+        valuecontent_Free(vmthread, &vmthread->arg_reorder_space[i]);
         i++;
     }
     free(vmthread->arg_reorder_space);
@@ -370,7 +370,7 @@ void vmthread_Free(h64vmthread *vmthread) {
     if (vmthread->iteratorstruct_pile)
         poolalloc_Destroy(vmthread->iteratorstruct_pile);
     if (vmthread->stack) {
-        stack_Free(vmthread->stack);
+        stack_Free(vmthread->stack, vmthread);
     }
     free(vmthread->funcframe);
     free(vmthread->errorframe);
@@ -395,7 +395,7 @@ void vmthread_WipeFuncStack(h64vmthread *vmthread) {
     if (VMTHREAD_FUNCSTACKBOTTOM(vmthread) < STACK_TOTALSIZE(vmthread->stack)
             ) {
         int result = stack_ToSize(
-            vmthread->stack,
+            vmthread->stack, vmthread,
             VMTHREAD_FUNCSTACKBOTTOM(vmthread),
             0
         );
@@ -477,12 +477,12 @@ static inline int popfuncframe(
         #endif
         if (new_top < vt->stack->entry_count) {
             int result = stack_ToSize(
-                vt->stack, new_top, 0
+                vt->stack, vt, new_top, 0
             );
             assert(result != 0);
         } else {
             int result = stack_ToSize(
-                vt->stack, new_top, 0
+                vt->stack, vt, new_top, 0
             );
             if (!result)
                 return 0;
@@ -570,7 +570,7 @@ static inline int pushfuncframe(
     #endif
     assert(new_func_floor >= 0);
     if (!stack_ToSize(
-            vt->stack,
+            vt->stack, vt,
             (new_func_floor +
              vmexec->program->func[func_id].input_stack_size +
              vmexec->program->func[func_id].inner_stack_size),
@@ -899,7 +899,7 @@ static int vmthread_errors_Raise(
             vmthread->stack, error_to_slot
         );
         DELREF_NONHEAP(vc);
-        valuecontent_Free(vc);
+        valuecontent_Free(vmthread, vc);
         memset(vc, 0, sizeof(*vc));
         vc->type = H64VALTYPE_ERROR;
         vc->error_class_id = class_id;
@@ -985,7 +985,7 @@ static int vmthread_errors_Raise(
 
 int vmthread_ResetCallTempStack(h64vmthread *vmthread) {
     if (vmthread->call_settop_reverse >= 0) {
-        if (!stack_ToSize(vmthread->stack,
+        if (!stack_ToSize(vmthread->stack, vmthread,
                 vmthread->call_settop_reverse, 1)) {
             vmthread->call_settop_reverse = -1;
             return 0;
@@ -1230,7 +1230,7 @@ static void vmexec_PrintPostErrorInfo(
     vmthread->upcoming_resume_info->\
         cfunc_resume.needs_cfunc_resume = 0; \
     DELREF_NONHEAP(suspend_valuecontent); \
-    valuecontent_Free(suspend_valuecontent); \
+    valuecontent_Free(vmthread, suspend_valuecontent); \
     if (vmexec->moptions.vmscheduler_debug) \
         h64fprintf( \
             stderr, "horsevm: debug: vmschedule.c: " \
@@ -1428,7 +1428,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         );
         valuecontent *vc = STACK_ENTRY(stack, inst->slot);
         DELREF_NONHEAP(vc);
-        valuecontent_Free(vc);
+        valuecontent_Free(vmthread, vc);
         if (inst->content.type == H64VALTYPE_CONSTPREALLOCSTR) {
             vc->type = H64VALTYPE_GCVAL;
             vc->ptr_value = poolalloc_malloc(
@@ -1701,7 +1701,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         );
 
         DELREF_NONHEAP(&gcval->varattr[aindex]);
-        valuecontent_Free(&gcval->varattr[aindex]);
+        valuecontent_Free(vmthread, &gcval->varattr[aindex]);
         memcpy(
             &gcval->varattr[aindex], vfrom, sizeof(*vfrom)
         );
@@ -1745,7 +1745,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         }
 
         DELREF_NONHEAP(&gcval->varattr[aindex]);
-        valuecontent_Free(&gcval->varattr[aindex]);
+        valuecontent_Free(vmthread, &gcval->varattr[aindex]);
         memcpy(
             &gcval->varattr[aindex], vfrom, sizeof(*vfrom)
         );
@@ -1764,7 +1764,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
         DELREF_NONHEAP(vc);
-        valuecontent_Free(vc);
+        valuecontent_Free(vmthread, vc);
         vc->type = H64VALTYPE_FUNCREF;
         vc->int_value = (int64_t)inst->funcfrom;
 
@@ -1781,7 +1781,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
         DELREF_NONHEAP(vc);
-        valuecontent_Free(vc);
+        valuecontent_Free(vmthread, vc);
         vc->type = H64VALTYPE_CLASSREF;
         vc->int_value = (int64_t)inst->classfrom;
 
@@ -1808,7 +1808,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             #endif
             valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
             DELREF_NONHEAP(vc);
-            valuecontent_Free(vc);
+            valuecontent_Free(vmthread, vc);
             memcpy(
                 vc,
                 STACK_ENTRY(stack, inst->slotfrom), sizeof(*vc)
@@ -1897,7 +1897,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             }
             valuecontent *vcreturnto = STACK_ENTRY(stack, inst->returnto);
             DELREF_NONHEAP(vcreturnto);
-            valuecontent_Free(vcreturnto);
+            valuecontent_Free(vmthread, vcreturnto);
             memset(vcreturnto, 0, sizeof(*vcreturnto));
             vcreturnto->type = H64VALTYPE_NONE;
             p += sizeof(h64instruction_call);
@@ -2140,7 +2140,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                             stack, (int64_t)i + stack_args_bottom
                         )
                     );
-                    valuecontent_Free(vlist);
+                    valuecontent_Free(vmthread, vlist);
                 } else {
                     // Transfer argument as-is from stack:
                     assert(vmthread->arg_reorder_space != NULL);
@@ -2194,7 +2194,8 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             }
             // Now cut off the stack above where we need to change it:
             int result = stack_ToSize(
-                stack, stack_args_bottom + leftalone_args +
+                stack, vmthread,
+                stack_args_bottom + leftalone_args +
                 stack->current_func_floor, 0
             );
             assert(result != 0);  // shrinks, so shouldn't fail
@@ -2208,7 +2209,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             int64_t i = 0;
             while (i < inst->kwargs) {
                 DELREF_NONHEAP(&stack->entry[base + i]);
-                valuecontent_Free(&stack->entry[base + i]);
+                valuecontent_Free(vmthread, &stack->entry[base + i]);
                 memmove(
                     &stack->entry[base + i],
                     &stack->entry[base + i + 1],
@@ -2231,7 +2232,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             if (stack_target_size > STACK_TOTALSIZE(stack)
                     ) {
                 result = stack_ToSize(
-                    stack, stack_target_size, 0
+                    stack, vmthread, stack_target_size, 0
                 );
             }
             if (unlikely(!result)) {
@@ -2242,7 +2243,9 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                         DELREF_NONHEAP(
                             &vmthread->arg_reorder_space[z]
                         );
-                        valuecontent_Free(&vmthread->arg_reorder_space[z]);
+                        valuecontent_Free(
+                            vmthread, &vmthread->arg_reorder_space[z]
+                        );
                         z++;
                     }
                     memset(
@@ -2511,7 +2514,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                     if (returneduncaughterror)
                         *returneduncaughterror = 0;
                     DELREF_NONHEAP(&retval);
-                    valuecontent_Free(&retval);
+                    valuecontent_Free(vmthread, &retval);
                     goto triggeroom;
                 }
             } else {
@@ -2581,7 +2584,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                     (eobj->einfo ? (int)eobj->einfo->msglen : 0)
                 );  // FIXME: carry over inner stack trace
                 DELREF_NONHEAP(&retval);
-                valuecontent_Free(&retval);
+                valuecontent_Free(vmthread, &retval);
                 goto *jumptable[((h64instructionany *)p)->type];
             } else {
                 vmthread_AbortAsyncForegroundWork(vmthread);
@@ -2591,16 +2594,25 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                         inst->returnto >= 0) {
                     assert(inst->returnto < STACK_TOP(stack));
                     DELREF_NONHEAP(STACK_ENTRY(stack, inst->returnto));
-                    valuecontent_Free(STACK_ENTRY(stack, inst->returnto));
+                    valuecontent_Free(
+                        vmthread, STACK_ENTRY(stack, inst->returnto)
+                    );
                     memcpy(
                         STACK_ENTRY(stack, inst->returnto),
                         &retval,
                         sizeof(valuecontent)
                     );
                     ADDREF_NONHEAP(STACK_ENTRY(stack, inst->returnto));
+                    assert(
+                        STACK_ENTRY(stack, inst->returnto)->type !=
+                            H64VALTYPE_GCVAL ||
+                        ((h64gcvalue *)STACK_ENTRY(stack,
+                            inst->returnto)->ptr_value)->
+                            externalreferencecount >= 0
+                    );
                 }
                 DELREF_NONHEAP(&retval);
-                valuecontent_Free(&retval);
+                valuecontent_Free(vmthread, &retval);
             }
             p += sizeof(h64instruction_call);
             goto *jumptable[((h64instructionany *)p)->type];
@@ -2684,7 +2696,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         int64_t newtop = (int64_t)inst->topto + stack->current_func_floor;
         if (newtop != stack->entry_count) {
             if (stack_ToSize(
-                    stack, newtop, 0
+                    stack, vmthread, newtop, 0
                     ) < 0) {
                 goto triggeroom;
             }
@@ -2712,7 +2724,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         int64_t newtop = (int64_t)inst->topto + stack->current_func_floor;
         if (newtop != stack->entry_count) {
             if (stack_ToSize(
-                    stack, newtop, 0
+                    stack, vmthread, newtop, 0
                     ) < 0) {
                 goto triggeroom;
             }
@@ -2771,7 +2783,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             assert(stack->entry_count - current_stack_size == 0);
             assert(original_stack_size >= 0);
             if (!stack_ToSize(
-                    stack, original_stack_size + 1, 0
+                    stack, vmthread, original_stack_size + 1, 0
                     )) {
                 DELREF_NONHEAP(&vccopy);
 
@@ -2790,7 +2802,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                 stack, original_stack_size
             );
             DELREF_NONHEAP(newvc);
-            valuecontent_Free(newvc);
+            valuecontent_Free(vmthread, newvc);
             memcpy(newvc, &vccopy, sizeof(vccopy));
             return 1;
         }
@@ -2830,11 +2842,11 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                 stack->current_func_floor + (int64_t)returnslot
             );
             DELREF_NONHEAP(newvc);
-            valuecontent_Free(newvc);
+            valuecontent_Free(vmthread, newvc);
             memcpy(newvc, &vccopy, sizeof(vccopy));
         } else {
             DELREF_NONHEAP(&vccopy);
-            valuecontent_Free(&vccopy);
+            valuecontent_Free(vmthread, &vccopy);
         }
 
         // Return to old execution:
@@ -2987,7 +2999,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
 
         valuecontent *v = STACK_ENTRY(stack, inst->slotiteratorto);
         DELREF_NONHEAP(v);
-        valuecontent_Free(v);
+        valuecontent_Free(vmthread, v);
         if (likely(vlist->type == H64VALTYPE_GCVAL)) {
             v->type = H64VALTYPE_ITERATOR;
             v->iterator = poolalloc_malloc(
@@ -3287,7 +3299,9 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                 &exitwitherror, &e
             );  // calls poperrorframe
             if (exitwitherror) {
-                int result = stack_ToSize(stack, 0, 0);
+                int result = stack_ToSize(
+                    stack, vmthread, 0, 0
+                );
                 stack->current_func_floor = 0;
                 assert(result != 0);
                 *returneduncaughterror = 1;
@@ -3330,7 +3344,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             copyatend = 1;
         } else {
             DELREF_NONHEAP(target);
-            valuecontent_Free(target);
+            valuecontent_Free(vmthread, target);
             memset(target, 0, sizeof(*target));
         }
 
@@ -3411,7 +3425,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (copyatend) {
             valuecontent *copytarget = STACK_ENTRY(stack, inst->slotto);
             DELREF_NONHEAP(copytarget);
-            valuecontent_Free(copytarget);
+            valuecontent_Free(vmthread, copytarget);
             memcpy(copytarget, target, sizeof(*target));
             // ADDREF_ was already done above.
         }
@@ -3446,7 +3460,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             copyatend = 1;
         } else {
             DELREF_NONHEAP(target);
-            valuecontent_Free(target);
+            valuecontent_Free(vmthread, target);
             memset(target, 0, sizeof(*target));
         }
         valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
@@ -3914,7 +3928,9 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         }
         if (copyatend) {
             DELREF_NONHEAP(STACK_ENTRY(stack, inst->slotto));
-            valuecontent_Free(STACK_ENTRY(stack, inst->slotto));
+            valuecontent_Free(
+                vmthread, STACK_ENTRY(stack, inst->slotto)
+            );
             memcpy(STACK_ENTRY(stack, inst->slotto),
                    target, sizeof(*target));
         }
@@ -3950,7 +3966,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
         DELREF_NONHEAP(vc);
-        valuecontent_Free(vc);
+        valuecontent_Free(vmthread, vc);
         memset(vc, 0, sizeof(*vc));
         vc->type = H64VALTYPE_GCVAL;
         vc->ptr_value = poolalloc_malloc(
@@ -3989,7 +4005,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
         DELREF_NONHEAP(vc);
-        valuecontent_Free(vc);
+        valuecontent_Free(vmthread, vc);
         memset(vc, 0, sizeof(*vc));
         vc->type = H64VALTYPE_GCVAL;
         vc->ptr_value = poolalloc_malloc(
@@ -4073,7 +4089,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         sharedending_newinstance_newinstancebyref: {
             valuecontent *vctarget = STACK_ENTRY(stack, slot_to);
             DELREF_NONHEAP(vctarget);
-            valuecontent_Free(vctarget);
+            valuecontent_Free(vmthread, vctarget);
             memset(vctarget, 0, sizeof(*vctarget));
             assert(class_id >= 0 && class_id < vmexec->program->classes_count);
             vctarget->type = H64VALTYPE_GCVAL;
@@ -4184,7 +4200,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             copyatend = 1;
         } else {
             DELREF_NONHEAP(target);
-            valuecontent_Free(target);
+            valuecontent_Free(vmthread, target);
             memset(target, 0, sizeof(*target));
         }
         valuecontent *vc = STACK_ENTRY(stack, inst->objslotfrom);
@@ -4236,7 +4252,9 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         }
         if (copyatend) {
             DELREF_NONHEAP(STACK_ENTRY(stack, inst->slotto));
-            valuecontent_Free(STACK_ENTRY(stack, inst->slotto));
+            valuecontent_Free(
+                vmthread, STACK_ENTRY(stack, inst->slotto)
+            );
             memcpy(STACK_ENTRY(stack, inst->slotto),
                    target, sizeof(*target));
         }
@@ -4605,7 +4623,7 @@ int vmthread_RunFunction(
         // An error, so we need to do manual stack cleaning:
         if (start_thread->stack->entry_count > old_stack) {
             int _sizing_worked = stack_ToSize(
-                start_thread->stack, old_stack, 0
+                start_thread->stack, start_thread, old_stack, 0
             );
             assert(_sizing_worked);
         }
@@ -4769,14 +4787,14 @@ int vmexec_ReturnFuncError(
         ) {
     if (STACK_TOP(vmthread->stack) == 0) {
         if (!stack_ToSize(
-                vmthread->stack,
+                vmthread->stack, vmthread,
                 STACK_TOTALSIZE(vmthread->stack) + 1, 1
                 ))
             return 0;
     }
     valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vc);
-    valuecontent_Free(vc);
+    valuecontent_Free(vmthread, vc);
     memset(vc, 0, sizeof(*vc));
     vc->type = H64VALTYPE_ERROR;
     vc->error_class_id = error_id;

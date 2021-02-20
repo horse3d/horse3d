@@ -236,7 +236,7 @@ int corelib_containerjoin_map(  // $$builtin.$$container_join_map
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(
             vmthread, vcresult,
@@ -388,7 +388,7 @@ int corelib_containerjoin_list(  // $$builtin.$$container_join_list
     }
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(
             vmthread, vcresult,
@@ -434,7 +434,7 @@ int corelib_containercontains(  // $$builtin.$$container_contains
 
     valuecontent *vresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vresult);
-    valuecontent_Free(vresult);
+    valuecontent_Free(vmthread, vresult);
     memset(vresult, 0, sizeof(*vresult));
     vresult->type = H64VALTYPE_BOOL;
     vresult->int_value = result;

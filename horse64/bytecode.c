@@ -20,6 +20,8 @@
 #include "hash.h"
 #include "nonlocale.h"
 #include "uri32.h"
+#include "vmexec.h"
+#include "vmstrings.h"
 
 
 static char _name_itype_invalid[] = "invalid_instruction";
@@ -539,13 +541,55 @@ void h64program_PrintBytecodeStats(h64program *p) {
     }
 }
 
-void valuecontent_Free(valuecontent *content) {
+HOTSPOT void valuecontent_Free_Do(
+        h64vmthread *vmthread, valuecontent *content,
+        int maxrecurse
+        ) {
     if (!content)
         return;
-    if (content->type == H64VALTYPE_CONSTPREALLOCSTR)
+    if (content->type == H64VALTYPE_CONSTPREALLOCSTR) {
         free(content->constpreallocstr_value);
-    else if (content->type == H64VALTYPE_CONSTPREALLOCBYTES)
+    } else if (content->type == H64VALTYPE_CONSTPREALLOCBYTES) {
         free(content->constpreallocbytes_value);
+    } else if (content->type == H64VALTYPE_GCVAL) {
+        h64gcvalue *gcval = (h64gcvalue *)content->ptr_value;
+        if (likely(gcval->externalreferencecount > 0 ||
+                gcval->heapreferencecount > 0)) {
+            return;
+        }
+        if (gcval->type == H64GCVALUETYPE_OBJINSTANCE) {
+            if (unlikely(maxrecurse <= 0)) {
+                // Let the GC clean it up later.
+            }
+            const int64_t c = (
+                vmthread->vmexec_owner->program->classes[
+                    gcval->class_id
+                ].varattr_count
+            );
+            maxrecurse--;
+            int64_t i = 0;
+            while (i < c) {
+                DELREF_HEAP(&gcval->varattr[i]);
+                valuecontent_Free_Do(
+                    vmthread, &gcval->varattr[i],
+                    maxrecurse
+                );
+                i++;
+            }
+            free(gcval->varattr);
+            return;
+        } else if (gcval->type == H64GCVALUETYPE_STRING) {
+            vmstrings_Free(vmthread, &gcval->str_val);
+            return;
+        }
+    }
+
+}
+
+HOTSPOT void valuecontent_Free(
+        h64vmthread *vmthread, valuecontent *content
+        ) {
+    return valuecontent_Free_Do(vmthread, content, 10);
 }
 
 void h64program_FreeInstructions(
@@ -565,7 +609,7 @@ void h64program_FreeInstructions(
             // Silence gcc false positive in follow-up line:
             // Even when instsetconst is unaligned, manual padding
             // ensures 8-byte alignment of the ->content meber.
-            valuecontent_Free(&instsetconst->content);
+            valuecontent_Free(NULL, &instsetconst->content);
             #pragma GCC diagnostic pop
         }
         len -= (int)nextelement;
@@ -724,7 +768,7 @@ void h64program_Free(h64program *p) {
     while (i < p->globalvar_count) {
         valuecontent *content = &p->globalvar[i].content;
         DELREF_NONHEAP(content);
-        valuecontent_Free(content);
+        valuecontent_Free(NULL, content);
         i++;
     }
     free(p->globalvar);

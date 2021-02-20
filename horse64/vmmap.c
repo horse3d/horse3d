@@ -66,14 +66,14 @@ int _vmmap_AddToBucket(
     return 1;
 }
 
-void _vmmap_ClearBuckets(genericmap *map) {
+void _vmmap_ClearBuckets(genericmap *map, h64vmthread *vmthread) {
     if ((map->flags & GENERICMAP_FLAG_LINEAR) != 0) {
         int32_t i = 0;
         while (i < map->linear.entry_count) {
             DELREF_HEAP(&map->linear.entry[i]);
-            valuecontent_Free(&map->linear.entry[i]);
+            valuecontent_Free(vmthread, &map->linear.entry[i]);
             DELREF_HEAP(&map->linear.key[i]);
-            valuecontent_Free(&map->linear.key[i]);
+            valuecontent_Free(vmthread, &map->linear.key[i]);
             i++;
         }
         free(map->linear.entry);
@@ -88,9 +88,9 @@ void _vmmap_ClearBuckets(genericmap *map) {
         int k = 0;
         while (k < b->entry_count) {
             DELREF_HEAP(&b->key[k]);
-            valuecontent_Free(&b->key[k]);
+            valuecontent_Free(vmthread, &b->key[k]);
             DELREF_HEAP(&b->entry[k]);
-            valuecontent_Free(&b->entry[k]);
+            valuecontent_Free(vmthread, &b->entry[k]);
             k++;
         }
         free(b->key);
@@ -204,7 +204,7 @@ int _vmmap_RemoveByHash(
                     &inneroom)) {
                 found = 1;
                 DELREF_HEAP(&m->linear.entry[i]);
-                valuecontent_Free(&m->linear.entry[i]);
+                valuecontent_Free(vt, &m->linear.entry[i]);
                 if (i + 1 < m->linear.entry_count)
                     memmove(
                         &m->linear.entry[i],
@@ -235,7 +235,7 @@ int _vmmap_RemoveByHash(
                     vt, key, &b->key[i], &inneroom)) {
                 found = 1;
                 DELREF_HEAP(&b->entry[i]);
-                valuecontent_Free(&b->entry[i]);
+                valuecontent_Free(vt, &b->entry[i]);
                 if (i + 1 < b->entry_count)
                     memmove(
                         &b->entry[i],
@@ -388,7 +388,7 @@ int vmmap_Set(
                         m->linear.entry_hash[i],
                         &m->linear.key[i],
                         &m->linear.entry[i])) {
-                    _vmmap_ClearBuckets(&m2);
+                    _vmmap_ClearBuckets(&m2, vt);
                     free(m2.hashed.bucket);
                     return 0;
                 }
@@ -399,9 +399,9 @@ int vmmap_Set(
             i = 0;
             while (i < m->linear.entry_count) {
                 DELREF_HEAP(&m->linear.key[i]);
-                valuecontent_Free(&m->linear.key[i]);
+                valuecontent_Free(vt, &m->linear.key[i]);
                 DELREF_HEAP(&m->linear.entry[i]);
-                valuecontent_Free(&m->linear.entry[i]);
+                valuecontent_Free(vt, &m->linear.entry[i]);
                 i++;
             }
             free(m->linear.key);

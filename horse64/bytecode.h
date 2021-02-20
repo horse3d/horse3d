@@ -7,6 +7,7 @@
 
 #include "compileconfig.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -484,7 +485,9 @@ size_t h64program_PtrToInstructionSize(
 
 #include "gcvalue.h"  // Keep it here since valuecontent def must come before
 
-void valuecontent_Free(valuecontent *content);
+HOTSPOT void valuecontent_Free(
+    h64vmthread *vmthread, valuecontent *content
+);
 
 void h64program_FreeInstructions(
     char *instructionbytes, int instructionbytes_len
@@ -569,6 +572,8 @@ void h64program_PrintBytecodeStats(h64program *p);
 ATTR_UNUSED static inline void DELREF_NONHEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->externalreferencecount--;
+        assert(((h64gcvalue *)content->ptr_value)->
+               externalreferencecount >= 0);
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount--;
@@ -577,6 +582,8 @@ ATTR_UNUSED static inline void DELREF_NONHEAP(valuecontent *content) {
 
 ATTR_UNUSED static inline void ADDREF_NONHEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
+        assert(((h64gcvalue *)content->ptr_value)->
+               externalreferencecount >= 0);
         ((h64gcvalue *)content->ptr_value)->externalreferencecount++;
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
@@ -587,6 +594,8 @@ ATTR_UNUSED static inline void ADDREF_NONHEAP(valuecontent *content) {
 ATTR_UNUSED static inline void DELREF_HEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
         ((h64gcvalue *)content->ptr_value)->heapreferencecount--;
+        assert(((h64gcvalue *)content->ptr_value)->
+               heapreferencecount >= 0);
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)
             content->einfo->refcount--;
@@ -595,6 +604,8 @@ ATTR_UNUSED static inline void DELREF_HEAP(valuecontent *content) {
 
 ATTR_UNUSED static inline void ADDREF_HEAP(valuecontent *content) {
     if (content->type == H64VALTYPE_GCVAL) {
+        assert(((h64gcvalue *)content->ptr_value)->
+               heapreferencecount >= 0);
         ((h64gcvalue *)content->ptr_value)->heapreferencecount++;
     } else if (content->type == H64VALTYPE_ERROR) {
         if (content->einfo)

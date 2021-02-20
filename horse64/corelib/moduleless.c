@@ -81,7 +81,7 @@ int corelib_obj_is_a(h64vmthread *vmthread) {  // $$builtin.$$anyis_a
     );
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     memset(vcresult, 0, sizeof(*vcresult));
     vcresult->type = H64VALTYPE_BOOL;
     vcresult->int_value = result;
@@ -568,7 +568,7 @@ int corelib_assert(  // $$builtin.assert
     if (c->type == H64VALTYPE_BOOL &&
             c->int_value == 1) {
         DELREF_NONHEAP(c);
-        valuecontent_Free(c);
+        valuecontent_Free(vmthread, c);
         memset(c, 0, sizeof(*c));
         c->type = H64VALTYPE_NONE;
         return 1;
@@ -630,7 +630,7 @@ int corelib_print(  // $$builtin.print
     // Clear return value:
     valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vcresult);
-    valuecontent_Free(vcresult);
+    valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_NONE;
     return 1;
 }

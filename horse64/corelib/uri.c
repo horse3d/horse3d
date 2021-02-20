@@ -180,7 +180,9 @@ int urilib_parse(
                 int i = 0;
                 while (i < H64URIMEMBER_TOTAL) {
                     DELREF_HEAP(&uriobj->varattr[i]);
-                    valuecontent_Free(&uriobj->varattr[i]);
+                    valuecontent_Free(
+                        vmthread, &uriobj->varattr[i]
+                    );
                     i++;
                 }
                 free(uriobj->varattr);

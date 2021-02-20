@@ -155,7 +155,7 @@ int vmschedule_AsyncScheduleFunc(
         vmexec->program->func[func_id].input_stack_size
     );
     if (!stack_ToSize(
-            newthread->stack, func_slots, 0)) {
+            newthread->stack, newthread, func_slots, 0)) {
         mutex_Lock(access_mutex);
         vmthread_Free(newthread);
         mutex_Release(access_mutex);
@@ -386,7 +386,9 @@ static int vmschedule_RunMainThreadLaunchFunc(
             return 0;
         }
         if (!hadsuspendevent) {
-            int result = stack_ToSize(mainthread->stack, 0, 0);
+            int result = stack_ToSize(
+                mainthread->stack, mainthread, 0, 0
+            );
             assert(result != 0);
         }
     }
@@ -1076,7 +1078,7 @@ int vmschedule_ExecuteProgram(
             ADDREF_NONHEAP(&c);
             if (!vmlist_Set(gcval->list_values, k + 1, &c)) {
                 DELREF_NONHEAP(&c);
-                valuecontent_Free(&c);
+                valuecontent_Free(mainthread, &c);
                 h64fprintf(
                     stderr, "horsevm: error: vmschedule.c: "
                     "out of memory setting process.args\n"
@@ -1136,7 +1138,7 @@ int vmschedule_ExecuteProgram(
         int i = 0;
         while (i < mainexec->program->globalvar_count) {
             DELREF_NONHEAP(&mainexec->program->globalvar[i].content);
-            valuecontent_Free(
+            valuecontent_Free(mainexec->thread[0],
                 &mainexec->program->globalvar[i].content
             );
             memset(
@@ -1186,14 +1188,14 @@ int vmschedule_SuspendFunc(
         ) {
     if (STACK_TOP(vmthread->stack) == 0) {
         if (!stack_ToSize(
-                vmthread->stack,
+                vmthread->stack, vmthread,
                 STACK_TOTALSIZE(vmthread->stack) + 1, 1
                 ))
             return 0;
     }
     valuecontent *vc = STACK_ENTRY(vmthread->stack, 0);
     DELREF_NONHEAP(vc);
-    valuecontent_Free(vc);
+    valuecontent_Free(vmthread, vc);
     memset(vc, 0, sizeof(*vc));
     vc->type = H64VALTYPE_SUSPENDINFO;
     vc->suspend_type = suspend_type;

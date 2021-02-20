@@ -37,7 +37,7 @@ inst_binop: {
             tmpresult = &_tmpresultbuf;
         } else {
             DELREF_NONHEAP(tmpresult);
-            valuecontent_Free(tmpresult);
+            valuecontent_Free(vmthread, tmpresult);
             memset(tmpresult, 0, sizeof(*tmpresult));
         }
 
@@ -870,7 +870,7 @@ inst_binop: {
         if (copyatend) {
             valuecontent *target = STACK_ENTRY(stack, inst->slotto);
             DELREF_NONHEAP(target);
-            valuecontent_Free(target);
+            valuecontent_Free(vmthread, target);
             memcpy(target, tmpresult, sizeof(*tmpresult));
         }
         #pragma GCC diagnostic pop
@@ -893,7 +893,7 @@ inst_binop: {
             tmpresult = &_tmpresultbuf;
         } else {
             DELREF_NONHEAP(tmpresult);
-            valuecontent_Free(tmpresult);
+            valuecontent_Free(vmthread, tmpresult);
             memset(tmpresult, 0, sizeof(*tmpresult));
         }
 
@@ -949,7 +949,7 @@ inst_binop: {
         if (copyatend) {
             valuecontent *target = STACK_ENTRY(stack, inst->slotto);
             DELREF_NONHEAP(target);
-            valuecontent_Free(target);
+            valuecontent_Free(vmthread, target);
             memcpy(target, tmpresult, sizeof(*tmpresult));
         }
         p += sizeof(h64instruction_unop);

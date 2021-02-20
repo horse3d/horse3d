@@ -66,7 +66,7 @@ int _pipe_DoPipeObject(
         slot_to - target_thread->stack->current_func_floor
     );
     DELREF_NONHEAP(vctarget);
-    valuecontent_Free(vctarget);
+    valuecontent_Free(target_thread, vctarget);
     memset(vctarget, 0, sizeof(*vctarget));
 
     if (likely(vcsource->type == H64VALTYPE_INT64 ||
