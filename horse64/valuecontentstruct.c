@@ -391,17 +391,23 @@ int valuecontent_CheckContainerEquality(
         valuecontent *v2, int *oom
         ) {
     if (oom) *oom = 0;
+
+    // To compare cycle equality, we will number things by memory address
+    // as we see them on each side so we can detect if something cycles
+    // back to it:
     hashmap *seen = hash_NewBytesMap(128);
     if (!seen) {
         if (oom) *oom = 1;
         return 0;
     }
     uint64_t seennum = 0;
+
+    // Jobs buffer for things we look at so we don't recurse on stack:
     struct _valuecontent_checkequality_job _jobsbuf[32];
     struct _valuecontent_checkequality_job *jobs = _jobsbuf;
     int64_t jobs_count = 0;
     int64_t jobs_alloc = 32;
-    int jobs_onheap = 0;
+    int jobs_onheap = 0;  // will migrate to heap only if too many jobs
     h64program *pr = vmthread->vmexec_owner->program;
 
     if (unlikely(v1->type != H64VALTYPE_GCVAL ||
