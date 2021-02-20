@@ -119,7 +119,7 @@ void stack_PrintDebug(h64stack *st) {
     }
 }
 
-int stack_ToSize(
+HOTSPOT int stack_ToSize(
         h64stack *st,
         int64_t total_entries,
         int can_use_emergency_margin

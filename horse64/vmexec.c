@@ -1247,7 +1247,7 @@ static void vmexec_PrintPostErrorInfo(
             start_thread->call_settop_reverse\
         );
 
-int _vmthread_RunFunction_NoPopFuncFrames(
+HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         h64vmexec *vmexec, h64vmthread *start_thread,
         vmthreadresumeinfo *rinfo, int worker_no,
         int *returneduncaughterror,
