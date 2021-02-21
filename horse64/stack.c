@@ -124,45 +124,35 @@ void stack_PrintDebug(h64stack *st) {
     }
 }
 
-HOTSPOT int stack_ToSize(
-        h64stack *st, h64vmthread *vmthread,
-        int64_t total_entries,
-        int can_use_emergency_margin
+int stack_IncreaseAlloc(
+        h64stack *st, ATTR_UNUSED h64vmthread *vmthread,
+        int64_t total_entries, int alloc_needed_margin
         ) {
-    assert(total_entries >= 0);
-    int alloc_needed_margin = (
-        can_use_emergency_margin ? 0 :
-        ALLOC_EMERGENCY_MARGIN
+    int alloc_optional_margin = alloc_needed_margin;
+    if (alloc_optional_margin == 0)
+        alloc_optional_margin = ALLOC_EMERGENCY_MARGIN;
+    valuecontent *new_entries = realloc(
+        st->entry, sizeof(*new_entries) *
+            (total_entries + alloc_optional_margin + ALLOC_OVERSHOOT)
     );
-    // Grow if needed:
-    if (unlikely(st->alloc_count < total_entries + alloc_needed_margin)) {
-        valuecontent *new_entries = realloc(
-            st->entry, sizeof(*new_entries) *
-                (total_entries + alloc_needed_margin + ALLOC_OVERSHOOT)
-        );
-        if (!new_entries) {
-            if (!can_use_emergency_margin ||
-                    total_entries > st->alloc_count)
-                return 0;
-        } else {
-            st->entry = new_entries;
-            st->alloc_count = (
-                total_entries + alloc_needed_margin + ALLOC_OVERSHOOT
+    if (!new_entries) {
+        if (alloc_needed_margin > 0)
+            return 0;
+        if (total_entries > st->alloc_count) {
+            // Retry without the margin or overshoot:
+            valuecontent *new_entries = realloc(
+                st->entry, sizeof(*new_entries) *
+                    (total_entries)
             );
+            if (!new_entries)
+                return 0;
         }
     }
-    if (total_entries < st->entry_count) {
-        // Shrink or be done:
-        stack_Shrink(st, vmthread, total_entries);
-        return 1;
-    }
-    assert(st->alloc_count >= total_entries);
-    if (likely(st->entry_count < total_entries)) {
-        memset(&st->entry[st->entry_count], 0,
-            sizeof(st->entry[st->entry_count]) * (
-                total_entries - st->entry_count
-            ));
-    }
-    st->entry_count = total_entries;
+    assert(new_entries != NULL);
+    st->entry = new_entries;
+    st->alloc_count = (
+        total_entries + alloc_needed_margin + ALLOC_OVERSHOOT
+    );
     return 1;
 }
+
