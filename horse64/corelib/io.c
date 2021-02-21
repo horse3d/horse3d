@@ -575,6 +575,7 @@ int iolib_open(
     memset(vc, 0, sizeof(*vc));
     vc->type = H64VALTYPE_GCVAL;
     vc->ptr_value = fileobj;
+    ADDREF_NONHEAP(vc);
     return 1;
 }
 
@@ -725,6 +726,7 @@ int iolib_filewrite(
         valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_INT64;
         vcresult->int_value = 0;
+        ADDREF_NONHEAP(vcresult);
         return 1;
     }
 
@@ -775,6 +777,7 @@ int iolib_filewrite(
             valuecontent_Free(vmthread, vcresult);
             vcresult->type = H64VALTYPE_INT64;
             vcresult->int_value = writelenresult;
+            ADDREF_NONHEAP(vcresult);
             return 1;
         }
         return vmexec_ReturnFuncError(
@@ -787,6 +790,7 @@ int iolib_filewrite(
         valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_INT64;
         vcresult->int_value = writelenresult;
+        ADDREF_NONHEAP(vcresult);
         return 1;
     }
 }
@@ -961,7 +965,6 @@ int iolib_fileread(
     char *readbuf = _stackreadbuf;
     int64_t readbuffill = 0;
     int64_t readbufsize = 1024;
-    int64_t readcount = 0;
     int readbufheap = 0;
 
     char _stackdecodebuf[1024];
@@ -1041,7 +1044,6 @@ int iolib_fileread(
                 continue;
             }
             assert(_didread > 0);
-            int64_t oldfill = readbuffill;
             readbuffill += _didread;
         }
     } else if (!readbinary) {
@@ -1290,6 +1292,7 @@ int iolib_fileread(
         vresult->constpreallocstr_len = 0;
         if (readbufheap)
             free(readbuf);
+        ADDREF_NONHEAP(vresult);
     } else if (!readbinary) {
         char _convertedbuf[1024];
         h64wchar* converted = (h64wchar*)_convertedbuf;
@@ -1368,11 +1371,13 @@ int iolib_fileread(
             &gcval->str_val
         );
         cdata->text_offset += gcval->str_val.letterlen;
+        ADDREF_NONHEAP(vresult);
     } else if (readbinary && readbuffill == 0) {
         vresult->type = H64VALTYPE_SHORTBYTES;
         vresult->constpreallocbytes_len = 0;
         if (readbufheap)
             free(readbuf);
+        ADDREF_NONHEAP(vresult);
     } else {
         assert(readbinary);
         vresult->type = H64VALTYPE_GCVAL;
@@ -1496,6 +1501,7 @@ int iolib_fileseek(
     valuecontent_Free(vmthread, vresult);
     memset(vresult, 0, sizeof(*vresult));
     vresult->type = H64VALTYPE_NONE;
+    ADDREF_NONHEAP(vresult);
     return 1;
 }
 
@@ -1555,6 +1561,7 @@ int iolib_fileoffset(
     memset(vresult, 0, sizeof(*vresult));
     vresult->type = H64VALTYPE_INT64;
     vresult->int_value = result;
+    ADDREF_NONHEAP(vresult);
     return 1;
 }
 
@@ -1589,6 +1596,12 @@ int iolib_fileclose(
     }
     // Clear error, since file is closed anyway:
     cdata->flags &= ~((uint8_t)FILEOBJ_FLAGS_CACHEDUNSENTERROR);
+
+    valuecontent *vcresult = STACK_ENTRY(vmthread->stack, 0);
+    DELREF_NONHEAP(vcresult);
+    valuecontent_Free(vmthread, vcresult);
+    vcresult->type = H64VALTYPE_NONE;
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -1689,6 +1702,7 @@ int iolib_get_unix_perms(
             "out of memory returning permission string"
         );
     }
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -1827,6 +1841,7 @@ int iolib_set_unix_perms(
     DELREF_NONHEAP(vcresult);
     valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_NONE;
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -1921,6 +1936,7 @@ int iolib_set_as_exec(
     DELREF_NONHEAP(vcresult);
     valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_NONE;
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -2077,6 +2093,7 @@ int iolib_remove(
     DELREF_NONHEAP(vcresult);
     valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_NONE;
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -2160,6 +2177,7 @@ int iolib_add_tmp_dir(
         );
     }
     free(folder_path);
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 

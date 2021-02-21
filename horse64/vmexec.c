@@ -149,6 +149,54 @@ void vmthread_SetSuspendState(
     #endif
 }
 
+static void vmexec_VerifyStack(
+        h64vmthread *vmthread
+        ) {
+    h64stack *stack = vmthread->stack;
+    int64_t i = 0;
+    while (i < stack->entry_count) {
+        valuecontent *v = &stack->entry[i];
+        int otherrefs = 0;
+        if (v->type == H64VALTYPE_GCVAL) {
+            // Find out if this is referenced from other stack slots.
+            int64_t k = 0;
+            while (k < i) {
+                if (k == i) {
+                    k++;
+                    continue;
+                }
+                if (stack->entry[k].type == H64VALTYPE_GCVAL &&
+                        stack->entry[k].ptr_value ==
+                        ((h64gcvalue *)v->ptr_value)) {
+                    otherrefs++;
+                }
+                k++;
+            }
+        }
+        if (v->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)v->ptr_value) != NULL &&
+                ((h64gcvalue *)v->ptr_value)->externalreferencecount <
+                1 + otherrefs) {
+            fprintf(stderr,
+                "vmexec.c: invalid value in stack slot %" PRId64 "/"
+                "%" PRId64 " "
+                "(local temporary slot: %" PRId64 ") "
+                "with externalreferencecount < 1 + %d despite being "
+                "on the stack. gc value type: %d\n",
+                i, stack->entry_count, i - stack->current_func_floor,
+                otherrefs,
+                (int)(((h64gcvalue *)v->ptr_value)->type)
+            );
+        }
+        assert(
+            v->type != H64VALTYPE_GCVAL ||
+            ((h64gcvalue *)v->ptr_value)->externalreferencecount >=
+            1 + otherrefs
+        );
+        i++;
+    }
+}
+
 int _vmexec_CondExprValue(
         valuecontent *v, int *yesno
         ) {
@@ -1403,6 +1451,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         #endif
 
         #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
+        #ifndef NDEBUG
         if (stack != NULL && !(inst->slot >= 0 &&
                 inst->slot < stack->entry_count -
                 stack->current_func_floor &&
@@ -1447,6 +1499,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                     inst->content.constpreallocstr_len)) {
                 poolalloc_free(heap, gcval);
                 vc->ptr_value = NULL;
+                vc->type = H64VALTYPE_NONE;
                 goto triggeroom;
             }
             memcpy(
@@ -1471,6 +1524,7 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                     inst->content.constpreallocbytes_len)) {
                 poolalloc_free(heap, gcval);
                 vc->ptr_value = NULL;
+                vc->type = H64VALTYPE_NONE;
                 goto triggeroom;
             }
             memcpy(
@@ -1486,6 +1540,11 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         }
         assert(vc->type != H64VALTYPE_CONSTPREALLOCBYTES &&
                vc->type != H64VALTYPE_CONSTPREALLOCSTR);
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         p += sizeof(h64instruction_setconst);
         goto *jumptable[((h64instructionany *)p)->type];
     }
@@ -1497,6 +1556,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         if (!vmthread->is_on_main_thread) {
@@ -1528,6 +1591,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         if (!vmthread->is_on_main_thread &&
                 !pr->globalvar[inst->globalfrom].is_simple_constant) {
             RAISE_ERROR(
@@ -1556,6 +1623,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
@@ -1665,6 +1736,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
         if (vc->type != H64VALTYPE_GCVAL ||
                 ((h64gcvalue*)vc->ptr_value)->type !=
@@ -1720,6 +1795,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         valuecontent *vc = STACK_ENTRY(stack, inst->slotobjto);
         if (vc->type != H64VALTYPE_GCVAL ||
                 ((h64gcvalue*)vc->ptr_value)->type !=
@@ -1762,11 +1841,19 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
         DELREF_NONHEAP(vc);
         valuecontent_Free(vmthread, vc);
         vc->type = H64VALTYPE_FUNCREF;
         vc->int_value = (int64_t)inst->funcfrom;
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
 
         p += sizeof(h64instruction_getfunc);
         goto *jumptable[((h64instructionany *)p)->type];
@@ -1779,11 +1866,19 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         valuecontent *vc = STACK_ENTRY(stack, inst->slotto);
         DELREF_NONHEAP(vc);
         valuecontent_Free(vmthread, vc);
         vc->type = H64VALTYPE_CLASSREF;
         vc->int_value = (int64_t)inst->classfrom;
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
 
         p += sizeof(h64instruction_getclass);
         goto *jumptable[((h64instructionany *)p)->type];
@@ -1794,6 +1889,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         assert(STACK_ENTRY(stack, inst->slotfrom)->type !=
@@ -1815,6 +1914,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             );
             ADDREF_NONHEAP(vc);
         }
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
 
         p += sizeof(h64instruction_valuecopy);
         goto *jumptable[((h64instructionany *)p)->type];
@@ -1843,6 +1946,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                 goto triggeroom;
             }
         }
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         int64_t target_func_id = -1;
@@ -2366,6 +2473,11 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                 closureargid++;
             }
         }
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         // The stack is now complete in its new ordering.
         // Therefore, we can do the call:
         int64_t new_func_floor = (
@@ -2614,6 +2726,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                 DELREF_NONHEAP(&retval);
                 valuecontent_Free(vmthread, &retval);
             }
+            #ifndef NDEBUG
+            vmexec_VerifyStack(vmthread);
+            #endif
+
             p += sizeof(h64instruction_call);
             goto *jumptable[((h64instructionany *)p)->type];
         } else {
@@ -2702,6 +2818,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             }
         }
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         p += sizeof(h64instruction_settop);
         goto *jumptable[((h64instructionany *)p)->type];
     }
@@ -2731,6 +2851,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         }
         vmthread->call_settop_reverse = oldtop;
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         p += sizeof(h64instruction_settop);
         goto *jumptable[((h64instructionany *)p)->type];
     }
@@ -2740,6 +2864,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         // Get return value:
@@ -2886,6 +3014,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         #endif
         assert(inst->jumpbytesoffset != 0);
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         int jumpevalvalue = 1;
         assert(inst->conditionalslot >= 0 &&
                inst->conditionalslot < STACK_TOP(stack));
@@ -2919,6 +3051,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
         assert(inst->jumpbytesoffset != 0);
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
 
         int jumpevalvalue = 1;
         valuecontent *vc = STACK_ENTRY(stack, inst->conditionalslot);
@@ -2964,6 +3100,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         p += (
             (ptrdiff_t)inst->jumpbytesoffset
         );
@@ -2979,6 +3119,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         valuecontent *vlist = STACK_ENTRY(stack, inst->slotcontainerfrom);
@@ -3069,6 +3213,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         valuecontent *viterated = STACK_ENTRY(
@@ -3179,6 +3327,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         #endif
 
         #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
+        #ifndef NDEBUG
         int previous_count = vmthread->errorframe_count;
         if ((inst->mode & RESCUEMODE_JUMPONRESCUE))
             assert((p - pr->func[func_id].instructions) +
@@ -3286,6 +3438,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         #endif
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         // See if we got a finally block to terminate:
         assert(vmthread->errorframe_count > 0);
         {
@@ -3324,6 +3480,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         // Prepare target:
@@ -3429,6 +3589,11 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             memcpy(copytarget, target, sizeof(*target));
             // ADDREF_ was already done above.
         }
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         p += sizeof(*inst);
         goto *jumptable[((h64instructionany *)p)->type];
     }
@@ -3440,6 +3605,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         // Prepare target:
@@ -3934,6 +4103,11 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             memcpy(STACK_ENTRY(stack, inst->slotto),
                    target, sizeof(*target));
         }
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         p += sizeof(*inst);
         goto *jumptable[((h64instructionany *)p)->type];
     }
@@ -3986,6 +4160,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         }
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         p += sizeof(h64instruction_newlist);
         goto *jumptable[((h64instructionany *)p)->type];
     }
@@ -4025,6 +4203,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             goto triggeroom;
         }
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         p += sizeof(h64instruction_newmap);
         goto *jumptable[((h64instructionany *)p)->type];
     }
@@ -4048,6 +4230,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                     !vmthread_PrintExec(vmthread, func_id, (void*)inst))
                 goto triggeroom;
+            #endif
+
+            #ifndef NDEBUG
+            vmexec_VerifyStack(vmthread);
             #endif
 
             #ifndef NDEBUG
@@ -4076,6 +4262,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                     !vmthread_PrintExec(vmthread, func_id, (void*)inst))
                  goto triggeroom;
+            #endif
+
+            #ifndef NDEBUG
+            vmexec_VerifyStack(vmthread);
             #endif
 
             #ifndef NDEBUG
@@ -4155,7 +4345,11 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                 closurearg->ptr_value = gcval;
                 ADDREF_NONHEAP(closurearg);
 
-                // Enter function:
+                #ifndef NDEBUG
+                vmexec_VerifyStack(vmthread);
+                #endif
+
+                // Enter $$varinit function:
                 #ifndef NDEBUG
                 if (vmthread->vmexec_owner->moptions.vmexec_debug)
                     h64fprintf(
@@ -4172,7 +4366,11 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
                        (intptr_t)pr->func[func_id].instructions_bytes;
                 goto *jumptable[((h64instructionany *)p)->type];
             } else {
-                // No $$varinit
+                // No $$varinit.
+                #ifndef NDEBUG
+                vmexec_VerifyStack(vmthread);
+                #endif
+
                 p += skipbytes;
                 goto *jumptable[((h64instructionany *)p)->type];
             }
@@ -4186,6 +4384,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
                 goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         // Prepare target:
@@ -4258,6 +4460,11 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
             memcpy(STACK_ENTRY(stack, inst->slotto),
                    target, sizeof(*target));
         }
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         p += sizeof(*inst);
         goto *jumptable[((h64instructionany *)p)->type];
     }

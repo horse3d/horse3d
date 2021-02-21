@@ -24,6 +24,10 @@ inst_binop: {
             goto triggeroom;
         #endif
 
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
+        #endif
+
         // Silence false positive warnings:
         #pragma GCC diagnostic push
         #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
@@ -883,6 +887,10 @@ inst_binop: {
         if (vmthread->vmexec_owner->moptions.vmexec_debug &&
                 !vmthread_PrintExec(vmthread, func_id, (void*)inst))
             goto triggeroom;
+        #endif
+
+        #ifndef NDEBUG
+        vmexec_VerifyStack(vmthread);
         #endif
 
         int copyatend = 0;

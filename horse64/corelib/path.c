@@ -204,11 +204,14 @@ int pathlib_get_cwd(
     memset(vcresult, 0, sizeof(*vcresult));
     if (!valuecontent_SetStringU32(
             vmthread, vcresult, result, resultlen)) {
+        free(result);
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OUTOFMEMORYERROR,
             "out of memory returning current directory"
         );
     }
+    free(result);
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -402,6 +405,7 @@ int pathlib_normalize(
         );
     }
     free(resultstr);
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -466,6 +470,7 @@ int pathlib_basename(
         );
     }
     free(resultstr);
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -531,6 +536,7 @@ int pathlib_to_abs(
         );
     }
     free(resultstr);
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -651,6 +657,8 @@ int pathlib_list(
         vcresult->ptr_value = NULL;
         goto oomfinallist;
     }
+    gcval->externalreferencecount = 1;
+    gcval->heapreferencecount = 0;
     int64_t i = 0;
     while (contents[i]) {
         valuecontent s = {0};
@@ -769,11 +777,14 @@ int pathlib_join(
     if (!valuecontent_SetStringU32(
             vmthread, vcresult, result, resultlen
             )) {
+        free(result);
         return vmexec_ReturnFuncError(
             vmthread, H64STDERROR_OUTOFMEMORYERROR,
             "out of memory creating joined string"
         );
     }
+    free(result);
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
