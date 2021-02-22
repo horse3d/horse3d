@@ -196,7 +196,7 @@ int prnglib_rand(
     DELREF_NONHEAP(retval);
     valuecontent_Free(vmthread, retval);
     memset(retval, 0, sizeof(*retval));
-    retval->type = H64VALTYPE_INT64;
+    retval->type = H64VALTYPE_FLOAT64;
     retval->float_value = randdbl();
     ADDREF_NONHEAP(retval);
     return 1;
@@ -222,8 +222,8 @@ int prnglib_RegisterFuncsAndModules(h64program *p) {
         NULL
     };
     idx = h64program_RegisterCFunction(
-        p, "rand", &prnglib_randint,
-        NULL, 0, 2, prandom_rand_kw_arg_name,  // fileuri, args
+        p, "rand", &prnglib_rand,
+        NULL, 0, 0, prandom_rand_kw_arg_name,  // fileuri, args
         "prng", "core.horse64.org", 1, -1
     );
     if (idx < 0)

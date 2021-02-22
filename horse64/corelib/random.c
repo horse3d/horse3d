@@ -113,7 +113,7 @@ int randomlib_rand(
     DELREF_NONHEAP(retval);
     valuecontent_Free(vmthread, retval);
     memset(retval, 0, sizeof(*retval));
-    retval->type = H64VALTYPE_INT64;
+    retval->type = H64VALTYPE_FLOAT64;
     retval->float_value = secrandom_Rand0ToExclusive1();
     ADDREF_NONHEAP(retval);
     return 1;
@@ -139,8 +139,8 @@ int randomlib_RegisterFuncsAndModules(h64program *p) {
         NULL
     };
     idx = h64program_RegisterCFunction(
-        p, "rand", &randomlib_randint,
-        NULL, 0, 2, random_rand_kw_arg_name,  // fileuri, args
+        p, "rand", &randomlib_rand,
+        NULL, 0, 0, random_rand_kw_arg_name,  // fileuri, args
         "random", "core.horse64.org", 1, -1
     );
     if (idx < 0)
