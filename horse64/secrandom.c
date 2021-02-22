@@ -148,6 +148,9 @@ int64_t secrandom_RandIntRange(int64_t min, int64_t max) {
     uint64_t range = max - min;
     if (range == 0)
         return min;
+    if (range == UINT64_MAX)
+        return secrandom_RandInt();
+    range++;  // Inclusive maximum.
     uint64_t safe_modulo_range = (
         ((int64_t)(UINT64_MAX / range)) * range
     );
@@ -169,4 +172,18 @@ int64_t secrandom_RandInt() {
         // repeat until we get a value.
     }
     return i;
+}
+
+#include "vendor/erand48_impl.c"
+
+double secrandom_Rand0ToExclusive1() {
+    while (1) {
+        uint16_t r[3];
+        while (!secrandom_GetBytes((char *)r, sizeof(r))) {
+            // repeat until we get a value.
+        }
+        double result = netbsd_erand48(r);
+        if (likely(result >= 0 && result < 1.0))
+            return result;
+    }
 }

@@ -16,4 +16,6 @@ int64_t secrandom_RandIntRange(int64_t min, int64_t max);
 
 int64_t secrandom_RandInt();
 
+double secrandom_Rand0ToExclusive1();
+
 #endif  // HORSE64_SECRANDOM_H_

@@ -136,7 +136,9 @@ int itemsort_Do(
             continue;
         }
         int64_t pivot = secrandom_RandIntRange(
-            curr_start, curr_end
+            curr_start, curr_end - 1
+            // (curr_end is exclusive, but secrandom_RandIntRange has
+            // inclusive end)
         );  // for now sec random to avoid easily exploiting worst cases
         assert(pivot >= curr_start && pivot <= curr_end);
         

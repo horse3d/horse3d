@@ -27,6 +27,8 @@
 #include "corelib/moduleless_containers.h"
 #include "corelib/moduleless_strings.h"
 #include "corelib/path.h"
+#include "corelib/prng.h"
+#include "corelib/random.h"
 #include "corelib/system.h"
 #include "corelib/time.h"
 #include "corelib/uri.h"
@@ -638,7 +640,7 @@ int corelib_print(  // $$builtin.print
 int corelib_RegisterFuncsAndModules(h64program *p) {
     int64_t idx;
 
-    // Error types:
+    // FIRST, bevore anything else: register error types:
     if (!corelib_RegisterErrorClasses(p))
         return 0;
 
@@ -646,41 +648,51 @@ int corelib_RegisterFuncsAndModules(h64program *p) {
     if (!builtininternalslib_RegisterFuncsAndModules(p))
         return 0;
 
-    // 'io' module:
-    if (!iolib_RegisterFuncsAndModules(p))
+    // Container func attributes:
+    if (!corelib_RegisterContainerFuncs(p))
         return 0;
 
-    // 'process' module:
-    if (!processlib_RegisterFuncsAndModules(p))
+    // 'io' module:
+    if (!iolib_RegisterFuncsAndModules(p))
         return 0;
 
     // 'net' module:
     if (!netlib_RegisterFuncsAndModules(p))
         return 0;
 
-    // 'time' module:
-    if (!timelib_RegisterFuncsAndModules(p))
+    // 'path' module:
+    if (!pathlib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'prng' module:
+    if (!prnglib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'process' module:
+    if (!processlib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // 'random' module:
+    if (!randomlib_RegisterFuncsAndModules(p))
+        return 0;
+
+    // String func attributes:
+    if (!corelib_RegisterStringFuncs(p))
         return 0;
 
     // 'system' module:
     if (!systemlib_RegisterFuncsAndModules(p))
         return 0;
 
+    // 'time' module:
+    if (!timelib_RegisterFuncsAndModules(p))
+        return 0;
+
     // 'uri' module:
     if (!urilib_RegisterFuncsAndModules(p))
         return 0;
 
-    // 'path' module:
-    if (!pathlib_RegisterFuncsAndModules(p))
-        return 0;
-
-    // Container func attributes:
-    if (!corelib_RegisterContainerFuncs(p))
-        return 0;
-
-    // String func attributes:
-    if (!corelib_RegisterStringFuncs(p))
-        return 0;
+    // Now, the stuff without a module:
 
     // 'print' function:
     idx = h64program_RegisterCFunction(
