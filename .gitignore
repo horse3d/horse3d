@@ -28,3 +28,4 @@ RECOVERED_FILES
 /vendor/unicode/unicode_data_header.h
 /horse_modules_builtin/unicode_data__*
 /vendor/unicode/unicode_data__*
+!/vendor/erand48_impl.c
