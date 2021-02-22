@@ -12,5 +12,5 @@
     ignore = untracked
 [submodule "vendor/mtwister"]
 	path = vendor/mtwister
-	url = https://github.com/ESultanik/mtwister
+	url = https://github.com/ell1e/mtwister
     ignore = untracked
