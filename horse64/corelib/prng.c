@@ -144,7 +144,8 @@ int prnglib_randint(
         uint64_t unbiased_modulo = (
             (UINT64_MAX / range) * range
         );
-        assert(unbiased_modulo >= 0);
+        if (unbiased_modulo < range)
+            unbiased_modulo = range;
         uint64_t u_i;
         while (1) {
             u_i = urandint64();

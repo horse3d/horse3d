@@ -154,7 +154,8 @@ int64_t secrandom_RandIntRange(int64_t min, int64_t max) {
     uint64_t safe_modulo_range = (
         ((int64_t)(UINT64_MAX / range)) * range
     );
-    assert(safe_modulo_range > 0);
+    if (safe_modulo_range < range)
+        safe_modulo_range = range;
     uint64_t i = 0;
     while (1) {
         while (!secrandom_GetBytes((char *)&i, sizeof(i))) {
