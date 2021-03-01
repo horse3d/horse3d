@@ -31,7 +31,7 @@ func request(target, method="GET", insecure=no,
     }
     if target.protocol.lower() == "http" and not insecure {
         raise new ValueError(
-            "cannot contact untrusted http target with insecure=false"
+            "cannot contact untrusted http target with insecure=no"
         )
     }
 
