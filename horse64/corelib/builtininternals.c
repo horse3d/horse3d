@@ -219,6 +219,7 @@ int builtininternals_sort(h64vmthread *vmthread) {
             i--;
         }
     }
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -265,6 +266,7 @@ int builtininternals_pow(h64vmthread *vmthread) {
         valuecontent_Free(vmthread, vcresult);
         vcresult->type = H64VALTYPE_INT64;
         vcresult->int_value = result;
+        ADDREF_NONHEAP(vcresult);
         return 1;
     }
     double vbase = (
@@ -300,6 +302,7 @@ int builtininternals_pow(h64vmthread *vmthread) {
         vcresult->type = H64VALTYPE_INT64;
         vcresult->int_value = round(result);
     }
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -346,6 +349,7 @@ int builtininternals_sqrt(h64vmthread *vmthread) {
         vcresult->type = H64VALTYPE_INT64;
         vcresult->int_value = round(result);
     }
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 

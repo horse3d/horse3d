@@ -147,6 +147,7 @@ static int _contains_or_find(
                     vcresult->type = H64VALTYPE_INT64;
                     vcresult->int_value = found_at;
                 }
+                ADDREF_NONHEAP(vcresult);
                 return 1;
             }
         }
@@ -161,6 +162,7 @@ static int _contains_or_find(
             vcresult->type = H64VALTYPE_INT64;
             vcresult->int_value = -1;
         }
+        ADDREF_NONHEAP(vcresult);
         return 1;
     } else {
         // Bytes code path
@@ -234,6 +236,7 @@ static int _contains_or_find(
             vcresult->type = H64VALTYPE_INT64;
             vcresult->int_value = -1;
         }
+        ADDREF_NONHEAP(vcresult);
         return 1;
     }
 }
@@ -314,6 +317,7 @@ int corelib_stringdecode(  // $$builtin.$$string_decode
             );
         }
         free(result_s);
+        ADDREF_NONHEAP(vcresult);
         return 1;
     } else {
         return vmexec_ReturnFuncError(
@@ -439,6 +443,8 @@ int corelib_stringsplitlines(  // $$builtin.$$string_splitlines
         h64gcvalue *gcval = ((h64gcvalue *)vcresult->ptr_value);
         memset(gcval, 0, sizeof(*gcval));
         gcval->type = H64GCVALUETYPE_LIST;
+        gcval->heapreferencecount = 0;
+        gcval->externalreferencecount = 1;
         gcval->list_values = vmlist_New();
         if (!gcval->list_values) {
             goto oomstrfinalresult;
@@ -624,6 +630,7 @@ int corelib_stringsub(  // $$builtin.$$string_sub
             );
         }
         free(scopy);
+        ADDREF_NONHEAP(vcresult);
         return 1;
     } else {
         char *s = NULL;
@@ -683,6 +690,7 @@ int corelib_stringsub(  // $$builtin.$$string_sub
             );
         }
         free(scopy);
+        ADDREF_NONHEAP(vcresult);
         return 1;
     }
 }
@@ -769,6 +777,7 @@ int corelib_stringlower(  // $$builtin.$$string_lower
         );
     }
     free(results);
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -820,6 +829,7 @@ int corelib_stringupper(  // $$builtin.$$string_upper
         );
     }
     free(results);
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -897,6 +907,7 @@ int corelib_stringtrim(  // $$builtin.$$string_trim
             );
         }
         free(trimmed);
+        ADDREF_NONHEAP(vcresult);
         return 1;
     } else {
         // U32 trim():
@@ -955,6 +966,7 @@ int corelib_stringtrim(  // $$builtin.$$string_trim
             );
         }
         free(trimmed);
+        ADDREF_NONHEAP(vcresult);
         return 1;
     }
 }
@@ -1015,6 +1027,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
             memset(vcresult, 0, sizeof(*vcresult));
             vcresult->type = H64VALTYPE_BOOL;
             vcresult->int_value = !(slen < paramlen);
+            ADDREF_NONHEAP(vcresult);
             return 1;
         }
         int result = (
@@ -1026,6 +1039,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
         memset(vcresult, 0, sizeof(*vcresult));
         vcresult->type = H64VALTYPE_BOOL;
         vcresult->int_value = (result == 0);
+        ADDREF_NONHEAP(vcresult);
         return 1;
     } else {  // U32 starts():
         // Get parameter which must also be str:
@@ -1068,6 +1082,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
             memset(vcresult, 0, sizeof(*vcresult));
             vcresult->type = H64VALTYPE_BOOL;
             vcresult->int_value = !(slen < paramlen);
+            ADDREF_NONHEAP(vcresult);
             return 1;
         }
         int result = (
@@ -1079,6 +1094,7 @@ int corelib_stringstarts(  // $$builtin.$$string_starts
         memset(vcresult, 0, sizeof(*vcresult));
         vcresult->type = H64VALTYPE_BOOL;
         vcresult->int_value = (result == 0);
+        ADDREF_NONHEAP(vcresult);
         return 1;
     }
 }
@@ -1153,6 +1169,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
         memset(vcresult, 0, sizeof(*vcresult));
         vcresult->type = H64VALTYPE_BOOL;
         vcresult->int_value = (result == 0);
+        ADDREF_NONHEAP(vcresult);
         return 1;
     } else {  // U32 ends():
         // Get parameter which must also be str:
@@ -1194,6 +1211,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
             memset(vcresult, 0, sizeof(*vcresult));
             vcresult->type = H64VALTYPE_BOOL;
             vcresult->int_value = !(slen < paramlen);
+            ADDREF_NONHEAP(vcresult);
             return 1;
         }
         int result = (
@@ -1208,6 +1226,7 @@ int corelib_stringends(  // $$builtin.$$string_ends
         memset(vcresult, 0, sizeof(*vcresult));
         vcresult->type = H64VALTYPE_BOOL;
         vcresult->int_value = (result == 0);
+        ADDREF_NONHEAP(vcresult);
         return 1;
     }
 }

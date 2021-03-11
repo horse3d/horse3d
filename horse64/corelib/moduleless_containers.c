@@ -438,6 +438,7 @@ int corelib_containercontains(  // $$builtin.$$container_contains
     memset(vresult, 0, sizeof(*vresult));
     vresult->type = H64VALTYPE_BOOL;
     vresult->int_value = result;
+    ADDREF_NONHEAP(vresult);
     return 1;
 }
 

@@ -182,9 +182,10 @@ static void vmexec_VerifyStack(
                 "%" PRId64 " "
                 "(local temporary slot: %" PRId64 ") "
                 "with externalreferencecount < 1 + %d despite being "
-                "on the stack. gc value type: %d\n",
+                "on the stack. stack floor: %" PRId64 ", "
+                "gc value type: %d\n",
                 i, stack->entry_count, i - stack->current_func_floor,
-                otherrefs,
+                otherrefs, stack->current_func_floor,
                 (int)(((h64gcvalue *)v->ptr_value)->type)
             );
         }

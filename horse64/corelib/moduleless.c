@@ -87,6 +87,7 @@ int corelib_obj_is_a(h64vmthread *vmthread) {  // $$builtin.$$anyis_a
     memset(vcresult, 0, sizeof(*vcresult));
     vcresult->type = H64VALTYPE_BOOL;
     vcresult->int_value = result;
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
@@ -554,6 +555,7 @@ int corelib_type(  // $$builtin.type
             vmthread, H64STDERROR_OUTOFMEMORYERROR,
             "out of memory allocating string"
         );
+    ADDREF_NONHEAP(returnv);
     return 1;
 }
 
@@ -573,6 +575,7 @@ int corelib_assert(  // $$builtin.assert
         valuecontent_Free(vmthread, c);
         memset(c, 0, sizeof(*c));
         c->type = H64VALTYPE_NONE;
+        ADDREF_NONHEAP(c);
         return 1;
     }
     return vmexec_ReturnFuncError(
@@ -634,6 +637,7 @@ int corelib_print(  // $$builtin.print
     DELREF_NONHEAP(vcresult);
     valuecontent_Free(vmthread, vcresult);
     vcresult->type = H64VALTYPE_NONE;
+    ADDREF_NONHEAP(vcresult);
     return 1;
 }
 
