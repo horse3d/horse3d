@@ -4,6 +4,9 @@ import process from core.horse64.org
 import system from core.horse64.org
 
 
+
+const TAKES_STR_DEFAULT = -999
+
 class ArgumentInfo {
     var name = ""
     var takes_str = no
@@ -11,13 +14,14 @@ class ArgumentInfo {
     var optional = no
     var positional = no
 
-    func init(name, aliases=[], takes_str="default") {
+
+    func init(name, aliases=[], takes_str=TAKES_STR_DEFAULT) {
         self.name = name + ""
         for alias in aliases {
             self.aliases.add(alias + "")
         }
         self.positional = (not self.name.starts("-"))
-        if takes_str == "default" {
+        if takes_str == TAKES_STR_DEFAULT {
             if self.positional {
                 self.takes_str = yes
             } else {
@@ -104,7 +108,7 @@ class ArgumentDefs {
         return none
     }
 
-    func add_arg(name, aliases=[], takes_str="default") {
+    func add_arg(name, aliases=[], takes_str=TAKES_STR_DEFAULT) {
         for arg in self.args {
             if arg.names_intersect([name]) or
                     arg.names_intersect(aliases) {
