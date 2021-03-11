@@ -844,9 +844,21 @@ int vmschedule_ExecuteProgram(
     );
 
     // Before we run anything, we need to convert all globals that use
-    // H64VALTYPE_CONSTPREALLOCSTR into a proper VM string:
+    // H64VALTYPE_CONSTPREALLOCSTR into a proper VM string, and set refcount:
     int i = 0;
     while (i < pr->globalvar_count) {
+        if (pr->globalvar[i].content.type ==
+                H64VALTYPE_GCVAL) {
+            // Make sure refs are cleared out to zero:
+            h64gcvalue *gcval = (
+                (h64gcvalue *)pr->globalvar[i].content.ptr_value
+            );
+            if (gcval) {
+                gcval->externalreferencecount = 0;
+                gcval->heapreferencecount = 0;
+            }
+        }
+        // Now, convert strings etc:
         if (pr->globalvar[i].content.type ==
                 H64VALTYPE_CONSTPREALLOCBYTES) {
             uint8_t *dupstr = malloc(
@@ -867,6 +879,7 @@ int vmschedule_ExecuteProgram(
                 mainthread, &pr->globalvar[i].content,
                 dupstr, pr->globalvar[i].content.constpreallocbytes_len
             );
+            ADDREF_NONHEAP(&pr->globalvar[i].content);
             free(dupstr);
             if (!result) {
                 h64fprintf(stderr, "horsevm: error: vmschedule.c: "
@@ -895,6 +908,7 @@ int vmschedule_ExecuteProgram(
                 mainthread, &pr->globalvar[i].content,
                 dupstr, pr->globalvar[i].content.constpreallocstr_len
             );
+            ADDREF_NONHEAP(&pr->globalvar[i].content);
             free(dupstr);
             if (!result) {
                 h64fprintf(stderr, "horsevm: error: vmschedule.c: "
@@ -902,6 +916,9 @@ int vmschedule_ExecuteProgram(
                     "during setup\n");
                 return -1;
             }
+        } else {
+            // For anything else, make sure ref count is right:
+            ADDREF_NONHEAP(&pr->globalvar[i].content);
         }
         i++;
     }
@@ -1055,6 +1072,8 @@ int vmschedule_ExecuteProgram(
         h64gcvalue *gcval = (h64gcvalue *)(
             p->globalvar[idx].content.ptr_value
         );
+        gcval->heapreferencecount = 0;
+        gcval->externalreferencecount = 1;  // global slot
         gcval->hash = -1;
         gcval->type = H64GCVALUETYPE_LIST;
         gcval->list_values = vmlist_New();

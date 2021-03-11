@@ -259,6 +259,7 @@ int processlib_RegisterFuncsAndModules(h64program *p) {
     );
     if (idx < 0)
         return 0;
+    assert(p->globalvar[idx].content.type == H64VALTYPE_NONE);
     p->globalvar[idx].content.type = H64VALTYPE_NONE;
     p->_processlib_args_globalvar_idx = idx;
 

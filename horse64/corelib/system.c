@@ -241,6 +241,7 @@ int systemlib_RegisterFuncsAndModules(h64program *p) {
     );
     if (idx < 0)
         return 0;
+    assert(p->globalvar[idx].content.type == H64VALTYPE_NONE);
     if (!valuecontent_SetPreallocStringU8(
             p, &p->globalvar[idx].content, CORELIB_VERSION
             ))
