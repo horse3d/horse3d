@@ -895,26 +895,6 @@ h64tokenizedfile lexer_ParseFromFile(
             int hadoverflowerror = 0;
             int numbufalloc = 8;
             int numbuflen = 0;
-            if (c == '-') {
-                i++;
-                column++;
-                numbuf[numbuflen] = '-';
-                numbuflen++;
-                while (i < (int)size && (
-                        buffer[i] == ' ' || buffer[i] == '\t' ||
-                        buffer[i] == '\r' || buffer[i] == '\n')) {
-                    if (buffer[i] == '\r' || buffer[i] == '\n') {
-                        line++;
-                        column = 1;
-                        if (buffer[i] == '\r' &&
-                                i + 1 < (int)size && buffer[i + 1] == '\n')
-                            i++;
-                    } else {
-                        column++;
-                    }
-                    i++;
-                }
-            }
             int nodigitotherthanzero = 1;
             int lastwasdigit = 0;
             int sawdot = 0;
