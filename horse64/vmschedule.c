@@ -879,7 +879,7 @@ int vmschedule_ExecuteProgram(
                 mainthread, &pr->globalvar[i].content,
                 dupstr, pr->globalvar[i].content.constpreallocbytes_len
             );
-            ADDREF_NONHEAP(&pr->globalvar[i].content);
+            ADDREF_NONHEAP(&pr->globalvar[i].content);  // global
             free(dupstr);
             if (!result) {
                 h64fprintf(stderr, "horsevm: error: vmschedule.c: "
@@ -908,7 +908,7 @@ int vmschedule_ExecuteProgram(
                 mainthread, &pr->globalvar[i].content,
                 dupstr, pr->globalvar[i].content.constpreallocstr_len
             );
-            ADDREF_NONHEAP(&pr->globalvar[i].content);
+            ADDREF_NONHEAP(&pr->globalvar[i].content);  // global
             free(dupstr);
             if (!result) {
                 h64fprintf(stderr, "horsevm: error: vmschedule.c: "
@@ -918,7 +918,7 @@ int vmschedule_ExecuteProgram(
             }
         } else {
             // For anything else, make sure ref count is right:
-            ADDREF_NONHEAP(&pr->globalvar[i].content);
+            ADDREF_NONHEAP(&pr->globalvar[i].content);  // global
         }
         i++;
     }
@@ -1154,9 +1154,37 @@ int vmschedule_ExecuteProgram(
     );
     {
         // Free globals before we free anything else:
-        int i = 0;
+        int64_t i = 0;
         while (i < mainexec->program->globalvar_count) {
+            if (mainexec->program->globalvar[i].content.type ==
+                    H64VALTYPE_GCVAL) {
+                h64gcvalue *gcval = (
+                    (h64gcvalue*) mainexec->program->globalvar[i].
+                        content.ptr_value
+                );
+                if (gcval->externalreferencecount <= 0) {
+                    h64fprintf(
+                        stderr, "horsevm: error: internal error: "
+                        "global var %d has externalreferencecount <= 0 "
+                        "despite being a global var\n", i
+                    );
+                    assert(gcval->externalreferencecount >= 1);
+                }
+            }
             DELREF_NONHEAP(&mainexec->program->globalvar[i].content);
+            if (mainexec->program->globalvar[i].content.type ==
+                    H64VALTYPE_GCVAL) {
+                h64gcvalue *gcval = (
+                    (h64gcvalue*) mainexec->program->globalvar[i].
+                        content.ptr_value
+                );
+                if (gcval->externalreferencecount > 1) {
+                    // Could be referenced from multiple globals, but
+                    // also be a cycle. FIXME: handle cycles.
+                    i++;
+                    continue;
+                }
+            }
             valuecontent_Free(mainexec->thread[0],
                 &mainexec->program->globalvar[i].content
             );

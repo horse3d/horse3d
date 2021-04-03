@@ -156,7 +156,9 @@ int valuecontent_SetPreallocStringU8(
     valuecontent_Free(NULL, v);
     memset(v, 0, sizeof(*v));
 
-    v->constpreallocstr_value = malloc(u32len * sizeof(h64wchar));
+    v->constpreallocstr_value = malloc(
+        (u32len > 0 ? u32len : 1) * sizeof(h64wchar)
+    );
     int result = 0;
     if (v->constpreallocstr_value) {
         result = 1;
@@ -166,6 +168,8 @@ int valuecontent_SetPreallocStringU8(
             v->constpreallocstr_value, u32,
             u32len * sizeof(h64wchar)
         );
+    } else {
+        return 0;
     }
 
     if (u32 != (h64wchar*) short_buf)

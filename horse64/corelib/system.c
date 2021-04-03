@@ -246,6 +246,12 @@ int systemlib_RegisterFuncsAndModules(h64program *p) {
             p, &p->globalvar[idx].content, CORELIB_VERSION
             ))
         return 0;
+    ADDREF_NONHEAP(&p->globalvar[idx].content);
+    assert(
+        p->globalvar[idx].content.type != H64VALTYPE_GCVAL ||
+        ((h64gcvalue*)p->globalvar[idx].content.ptr_value)->
+            externalreferencecount == 1
+    );
 
     return 1;
 }

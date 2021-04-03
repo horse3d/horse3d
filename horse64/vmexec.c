@@ -196,6 +196,30 @@ static void vmexec_VerifyStack(
         );
         i++;
     }
+    i = 0;
+    while (i < vmthread->vmexec_owner->program->globalvar_count) {
+        valuecontent *v = (
+            &vmthread->vmexec_owner->program->globalvar->content
+        );
+        if (v->type == H64VALTYPE_GCVAL &&
+                ((h64gcvalue *)v->ptr_value) != NULL &&
+                ((h64gcvalue *)v->ptr_value)->externalreferencecount <
+                1) {
+            fprintf(stderr,
+                "vmexec.c: invalid value in global value slot "
+                "%" PRId64 " "
+                "with externalreferencecount < 1 despite being "
+                "in global var. "
+                "gc value type: %d\n",
+                i, (int)(((h64gcvalue *)v->ptr_value)->type)
+            );
+            assert(
+                v->type != H64VALTYPE_GCVAL ||
+                ((h64gcvalue *)v->ptr_value)->externalreferencecount >= 1
+            );
+        }
+        i++;
+    }
 }
 
 int _vmexec_CondExprValue(
@@ -1577,7 +1601,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         valuecontent *vcto = &(
             pr->globalvar[inst->globalto].content
         );
+        DELREF_NONHEAP(vcto);
+        valuecontent_Free(vmthread, vcto);
         memcpy(vcto, vcfrom, sizeof(*vcto));
+        ADDREF_NONHEAP(vcto);
 
         p += sizeof(*inst);
         goto *jumptable[((h64instructionany *)p)->type];
@@ -1611,7 +1638,10 @@ HOTSPOT int _vmthread_RunFunction_NoPopFuncFrames(
         valuecontent *vcto = STACK_ENTRY(
             stack, inst->slotto
         );
+        DELREF_NONHEAP(vcto);
+        valuecontent_Free(vmthread, vcto);
         memcpy(vcto, vcfrom, sizeof(*vcto));
+        ADDREF_NONHEAP(vcto);
 
         p += sizeof(*inst);
         goto *jumptable[((h64instructionany *)p)->type];
