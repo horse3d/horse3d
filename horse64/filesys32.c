@@ -560,13 +560,13 @@ int filesys32_ListFolderEx(
         return 0;
     }
     folderpath[folderpathlen] = '\0';
-    wchar_t *p = malloc(wcslen(folderpath) + 3);
+    wchar_t *p = malloc((wcslen(folderpath) + 3) * sizeof(*p));
     if (!p) {
         free(folderpath);
         *error = FS32_ERR_OUTOFMEMORY;
         return 0;
     }
-    memcpy(p, folderpath, wcslen(folderpath) + 1);
+    memcpy(p, folderpath, (wcslen(folderpath) + 1) * sizeof(*p));
     if (p[wcslen(p) - 1] != '\\') {
         p[wcslen(p) + 1] = '\0';
         p[wcslen(p)] = '\\';
