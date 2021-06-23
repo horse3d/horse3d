@@ -2132,7 +2132,7 @@ FILE *_filesys32_TempFile_SingleTry(
     h64wchar *combined_path = NULL;
     if (subfolder) {  // Create the subfolder:
         combined_path_len = (
-            tempbuffill + randomu32len + 1
+            tempbuffill + prefixlen + randomu32len + 1
         );
         combined_path = malloc(
             sizeof(*combined_path) * (tempbuffill +
@@ -2151,9 +2151,11 @@ FILE *_filesys32_TempFile_SingleTry(
         memcpy(combined_path + tempbuffill + prefixlen, randomu32,
                sizeof(*randomu32) * randomu32len);
         #if defined(_WIN32) || defined(_WIN64)
-        combined_path[tempbuffill + randomu32len] = '\\';
+        combined_path[tempbuffill + prefixlen +
+            randomu32len] = '\\';
         #else
-        combined_path[tempbuffill + randomu32len] = '/';
+        combined_path[tempbuffill + prefixlen +
+            randomu32len] = '/';
         #endif
         free(tempbuf);
         tempbuf = NULL;
