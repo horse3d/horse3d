@@ -44,7 +44,8 @@ int vfs_AddPakEx(
         int ignore_extension) {
     // Test if path looks non-bogus:
     h64wchar _h64pak[] = {'.', 'h', '6', '4', 'p', 'a', 'k'};
-    if (!path || pathlen < (int64_t)strlen(".h64pak") ||
+    if (!path || (!ignore_extension &&
+            pathlen < (int64_t)strlen(".h64pak")) ||
             (!ignore_extension &&
              memcmp(path + pathlen - strlen(".h64pak"),
                 _h64pak, sizeof(*_h64pak) * strlen(".h64pak")) != 0))
