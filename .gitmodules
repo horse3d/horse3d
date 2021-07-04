@@ -10,3 +10,7 @@
 	path = vendor/mtwister
 	url = https://github.com/ell1e/mtwister
     ignore = untracked
+[submodule "vendor/physfs"]
+	path = vendor/physfs
+	url = https://github.com/criptych/physfs
+    ignore = untracked
